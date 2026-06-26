@@ -3,10 +3,9 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Search, Filter, ChevronRight, PackageOpen } from "lucide-react";
+import { Plus, Search, ChevronRight, Package, PackageOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatRub, formatDate } from "@/lib/utils";
@@ -70,17 +69,18 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
   ];
 
   return (
-    <div className="bg-background min-h-screen">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b">
-        <div className="flex items-center justify-between px-4 pt-[var(--app-top-pad)] pb-3">
-          <h1 className="text-xl font-bold">Заказы</h1>
+    <div className="app-shell">
+      <div className="app-header">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Заказы</h1>
+            <p className="section-caption">Всего {filtered.length} из {orders.length}</p>
+          </div>
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4" />
             Новый заказ
           </Button>
         </div>
-        {/* Search */}
         <div className="px-4 pb-3 space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -96,10 +96,10 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
               <button
                 key={s.value}
                 onClick={() => setStatusFilter(s.value)}
-                className={`px-3 py-1 rounded-full text-xs whitespace-nowrap font-medium transition-colors ${
+                className={`filter-chip ${
                   statusFilter === s.value
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    ? "filter-chip-active"
+                    : ""
                 }`}
               >
                 {s.label}
@@ -109,18 +109,40 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
         </div>
       </div>
 
-      {/* Orders list */}
-      <div className="px-4 py-3 space-y-3">
+      <div className="app-content space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          <Card>
+            <CardContent className="p-3">
+              <p className="text-[11px] font-semibold text-muted-foreground">Выручка</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums">{formatRub(totalRevenue)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3">
+              <p className="text-[11px] font-semibold text-muted-foreground">Прибыль</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums money-positive">{formatRub(totalProfit)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3">
+              <p className="text-[11px] font-semibold text-muted-foreground">Позиций</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums">{filtered.length}</p>
+            </CardContent>
+          </Card>
+        </div>
+
         {filtered.map((order) => (
           <Link key={order.id} href={`/orders/${order.id}`} className="block">
-            <Card className="hover:shadow-md transition-shadow">
+            <Card className="transition-colors hover:border-primary/25 hover:bg-accent/45">
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-muted overflow-hidden flex-shrink-0">
+                  <div className="w-12 h-12 rounded-md bg-muted overflow-hidden flex-shrink-0">
                     {order.product.imageUrl ? (
                       <Image src={order.product.imageUrl} alt={order.productNameSnapshot} width={48} height={48} className="object-cover w-full h-full" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-lg">📦</div>
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                        <Package className="h-5 w-5" />
+                      </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -140,7 +162,7 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold">{formatRub(order.salePriceAtOrder * order.quantity)}</p>
-                        <p className="text-xs text-emerald-600">+{formatRub(order.netProfit)}</p>
+                        <p className="text-xs font-semibold money-positive">+{formatRub(order.netProfit)}</p>
                       </div>
                     </div>
                   </div>
@@ -152,23 +174,12 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
         ))}
         {filtered.length === 0 && (
           <div className="text-center text-muted-foreground py-16 flex flex-col items-center gap-3">
-            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+            <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center">
               <PackageOpen className="h-8 w-8 text-muted-foreground/70" strokeWidth={1.5} />
             </div>
             <p className="text-sm font-medium">Заказов не найдено</p>
           </div>
         )}
-      </div>
-
-      {/* Summary */}
-      <div className="fixed bottom-16 left-0 right-0 max-w-lg mx-auto px-4">
-        <Card className="shadow-lg border">
-          <CardContent className="p-3 flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Всего: <strong className="text-foreground">{filtered.length}</strong></span>
-            <span className="text-muted-foreground">На сумму: <strong className="text-foreground">{formatRub(totalRevenue)}</strong></span>
-            <span className="text-muted-foreground">Прибыль: <strong className="text-emerald-600">{formatRub(totalProfit)}</strong></span>
-          </CardContent>
-        </Card>
       </div>
 
       <CreateOrderDialog

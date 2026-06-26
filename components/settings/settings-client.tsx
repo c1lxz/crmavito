@@ -88,17 +88,20 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-[var(--app-top-pad)] pb-3">
+    <div className="app-shell">
+      <div className="app-header">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard">
-            <ArrowLeft className="h-5 w-5" />
+          <Link href="/dashboard" className="icon-tile h-9 w-9">
+            <ArrowLeft className="h-4 w-4" />
           </Link>
-          <h1 className="font-bold text-lg">Настройки</h1>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight">Настройки</h1>
+            <p className="section-caption">Доступ, пользователи и тема</p>
+          </div>
         </div>
       </div>
 
-      <div className="px-4 py-4 space-y-4">
+      <div className="app-content space-y-4">
         {/* Profile */}
         <Card>
           <CardHeader className="p-4 pb-2">
@@ -108,7 +111,7 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
           </CardHeader>
           <CardContent className="p-4 pt-0 space-y-3">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xl font-bold flex-shrink-0">
+              <div className="w-14 h-14 rounded-md bg-sidebar flex items-center justify-center text-sidebar-foreground text-xl font-bold flex-shrink-0">
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <div>
@@ -131,7 +134,7 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
               <span className="text-sm text-muted-foreground">Роль</span>
               <span className={`text-sm font-semibold px-2.5 py-1 rounded-md ${
                 user.role === "ADMIN"
-                  ? "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary"
+                  ? "bg-accent text-accent-foreground"
                   : "bg-muted text-foreground/65"
               }`}>
                 {ROLE_LABELS[user.role] ?? user.role}
@@ -140,7 +143,7 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
             {user.role === "ADMIN" && (
               <Link
                 href="/audit-log"
-                className="mt-3 flex items-center justify-between text-sm text-primary hover:text-primary/80 transition-colors"
+                className="mt-3 flex items-center justify-between text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
               >
                 <span>Журнал аудита</span>
                 <ArrowLeft className="h-4 w-4 rotate-180" />
@@ -165,8 +168,8 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-2">
               {users.map((u) => (
-                <div key={u.id} className={`flex items-center gap-3 p-2 rounded-lg ${!u.isActive ? "opacity-50" : ""}`}>
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-bold flex-shrink-0">
+                <div key={u.id} className={`flex items-center gap-3 p-2 rounded-md hover:bg-secondary/70 ${!u.isActive ? "opacity-50" : ""}`}>
+                  <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center text-sm font-bold flex-shrink-0">
                     {u.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">

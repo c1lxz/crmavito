@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -80,7 +80,7 @@ export default function LoginPage() {
 
   if (mode === "detecting" || mode === "telegram-loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="app-shell flex items-center justify-center p-4">
         <div className="text-center space-y-3">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="text-sm text-muted-foreground">Вход через Telegram...</p>
@@ -91,13 +91,13 @@ export default function LoginPage() {
 
   if (mode === "denied") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="text-center space-y-4 max-w-xs">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-destructive/10 text-destructive text-xl mb-2">
-            ✕
+      <div className="app-shell flex items-center justify-center p-4">
+        <div className="max-w-xs rounded-lg border border-border/75 bg-card p-6 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+            <X className="h-5 w-5" />
           </div>
-          <h1 className="text-xl font-bold">Доступ запрещён</h1>
-          <p className="text-muted-foreground text-sm">
+          <h1 className="text-xl font-semibold tracking-tight">Доступ запрещён</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
             Ваш аккаунт Telegram не привязан к системе. Обратитесь к администратору.
           </p>
         </div>
@@ -106,14 +106,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary text-primary-foreground text-xl font-bold mb-2">
-            A
-          </div>
-          <h1 className="text-2xl font-bold">CRM Avito</h1>
-          <p className="text-muted-foreground text-sm">Войдите в систему</p>
+    <div className="app-shell flex min-h-screen items-center justify-center p-4">
+      <div className="w-full max-w-sm rounded-lg border border-border/75 bg-card p-5 shadow-sm">
+        <div className="mb-6 space-y-1">
+          <p className="section-caption">Рабочий доступ</p>
+          <h1 className="text-2xl font-semibold tracking-tight">CRM Avito</h1>
+          <p className="text-sm text-muted-foreground">Войдите в систему учёта</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Plus, Search } from "lucide-react";
+import { Package, Plus, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -80,17 +80,19 @@ export function ReturnsClient({ initialData }: Props) {
   }
 
   return (
-    <div className="bg-background min-h-screen">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b">
-        <div className="flex items-center justify-between px-4 pt-[var(--app-top-pad)] pb-3">
-          <h1 className="text-xl font-bold">Возвраты</h1>
+    <div className="app-shell">
+      <div className="app-header">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Возвраты</h1>
+            <p className="section-caption">Товары в обратной логистике</p>
+          </div>
           <Button size="sm" variant="outline">
             <Plus className="h-4 w-4" />
             Оформить возврат
           </Button>
         </div>
-        <div className="px-4 pb-3 space-y-2">
+        <div className="space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -105,10 +107,10 @@ export function ReturnsClient({ initialData }: Props) {
               <button
                 key={tab.value}
                 onClick={() => setStatusFilter(tab.value)}
-                className={`px-3 py-1 rounded-full text-xs whitespace-nowrap font-medium transition-colors ${
+                className={`filter-chip ${
                   statusFilter === tab.value
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground"
+                    ? "filter-chip-active"
+                    : ""
                 }`}
               >
                 {tab.label}
@@ -119,16 +121,18 @@ export function ReturnsClient({ initialData }: Props) {
       </div>
 
       {/* List */}
-      <div className="px-4 py-3 space-y-3">
+      <div className="app-content space-y-3">
         {filtered.map((ret) => (
           <Card key={ret.id}>
             <CardContent className="p-3 space-y-2">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-lg bg-muted overflow-hidden flex-shrink-0">
+                <div className="w-10 h-10 rounded-md bg-muted overflow-hidden flex-shrink-0">
                   {ret.product.imageUrl ? (
                     <Image src={ret.product.imageUrl} alt="" width={40} height={40} className="object-cover w-full h-full" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">📦</div>
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                      <Package className="h-4 w-4" />
+                    </div>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -176,8 +180,8 @@ export function ReturnsClient({ initialData }: Props) {
         ))}
         {filtered.length === 0 && (
           <div className="text-center text-muted-foreground py-12">
-            <p className="text-4xl mb-2">↩️</p>
-            <p>Возвратов не найдено</p>
+            <RotateCcw className="h-10 w-10 mx-auto mb-3 opacity-45" />
+            <p className="text-sm font-semibold">Возвратов не найдено</p>
           </div>
         )}
       </div>
@@ -187,7 +191,7 @@ export function ReturnsClient({ initialData }: Props) {
         <div className="flex gap-4 text-sm text-muted-foreground">
           <span>Всего: <strong className="text-foreground">{data.returns.length}</strong></span>
           <span>На возврате: <strong className="text-orange-600">{data.totalReturning}</strong></span>
-          <span>Возвращено: <strong className="text-red-600">{data.totalReturned}</strong></span>
+          <span>Возвращено: <strong className="money-negative">{data.totalReturned}</strong></span>
         </div>
       </div>
     </div>

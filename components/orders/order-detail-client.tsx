@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Package } from "lucide-react";
 import { detectCarrier } from "@/lib/tracking";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { formatRub, formatDate, formatDateTime } from "@/lib/utils";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import { toast } from "@/lib/hooks/use-toast";
@@ -112,12 +111,11 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
   }
 
   return (
-    <div className="bg-background min-h-screen">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-[var(--app-top-pad)] pb-3">
+    <div className="app-shell">
+      <div className="app-header">
         <div className="flex items-center gap-3">
-          <Link href="/orders">
-            <ArrowLeft className="h-5 w-5" />
+          <Link href="/orders" className="icon-tile h-9 w-9">
+            <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="flex-1">
             <h1 className="font-bold text-lg">№{order.orderNumber}</h1>
@@ -129,15 +127,17 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
         </div>
       </div>
 
-      <div className="px-4 py-3 space-y-4">
+      <div className="app-content space-y-4">
         {/* Product */}
         <Card>
           <CardContent className="p-3 flex gap-3">
-            <div className="w-16 h-16 rounded-lg bg-muted overflow-hidden flex-shrink-0">
+            <div className="w-16 h-16 rounded-md bg-muted overflow-hidden flex-shrink-0">
               {order.product.imageUrl ? (
                 <Image src={order.product.imageUrl} alt={order.productNameSnapshot} width={64} height={64} className="object-cover w-full h-full" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                  <Package className="h-6 w-6" />
+                </div>
               )}
             </div>
             <div>
@@ -158,7 +158,7 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
               <span className="text-muted-foreground">Валовая прибыль:</span><span className="font-medium">{formatRub(financials.grossProfit)}</span>
               <span className="text-muted-foreground">Маржинальность:</span><span className="font-medium">{financials.marginPercent.toFixed(1)}%</span>
               <span className="text-muted-foreground font-medium">Чистая прибыль:</span>
-              <span className={`font-bold ${financials.netProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatRub(financials.netProfit)}</span>
+              <span className={`font-bold tabular-nums ${financials.netProfit >= 0 ? "money-positive" : "money-negative"}`}>{formatRub(financials.netProfit)}</span>
             </div>
           </CardContent>
         </Card>
@@ -213,7 +213,7 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
             <CardHeader className="p-3 pb-1"><CardTitle className="text-sm">История изменений</CardTitle></CardHeader>
             <CardContent className="p-3 pt-0 space-y-2">
               {order.auditLogs.map((log) => (
-                <div key={log.id} className="text-xs border-l-2 border-muted pl-3 py-0.5">
+                <div key={log.id} className="text-xs border-l border-border pl-3 py-0.5">
                   <p className="text-muted-foreground">{formatDateTime(log.timestamp)} · {log.user.name}</p>
                   <p><span className="font-medium">{FIELD_LABELS[log.fieldName] ?? log.fieldName}:</span>{" "}
                     {log.oldValue && <span className="line-through text-muted-foreground">{log.oldValue}</span>}{" "}

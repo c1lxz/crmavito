@@ -157,7 +157,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Товар */}
-          <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+          <div className="space-y-3 rounded-lg border border-border/70 bg-secondary/50 p-3">
             <h3 className="font-medium text-sm">Товар</h3>
             <div className="space-y-1">
               <Label>Поиск товара</Label>
@@ -214,7 +214,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
           </div>
 
           {/* Логистика */}
-          <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+          <div className="space-y-3 rounded-lg border border-border/70 bg-secondary/50 p-3">
             <h3 className="font-medium text-sm">Логистика</h3>
             <div className="space-y-1">
               <Label>Трек-номер *</Label>
@@ -268,7 +268,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
           </div>
 
           {/* Закупка */}
-          <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
+          <div className="space-y-3 rounded-lg border border-border/70 bg-secondary/50 p-3">
             <h3 className="font-medium text-sm">Закупка</h3>
             <div className="space-y-1">
               <Label>Контрагент (поставщик) *</Label>
@@ -329,14 +329,14 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
           </div>
 
           {/* Preview */}
-          <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-1">
-            <h3 className="font-medium text-sm text-primary">Предварительный расчёт</h3>
+          <div className="p-3 bg-accent/65 border border-primary/25 rounded-lg space-y-1">
+            <h3 className="font-medium text-sm text-foreground">Предварительный расчёт</h3>
             <div className="grid grid-cols-2 gap-x-4 text-sm">
               <span className="text-muted-foreground">Выручка:</span><span className="font-medium">{formatRub(preview.revenue)}</span>
               <span className="text-muted-foreground">Себестоимость:</span><span className="font-medium">{formatRub(preview.costOfGoods)}</span>
               <span className="text-muted-foreground">Валовая прибыль:</span><span className="font-medium">{formatRub(preview.grossProfit)}</span>
               <span className="text-muted-foreground">Маржинальность:</span><span className="font-medium">{preview.marginPercent.toFixed(1)}%</span>
-              <span className="text-muted-foreground font-medium">Чистая прибыль:</span><span className={`font-bold ${preview.netProfit >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatRub(preview.netProfit)}</span>
+              <span className="text-muted-foreground font-medium">Чистая прибыль:</span><span className={`font-bold ${preview.netProfit >= 0 ? "money-positive" : "money-negative"}`}>{formatRub(preview.netProfit)}</span>
             </div>
           </div>
 

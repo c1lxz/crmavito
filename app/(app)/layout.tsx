@@ -8,8 +8,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session?.user) redirect("/login");
 
   return (
-    <div className="min-h-screen max-w-lg mx-auto relative">
-      <main className="pb-20">{children}</main>
+    <div className="mx-auto min-h-screen max-w-xl bg-background shadow-[0_0_0_1px_hsl(var(--border))]">
+      <main>{children}</main>
       <BottomNav />
       <Toaster />
     </div>

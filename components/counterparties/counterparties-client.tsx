@@ -68,12 +68,14 @@ export function CounterpartiesClient({ counterparties: initial }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-[var(--app-top-pad)] pb-3">
+    <div className="app-shell">
+      <div className="app-header">
         <div className="flex items-center gap-3 mb-3">
-          <Link href="/dashboard"><ArrowLeft className="h-5 w-5" /></Link>
-          <h1 className="font-bold text-lg flex-1">Контрагенты</h1>
+          <Link href="/dashboard" className="icon-tile h-9 w-9"><ArrowLeft className="h-4 w-4" /></Link>
+          <div className="flex-1">
+            <h1 className="text-lg font-semibold tracking-tight">Контрагенты</h1>
+            <p className="section-caption">{filtered.length} поставщиков</p>
+          </div>
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4 mr-1" /> Добавить
           </Button>
@@ -89,20 +91,20 @@ export function CounterpartiesClient({ counterparties: initial }: Props) {
         </div>
       </div>
 
-      <div className="px-4 py-3 space-y-3">
+      <div className="app-content space-y-3">
         {filtered.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
-            <Building2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p>{search ? "Ничего не найдено" : "Нет контрагентов"}</p>
+            <Building2 className="h-10 w-10 mx-auto mb-3 opacity-45" />
+            <p className="text-sm font-semibold">{search ? "Ничего не найдено" : "Нет контрагентов"}</p>
           </div>
         )}
 
         {filtered.map((cp) => (
-          <Card key={cp.id} className="hover:bg-accent transition-colors cursor-pointer">
+          <Card key={cp.id} className="hover:bg-accent/45 hover:border-primary/25 transition-colors cursor-pointer">
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
+                  <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center text-foreground font-bold text-sm flex-shrink-0">
                     {cp.name.charAt(0).toUpperCase()}
                   </div>
                   <div>
@@ -115,22 +117,22 @@ export function CounterpartiesClient({ counterparties: initial }: Props) {
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-muted rounded-lg p-2">
+                <div className="bg-secondary/70 rounded-md p-2">
                   <div className="flex items-center justify-center gap-1 mb-0.5">
                     <Package className="h-3 w-3 text-muted-foreground" />
                   </div>
                   <p className="text-xs font-semibold">{cp.ordersCount}</p>
                   <p className="text-[10px] text-muted-foreground">заказов</p>
                 </div>
-                <div className="bg-muted rounded-lg p-2">
+                <div className="bg-secondary/70 rounded-md p-2">
                   <p className="text-xs font-semibold">{formatRub(cp.totalPurchase)}</p>
                   <p className="text-[10px] text-muted-foreground">закуплено</p>
                 </div>
-                <div className="bg-muted rounded-lg p-2">
+                <div className="bg-secondary/70 rounded-md p-2">
                   <div className="flex items-center justify-center gap-1 mb-0.5">
-                    <TrendingUp className="h-3 w-3 text-emerald-600" />
+                    <TrendingUp className="h-3 w-3 money-positive" />
                   </div>
-                  <p className={`text-xs font-semibold ${cp.totalProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                  <p className={`text-xs font-semibold ${cp.totalProfit >= 0 ? "money-positive" : "money-negative"}`}>
                     {formatRub(cp.totalProfit)}
                   </p>
                   <p className="text-[10px] text-muted-foreground">прибыль</p>

@@ -14,6 +14,30 @@ async function getOrders() {
   });
   return orders.map((o) => ({
     ...o,
+    orderDate: o.orderDate.toISOString(),
+    shippingDate: o.shippingDate ? o.shippingDate.toISOString() : null,
+    receivedAt: o.receivedAt ? o.receivedAt.toISOString() : null,
+    createdAt: o.createdAt.toISOString(),
+    updatedAt: o.updatedAt.toISOString(),
+    product: {
+      id: o.product.id,
+      name: o.product.name,
+      salePrice: toDecimalNumber(o.product.salePrice),
+      avitoListingUrl: o.product.avitoListingUrl,
+      avitoListingStatus: o.product.avitoListingStatus,
+      avitoItemId: o.product.avitoItemId,
+      imageUrl: o.product.imageUrl,
+      lastSyncedAt: o.product.lastSyncedAt ? o.product.lastSyncedAt.toISOString() : null,
+      createdAt: o.product.createdAt.toISOString(),
+      updatedAt: o.product.updatedAt.toISOString(),
+    },
+    counterparty: {
+      id: o.counterparty.id,
+      name: o.counterparty.name,
+      contactInfo: o.counterparty.contactInfo,
+      comment: o.counterparty.comment,
+      createdAt: o.counterparty.createdAt.toISOString(),
+    },
     ...calcOrderFinancials({
       salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
       quantity: o.quantity,
@@ -31,7 +55,11 @@ async function getOrders() {
 }
 
 async function getCounterparties() {
-  return prisma.counterparty.findMany({ orderBy: { name: "asc" } });
+  const counterparties = await prisma.counterparty.findMany({ orderBy: { name: "asc" } });
+  return counterparties.map((c) => ({
+    id: c.id,
+    name: c.name,
+  }));
 }
 
 async function getProducts() {

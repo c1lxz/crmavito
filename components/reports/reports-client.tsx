@@ -85,11 +85,13 @@ export function ReportsClient() {
   const orderTotal = orderStatusData.reduce((s, d) => s + d.count, 0);
 
   return (
-    <div className="bg-background min-h-screen">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-[var(--app-top-pad)] pb-3">
+    <div className="app-shell">
+      <div className="app-header">
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-xl font-bold">Отчёты</h1>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Отчёты</h1>
+            <p className="section-caption">Деньги, маржа и структура заказов</p>
+          </div>
           <Button size="sm" variant="outline" onClick={load} disabled={loading}>
             {loading ? "..." : "Обновить"}
           </Button>
@@ -101,9 +103,9 @@ export function ReportsClient() {
         </div>
       </div>
 
-      <div className="px-4 py-3">
+      <div className="app-content">
         <Tabs defaultValue="dashboard">
-          <TabsList className="w-full grid grid-cols-5 mb-4">
+          <TabsList className="w-full grid grid-cols-5 mb-4 overflow-hidden">
             <TabsTrigger value="dashboard" className="text-xs">Дашборд</TabsTrigger>
             <TabsTrigger value="pnl" className="text-xs">P&L</TabsTrigger>
             <TabsTrigger value="products" className="text-xs">Товары</TabsTrigger>
@@ -151,14 +153,14 @@ export function ReportsClient() {
                       { label: "− Реклама", value: pnl.advertising, sign: -1 },
                       { label: "− Прочие расходы", value: pnl.otherExpenses, sign: -1 },
                     ].map(({ label, value, sign }) => (
-                      <div key={label} className="flex justify-between py-1 border-b last:border-0">
+                      <div key={label} className="flex justify-between py-1.5 border-b border-border/70 last:border-0">
                         <span className="text-sm">{label}</span>
-                        <span className={`text-sm font-medium ${sign < 0 ? "text-red-600" : ""}`}>{formatRub(value ?? 0)}</span>
+                        <span className={`text-sm font-medium tabular-nums ${sign < 0 ? "money-negative" : ""}`}>{formatRub(value ?? 0)}</span>
                       </div>
                     ))}
                     <div className="flex justify-between pt-2 border-t-2">
                       <span className="font-bold">= Чистая прибыль</span>
-                      <span className={`font-bold ${(pnl.netProfit ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>{formatRub(pnl.netProfit ?? 0)}</span>
+                      <span className={`font-bold tabular-nums ${(pnl.netProfit ?? 0) >= 0 ? "money-positive" : "money-negative"}`}>{formatRub(pnl.netProfit ?? 0)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -177,7 +179,7 @@ export function ReportsClient() {
                         <p className="font-medium text-sm truncate">{p.name}</p>
                         <p className="text-xs text-muted-foreground">Продано: {p.sold} шт. · Выручка: {formatRub(p.revenue)}</p>
                       </div>
-                      <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 ml-2">{formatRub(p.profit)}</p>
+                  <p className="text-sm font-bold tabular-nums money-positive ml-2">{formatRub(p.profit)}</p>
                     </div>
                   </CardContent>
                 </Card>

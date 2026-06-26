@@ -3,12 +3,11 @@ import { prisma } from "@/lib/db/prisma";
 import { calcOrderFinancials, sumFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "@/lib/db/orders";
 import { formatRub, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from "@/lib/utils";
-import { Plus, Search, RotateCcw, Wallet, ChevronRight, Settings } from "lucide-react";
+import { ChevronRight, Package, Plus, RotateCcw, Search, Settings, Wallet } from "lucide-react";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import Link from "next/link";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
-import { AnimatedKpiCard } from "@/components/ui/animated-kpi-card";
 import { OrderStatus } from "@prisma/client";
 
 async function getDashboardData() {
@@ -49,8 +48,10 @@ async function getDashboardData() {
   const calc = (orders: typeof todayOrders) =>
     sumFinancials(orders.map((o) => calcOrderFinancials({
       salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
-      quantity: o.quantity, purchasePricePerUnit: toDecimalNumber(o.purchasePricePerUnit),
-      logisticsCost: toDecimalNumber(o.logisticsCost), commissionCost: toDecimalNumber(o.commissionCost),
+      quantity: o.quantity,
+      purchasePricePerUnit: toDecimalNumber(o.purchasePricePerUnit),
+      logisticsCost: toDecimalNumber(o.logisticsCost),
+      commissionCost: toDecimalNumber(o.commissionCost),
       otherCosts: toDecimalNumber(o.otherCosts),
     })));
 
@@ -63,8 +64,10 @@ async function getDashboardData() {
   for (const o of topProducts) {
     const fin = calcOrderFinancials({
       salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
-      quantity: o.quantity, purchasePricePerUnit: toDecimalNumber(o.purchasePricePerUnit),
-      logisticsCost: toDecimalNumber(o.logisticsCost), commissionCost: toDecimalNumber(o.commissionCost),
+      quantity: o.quantity,
+      purchasePricePerUnit: toDecimalNumber(o.purchasePricePerUnit),
+      logisticsCost: toDecimalNumber(o.logisticsCost),
+      commissionCost: toDecimalNumber(o.commissionCost),
       otherCosts: toDecimalNumber(o.otherCosts),
     });
     if (!productProfits[o.productId]) {
@@ -78,10 +81,16 @@ async function getDashboardData() {
     .slice(0, 5);
 
   return {
-    todaySales: todayOrders.length, todayRevenue: todayFin.revenue, todayProfit: todayFin.netProfit,
-    weekSales: weekOrders.length, weekProfit: weekFin.netProfit,
-    monthRevenue: monthFin.revenue, monthExpenses: monthExpensesTotal, monthNetProfit: monthFin.netProfit,
-    lastOrders, topProductsList,
+    todaySales: todayOrders.length,
+    todayRevenue: todayFin.revenue,
+    todayProfit: todayFin.netProfit,
+    weekSales: weekOrders.length,
+    weekProfit: weekFin.netProfit,
+    monthRevenue: monthFin.revenue,
+    monthExpenses: monthExpensesTotal,
+    monthNetProfit: monthFin.netProfit,
+    lastOrders,
+    topProductsList,
   };
 }
 
@@ -104,53 +113,57 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-[var(--app-top-pad)] pb-4">
-        <div className="flex items-center justify-between mb-1">
+    <div className="app-shell">
+      <div className="app-header">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold">CRM Avito</h1>
-            <span className="text-xs text-muted-foreground">Привет, {session?.user?.name}</span>
+            <p className="section-caption">{today}</p>
+            <h1 className="text-xl font-semibold tracking-tight">CRM Avito</h1>
+            <span className="text-xs font-medium text-muted-foreground">
+              Рабочая сводка для {session?.user?.name}
+            </span>
           </div>
-          <Link href="/settings" className="p-2 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/settings" className="icon-tile hover:border-primary/35 hover:text-primary">
             <Settings className="h-5 w-5" />
           </Link>
         </div>
-        <div className="text-sm text-muted-foreground">{today}</div>
       </div>
 
-      <div className="px-4 space-y-5 pb-4 pt-4">
-        {/* KPI Cards */}
+      <div className="app-content space-y-5">
         <div className="grid grid-cols-2 gap-3">
           {kpiCards.map((card, i) => (
-            <AnimatedKpiCard key={card.label} label={card.label} value={card.value} index={i} />
+            <Card key={card.label} className={i === 1 ? "border-primary/25 bg-accent/65" : undefined}>
+              <CardContent className="p-3">
+                <p className="text-[11px] font-semibold text-muted-foreground">{card.label}</p>
+                <p className="mt-1 text-lg font-semibold tracking-tight tabular-nums">{card.value}</p>
+                {card.sub && <p className="mt-0.5 text-xs font-medium text-muted-foreground">{card.sub}</p>}
+              </CardContent>
+            </Card>
           ))}
         </div>
 
-        {/* Quick Actions */}
         <div>
-          <h2 className="text-sm font-semibold text-muted-foreground mb-3">Быстрые действия</h2>
-          <div className="grid grid-cols-4 gap-2">
+          <h2 className="section-title mb-3">Быстрые действия</h2>
+          <div className="grid grid-cols-4 gap-2.5">
             {quickActions.map(({ label, icon: Icon, href }) => (
-              <Link key={href} href={href} className="flex flex-col items-center gap-2">
-                <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center border border-border">
-                  <Icon className="h-5 w-5 text-foreground" />
+              <Link key={href} href={href} className="group flex flex-col items-center gap-2 rounded-lg border border-border/70 bg-card p-2.5 text-center transition-colors hover:border-primary/30 hover:bg-accent/60">
+                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-foreground group-hover:text-primary">
+                  <Icon className="h-4 w-4" />
                 </div>
-                <span className="text-[10px] text-muted-foreground text-center leading-tight">{label}</span>
+                <span className="text-[10px] font-semibold leading-tight text-muted-foreground">{label}</span>
               </Link>
             ))}
           </div>
         </div>
 
-        {/* Last Orders */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold">Последние заказы</h2>
-            <Link href="/orders" className="text-xs text-primary flex items-center gap-0.5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="section-title">Последние заказы</h2>
+            <Link href="/orders" className="flex items-center gap-0.5 text-xs font-semibold text-primary">
               Все заказы <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="space-y-3">
+          <div className="overflow-hidden rounded-lg border border-border/75 bg-card">
             {data.lastOrders.map((order) => {
               const fin = calcOrderFinancials({
                 salePriceAtOrder: toDecimalNumber(order.salePriceAtOrder),
@@ -161,78 +174,74 @@ export default async function DashboardPage() {
                 otherCosts: toDecimalNumber(order.otherCosts),
               });
               return (
-                <Link key={order.id} href={`/orders/${order.id}`} className="block">
-                  <Card className="hover:bg-accent transition-colors">
-                    <CardContent className="p-4 flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-lg bg-muted overflow-hidden flex-shrink-0">
-                        {order.product.imageUrl ? (
-                          <Image src={order.product.imageUrl} alt={order.productNameSnapshot} width={44} height={44} className="object-cover w-full h-full" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">📦</div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate mb-0.5">{order.productNameSnapshot}</p>
-                        <p className="text-xs text-muted-foreground truncate">{order.trackingNumber}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0 space-y-1">
-                        <p className="text-sm font-semibold">{formatRub(fin.revenue)}</p>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${ORDER_STATUS_COLORS[order.status as OrderStatus]}`}>
-                          {ORDER_STATUS_LABELS[order.status as OrderStatus]}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
+                <Link key={order.id} href={`/orders/${order.id}`} className="block border-b border-border/70 transition-colors last:border-b-0 hover:bg-accent/55">
+                  <div className="flex items-center gap-3 p-3">
+                    <div className="h-11 w-11 shrink-0 overflow-hidden rounded-md bg-muted">
+                      {order.product.imageUrl ? (
+                        <Image src={order.product.imageUrl} alt={order.productNameSnapshot} width={44} height={44} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                          <Package className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{order.productNameSnapshot}</p>
+                      <p className="truncate text-xs font-medium text-muted-foreground">{order.trackingNumber}</p>
+                    </div>
+                    <div className="shrink-0 space-y-1 text-right">
+                      <p className="text-sm font-semibold tabular-nums">{formatRub(fin.revenue)}</p>
+                      <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${ORDER_STATUS_COLORS[order.status as OrderStatus]}`}>
+                        {ORDER_STATUS_LABELS[order.status as OrderStatus]}
+                      </span>
+                    </div>
+                  </div>
                 </Link>
               );
             })}
             {data.lastOrders.length === 0 && (
-              <p className="text-muted-foreground text-sm text-center py-4">Заказов пока нет</p>
+              <p className="py-5 text-center text-sm font-medium text-muted-foreground">Заказов пока нет</p>
             )}
           </div>
         </div>
 
-        {/* Top Products */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold">Топ товаров</h2>
-            <Link href="/products" className="text-xs text-primary flex items-center gap-0.5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="section-title">Топ товаров</h2>
+            <Link href="/products" className="flex items-center gap-0.5 text-xs font-semibold text-primary">
               Все товары <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
           <Card>
-            <CardContent className="p-3 space-y-3">
+            <CardContent className="p-2">
               {data.topProductsList.map((p, i) => (
-                <div key={p.id} className="flex items-center gap-3">
-                  <span className="text-muted-foreground text-sm w-4 text-center font-medium">{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate">{p.name}</p>
-                  </div>
-                  <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatRub(p.profit)}</p>
+                <div key={p.id} className="flex items-center gap-3 rounded-md px-2 py-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary text-xs font-semibold text-muted-foreground">{i + 1}</span>
+                  <p className="min-w-0 flex-1 truncate text-sm font-medium">{p.name}</p>
+                  <p className="text-sm font-semibold tabular-nums money-positive">{formatRub(p.profit)}</p>
                 </div>
               ))}
               {data.topProductsList.length === 0 && (
-                <p className="text-muted-foreground text-sm text-center py-2">Нет данных</p>
+                <p className="py-3 text-center text-sm font-medium text-muted-foreground">Нет данных</p>
               )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Finances month */}
         <div>
-          <h2 className="text-sm font-semibold mb-3">Финансы за месяц</h2>
+          <h2 className="section-title mb-3">Финансы за месяц</h2>
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: "Выручка", value: data.monthRevenue },
               { label: "Расходы", value: data.monthExpenses },
               { label: "Прибыль", value: data.monthNetProfit },
             ].map((item, i) => (
-              <AnimatedKpiCard
-                key={item.label}
-                label={item.label}
-                value={formatRub(item.value)}
-                index={i}
-              />
+              <Card key={item.label} className={i === 2 ? "border-primary/25" : undefined}>
+                <CardContent className="p-3">
+                  <p className="text-[11px] font-semibold text-muted-foreground">{item.label}</p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums">{formatRub(item.value)}</p>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>

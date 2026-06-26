@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Home, ShoppingBag, RotateCcw, Wallet, BarChart3 } from "lucide-react";
+import { BarChart3, Home, RotateCcw, ShoppingBag, Wallet } from "lucide-react";
 import { Dock } from "@/components/ui/dock";
 
 const navItems = [
@@ -17,13 +17,8 @@ export function BottomNav() {
   const activeHref = navItems.find((item) => pathname.startsWith(item.href))?.href;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 max-w-lg mx-auto pointer-events-none pb-[var(--app-bottom-pad,0px)]">
-      <Dock
-        fullWidth
-        className="p-0 pointer-events-auto"
-        items={navItems}
-        activeHref={activeHref}
-      />
+    <div className="fixed bottom-0 left-0 right-0 z-40 mx-auto max-w-xl pointer-events-none pb-[var(--app-bottom-pad,0px)]">
+      <Dock fullWidth className="pointer-events-auto" items={navItems} activeHref={activeHref} />
     </div>
   );
 }

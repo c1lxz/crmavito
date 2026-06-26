@@ -69,13 +69,14 @@ export function AuditLogClient({ logs }: Props) {
   });
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-[var(--app-top-pad)] pb-3">
+    <div className="app-shell">
+      <div className="app-header">
         <div className="flex items-center gap-3 mb-3">
-          <Link href="/settings"><ArrowLeft className="h-5 w-5" /></Link>
-          <h1 className="font-bold text-lg flex-1">Журнал аудита</h1>
-          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">{filtered.length}</span>
+          <Link href="/settings" className="icon-tile h-9 w-9"><ArrowLeft className="h-4 w-4" /></Link>
+          <div className="flex-1">
+            <h1 className="text-lg font-semibold tracking-tight">Журнал аудита</h1>
+            <p className="section-caption">{filtered.length} записей</p>
+          </div>
         </div>
 
         <div className="relative mb-2">
@@ -94,10 +95,10 @@ export function AuditLogClient({ logs }: Props) {
             <button
               key={type}
               onClick={() => setEntityFilter(type)}
-              className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
+              className={`filter-chip flex-shrink-0 ${
                 entityFilter === type
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
+                  ? "filter-chip-active"
+                  : ""
               }`}
             >
               {type === "ALL" ? "Все" : (ENTITY_TYPE_LABELS[type] ?? type)}
@@ -106,11 +107,11 @@ export function AuditLogClient({ logs }: Props) {
         </div>
       </div>
 
-      <div className="px-4 py-3 space-y-3">
+      <div className="app-content space-y-3">
         {filtered.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
-            <Filter className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p>Записей не найдено</p>
+            <Filter className="h-10 w-10 mx-auto mb-3 opacity-45" />
+            <p className="text-sm font-semibold">Записей не найдено</p>
           </div>
         )}
 
