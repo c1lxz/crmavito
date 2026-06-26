@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { Loader2, Package } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { formatRub } from "@/lib/utils";
 import { calcOrderFinancials } from "@/lib/finance/calculations";
+import { detectCarrier } from "@/lib/tracking";
 import { toast } from "@/lib/hooks/use-toast";
 
-interface Product { id: string; name: string; salePrice: number; }
+interface Product { id: string; name: string; salePrice: number; imageUrl?: string | null; }
 interface Counterparty { id: string; name: string; }
 
 interface Props {
@@ -35,22 +38,47 @@ export function CreateOrderDialog({ open, onClose, products, counterparties }: P
     purchaseComment: "",
     trackingNumber: "",
     orderDate: new Date().toISOString().slice(0, 10),
-    destinationCity: "",
     logisticsCost: 0,
     commissionCost: 0,
     otherCosts: 0,
   });
   const [productSearch, setProductSearch] = useState("");
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(null);
+  const [productImageLoading, setProductImageLoading] = useState(false);
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(productSearch.toLowerCase())
   );
+
+  const carrier = form.trackingNumber ? detectCarrier(form.trackingNumber) : "";
+  const barcodeUrl = form.trackingNumber
+    ? `/api/barcode?text=${encodeURIComponent(form.trackingNumber)}`
+    : null;
+
+  async function fetchProductImage(productId: string) {
+    setProductImageLoading(true);
+    try {
+      const res = await fetch(`/api/products/${productId}/fetch-image`, { method: "POST" });
+      const data = await res.json();
+      if (data.imageUrl) setProductImageUrl(data.imageUrl);
+    } catch {
+      // ignore
+    } finally {
+      setProductImageLoading(false);
+    }
+  }
 
   function handleProductSelect(id: string) {
     const p = products.find((x) => x.id === id);
     if (p) {
       setForm((f) => ({ ...f, productId: id, salePriceAtOrder: p.salePrice }));
       setProductSearch(p.name);
+      if (p.imageUrl) {
+        setProductImageUrl(p.imageUrl);
+      } else {
+        setProductImageUrl(null);
+        fetchProductImage(id);
+      }
     }
   }
 
@@ -130,6 +158,24 @@ export function CreateOrderDialog({ open, onClose, products, counterparties }: P
                 <Input type="number" min={0} value={form.salePriceAtOrder} onChange={(e) => setForm((f) => ({ ...f, salePriceAtOrder: parseFloat(e.target.value) || 0 }))} required />
               </div>
             </div>
+
+            {form.productId && (
+              <div className="space-y-1">
+                <Label>Фото товара</Label>
+                <div className="relative aspect-square rounded-lg bg-background border border-border overflow-hidden flex items-center justify-center max-w-[180px]">
+                  {productImageLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  ) : productImageUrl ? (
+                    <Image src={productImageUrl} alt="Товар" width={180} height={180} className="object-cover w-full h-full" unoptimized />
+                  ) : (
+                    <div className="text-center text-muted-foreground text-xs px-2">
+                      <Package className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                      Нет фото
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Логистика */}
@@ -137,8 +183,29 @@ export function CreateOrderDialog({ open, onClose, products, counterparties }: P
             <h3 className="font-medium text-sm">Логистика</h3>
             <div className="space-y-1">
               <Label>Трек-номер *</Label>
-              <Input value={form.trackingNumber} onChange={(e) => setForm((f) => ({ ...f, trackingNumber: e.target.value }))} required />
+              <Input
+                value={form.trackingNumber}
+                onChange={(e) => setForm((f) => ({ ...f, trackingNumber: e.target.value }))}
+                required
+                placeholder="например: 1234567890"
+              />
+              {carrier && (
+                <p className="text-xs text-muted-foreground">
+                  ТК: <span className="font-medium text-foreground">{carrier}</span>
+                </p>
+              )}
             </div>
+
+            {barcodeUrl && (
+              <div className="space-y-1">
+                <Label>Штрихкод</Label>
+                <div className="bg-white rounded-lg border border-border p-2 flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={barcodeUrl} alt="Штрихкод" className="h-20 object-contain" />
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label>Количество *</Label>
@@ -148,10 +215,6 @@ export function CreateOrderDialog({ open, onClose, products, counterparties }: P
                 <Label>Дата заказа *</Label>
                 <Input type="date" value={form.orderDate} onChange={(e) => setForm((f) => ({ ...f, orderDate: e.target.value }))} required />
               </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Город получателя *</Label>
-              <Input value={form.destinationCity} onChange={(e) => setForm((f) => ({ ...f, destinationCity: e.target.value }))} required />
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">

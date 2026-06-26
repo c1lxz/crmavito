@@ -83,7 +83,7 @@ export function ReturnsClient({ initialData }: Props) {
     <div className="bg-background min-h-screen">
       {/* Header */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b">
-        <div className="flex items-center justify-between px-4 pt-12 pb-3">
+        <div className="flex items-center justify-between px-4 pt-[var(--app-top-pad)] pb-3">
           <h1 className="text-xl font-bold">Возвраты</h1>
           <Button size="sm" variant="outline">
             <Plus className="h-4 w-4" />

@@ -3,3 +3,21 @@ node_modules/
 .env
 .env.*
 *.tsbuildinfo
+
+# Bot
+bot/.env
+bot/__pycache__/
+bot/**/__pycache__/
+bot/service_account.json
+bot/*.jpg
+bot/*.png
+
+# Claude / IDE
+.claude/
+.impeccable/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

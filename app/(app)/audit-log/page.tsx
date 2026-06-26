@@ -10,7 +10,8 @@ async function getAuditLogs() {
     include: { user: { select: { name: true, email: true } } },
   });
 
-  return logs.map((l) => ({
+  type LogWithUser = (typeof logs)[number];
+  return logs.map((l: LogWithUser) => ({
     id: l.id,
     entityType: l.entityType,
     entityId: l.entityId,
@@ -18,7 +19,7 @@ async function getAuditLogs() {
     oldValue: l.oldValue,
     newValue: l.newValue,
     timestamp: l.timestamp.toISOString(),
-    user: l.user,
+    user: { name: l.user.name, email: l.user.email ?? "" },
   }));
 }
 

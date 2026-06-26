@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Search, Filter, ChevronRight } from "lucide-react";
+import { Plus, Search, Filter, ChevronRight, PackageOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ interface Order {
   quantity: number;
   status: OrderStatus;
   orderDate: string | Date;
-  destinationCity: string;
+  destinationCity: string | null;
   revenue: number;
   netProfit: number;
   salePriceAtOrder: number;
@@ -73,7 +73,7 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
     <div className="bg-background min-h-screen">
       {/* Header */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b">
-        <div className="flex items-center justify-between px-4 pt-12 pb-3">
+        <div className="flex items-center justify-between px-4 pt-[var(--app-top-pad)] pb-3">
           <h1 className="text-xl font-bold">Заказы</h1>
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4" />
@@ -151,9 +151,11 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
           </Link>
         ))}
         {filtered.length === 0 && (
-          <div className="text-center text-muted-foreground py-12">
-            <p className="text-4xl mb-2">📦</p>
-            <p>Заказов не найдено</p>
+          <div className="text-center text-muted-foreground py-16 flex flex-col items-center gap-3">
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+              <PackageOpen className="h-8 w-8 text-muted-foreground/70" strokeWidth={1.5} />
+            </div>
+            <p className="text-sm font-medium">Заказов не найдено</p>
           </div>
         )}
       </div>

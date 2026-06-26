@@ -105,7 +105,7 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-12 pb-4">
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-[var(--app-top-pad)] pb-4">
         <div className="flex items-center justify-between mb-1">
           <div>
             <h1 className="text-xl font-bold">CRM Avito</h1>

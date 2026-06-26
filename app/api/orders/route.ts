@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { generateOrderNumber } from "@/lib/db/orders";
 import { createAuditLog } from "@/lib/db/audit";
+import { detectCarrier } from "@/lib/tracking";
+import { sendOrderToGroup } from "@/lib/telegram/notify";
 import { z } from "zod";
 
 const createOrderSchema = z.object({
@@ -16,7 +18,6 @@ const createOrderSchema = z.object({
   trackingNumber: z.string().min(1),
   orderDate: z.string(),
   shippingDate: z.string().optional(),
-  destinationCity: z.string().min(1),
   logisticsCost: z.number().nonnegative().default(0),
   commissionCost: z.number().nonnegative().default(0),
   otherCosts: z.number().nonnegative().default(0),
@@ -28,7 +29,6 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
-  const city = searchParams.get("city");
   const tracking = searchParams.get("tracking");
   const counterpartyId = searchParams.get("counterpartyId");
   const productId = searchParams.get("productId");
@@ -39,7 +39,6 @@ export async function GET(req: NextRequest) {
 
   const where: Record<string, unknown> = { isDeleted: false };
   if (status) where.status = status;
-  if (city) where.destinationCity = { contains: city, mode: "insensitive" };
   if (tracking) where.trackingNumber = { contains: tracking, mode: "insensitive" };
   if (counterpartyId) where.counterpartyId = counterpartyId;
   if (productId) where.productId = productId;
@@ -77,6 +76,9 @@ export async function POST(req: NextRequest) {
   const product = await prisma.product.findUnique({ where: { id: data.productId } });
   if (!product) return NextResponse.json({ error: "Товар не найден" }, { status: 404 });
 
+  const counterparty = await prisma.counterparty.findUnique({ where: { id: data.counterpartyId } });
+  if (!counterparty) return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
+
   const orderNumber = await generateOrderNumber();
 
   const order = await prisma.$transaction(async (tx) => {
@@ -94,7 +96,6 @@ export async function POST(req: NextRequest) {
         trackingNumber: data.trackingNumber,
         orderDate: new Date(data.orderDate),
         shippingDate: data.shippingDate ? new Date(data.shippingDate) : null,
-        destinationCity: data.destinationCity,
         logisticsCost: data.logisticsCost,
         commissionCost: data.commissionCost,
         otherCosts: data.otherCosts,
@@ -107,6 +108,19 @@ export async function POST(req: NextRequest) {
     );
     return o;
   });
+
+  sendOrderToGroup({
+    orderNumber: order.orderNumber,
+    productName: product.name,
+    variant: data.variant ?? null,
+    quantity: data.quantity,
+    salePrice: data.salePriceAtOrder,
+    trackingNumber: data.trackingNumber,
+    carrier: detectCarrier(data.trackingNumber),
+    counterpartyName: counterparty.name,
+    productImageUrl: product.imageUrl,
+    orderDate: new Date(data.orderDate),
+  }).catch((e) => console.error("[telegram] notify failed", e));
 
   return NextResponse.json(order, { status: 201 });
 }

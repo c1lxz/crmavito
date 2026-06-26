@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -48,8 +49,9 @@ enum AuditEntityType {
 model User {
   id           String    @id @default(uuid())
   name         String
-  email        String    @unique
-  passwordHash String
+  email        String?   @unique
+  passwordHash String?
+  telegramId   String?   @unique
   role         UserRole  @default(MANAGER)
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
@@ -107,7 +109,7 @@ model Order {
   orderDate            DateTime    @db.Date
   shippingDate         DateTime?   @db.Date
   receivedAt           DateTime?
-  destinationCity      String
+  destinationCity      String?
   status               OrderStatus @default(ACCEPTED)
   logisticsCost        Decimal     @default(0) @db.Decimal(12, 2)
   commissionCost       Decimal     @default(0) @db.Decimal(12, 2)
@@ -127,7 +129,6 @@ model Order {
   @@index([orderDate])
   @@index([receivedAt])
   @@index([trackingNumber])
-  @@index([destinationCity])
   @@map("orders")
 }
 

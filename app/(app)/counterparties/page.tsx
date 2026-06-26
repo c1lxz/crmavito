@@ -24,8 +24,10 @@ async function getCounterpartiesWithStats() {
     },
   });
 
-  return counterparties.map((cp) => {
-    const receivedOrders = cp.orders.filter((o) => o.status === "RECEIVED");
+  type CPOrder = (typeof counterparties)[number]["orders"][number];
+  type Counterparty = (typeof counterparties)[number];
+  return counterparties.map((cp: Counterparty) => {
+    const receivedOrders = cp.orders.filter((o: CPOrder) => o.status === "RECEIVED");
     let totalRevenue = 0;
     let totalProfit = 0;
     let totalPurchase = 0;

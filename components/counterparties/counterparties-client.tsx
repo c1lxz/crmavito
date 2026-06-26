@@ -70,7 +70,7 @@ export function CounterpartiesClient({ counterparties: initial }: Props) {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-12 pb-3">
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-[var(--app-top-pad)] pb-3">
         <div className="flex items-center gap-3 mb-3">
           <Link href="/dashboard"><ArrowLeft className="h-5 w-5" /></Link>
           <h1 className="font-bold text-lg flex-1">Контрагенты</h1>

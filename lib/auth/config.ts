@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
+import { validateTelegramInitData } from "./telegram";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -10,8 +11,10 @@ const loginSchema = z.object({
 });
 
 export const authConfig: NextAuthConfig = {
+  trustHost: true,
   providers: [
     Credentials({
+      id: "credentials",
       async authorize(credentials) {
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
@@ -19,12 +22,39 @@ export const authConfig: NextAuthConfig = {
         const user = await prisma.user.findUnique({
           where: { email: parsed.data.email, isActive: true },
         });
-        if (!user) return null;
+        if (!user || !user.passwordHash) return null;
 
         const valid = await compare(parsed.data.password, user.passwordHash);
         if (!valid) return null;
 
-        return { id: user.id, name: user.name, email: user.email, role: user.role };
+        return { id: user.id, name: user.name, email: user.email ?? "", role: user.role };
+      },
+    }),
+    Credentials({
+      id: "telegram",
+      credentials: { initData: { type: "text" } },
+      async authorize(credentials) {
+        const initData = credentials?.initData as string | undefined;
+        if (!initData) return null;
+
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        if (!botToken) return null;
+
+        const tgUser = validateTelegramInitData(initData, botToken);
+        if (!tgUser) return null;
+
+        const telegramId = String(tgUser.id);
+        const user = await prisma.user.findUnique({
+          where: { telegramId, isActive: true },
+        });
+        if (!user) return null;
+
+        const fullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ");
+        if (fullName && user.name !== fullName) {
+          await prisma.user.update({ where: { id: user.id }, data: { name: fullName } });
+        }
+
+        return { id: user.id, name: fullName || user.name, email: user.email ?? "", role: user.role };
       },
     }),
   ],

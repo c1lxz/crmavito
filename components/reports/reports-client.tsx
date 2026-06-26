@@ -88,7 +88,7 @@ export function ReportsClient() {
   return (
     <div className="bg-background min-h-screen">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-12 pb-3">
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-[var(--app-top-pad)] pb-3">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-xl font-bold">Отчёты</h1>
           <Button size="sm" variant="outline" onClick={load} disabled={loading}>

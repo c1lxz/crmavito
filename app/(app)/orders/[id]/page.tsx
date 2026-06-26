@@ -43,7 +43,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         receivedAt: order.receivedAt?.toISOString() ?? null,
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
-        auditLogs: order.auditLogs.map((l) => ({
+        auditLogs: order.auditLogs.map((l: (typeof order.auditLogs)[number]) => ({
           ...l,
           timestamp: l.timestamp.toISOString(),
           createdAt: l.createdAt.toISOString(),

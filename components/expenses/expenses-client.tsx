@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, ShoppingCart, Truck, Megaphone, Package, Percent, DollarSign, MoreHorizontal } from "lucide-react";
+import { Plus, Search, ShoppingCart, Truck, Megaphone, Package, Percent, DollarSign, MoreHorizontal, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,7 +104,7 @@ export function ExpensesClient({ initialData }: Props) {
     <div className="bg-background min-h-screen">
       {/* Header */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b">
-        <div className="flex items-center justify-between px-4 pt-12 pb-3">
+        <div className="flex items-center justify-between px-4 pt-[var(--app-top-pad)] pb-3">
           <h1 className="text-xl font-bold">Расходы</h1>
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4" />
@@ -189,9 +189,11 @@ export function ExpensesClient({ initialData }: Props) {
           </Card>
         ))}
         {filtered.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
-            <p className="text-4xl mb-2">💰</p>
-            <p>Расходов не найдено</p>
+          <div className="text-center text-muted-foreground py-16 flex flex-col items-center gap-3">
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+              <Wallet className="h-8 w-8 text-muted-foreground/70" strokeWidth={1.5} />
+            </div>
+            <p className="text-sm font-medium">Расходов не найдено</p>
           </div>
         )}
       </div>

@@ -133,6 +133,20 @@ async function main() {
     });
   }
 
+  // Telegram admins
+  const telegramAdmins = [
+    { telegramId: "1247326625", name: "Admin 1" },
+    { telegramId: "5039428987", name: "Admin 2" },
+  ];
+  for (const tgAdmin of telegramAdmins) {
+    await prisma.user.upsert({
+      where: { telegramId: tgAdmin.telegramId },
+      update: {},
+      create: { name: tgAdmin.name, telegramId: tgAdmin.telegramId, role: "ADMIN" },
+    });
+    console.log(`✓ Telegram admin: ${tgAdmin.telegramId}`);
+  }
+
   console.log("✅ Seed completed!");
   console.log("👤 Admin: admin@crmavito.ru / admin123");
   console.log("👤 Manager: manager@crmavito.ru / manager123");

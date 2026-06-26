@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ChevronRight } from "lucide-react";
+import { detectCarrier } from "@/lib/tracking";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -43,7 +44,7 @@ interface OrderDetail {
   orderDate: string;
   shippingDate: string | null;
   receivedAt: string | null;
-  destinationCity: string;
+  destinationCity: string | null;
   purchaseComment: string | null;
   createdAt: string;
   updatedAt?: string;
@@ -113,7 +114,7 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
   return (
     <div className="bg-background min-h-screen">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-12 pb-3">
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b px-4 pt-[var(--app-top-pad)] pb-3">
         <div className="flex items-center gap-3">
           <Link href="/orders">
             <ArrowLeft className="h-5 w-5" />
@@ -167,7 +168,13 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
           <CardHeader className="p-3 pb-1"><CardTitle className="text-sm">Логистика</CardTitle></CardHeader>
           <CardContent className="p-3 pt-0 space-y-1 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Трек-номер</span><span>{order.trackingNumber}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Город</span><span>{order.destinationCity}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">ТК</span><span>{detectCarrier(order.trackingNumber)}</span></div>
+            {order.trackingNumber && (
+              <div className="bg-white rounded-lg border border-border p-2 flex items-center justify-center mt-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/api/barcode?text=${encodeURIComponent(order.trackingNumber)}`} alt="Штрихкод" className="h-20 object-contain" />
+              </div>
+            )}
             {order.shippingDate && <div className="flex justify-between"><span className="text-muted-foreground">Отправка</span><span>{formatDate(order.shippingDate)}</span></div>}
             {order.receivedAt && <div className="flex justify-between"><span className="text-muted-foreground">Получено</span><span>{formatDate(order.receivedAt)}</span></div>}
             {order.logisticsCost > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Стоимость доставки</span><span>{formatRub(order.logisticsCost)}</span></div>}
