@@ -22,15 +22,13 @@ export default function LoginPage() {
       setMode("telegram-loading");
       signIn("telegram", { initData: tg.initData, redirect: false })
         .then((res) => {
-          console.log("[login] signIn res:", JSON.stringify(res));
           if (res?.error || res?.ok === false) {
             setMode("denied");
           } else {
-            router.replace("/dashboard");
+            window.location.href = "/dashboard";
           }
         })
-        .catch((err) => {
-          console.error("[login] signIn threw:", err);
+        .catch(() => {
           setMode("denied");
         });
     } else {
