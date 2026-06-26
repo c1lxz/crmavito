@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRub, formatPercent, subDays, startOfDay, endOfDay } from "@/lib/utils";
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_COLORS, ORDER_STATUS_LABELS } from "@/lib/constants";
-import { ShoppingBag, TrendingUp, Package, Receipt, RotateCcw, Percent } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { DynamicsChart, type Period } from "@/components/dashboard/DynamicsChart";
 import { ExpensesDonut, type ExpenseItem } from "@/components/dashboard/ExpensesDonut";
@@ -117,12 +116,12 @@ export function ReportsClient() {
             {/* MetricCards */}
             {kpi && (
               <div className="grid grid-cols-2 gap-3">
-                <MetricCard label="Выручка" value={kpi.current.revenue} prevValue={kpi.prev.revenue} icon={ShoppingBag} iconBg="bg-indigo-500" />
-                <MetricCard label="Прибыль" value={kpi.current.netProfit} prevValue={kpi.prev.netProfit} icon={TrendingUp} iconBg="bg-emerald-500" />
-                <MetricCard label="Заказов" value={kpi.current.ordersCount} prevValue={kpi.prev.ordersCount} format={(v) => String(v)} icon={Package} iconBg="bg-blue-500" />
-                <MetricCard label="Средний чек" value={kpi.current.avgCheck} prevValue={kpi.prev.avgCheck} icon={Receipt} iconBg="bg-amber-500" />
-                <MetricCard label="Возвраты" value={kpi.current.returnsCount} prevValue={kpi.prev.returnsCount} format={(v) => `${v} шт.`} icon={RotateCcw} iconBg="bg-rose-500" />
-                <MetricCard label="Маржа" value={kpi.current.marginPercent} prevValue={kpi.prev.marginPercent} format={formatPercent} icon={Percent} iconBg="bg-violet-500" />
+                <MetricCard label="Выручка" value={kpi.current.revenue} prevValue={kpi.prev.revenue} />
+                <MetricCard label="Прибыль" value={kpi.current.netProfit} prevValue={kpi.prev.netProfit} />
+                <MetricCard label="Заказов" value={kpi.current.ordersCount} prevValue={kpi.prev.ordersCount} format={(v) => String(v)} />
+                <MetricCard label="Средний чек" value={kpi.current.avgCheck} prevValue={kpi.prev.avgCheck} />
+                <MetricCard label="Возвраты" value={kpi.current.returnsCount} prevValue={kpi.prev.returnsCount} format={(v) => `${v} шт.`} />
+                <MetricCard label="Маржа" value={kpi.current.marginPercent} prevValue={kpi.prev.marginPercent} format={formatPercent} />
               </div>
             )}
 

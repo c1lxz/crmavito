@@ -89,7 +89,7 @@ export function CounterpartiesClient({ counterparties: initial }: Props) {
         </div>
       </div>
 
-      <div className="px-4 py-3 space-y-2">
+      <div className="px-4 py-3 space-y-3">
         {filtered.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Building2 className="h-10 w-10 mx-auto mb-3 opacity-30" />

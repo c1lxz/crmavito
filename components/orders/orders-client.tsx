@@ -110,11 +110,11 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
       </div>
 
       {/* Orders list */}
-      <div className="px-4 py-3 space-y-2">
+      <div className="px-4 py-3 space-y-3">
         {filtered.map((order) => (
-          <Link key={order.id} href={`/orders/${order.id}`}>
+          <Link key={order.id} href={`/orders/${order.id}`} className="block">
             <Card className="hover:shadow-md transition-shadow">
-              <CardContent className="p-3">
+              <CardContent className="p-4">
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 rounded-lg bg-muted overflow-hidden flex-shrink-0">
                     {order.product.imageUrl ? (

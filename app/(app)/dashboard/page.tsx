@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { calcOrderFinancials, sumFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "@/lib/db/orders";
 import { formatRub, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from "@/lib/utils";
-import { Plus, Search, RotateCcw, Wallet, ChevronRight, Settings, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { Plus, Search, RotateCcw, Wallet, ChevronRight, Settings } from "lucide-react";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import Link from "next/link";
 import Image from "next/image";
@@ -150,7 +150,7 @@ export default async function DashboardPage() {
               Все заказы <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {data.lastOrders.map((order) => {
               const fin = calcOrderFinancials({
                 salePriceAtOrder: toDecimalNumber(order.salePriceAtOrder),
@@ -161,23 +161,23 @@ export default async function DashboardPage() {
                 otherCosts: toDecimalNumber(order.otherCosts),
               });
               return (
-                <Link key={order.id} href={`/orders/${order.id}`}>
+                <Link key={order.id} href={`/orders/${order.id}`} className="block">
                   <Card className="hover:bg-accent transition-colors">
-                    <CardContent className="p-3 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-muted overflow-hidden flex-shrink-0">
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-lg bg-muted overflow-hidden flex-shrink-0">
                         {order.product.imageUrl ? (
-                          <Image src={order.product.imageUrl} alt={order.productNameSnapshot} width={40} height={40} className="object-cover w-full h-full" />
+                          <Image src={order.product.imageUrl} alt={order.productNameSnapshot} width={44} height={44} className="object-cover w-full h-full" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">📦</div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{order.productNameSnapshot}</p>
+                        <p className="text-sm font-medium truncate mb-0.5">{order.productNameSnapshot}</p>
                         <p className="text-xs text-muted-foreground truncate">{order.trackingNumber}</p>
                       </div>
-                      <div className="text-right flex-shrink-0">
+                      <div className="text-right flex-shrink-0 space-y-1">
                         <p className="text-sm font-semibold">{formatRub(fin.revenue)}</p>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${ORDER_STATUS_COLORS[order.status as OrderStatus]}`}>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${ORDER_STATUS_COLORS[order.status as OrderStatus]}`}>
                           {ORDER_STATUS_LABELS[order.status as OrderStatus]}
                         </span>
                       </div>
@@ -223,17 +223,16 @@ export default async function DashboardPage() {
           <h2 className="text-sm font-semibold mb-3">Финансы за месяц</h2>
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Выручка", value: data.monthRevenue, Icon: TrendingUp },
-              { label: "Расходы", value: data.monthExpenses, Icon: TrendingDown },
-              { label: "Прибыль", value: data.monthNetProfit, Icon: DollarSign },
-            ].map((item) => (
-              <Card key={item.label}>
-                <CardContent className="p-3 text-center">
-                  <item.Icon className="h-4 w-4 text-muted-foreground mx-auto mb-1.5" />
-                  <p className="text-[10px] text-muted-foreground mb-1">{item.label}</p>
-                  <p className="text-xs font-bold">{formatRub(item.value)}</p>
-                </CardContent>
-              </Card>
+              { label: "Выручка", value: data.monthRevenue },
+              { label: "Расходы", value: data.monthExpenses },
+              { label: "Прибыль", value: data.monthNetProfit },
+            ].map((item, i) => (
+              <AnimatedKpiCard
+                key={item.label}
+                label={item.label}
+                value={formatRub(item.value)}
+                index={i}
+              />
             ))}
           </div>
         </div>

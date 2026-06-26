@@ -1,76 +1,68 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "framer-motion";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
+
+interface DockItem {
+  icon: LucideIcon;
+  label: string;
+  href: string;
+}
 
 interface DockProps {
   className?: string;
   fullWidth?: boolean;
-  items: {
-    icon: LucideIcon;
-    label: string;
-    onClick?: () => void;
-  }[];
+  items: DockItem[];
+  activeHref?: string;
 }
-
-interface DockIconButtonProps {
-  icon: LucideIcon;
-  label: string;
-  onClick?: () => void;
-  className?: string;
-}
-
-const DockIconButton = React.forwardRef<HTMLButtonElement, DockIconButtonProps>(
-  ({ icon: Icon, label, onClick, className }, ref) => {
-    return (
-      <motion.button
-        ref={ref}
-        whileHover={{ scale: 1.1, y: -2 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={onClick}
-        className={cn(
-          "relative group p-3 rounded-lg",
-          "hover:bg-secondary transition-colors",
-          className
-        )}
-      >
-        <Icon className="w-5 h-5 text-foreground" />
-        <span
-          className={cn(
-            "absolute -top-8 left-1/2 -translate-x-1/2",
-            "px-2 py-1 rounded text-xs",
-            "bg-popover text-popover-foreground",
-            "opacity-0 group-hover:opacity-100",
-            "transition-opacity whitespace-nowrap pointer-events-none"
-          )}
-        >
-          {label}
-        </span>
-      </motion.button>
-    );
-  }
-);
-DockIconButton.displayName = "DockIconButton";
 
 const Dock = React.forwardRef<HTMLDivElement, DockProps>(
-  ({ items, className, fullWidth = false }, ref) => {
+  ({ items, className, fullWidth = false, activeHref }, ref) => {
     return (
       <div ref={ref} className={cn("w-full flex items-center justify-center p-2", className)}>
-        <div className={cn("rounded-2xl flex items-center justify-center relative", fullWidth ? "w-full" : "w-full max-w-4xl")}>
+        <div
+          className={cn(
+            "rounded-2xl relative",
+            fullWidth ? "w-full" : "w-full max-w-4xl"
+          )}
+        >
           <div
             className={cn(
               "flex items-center gap-1 p-2 rounded-2xl",
               "backdrop-blur-lg border shadow-lg",
               "bg-background/90 border-border",
-              "hover:shadow-xl transition-shadow duration-300",
               fullWidth && "w-full justify-around"
             )}
           >
-            {items.map((item) => (
-              <DockIconButton key={item.label} {...item} />
-            ))}
+            {items.map(({ icon: Icon, label, href }) => {
+              const isActive = activeHref === href;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  prefetch
+                  aria-label={label}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-xl",
+                    "transition-colors active:bg-secondary",
+                    isActive
+                      ? "text-foreground"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "w-5 h-5 transition-transform",
+                      isActive && "scale-110"
+                    )}
+                  />
+                  <span className="text-[10px] leading-none font-medium">{label}</span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -91,7 +91,7 @@ export function ProductsClient({ products: initial, isAdmin }: Props) {
         <span className="text-muted-foreground">На Avito: <span className="font-semibold text-foreground">{products.filter((p) => p.avitoItemId).length}</span></span>
       </div>
 
-      <div className="px-4 py-3 space-y-2">
+      <div className="px-4 py-3 space-y-3">
         {filtered.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
