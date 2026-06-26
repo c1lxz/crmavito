@@ -3,11 +3,12 @@ import { prisma } from "@/lib/db/prisma";
 import { calcOrderFinancials, sumFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "@/lib/db/orders";
 import { formatRub, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from "@/lib/utils";
-import { Plus, Search, RotateCcw, Wallet, ChevronRight, Settings, ShoppingBag, TrendingUp, CalendarDays, Banknote, TrendingDown, DollarSign } from "lucide-react";
+import { Plus, Search, RotateCcw, Wallet, ChevronRight, Settings, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import Link from "next/link";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
+import { AnimatedKpiCard } from "@/components/ui/animated-kpi-card";
 import { OrderStatus } from "@prisma/client";
 
 async function getDashboardData() {
@@ -89,17 +90,17 @@ export default async function DashboardPage() {
   const today = new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
   const kpiCards = [
-    { label: "Продажи сегодня", value: `${data.todaySales} заказов`, sub: formatRub(data.todayRevenue), color: "bg-indigo-500", blob: "bg-indigo-400", Icon: ShoppingBag },
-    { label: "Прибыль сегодня", value: formatRub(data.todayProfit), sub: "чистая", color: "bg-emerald-500", blob: "bg-emerald-400", Icon: TrendingUp },
-    { label: "Продажи за неделю", value: `${data.weekSales} заказов`, sub: null, color: "bg-amber-500", blob: "bg-amber-400", Icon: CalendarDays },
-    { label: "Прибыль за неделю", value: formatRub(data.weekProfit), sub: "чистая", color: "bg-violet-500", blob: "bg-violet-400", Icon: Banknote },
+    { label: "Продажи сегодня", value: `${data.todaySales} заказов`, sub: formatRub(data.todayRevenue) },
+    { label: "Прибыль сегодня", value: formatRub(data.todayProfit) },
+    { label: "Продажи за неделю", value: `${data.weekSales} заказов` },
+    { label: "Прибыль за неделю", value: formatRub(data.weekProfit) },
   ];
 
   const quickActions = [
-    { label: "Новый заказ", icon: Plus, href: "/orders?new=1", color: "bg-indigo-500" },
-    { label: "Найти заказ", icon: Search, href: "/orders?search=1", color: "bg-blue-500" },
-    { label: "Возврат", icon: RotateCcw, href: "/returns?new=1", color: "bg-emerald-500" },
-    { label: "Расход", icon: Wallet, href: "/expenses?new=1", color: "bg-amber-500" },
+    { label: "Новый заказ", icon: Plus, href: "/orders?new=1" },
+    { label: "Найти заказ", icon: Search, href: "/orders?search=1" },
+    { label: "Возврат", icon: RotateCcw, href: "/returns?new=1" },
+    { label: "Расход", icon: Wallet, href: "/expenses?new=1" },
   ];
 
   return (
@@ -121,18 +122,8 @@ export default async function DashboardPage() {
       <div className="px-4 space-y-5 pb-4 pt-4">
         {/* KPI Cards */}
         <div className="grid grid-cols-2 gap-3">
-          {kpiCards.map((card) => (
-            <Card key={card.label} className="overflow-hidden relative">
-              <CardContent className="p-4">
-                <div className={`w-9 h-9 rounded-xl ${card.color} flex items-center justify-center mb-3 shadow-sm`}>
-                  <card.Icon className="h-4 w-4 text-white" />
-                </div>
-                <p className="text-xs text-muted-foreground mb-0.5">{card.label}</p>
-                <p className="text-base font-bold leading-tight">{card.value}</p>
-                {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
-              </CardContent>
-              <div className={`absolute -right-5 -bottom-5 w-20 h-20 rounded-full ${card.blob} opacity-[0.12] pointer-events-none`} />
-            </Card>
+          {kpiCards.map((card, i) => (
+            <AnimatedKpiCard key={card.label} label={card.label} value={card.value} index={i} />
           ))}
         </div>
 
@@ -140,10 +131,10 @@ export default async function DashboardPage() {
         <div>
           <h2 className="text-sm font-semibold text-muted-foreground mb-3">Быстрые действия</h2>
           <div className="grid grid-cols-4 gap-2">
-            {quickActions.map(({ label, icon: Icon, href, color }) => (
+            {quickActions.map(({ label, icon: Icon, href }) => (
               <Link key={href} href={href} className="flex flex-col items-center gap-2">
-                <div className={`${color} w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg`}>
-                  <Icon className="h-5 w-5 text-white" />
+                <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center border border-border">
+                  <Icon className="h-5 w-5 text-foreground" />
                 </div>
                 <span className="text-[10px] text-muted-foreground text-center leading-tight">{label}</span>
               </Link>
@@ -232,17 +223,15 @@ export default async function DashboardPage() {
           <h2 className="text-sm font-semibold mb-3">Финансы за месяц</h2>
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Выручка", value: data.monthRevenue, textColor: "text-indigo-600 dark:text-indigo-400", iconBg: "bg-indigo-500", Icon: TrendingUp },
-              { label: "Расходы", value: data.monthExpenses, textColor: "text-rose-600 dark:text-rose-400", iconBg: "bg-rose-500", Icon: TrendingDown },
-              { label: "Прибыль", value: data.monthNetProfit, textColor: "text-emerald-600 dark:text-emerald-400", iconBg: "bg-emerald-500", Icon: DollarSign },
+              { label: "Выручка", value: data.monthRevenue, Icon: TrendingUp },
+              { label: "Расходы", value: data.monthExpenses, Icon: TrendingDown },
+              { label: "Прибыль", value: data.monthNetProfit, Icon: DollarSign },
             ].map((item) => (
-              <Card key={item.label} className="overflow-hidden">
+              <Card key={item.label}>
                 <CardContent className="p-3 text-center">
-                  <div className={`w-7 h-7 rounded-lg ${item.iconBg} flex items-center justify-center mx-auto mb-2`}>
-                    <item.Icon className="h-3.5 w-3.5 text-white" />
-                  </div>
+                  <item.Icon className="h-4 w-4 text-muted-foreground mx-auto mb-1.5" />
                   <p className="text-[10px] text-muted-foreground mb-1">{item.label}</p>
-                  <p className={`text-xs font-bold ${item.textColor}`}>{formatRub(item.value)}</p>
+                  <p className="text-xs font-bold">{formatRub(item.value)}</p>
                 </CardContent>
               </Card>
             ))}
