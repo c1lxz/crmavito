@@ -20,17 +20,40 @@ export default function LoginPage() {
       tg.ready?.();
       tg.expand?.();
       setMode("telegram-loading");
-      signIn("telegram", { initData: tg.initData, redirect: false })
-        .then((res) => {
-          if (res?.error || res?.ok === false) {
-            setMode("denied");
-          } else {
-            window.location.href = "/dashboard";
-          }
-        })
-        .catch(() => {
-          setMode("denied");
+      // Fetch the CSRF token explicitly for Telegram WebApp.
+      const loadTelegramSession = async () => {
+        const csrfRes = await fetch("/api/auth/csrf", { credentials: "same-origin" });
+        const { csrfToken } = await csrfRes.json();
+
+        const res = await signIn("telegram", {
+          initData: tg.initData,
+          redirect: false,
+          callbackUrl: "/dashboard",
+          csrfToken,
         });
+
+        if (typeof res === "string") {
+          window.location.href = res || "/dashboard";
+          return;
+        }
+
+        if (res?.error) {
+          throw new Error(res.error);
+        }
+
+        const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
+        const session = await sessionRes.json();
+        if (session?.user) {
+          window.location.href = res?.url || "/dashboard";
+          return;
+        }
+
+        throw new Error("No session after Telegram sign-in");
+      };
+
+      loadTelegramSession().catch(() => {
+        setMode("denied");
+      });
     } else {
       setMode("form");
     }

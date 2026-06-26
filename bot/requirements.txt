@@ -4,3 +4,4 @@ pytesseract==0.3.13
 Pillow==10.4.0
 gspread==6.1.2
 google-auth==2.35.0
+pyzbar
