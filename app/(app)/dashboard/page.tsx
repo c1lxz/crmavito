@@ -237,9 +237,9 @@ export default async function DashboardPage() {
               { label: "Прибыль", value: data.monthNetProfit },
             ].map((item, i) => (
               <Card key={item.label} className={i === 2 ? "border-primary/25" : undefined}>
-                <CardContent className="p-3">
+                <CardContent className="p-3.5">
                   <p className="text-[11px] font-semibold text-muted-foreground">{item.label}</p>
-                  <p className="mt-1 text-sm font-semibold tabular-nums">{formatRub(item.value)}</p>
+                  <p className="mt-1.5 text-lg font-semibold leading-none tabular-nums tracking-tight">{formatRub(item.value)}</p>
                 </CardContent>
               </Card>
             ))}
