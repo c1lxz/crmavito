@@ -47,7 +47,10 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
         body: JSON.stringify(addForm),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Ошибка");
+      if (!res.ok) {
+        const message = typeof data.error === "string" ? data.error : "Ошибка";
+        throw new Error(message);
+      }
       setUsers((u) => [...u, data]);
       setShowAddDialog(false);
       setAddForm({ name: "", telegramId: "", role: "MANAGER" });
@@ -247,14 +250,16 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
               />
             </div>
             <div className="space-y-1">
-              <Label>Telegram ID</Label>
+              <Label>Telegram ID или @username</Label>
               <Input
-                placeholder="например: 1247326625"
+                placeholder="1247326625 или @username"
                 value={addForm.telegramId}
                 onChange={(e) => setAddForm((f) => ({ ...f, telegramId: e.target.value }))}
                 required
               />
-              <p className="text-xs text-muted-foreground">Узнать ID: написать @userinfobot в Telegram</p>
+              <p className="text-xs text-muted-foreground">
+                Если указан username, система попробует получить ID через Telegram-бота.
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Роль</Label>

@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
+    "avito:sync-worker": "node scripts/avito-sync-worker.js",
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

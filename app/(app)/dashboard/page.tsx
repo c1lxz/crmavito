@@ -144,10 +144,10 @@ export default async function DashboardPage() {
 
         <div>
           <h2 className="section-title mb-3">Быстрые действия</h2>
-          <div className="grid grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-4 gap-2">
             {quickActions.map(({ label, icon: Icon, href }) => (
-              <Link key={href} href={href} className="group flex flex-col items-center gap-2 rounded-lg border border-border/70 bg-card p-2.5 text-center transition-colors hover:border-primary/30 hover:bg-accent/60">
-                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-foreground group-hover:text-primary">
+              <Link key={href} href={href} className="group flex flex-col items-center gap-2 rounded-md p-2 text-center transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:bg-accent">
+                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-secondary/80 text-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
                   <Icon className="h-4 w-4" />
                 </div>
                 <span className="text-[10px] font-semibold leading-tight text-muted-foreground">{label}</span>

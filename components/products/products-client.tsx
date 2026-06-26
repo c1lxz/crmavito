@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Search, RefreshCw, Package, ExternalLink, CheckCircle, Clock } from "lucide-react";
-import Link from "next/link";
+import { ArrowLeft, CheckCircle, Clock, ExternalLink, Package, RefreshCw, Search } from "lucide-react";
 import Image from "next/image";
-import { Card, CardContent } from "@/components/ui/card";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatRub, formatDateTime } from "@/lib/utils";
 import { toast } from "@/lib/hooks/use-toast";
+import { formatDateTime, formatRub } from "@/lib/utils";
 
 interface Product {
   id: string;
@@ -34,92 +34,121 @@ export function ProductsClient({ products: initial, isAdmin }: Props) {
   const [search, setSearch] = useState("");
   const [syncing, setSyncing] = useState(false);
 
-  const filtered = products.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    setProducts(initial);
+  }, [initial]);
+
+  const filtered = products.filter((product) => product.name.toLowerCase().includes(search.toLowerCase()));
+  const lastSync = products.find((product) => product.lastSyncedAt)?.lastSyncedAt;
 
   async function handleSync() {
     setSyncing(true);
+
     try {
       const res = await fetch("/api/products/sync", { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Ошибка синхронизации");
-      toast({ title: "Синхронизация завершена", description: `Обновлено товаров: ${data.updated ?? 0}` });
+
+      if (!res.ok) {
+        throw new Error(data.error ?? "Ошибка синхронизации");
+      }
+
+      toast({
+        title: "Синхронизация завершена",
+        description: `Создано: ${data.created ?? 0}, обновлено: ${data.updated ?? 0}`,
+      });
       router.refresh();
-    } catch (e) {
-      toast({ title: "Ошибка", description: String(e), variant: "destructive" });
+    } catch (error) {
+      toast({
+        title: "Ошибка Avito",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
     } finally {
       setSyncing(false);
     }
   }
 
-  const lastSync = products.find((p) => p.lastSyncedAt)?.lastSyncedAt;
-
   return (
     <div className="app-shell">
       <div className="app-header">
-        <div className="flex items-center gap-3 mb-3">
-          <Link href="/dashboard" className="icon-tile h-9 w-9"><ArrowLeft className="h-4 w-4" /></Link>
+        <div className="mb-3 flex items-center gap-3">
+          <Link href="/dashboard" className="icon-tile h-9 w-9">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
           <div className="flex-1">
             <h1 className="text-lg font-semibold tracking-tight">Номенклатура</h1>
             <p className="section-caption">{filtered.length} товаров</p>
           </div>
           {isAdmin && (
             <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing}>
-              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`mr-1 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
               {syncing ? "Синхр..." : "Avito"}
             </Button>
           )}
         </div>
+
         {lastSync && (
-          <p className="text-xs text-muted-foreground mb-2">
+          <p className="mb-2 text-xs text-muted-foreground">
             Последняя синхронизация: {formatDateTime(lastSync)}
           </p>
         )}
+
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Поиск товара..."
             className="pl-9"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
           />
         </div>
       </div>
 
-      <div className="px-4 py-3 flex gap-4 text-sm border-b border-border/80 bg-card/45">
-        <span className="text-muted-foreground">Всего: <span className="font-semibold text-foreground">{products.length}</span></span>
-        <span className="text-muted-foreground">На Avito: <span className="font-semibold text-foreground">{products.filter((p) => p.avitoItemId).length}</span></span>
+      <div className="flex gap-4 border-b border-border/80 bg-card/45 px-4 py-3 text-sm">
+        <span className="text-muted-foreground">
+          Всего: <span className="font-semibold text-foreground">{products.length}</span>
+        </span>
+        <span className="text-muted-foreground">
+          На Avito: <span className="font-semibold text-foreground">{products.filter((product) => product.avitoItemId).length}</span>
+        </span>
       </div>
 
       <div className="app-content space-y-3">
         {filtered.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
-            <Package className="h-10 w-10 mx-auto mb-3 opacity-45" />
+          <div className="py-12 text-center text-muted-foreground">
+            <Package className="mx-auto mb-3 h-10 w-10 opacity-45" />
             <p className="text-sm font-semibold">{search ? "Ничего не найдено" : "Нет товаров"}</p>
             {!search && (
-              <p className="text-xs mt-1">Добавьте объявления на Avito и нажмите «Avito» для синхронизации</p>
+              <p className="mt-1 text-xs">
+                Добавьте объявления на Avito и нажмите “Avito” для синхронизации.
+              </p>
             )}
           </div>
         )}
 
         {filtered.map((product) => (
           <Card key={product.id} className="transition-colors hover:border-primary/25 hover:bg-accent/45">
-            <CardContent className="p-3 flex items-center gap-3">
-              <div className="w-14 h-14 rounded-md bg-muted overflow-hidden flex-shrink-0">
+            <CardContent className="flex items-center gap-3 p-3">
+              <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-md bg-muted">
                 {product.imageUrl ? (
-                  <Image src={product.imageUrl} alt={product.name} width={56} height={56} className="object-cover w-full h-full" />
+                  <Image
+                    src={product.imageUrl}
+                    alt={product.name}
+                    width={56}
+                    height={56}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                  <div className="flex h-full w-full items-center justify-center text-muted-foreground">
                     <Package className="h-5 w-5" />
                   </div>
                 )}
               </div>
 
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm leading-tight">{product.name}</p>
-                <p className="text-sm font-semibold text-foreground mt-0.5">{formatRub(product.salePrice)}</p>
-                <div className="flex items-center gap-2 mt-1">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium leading-tight">{product.name}</p>
+                <p className="mt-0.5 text-sm font-semibold text-foreground">{formatRub(product.salePrice)}</p>
+                <div className="mt-1 flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">{product.ordersCount} заказов</span>
                   {product.avitoItemId && (
                     <span className="flex items-center gap-0.5 text-xs money-positive">

@@ -151,14 +151,15 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto max-w-md">
-        <DialogHeader>
-          <DialogTitle>Новый заказ</DialogTitle>
+      <DialogContent className="max-h-[92svh] max-w-md overflow-hidden p-0">
+        <DialogHeader className="border-b border-border/70 px-4 py-4 pr-12 text-left">
+          <DialogTitle className="text-lg">Новый заказ</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Товар */}
-          <div className="space-y-3 rounded-lg border border-border/70 bg-secondary/50 p-3">
-            <h3 className="font-medium text-sm">Товар</h3>
+        <form onSubmit={handleSubmit} className="flex max-h-[calc(92svh-61px)] min-h-0 flex-col">
+          <div className="min-h-0 space-y-3 overflow-y-auto px-4 pb-4 pt-3">
+            {/* Товар */}
+            <div className="space-y-3 rounded-lg border border-border/70 bg-background/35 p-3">
+            <h3 className="text-sm font-semibold">Товар</h3>
             <div className="space-y-1">
               <Label>Поиск товара</Label>
               <Input
@@ -167,12 +168,12 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                 onChange={(e) => setProductSearch(e.target.value)}
               />
               {productSearch && !form.productId && (
-                <div className="border rounded-lg bg-background max-h-40 overflow-y-auto">
+                <div className="max-h-40 overflow-y-auto rounded-md border border-border/80 bg-card">
                   {filteredProducts.map((p) => (
                     <button
                       key={p.id}
                       type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-secondary"
                       onClick={() => handleProductSelect(p.id)}
                     >
                       <span>{p.name}</span>
@@ -197,7 +198,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             {form.productId && (
               <div className="space-y-1">
                 <Label>Фото товара</Label>
-                <div className="relative aspect-square rounded-lg bg-background border border-border overflow-hidden flex items-center justify-center max-w-[180px]">
+                <div className="relative flex aspect-square max-w-[180px] items-center justify-center overflow-hidden rounded-md border border-border bg-card">
                   {productImageLoading ? (
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   ) : productImageUrl ? (
@@ -211,11 +212,11 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                 </div>
               </div>
             )}
-          </div>
+            </div>
 
-          {/* Логистика */}
-          <div className="space-y-3 rounded-lg border border-border/70 bg-secondary/50 p-3">
-            <h3 className="font-medium text-sm">Логистика</h3>
+            {/* Логистика */}
+            <div className="space-y-3 rounded-lg border border-border/70 bg-background/35 p-3">
+            <h3 className="text-sm font-semibold">Логистика</h3>
             <div className="space-y-1">
               <Label>Трек-номер *</Label>
               <Input
@@ -234,7 +235,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             {barcodeUrl && (
               <div className="space-y-1">
                 <Label>Штрихкод</Label>
-                <div className="bg-white rounded-lg border border-border p-2 flex items-center justify-center">
+                <div className="flex items-center justify-center rounded-md border border-border bg-white p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={barcodeUrl} alt="Штрихкод" className="h-20 object-contain" />
                 </div>
@@ -251,25 +252,25 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                 <Input type="date" value={form.orderDate} onChange={(e) => setForm((f) => ({ ...f, orderDate: e.target.value }))} required />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-3">
               <div className="space-y-1">
-                <Label className="text-xs">Логистика ₽</Label>
+                <Label className="text-xs leading-tight">Логистика ₽</Label>
                 <Input type="number" min={0} value={form.logisticsCost} onChange={(e) => setForm((f) => ({ ...f, logisticsCost: parseFloat(e.target.value) || 0 }))} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Комиссия ₽</Label>
+                <Label className="text-xs leading-tight">Комиссия ₽</Label>
                 <Input type="number" min={0} value={form.commissionCost} onChange={(e) => setForm((f) => ({ ...f, commissionCost: parseFloat(e.target.value) || 0 }))} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Прочие ₽</Label>
+                <Label className="text-xs leading-tight">Прочие ₽</Label>
                 <Input type="number" min={0} value={form.otherCosts} onChange={(e) => setForm((f) => ({ ...f, otherCosts: parseFloat(e.target.value) || 0 }))} />
               </div>
             </div>
-          </div>
+            </div>
 
-          {/* Закупка */}
-          <div className="space-y-3 rounded-lg border border-border/70 bg-secondary/50 p-3">
-            <h3 className="font-medium text-sm">Закупка</h3>
+            {/* Закупка */}
+            <div className="space-y-3 rounded-lg border border-border/70 bg-background/35 p-3">
+            <h3 className="text-sm font-semibold">Закупка</h3>
             <div className="space-y-1">
               <Label>Контрагент (поставщик) *</Label>
               <div className="flex gap-2">
@@ -295,7 +296,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                 </Button>
               </div>
               {showAddCp && (
-                <div className="mt-2 p-3 rounded-lg border border-border bg-background space-y-2">
+                <div className="mt-2 space-y-2 rounded-md border border-border bg-card p-3">
                   <Input
                     placeholder="Название *"
                     value={newCp.name}
@@ -326,21 +327,32 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
               <Label>Комментарий к закупке</Label>
               <Textarea value={form.purchaseComment} onChange={(e) => setForm((f) => ({ ...f, purchaseComment: e.target.value }))} rows={2} />
             </div>
-          </div>
+            </div>
 
-          {/* Preview */}
-          <div className="p-3 bg-accent/65 border border-primary/25 rounded-lg space-y-1">
-            <h3 className="font-medium text-sm text-foreground">Предварительный расчёт</h3>
-            <div className="grid grid-cols-2 gap-x-4 text-sm">
-              <span className="text-muted-foreground">Выручка:</span><span className="font-medium">{formatRub(preview.revenue)}</span>
-              <span className="text-muted-foreground">Себестоимость:</span><span className="font-medium">{formatRub(preview.costOfGoods)}</span>
-              <span className="text-muted-foreground">Валовая прибыль:</span><span className="font-medium">{formatRub(preview.grossProfit)}</span>
-              <span className="text-muted-foreground">Маржинальность:</span><span className="font-medium">{preview.marginPercent.toFixed(1)}%</span>
-              <span className="text-muted-foreground font-medium">Чистая прибыль:</span><span className={`font-bold ${preview.netProfit >= 0 ? "money-positive" : "money-negative"}`}>{formatRub(preview.netProfit)}</span>
+            {/* Preview */}
+            <div className="space-y-2 rounded-lg border border-primary/25 bg-primary/10 p-3">
+            <h3 className="text-sm font-semibold text-foreground">Предварительный расчёт</h3>
+            <div className="space-y-1 text-sm">
+              {[
+                ["Выручка", formatRub(preview.revenue)],
+                ["Себестоимость", formatRub(preview.costOfGoods)],
+                ["Валовая прибыль", formatRub(preview.grossProfit)],
+                ["Маржинальность", `${preview.marginPercent.toFixed(1)}%`],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between gap-4">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium tabular-nums">{value}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between gap-4 border-t border-primary/20 pt-1.5">
+                <span className="font-medium text-muted-foreground">Чистая прибыль</span>
+                <span className={`font-bold tabular-nums ${preview.netProfit >= 0 ? "money-positive" : "money-negative"}`}>{formatRub(preview.netProfit)}</span>
+              </div>
+            </div>
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 border-t border-border/70 bg-card px-4 py-3">
             <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Отмена</Button>
             <Button type="submit" className="flex-1" disabled={loading || !form.productId || !form.counterpartyId}>
               {loading ? "Создание..." : "Создать заказ"}

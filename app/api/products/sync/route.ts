@@ -6,178 +6,171 @@ import { prisma } from "@/lib/db/prisma";
 export const maxDuration = 300;
 
 type AvitoListItem = {
-  id: number;
-  title: string;
-  price: number;
-  url: string;
-  status: string;
+  id: number | string;
+  title?: string;
+  name?: string;
+  price?: number | string | { value?: number | string };
+  url?: string;
+  status?: string;
 };
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+type SyncResult = {
+  updated: number;
+  created: number;
+  total: number;
+  imagesFound: number;
+  statusCounts: Record<string, number>;
+};
 
-async function fetchWithRetry(url: string, headers: Record<string, string>, retries = 3): Promise<Response> {
-  for (let i = 0; i < retries; i++) {
-    const r = await fetch(url, { headers });
-    if (r.status !== 429) return r;
-    await sleep(500 * (i + 1));
-  }
-  return fetch(url, { headers });
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function errorResponse(message: string, status: number, details?: string) {
+  const error = details ? `${message}: ${details.slice(0, 300)}` : message;
+  console.error("[avito-sync]", error);
+  return NextResponse.json({ error }, { status });
 }
 
-async function processBatched<T, R>(items: T[], batchSize: number, delayMs: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+function getPrice(value: AvitoListItem["price"]): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") return Number(value.replace(/[^\d.,]/g, "").replace(",", ".")) || 0;
+  if (value && typeof value === "object") return getPrice(value.value);
+  return 0;
+}
+
+async function fetchWithRetry(url: string, headers: Record<string, string>, retries = 3): Promise<Response> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const response = await fetch(url, { headers, cache: "no-store", signal: AbortSignal.timeout(30000) });
+    if (response.status !== 429) return response;
+    await sleep(700 * (attempt + 1));
+  }
+
+  return fetch(url, { headers, cache: "no-store", signal: AbortSignal.timeout(30000) });
+}
+
+async function processBatched<T, R>(
+  items: T[],
+  batchSize: number,
+  delayMs: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
   const results: R[] = [];
+
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
     const settled = await Promise.all(batch.map(fn));
     results.push(...settled);
     if (i + batchSize < items.length) await sleep(delayMs);
   }
+
   return results;
+}
+
+async function syncAvitoProducts(): Promise<SyncResult> {
+  const clientId = process.env.AVITO_CLIENT_ID;
+  const clientSecret = process.env.AVITO_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error("Avito API не настроен. Проверьте AVITO_CLIENT_ID и AVITO_CLIENT_SECRET в .env.");
+  }
+
+  const tokenRes = await fetch("https://api.avito.ru/token/", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+    cache: "no-store",
+  });
+
+  if (!tokenRes.ok) {
+    throw new Error(`Авторизация Avito не прошла (${tokenRes.status}): ${(await tokenRes.text()).slice(0, 200)}`);
+  }
+
+  const tokenData = (await tokenRes.json()) as { access_token?: string };
+  if (!tokenData.access_token) {
+    throw new Error("Avito не вернул access_token.");
+  }
+
+  const authHeader = { Authorization: `Bearer ${tokenData.access_token}` };
+  const allItems: AvitoListItem[] = [];
+  const statusCounts: Record<string, number> = {};
+  const perPage = 100;
+
+  for (let page = 1; page <= 100; page++) {
+    const listingsUrl = `https://api.avito.ru/core/v1/items?per_page=${perPage}&page=${page}`;
+    const listingsRes = await fetchWithRetry(listingsUrl, authHeader);
+
+    if (!listingsRes.ok) {
+      throw new Error(`Получение списка объявлений, страница ${page} (${listingsRes.status}): ${(await listingsRes.text()).slice(0, 200)}`);
+    }
+
+    const data = (await listingsRes.json()) as { resources?: AvitoListItem[]; items?: AvitoListItem[] };
+    const batch = data.resources ?? data.items ?? [];
+
+    for (const item of batch) {
+      const status = item.status ?? "unknown";
+      statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+    }
+
+    allItems.push(...batch);
+    if (batch.length < perPage) break;
+  }
+
+  const details = allItems;
+  const existingProducts = await prisma.product.findMany({
+    where: { avitoItemId: { in: details.map((item) => String(item.id)) } },
+    select: { avitoItemId: true },
+  });
+  const existingIds = new Set(existingProducts.map((product) => product.avitoItemId).filter(Boolean));
+
+  let updated = 0;
+  let created = 0;
+  let imagesFound = 0;
+  const now = new Date();
+
+  await processBatched(details, 20, 100, async (item) => {
+    const avitoItemId = String(item.id);
+    const data = {
+      name: item.title ?? item.name ?? `Avito ${avitoItemId}`,
+      salePrice: getPrice(item.price),
+      avitoListingUrl: item.url ?? null,
+      avitoListingStatus: item.status ?? null,
+      lastSyncedAt: now,
+    };
+
+    if (existingIds.has(avitoItemId)) updated++;
+    else created++;
+
+    await prisma.product.upsert({
+      where: { avitoItemId },
+      update: data,
+      create: { ...data, avitoItemId, imageUrl: null },
+    });
+  });
+
+  revalidatePath("/products");
+  revalidatePath("/dashboard");
+
+  return { updated, created, total: details.length, imagesFound, statusCounts };
 }
 
 export async function POST(req: Request) {
   const cronSecret = process.env.CRON_SECRET;
   const headerSecret = req.headers.get("x-cron-secret");
-  const isCron = cronSecret && headerSecret === cronSecret;
+  const isCron = Boolean(cronSecret && headerSecret === cronSecret);
 
   if (!isCron) {
     const session = await auth();
-    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const clientId = process.env.AVITO_CLIENT_ID;
-  const clientSecret = process.env.AVITO_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    return NextResponse.json({ error: "Avito API не настроен." }, { status: 503 });
+    if (!session?.user) return NextResponse.json({ error: "Не авторизован." }, { status: 401 });
   }
 
   try {
-    const tokenRes = await fetch("https://api.avito.ru/token/", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId, client_secret: clientSecret }),
-    });
-    if (!tokenRes.ok) {
-      const body = await tokenRes.text();
-      return NextResponse.json({ error: `Авторизация Avito: ${tokenRes.status} ${body.slice(0, 200)}` }, { status: 502 });
-    }
-    const { access_token } = await tokenRes.json() as { access_token: string };
-    const authHeader = { Authorization: `Bearer ${access_token}` };
-
-    const allItems: AvitoListItem[] = [];
-    let page = 1;
-    const perPage = 100;
-
-    const statusCounts: Record<string, number> = {};
-    while (true) {
-      const listingsUrl = `https://api.avito.ru/core/v1/items?per_page=${perPage}&page=${page}`;
-      const listingsRes = await fetchWithRetry(listingsUrl, authHeader);
-      if (!listingsRes.ok) {
-        const body = await listingsRes.text();
-        return NextResponse.json({ error: `Получение списка (page ${page}): ${listingsRes.status} ${body.slice(0, 200)}` }, { status: 502 });
-      }
-      const data = await listingsRes.json() as { resources?: AvitoListItem[] };
-      const batch = data.resources ?? [];
-      for (const it of batch) statusCounts[it.status] = (statusCounts[it.status] ?? 0) + 1;
-      allItems.push(...batch);
-      if (batch.length < perPage) break;
-      page++;
-      if (page > 100) break;
-    }
-
-    let debugSample: unknown = null;
-    let imagesFound = 0;
-
-    async function fetchOgImageWithDebug(pageUrl: string): Promise<{ url: string | null; debug: Record<string, unknown> }> {
-      try {
-        const r = await fetch(pageUrl, {
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "ru-RU,ru;q=0.9",
-            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9",
-          },
-          signal: AbortSignal.timeout(10000),
-        });
-        const html = await r.text();
-        const isJunk = (u: string) => /icons?\/|touch-icon|favicon|logo|sprite/i.test(u);
-        let url: string | null = null;
-
-        const cdnMatches = html.matchAll(/https?:\/\/[^"'\s>]*avito\.st\/(?:image|stat|hi)[^"'\s>]*\.(?:jpg|jpeg|png|webp)/gi);
-        for (const m of cdnMatches) {
-          if (!isJunk(m[0])) {
-            url = m[0];
-            break;
-          }
-        }
-
-        if (!url) {
-          const ogTags = html.matchAll(/<meta\s[^>]*property=["']og:image(?::secure_url|:url)?["'][^>]*>/gi);
-          for (const tag of ogTags) {
-            const content = tag[0].match(/content=["']([^"']+)["']/i)?.[1];
-            if (content && !isJunk(content)) {
-              url = content;
-              break;
-            }
-          }
-        }
-
-        if (!url) {
-          const twTag = html.match(/<meta\s[^>]*(?:name|property)=["']twitter:image["'][^>]*>/i);
-          const content = twTag?.[0].match(/content=["']([^"']+)["']/i)?.[1];
-          if (content && !isJunk(content)) url = content;
-        }
-        const debug = {
-          status: r.status,
-          htmlLength: html.length,
-          hasOgImage: html.includes("og:image"),
-          hasTwitterImage: html.includes("twitter:image"),
-          contentType: r.headers.get("content-type"),
-          metaSnippet: html.match(/<meta[^>]*og[^>]*>/i)?.[0]?.slice(0, 300) ?? null,
-          htmlStart: html.slice(0, 300),
-        };
-        return { url, debug };
-      } catch (e) {
-        return { url: null, debug: { error: String(e).slice(0, 200) } };
-      }
-    }
-
-    const details = await processBatched(allItems, 2, 1200, async (item) => {
-      const { url: imageUrl, debug } = await fetchOgImageWithDebug(item.url);
-      if (debugSample === null) debugSample = { itemUrl: item.url, parsedImage: imageUrl, ...debug };
-      if (imageUrl) imagesFound++;
-      return { ...item, imageUrl };
-    });
-
-    let updated = 0;
-    let created = 0;
-    const now = new Date();
-
-    for (const item of details) {
-      const avitoItemId = String(item.id);
-      const existing = await prisma.product.findUnique({ where: { avitoItemId } });
-      const data = {
-        name: item.title,
-        salePrice: item.price,
-        avitoListingUrl: item.url,
-        avitoListingStatus: item.status,
-        imageUrl: item.imageUrl,
-        lastSyncedAt: now,
-      };
-      if (existing) {
-        await prisma.product.update({ where: { avitoItemId }, data });
-        updated++;
-      } else {
-        await prisma.product.create({ data: { ...data, avitoItemId } });
-        created++;
-      }
-    }
-
-    revalidatePath("/products");
-    revalidatePath("/dashboard");
-    return NextResponse.json({ updated, created, total: details.length, imagesFound, statusCounts, debugSample });
-  } catch (e) {
-    return NextResponse.json({ error: `Ошибка синхронизации: ${String(e).slice(0, 300)}` }, { status: 500 });
+    const result = await syncAvitoProducts();
+    console.log("[avito-sync] completed", result);
+    return NextResponse.json(result);
+  } catch (error) {
+    return errorResponse("Ошибка синхронизации Avito", 500, error instanceof Error ? error.message : String(error));
   }
 }
