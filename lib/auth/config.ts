@@ -35,19 +35,20 @@ export const authConfig: NextAuthConfig = {
       credentials: { initData: { type: "text" } },
       async authorize(credentials) {
         const initData = credentials?.initData as string | undefined;
-        if (!initData) return null;
+        if (!initData) { console.error("[tg-auth] no initData"); return null; }
 
         const botToken = process.env.TELEGRAM_BOT_TOKEN;
-        if (!botToken) return null;
+        if (!botToken) { console.error("[tg-auth] TELEGRAM_BOT_TOKEN not set"); return null; }
 
         const tgUser = validateTelegramInitData(initData, botToken);
-        if (!tgUser) return null;
+        if (!tgUser) { console.error("[tg-auth] validateTelegramInitData failed, initData prefix:", initData.slice(0, 80)); return null; }
 
         const telegramId = String(tgUser.id);
+        console.log("[tg-auth] tgUser.id:", telegramId);
         const user = await prisma.user.findUnique({
           where: { telegramId, isActive: true },
         });
-        if (!user) return null;
+        if (!user) { console.error("[tg-auth] user not found for telegramId:", telegramId); return null; }
 
         const fullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ");
         if (fullName && user.name !== fullName) {
