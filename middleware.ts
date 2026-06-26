@@ -1,24 +1,25 @@
-import NextAuth from "next-auth";
-import { edgeAuthConfig } from "@/lib/auth/edge-config";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-const { auth } = NextAuth(edgeAuthConfig);
-
-export default auth((req) => {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/api")) return NextResponse.next();
   if (pathname.startsWith("/login")) return NextResponse.next();
 
-  const cookies = req.cookies.getAll().map(c => c.name).join(", ");
-  console.log("[middleware] path:", pathname, "| auth:", !!req.auth, "| cookies:", cookies);
+  const sessionToken =
+    req.cookies.get("authjs.session-token") ??
+    req.cookies.get("__Secure-authjs.session-token") ??
+    req.cookies.get("__Host-authjs.session-token");
 
-  if (!req.auth) {
+  console.log("[mw]", pathname, !!sessionToken, [...req.cookies.getAll().map(c => c.name)]);
+
+  if (!sessionToken) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
