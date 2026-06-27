@@ -3,7 +3,8 @@ set -e
 
 cd /var/www/crmavito
 npm install
-npm run build
+# Ограничиваем RAM Node чтобы не уронить VPS OOM-киллером
+NODE_OPTIONS="--max-old-space-size=1024" npm run build
 pm2 restart crm --update-env 2>/dev/null || pm2 start npm --name crm -- start
 pm2 restart avito-sync --update-env 2>/dev/null || pm2 start npm --name avito-sync -- run avito:sync-worker
 
