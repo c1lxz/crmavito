@@ -32,6 +32,26 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   const [showAddCp, setShowAddCp] = useState(false);
   const [newCp, setNewCp] = useState({ name: "", contactInfo: "" });
   const [cpLoading, setCpLoading] = useState(false);
+  const [form, setForm] = useState({
+    productId: "",
+    variant: "",
+    quantity: 1,
+    salePriceAtOrder: 0,
+    counterpartyId: "",
+    purchasePricePerUnit: 0,
+    purchaseComment: "",
+    trackingNumber: "",
+    carrier: "",
+    orderDate: new Date().toISOString().slice(0, 10),
+    logisticsCost: 0,
+    commissionCost: 0,
+    otherCosts: 0,
+  });
+  const [productSearch, setProductSearch] = useState("");
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(null);
+  const [productImageLoading, setProductImageLoading] = useState(false);
+  const [productImageError, setProductImageError] = useState<string | null>(null);
+  const [carrierTouched, setCarrierTouched] = useState(false);
 
   useEffect(() => {
     setCounterparties(initialCounterparties);
@@ -63,30 +83,14 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
       setCpLoading(false);
     }
   }
-  const [form, setForm] = useState({
-    productId: "",
-    variant: "",
-    quantity: 1,
-    salePriceAtOrder: 0,
-    counterpartyId: "",
-    purchasePricePerUnit: 0,
-    purchaseComment: "",
-    trackingNumber: "",
-    orderDate: new Date().toISOString().slice(0, 10),
-    logisticsCost: 0,
-    commissionCost: 0,
-    otherCosts: 0,
-  });
-  const [productSearch, setProductSearch] = useState("");
-  const [productImageUrl, setProductImageUrl] = useState<string | null>(null);
-  const [productImageLoading, setProductImageLoading] = useState(false);
-  const [productImageError, setProductImageError] = useState<string | null>(null);
 
+  const selectedProduct = products.find((p) => p.id === form.productId);
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(productSearch.toLowerCase())
   );
 
-  const carrier = form.trackingNumber ? detectCarrier(form.trackingNumber) : "";
+  const detectedCarrier = form.trackingNumber ? detectCarrier(form.trackingNumber) : "";
+  const showProductResults = Boolean(productSearch.trim()) && selectedProduct?.name !== productSearch;
   const barcodeUrl = form.trackingNumber
     ? `/api/barcode?text=${encodeURIComponent(form.trackingNumber)}`
     : null;
@@ -124,6 +128,24 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
     }
   }
 
+  function handleProductSearchChange(value: string) {
+    setProductSearch(value);
+    if (form.productId && selectedProduct?.name !== value) {
+      setForm((f) => ({ ...f, productId: "" }));
+      setProductImageUrl(null);
+      setProductImageError(null);
+    }
+  }
+
+  function handleTrackingChange(value: string) {
+    const nextCarrier = value ? detectCarrier(value) : "";
+    setForm((f) => ({
+      ...f,
+      trackingNumber: value,
+      carrier: carrierTouched ? f.carrier : nextCarrier,
+    }));
+  }
+
   const preview = calcOrderFinancials({
     salePriceAtOrder: form.salePriceAtOrder,
     quantity: form.quantity,
@@ -140,7 +162,11 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          carrier: form.carrier.trim() || undefined,
+          productImageUrl: productImageUrl?.trim() || undefined,
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -172,10 +198,10 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
               <Input
                 placeholder="Начните вводить название..."
                 value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
+                onChange={(e) => handleProductSearchChange(e.target.value)}
               />
-              {productSearch && !form.productId && (
-                <div className="max-h-40 overflow-y-auto rounded-md border border-border/80 bg-card">
+              {showProductResults && (
+                <div className="max-h-56 overflow-y-auto overscroll-contain rounded-md border border-border/80 bg-card">
                   {filteredProducts.map((p) => (
                     <button
                       key={p.id}
@@ -203,24 +229,61 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             </div>
 
             {form.productId && (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label>Фото товара</Label>
-                <div className="relative flex aspect-square max-w-[180px] items-center justify-center overflow-hidden rounded-md border border-border bg-card">
-                  {productImageLoading ? (
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  ) : productImageUrl ? (
-                    <Image src={productImageUrl} alt="Товар" width={180} height={180} className="object-cover w-full h-full" unoptimized />
-                  ) : (
-                    <div className="text-center text-muted-foreground text-xs px-2">
-                      <Package className="h-6 w-6 mx-auto mb-1 opacity-50" />
-                      Нет фото
-                      {productImageError && (
-                        <div className="mt-1 text-[10px] leading-tight opacity-70">
-                          {productImageError}
-                        </div>
-                      )}
+                <div className="grid gap-2 min-[380px]:grid-cols-[112px_1fr]">
+                  <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md border border-border bg-card">
+                    {productImageLoading ? (
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    ) : productImageUrl ? (
+                      <Image src={productImageUrl} alt="Товар" width={180} height={180} className="object-cover w-full h-full" unoptimized />
+                    ) : (
+                      <div className="text-center text-muted-foreground text-xs px-2">
+                        <Package className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                        Нет фото
+                        {productImageError && (
+                          <div className="mt-1 text-[10px] leading-tight opacity-70">
+                            {productImageError}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Input
+                      type="url"
+                      placeholder="URL фото товара"
+                      value={productImageUrl ?? ""}
+                      onChange={(e) => {
+                        setProductImageUrl(e.target.value);
+                        setProductImageError(null);
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => fetchProductImage(form.productId)}
+                        disabled={productImageLoading}
+                      >
+                        Найти
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setProductImageUrl(null);
+                          setProductImageError(null);
+                        }}
+                      >
+                        Очистить
+                      </Button>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             )}
@@ -233,13 +296,24 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
               <Label>Трек-номер *</Label>
               <Input
                 value={form.trackingNumber}
-                onChange={(e) => setForm((f) => ({ ...f, trackingNumber: e.target.value }))}
+                onChange={(e) => handleTrackingChange(e.target.value)}
                 required
                 placeholder="например: 1234567890"
               />
-              {carrier && (
+            </div>
+            <div className="space-y-1">
+              <Label>ТК</Label>
+              <Input
+                value={form.carrier}
+                onChange={(e) => {
+                  setCarrierTouched(true);
+                  setForm((f) => ({ ...f, carrier: e.target.value }));
+                }}
+                placeholder={detectedCarrier || "Введите транспортную компанию"}
+              />
+              {detectedCarrier && form.carrier !== detectedCarrier && (
                 <p className="text-xs text-muted-foreground">
-                  ТК: <span className="font-medium text-foreground">{carrier}</span>
+                  Авто: <button type="button" className="font-medium text-foreground underline-offset-2 hover:underline" onClick={() => setForm((f) => ({ ...f, carrier: detectedCarrier }))}>{detectedCarrier}</button>
                 </p>
               )}
             </div>

@@ -17,6 +17,8 @@ const createOrderSchema = z.object({
   purchasePricePerUnit: z.number().nonnegative(),
   purchaseComment: z.string().optional(),
   trackingNumber: z.string().min(1),
+  carrier: z.string().trim().optional(),
+  productImageUrl: z.string().trim().url().optional(),
   orderDate: z.string(),
   shippingDate: z.string().optional(),
   logisticsCost: z.number().nonnegative().default(0),
@@ -81,6 +83,7 @@ export async function POST(req: NextRequest) {
   if (!counterparty) return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
 
   const orderNumber = await generateOrderNumber();
+  const carrier = data.carrier?.trim() || detectCarrier(data.trackingNumber);
 
   const order = await prisma.$transaction(async (tx) => {
     const o = await tx.order.create({
@@ -95,6 +98,7 @@ export async function POST(req: NextRequest) {
         purchasePricePerUnit: data.purchasePricePerUnit,
         purchaseComment: data.purchaseComment,
         trackingNumber: data.trackingNumber,
+        carrier,
         orderDate: new Date(data.orderDate),
         shippingDate: data.shippingDate ? new Date(data.shippingDate) : null,
         logisticsCost: data.logisticsCost,
@@ -110,7 +114,12 @@ export async function POST(req: NextRequest) {
     return o;
   });
 
-  let imageUrl: string | null = product.imageUrl;
+  let imageUrl: string | null = data.productImageUrl ?? product.imageUrl;
+  if (data.productImageUrl && data.productImageUrl !== product.imageUrl) {
+    await prisma.product
+      .update({ where: { id: product.id }, data: { imageUrl: data.productImageUrl } })
+      .catch(() => null);
+  }
   if (!imageUrl && (product.avitoItemId || product.avitoListingUrl)) {
     const r = await resolveProductImage({
       avitoItemId: product.avitoItemId,
@@ -133,7 +142,7 @@ export async function POST(req: NextRequest) {
     quantity: data.quantity,
     salePrice: data.salePriceAtOrder,
     trackingNumber: data.trackingNumber,
-    carrier: detectCarrier(data.trackingNumber),
+    carrier,
     counterpartyName: counterparty.name,
     productImageUrl: imageUrl,
     orderDate: new Date(data.orderDate),

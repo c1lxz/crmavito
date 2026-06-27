@@ -23,6 +23,7 @@ const updateSchema = z.object({
   purchasePricePerUnit: z.number().nonnegative().optional(),
   purchaseComment: z.string().optional(),
   trackingNumber: z.string().optional(),
+  carrier: z.string().trim().optional(),
   orderDate: z.string().optional(),
   shippingDate: z.string().nullable().optional(),
   destinationCity: z.string().optional(),

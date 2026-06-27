@@ -34,6 +34,7 @@ interface OrderDetail {
   productNameSnapshot: string;
   variant: string | null;
   trackingNumber: string;
+  carrier: string | null;
   quantity: number;
   salePriceAtOrder: number;
   purchasePricePerUnit: number;
@@ -188,7 +189,7 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
           <CardHeader className="p-3 pb-1"><CardTitle className="text-sm">Логистика</CardTitle></CardHeader>
           <CardContent className="p-3 pt-0 space-y-1 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Трек-номер</span><span>{order.trackingNumber}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">ТК</span><span>{detectCarrier(order.trackingNumber)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">ТК</span><span>{order.carrier || detectCarrier(order.trackingNumber)}</span></div>
             {barcodeUrl && (
               <Button
                 type="button"
@@ -288,7 +289,7 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
                 <p className="text-2xl font-bold tracking-wide text-neutral-900 tabular-nums">
                   {order.trackingNumber}
                 </p>
-                <p className="text-sm text-neutral-500 mt-1">{detectCarrier(order.trackingNumber)}</p>
+                <p className="text-sm text-neutral-500 mt-1">{order.carrier || detectCarrier(order.trackingNumber)}</p>
               </div>
             </div>
 

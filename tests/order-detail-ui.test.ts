@@ -37,7 +37,7 @@ describe("OrderDetailClient — UI structure (smoke)", () => {
 
   it("модал показывает трек-номер и ТК", () => {
     expect(orderDetailSource).toContain("order.trackingNumber");
-    expect(orderDetailSource).toContain("detectCarrier(order.trackingNumber)");
+    expect(orderDetailSource).toContain("order.carrier || detectCarrier(order.trackingNumber)");
   });
 });
 
@@ -49,6 +49,13 @@ const createOrderDialogSource = readFileSync(
 describe("CreateOrderDialog — UI structure (smoke)", () => {
   it("показывает причину ошибки фото товара", () => {
     expect(createOrderDialogSource).toContain("productImageError");
+  });
+
+  it("позволяет вручную указать фото товара и ТК", () => {
+    expect(createOrderDialogSource).toContain("productImageUrl");
+    expect(createOrderDialogSource).toContain("URL фото товара");
+    expect(createOrderDialogSource).toContain("carrier");
+    expect(createOrderDialogSource).toContain("detectedCarrier");
   });
 
   it("содержит inline-форму создания контрагента", () => {

@@ -78,6 +78,7 @@ describe("POST /api/orders integrates image resolver (smoke)", () => {
   it("дотягивает картинку синхронно перед уведомлением", () => {
     expect(ordersRouteSource).toContain("resolveProductImage");
     expect(ordersRouteSource).toContain("sendOrderToGroup");
+    expect(ordersRouteSource).toContain("productImageUrl");
     // Ищем именно ВЫЗОВ функций (со скобками), а не импорты
     const resolveCallIdx = ordersRouteSource.indexOf("resolveProductImage({");
     const sendCallIdx = ordersRouteSource.indexOf("sendOrderToGroup({");

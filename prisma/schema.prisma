@@ -106,6 +106,7 @@ model Order {
   purchasePricePerUnit Decimal     @db.Decimal(12, 2)
   purchaseComment      String?
   trackingNumber       String
+  carrier              String?
   orderDate            DateTime    @db.Date
   shippingDate         DateTime?   @db.Date
   receivedAt           DateTime?
