@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { findFirstImageUrl } from "@/lib/avito/api";
 
 export const maxDuration = 300;
 
@@ -12,6 +13,7 @@ type AvitoListItem = {
   price?: number | string | { value?: number | string };
   url?: string;
   status?: string;
+  [key: string]: unknown;
 };
 
 type SyncResult = {
@@ -132,13 +134,17 @@ async function syncAvitoProducts(): Promise<SyncResult> {
 
   await processBatched(details, 20, 100, async (item) => {
     const avitoItemId = String(item.id);
+    const imageUrl = findFirstImageUrl(item);
     const data = {
       name: item.title ?? item.name ?? `Avito ${avitoItemId}`,
       salePrice: getPrice(item.price),
       avitoListingUrl: item.url ?? null,
       avitoListingStatus: item.status ?? null,
+      ...(imageUrl ? { imageUrl } : {}),
       lastSyncedAt: now,
     };
+
+    if (imageUrl) imagesFound++;
 
     if (existingIds.has(avitoItemId)) updated++;
     else created++;
@@ -146,7 +152,7 @@ async function syncAvitoProducts(): Promise<SyncResult> {
     await prisma.product.upsert({
       where: { avitoItemId },
       update: data,
-      create: { ...data, avitoItemId, imageUrl: null },
+      create: { ...data, avitoItemId, imageUrl: imageUrl ?? null },
     });
   });
 

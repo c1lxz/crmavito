@@ -80,11 +80,18 @@ async function getAccountId(token: string): Promise<string | null> {
 
 const IMAGE_EXT_RE = /\.(?:jpg|jpeg|png|webp|gif)(?:\?|#|$)/i;
 const AVITO_CDN_RE = /^https?:\/\/[^\s"'<>]*avito\.st\/[^\s"'<>]+/i;
+const AVITO_IMAGE_PATH_RE = /\/(?:image|images|photo|photos|stat\/photo)\//i;
 
 export function isLikelyImageUrl(s: string): boolean {
   if (!s.startsWith("http")) return false;
   if (IMAGE_EXT_RE.test(s)) return true;
-  if (AVITO_CDN_RE.test(s)) return true;
+  if (AVITO_CDN_RE.test(s)) {
+    try {
+      return AVITO_IMAGE_PATH_RE.test(new URL(s).pathname);
+    } catch {
+      return false;
+    }
+  }
   return false;
 }
 

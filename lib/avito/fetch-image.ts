@@ -1,26 +1,70 @@
-import { fetchAvitoItemImage, type AvitoResult } from "./api";
+import { fetchAvitoItemImage, isLikelyImageUrl, type AvitoResult } from "./api";
+
+function decodeHtmlValue(value: string): string {
+  return value
+    .replace(/\\u002F/gi, "/")
+    .replace(/\\\//g, "/")
+    .replace(/&amp;/gi, "&")
+    .replace(/&#x2F;/gi, "/")
+    .replace(/&#47;/g, "/")
+    .trim();
+}
+
+function normalizeAvitoImageCandidate(value: string): string | null {
+  const decoded = decodeHtmlValue(value).replace(/^\/\//, "https://");
+  try {
+    const url = new URL(decoded);
+    return isLikelyImageUrl(url.toString()) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 export function pickAvitoImage(html: string): string | null {
-  const isJunk = (u: string) => /icons?\/|touch-icon|favicon|logo|sprite/i.test(u);
+  const isJunk = (u: string) => /icons?\/|touch-icon|favicon|logo|sprite|\/dstatic\/build\//i.test(u);
+  const candidates: string[] = [];
+  const decodedHtml = decodeHtmlValue(html);
 
-  const cdnMatches = html.matchAll(
-    /https?:\/\/[^"'\s>]*avito\.st\/[^"'\s>]*\.(?:jpg|jpeg|png|webp)/gi
-  );
-  for (const m of cdnMatches) {
-    if (!isJunk(m[0])) return m[0];
+  function add(value: string | undefined) {
+    if (!value) return;
+    for (const part of value.split(",")) {
+      const src = part.trim().split(/\s+/)[0];
+      if (src) candidates.push(src);
+    }
   }
 
   const ogTags = html.matchAll(
     /<meta\s[^>]*property=["']og:image(?::secure_url|:url)?["'][^>]*>/gi
   );
   for (const tag of ogTags) {
-    const content = tag[0].match(/content=["']([^"']+)["']/i)?.[1];
-    if (content && !isJunk(content)) return content;
+    add(tag[0].match(/content=["']([^"']+)["']/i)?.[1]);
   }
 
   const twTag = html.match(/<meta\s[^>]*(?:name|property)=["']twitter:image["'][^>]*>/i);
-  const content = twTag?.[0].match(/content=["']([^"']+)["']/i)?.[1];
-  if (content && !isJunk(content)) return content;
+  add(twTag?.[0].match(/content=["']([^"']+)["']/i)?.[1]);
+
+  for (const attr of html.matchAll(/\b(?:src|data-src|data-image|content)=["']([^"']+)["']/gi)) {
+    add(attr[1]);
+  }
+
+  for (const attr of html.matchAll(/\bsrcset=["']([^"']+)["']/gi)) {
+    add(attr[1]);
+  }
+
+  for (const source of [html, decodedHtml]) {
+    for (const m of source.matchAll(/(?:https?:)?\\?\/\\?\/[^"'\s<>\\]*(?:img\.)?avito\.st\/[^"'\s<>\\]+/gi)) {
+      add(m[0]);
+    }
+  }
+
+  for (const m of decodedHtml.matchAll(/https?:\/\/[^"'\s<>]*(?:img\.)?avito\.st\/[^"'\s<>]+/gi)) {
+    add(m[0]);
+  }
+
+  for (const candidate of candidates) {
+    const normalized = normalizeAvitoImageCandidate(candidate);
+    if (normalized && !isJunk(normalized)) return normalized;
+  }
 
   return null;
 }

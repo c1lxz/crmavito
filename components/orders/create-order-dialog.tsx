@@ -328,7 +328,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2">
               <div className="space-y-1">
                 <Label>Количество *</Label>
                 <Input type="number" min={1} value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: parseInt(e.target.value) || 1 }))} required />

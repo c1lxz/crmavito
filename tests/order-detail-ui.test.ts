@@ -58,6 +58,11 @@ describe("CreateOrderDialog — UI structure (smoke)", () => {
     expect(createOrderDialogSource).toContain("detectedCarrier");
   });
 
+  it("на узких экранах переносит дату заказа на отдельную строку", () => {
+    expect(createOrderDialogSource).toContain("min-[430px]:grid-cols-2");
+    expect(createOrderDialogSource).toContain("Дата заказа");
+  });
+
   it("содержит inline-форму создания контрагента", () => {
     expect(createOrderDialogSource).toContain("handleCreateCounterparty");
     expect(createOrderDialogSource).toContain("/api/counterparties");

@@ -5,7 +5,7 @@ import {
   findFirstImageUrl,
   isLikelyImageUrl,
 } from "@/lib/avito/api";
-import { resolveProductImage } from "@/lib/avito/fetch-image";
+import { pickAvitoImage, resolveProductImage } from "@/lib/avito/fetch-image";
 
 // Простой мок fetch с очередью ответов
 function mockFetchSequence(responses: Array<{ status: number; body: unknown }>) {
@@ -49,7 +49,12 @@ describe("isLikelyImageUrl", () => {
 
   it("матчит Avito CDN даже без расширения", () => {
     expect(isLikelyImageUrl("https://01.avito.st/image/12345/full")).toBe(true);
+    expect(isLikelyImageUrl("https://70.img.avito.st/image/1/1.abcd123")).toBe(true);
     expect(isLikelyImageUrl("https://04.avito.st/stat/photo/abc")).toBe(true);
+  });
+
+  it("не принимает служебные assets Avito за фото объявления", () => {
+    expect(isLikelyImageUrl("https://www.avito.st/dstatic/build/client/ru-RU/fingerprint")).toBe(false);
   });
 
   it("не матчит произвольные строки и не-http URL", () => {
@@ -102,6 +107,17 @@ describe("findFirstImageUrl — обход реальных структур Avi
     );
   });
 
+  it("находит Avito CDN URL без расширения в API-ответе", () => {
+    const sample = {
+      images: [
+        {
+          url: "https://70.img.avito.st/image/1/1.abcd123",
+        },
+      ],
+    };
+    expect(findFirstImageUrl(sample)).toBe("https://70.img.avito.st/image/1/1.abcd123");
+  });
+
   it("возвращает null если в структуре нет картинок", () => {
     expect(findFirstImageUrl({ id: 1, title: "no images" })).toBeNull();
     expect(findFirstImageUrl(null)).toBeNull();
@@ -115,6 +131,38 @@ describe("findFirstImageUrl — обход реальных структур Avi
         link: "https://avito.ru/item/123",
       })
     ).toBeNull();
+  });
+});
+
+describe("pickAvitoImage — HTML Avito", () => {
+  it("берёт img.avito.st URL без расширения из src", () => {
+    expect(
+      pickAvitoImage('<img src="https://70.img.avito.st/image/1/1.abcd123">')
+    ).toBe("https://70.img.avito.st/image/1/1.abcd123");
+  });
+
+  it("берёт первое фото из srcset", () => {
+    expect(
+      pickAvitoImage('<source srcset="https://10.img.avito.st/image/1/1.small 1x, https://10.img.avito.st/image/1/1.large 2x">')
+    ).toBe("https://10.img.avito.st/image/1/1.small");
+  });
+
+  it("понимает escaped URL из JSON на странице", () => {
+    expect(
+      pickAvitoImage('{"url":"https:\\/\\/40.img.avito.st\\/image\\/1\\/1.jsonpic"}')
+    ).toBe("https://40.img.avito.st/image/1/1.jsonpic");
+  });
+
+  it("не возвращает иконки и логотипы вместо фото товара", () => {
+    expect(
+      pickAvitoImage('<link rel="icon" href="https://www.avito.st/icons/favicon.ico"><img src="https://20.img.avito.st/image/1/1.realpic">')
+    ).toBe("https://20.img.avito.st/image/1/1.realpic");
+  });
+
+  it("пропускает служебные avito.st assets и берёт фото объявления", () => {
+    expect(
+      pickAvitoImage('<script src="https://www.avito.st/dstatic/build/client/ru-RU/fingerprint"></script><img src="https://30.img.avito.st/image/1/1.realpic">')
+    ).toBe("https://30.img.avito.st/image/1/1.realpic");
   });
 });
 
