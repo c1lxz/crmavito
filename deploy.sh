@@ -3,6 +3,7 @@ set -e
 
 cd /var/www/crmavito
 npm install
+npx prisma db push
 # Ограничиваем RAM Node чтобы не уронить VPS OOM-киллером
 NODE_OPTIONS="--max-old-space-size=1024" npm run build
 pm2 restart crm --update-env 2>/dev/null || pm2 start npm --name crm -- start
