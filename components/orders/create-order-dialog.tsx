@@ -80,6 +80,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   const [productSearch, setProductSearch] = useState("");
   const [productImageUrl, setProductImageUrl] = useState<string | null>(null);
   const [productImageLoading, setProductImageLoading] = useState(false);
+  const [productImageError, setProductImageError] = useState<string | null>(null);
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(productSearch.toLowerCase())
@@ -92,12 +93,17 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
 
   async function fetchProductImage(productId: string) {
     setProductImageLoading(true);
+    setProductImageError(null);
     try {
       const res = await fetch(`/api/products/${productId}/fetch-image`, { method: "POST" });
-      const data = await res.json();
-      if (data.imageUrl) setProductImageUrl(data.imageUrl);
-    } catch {
-      // ignore
+      const data = (await res.json()) as { imageUrl?: string | null; error?: string };
+      if (data.imageUrl) {
+        setProductImageUrl(data.imageUrl);
+      } else {
+        setProductImageError(data.error ?? "Фото не найдено");
+      }
+    } catch (e) {
+      setProductImageError(String(e).slice(0, 120));
     } finally {
       setProductImageLoading(false);
     }
@@ -108,6 +114,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
     if (p) {
       setForm((f) => ({ ...f, productId: id, salePriceAtOrder: p.salePrice }));
       setProductSearch(p.name);
+      setProductImageError(null);
       if (p.imageUrl) {
         setProductImageUrl(p.imageUrl);
       } else {
@@ -207,6 +214,11 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                     <div className="text-center text-muted-foreground text-xs px-2">
                       <Package className="h-6 w-6 mx-auto mb-1 opacity-50" />
                       Нет фото
+                      {productImageError && (
+                        <div className="mt-1 text-[10px] leading-tight opacity-70">
+                          {productImageError}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

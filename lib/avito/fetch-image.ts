@@ -1,8 +1,10 @@
+import { fetchAvitoItemImage } from "./api";
+
 export function pickAvitoImage(html: string): string | null {
   const isJunk = (u: string) => /icons?\/|touch-icon|favicon|logo|sprite/i.test(u);
 
   const cdnMatches = html.matchAll(
-    /https?:\/\/[^"'\s>]*avito\.st\/(?:image|stat|hi)[^"'\s>]*\.(?:jpg|jpeg|png|webp)/gi
+    /https?:\/\/[^"'\s>]*avito\.st\/[^"'\s>]*\.(?:jpg|jpeg|png|webp)/gi
   );
   for (const m of cdnMatches) {
     if (!isJunk(m[0])) return m[0];
@@ -23,7 +25,7 @@ export function pickAvitoImage(html: string): string | null {
   return null;
 }
 
-export async function fetchAvitoImageUrl(listingUrl: string): Promise<string | null> {
+async function scrapeListingHtml(listingUrl: string): Promise<string | null> {
   try {
     const r = await fetch(listingUrl, {
       headers: {
@@ -34,12 +36,37 @@ export async function fetchAvitoImageUrl(listingUrl: string): Promise<string | n
       },
       signal: AbortSignal.timeout(10000),
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      console.warn(`[avito] listing fetch ${listingUrl} HTTP ${r.status}`);
+      return null;
+    }
     const html = await r.text();
     return pickAvitoImage(html);
-  } catch {
+  } catch (e) {
+    console.warn("[avito] listing fetch error", e);
     return null;
   }
+}
+
+export interface ProductImageSource {
+  avitoItemId?: string | null;
+  avitoListingUrl?: string | null;
+}
+
+export async function resolveProductImage(p: ProductImageSource): Promise<string | null> {
+  if (p.avitoItemId) {
+    const fromApi = await fetchAvitoItemImage(p.avitoItemId);
+    if (fromApi) return fromApi;
+  }
+  if (p.avitoListingUrl) {
+    const fromHtml = await scrapeListingHtml(p.avitoListingUrl);
+    if (fromHtml) return fromHtml;
+  }
+  return null;
+}
+
+export async function fetchAvitoImageUrl(listingUrl: string): Promise<string | null> {
+  return scrapeListingHtml(listingUrl);
 }
 
 export async function downloadImageAsBuffer(url: string): Promise<Buffer | null> {
@@ -53,10 +80,14 @@ export async function downloadImageAsBuffer(url: string): Promise<Buffer | null>
       },
       signal: AbortSignal.timeout(15000),
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      console.warn(`[avito] image download ${url} HTTP ${r.status}`);
+      return null;
+    }
     const ab = await r.arrayBuffer();
     return Buffer.from(ab);
-  } catch {
+  } catch (e) {
+    console.warn("[avito] image download error", e);
     return null;
   }
 }

@@ -5,7 +5,7 @@ import { generateOrderNumber } from "@/lib/db/orders";
 import { createAuditLog } from "@/lib/db/audit";
 import { detectCarrier } from "@/lib/tracking";
 import { sendOrderToGroup } from "@/lib/telegram/notify";
-import { fetchAvitoImageUrl } from "@/lib/avito/fetch-image";
+import { resolveProductImage } from "@/lib/avito/fetch-image";
 import { z } from "zod";
 
 const createOrderSchema = z.object({
@@ -111,8 +111,11 @@ export async function POST(req: NextRequest) {
   });
 
   let imageUrl = product.imageUrl;
-  if (!imageUrl && product.avitoListingUrl) {
-    imageUrl = await fetchAvitoImageUrl(product.avitoListingUrl);
+  if (!imageUrl && (product.avitoItemId || product.avitoListingUrl)) {
+    imageUrl = await resolveProductImage({
+      avitoItemId: product.avitoItemId,
+      avitoListingUrl: product.avitoListingUrl,
+    });
     if (imageUrl) {
       await prisma.product.update({ where: { id: product.id }, data: { imageUrl } }).catch(() => null);
     }

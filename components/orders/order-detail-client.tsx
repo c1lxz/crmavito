@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -77,6 +78,20 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
   const [returnComment, setReturnComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [showBarcode, setShowBarcode] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!showBarcode) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [showBarcode]);
 
   const barcodeUrl = order.trackingNumber
     ? `/api/barcode?text=${encodeURIComponent(order.trackingNumber)}`
@@ -175,18 +190,15 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
             <div className="flex justify-between"><span className="text-muted-foreground">Трек-номер</span><span>{order.trackingNumber}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">ТК</span><span>{detectCarrier(order.trackingNumber)}</span></div>
             {barcodeUrl && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                className="w-full mt-2 gap-2"
                 onClick={() => setShowBarcode(true)}
-                className="w-full bg-white rounded-lg border border-border p-2 flex items-center justify-center mt-2 relative group hover:border-primary transition-colors"
-                aria-label="Открыть штрихкод"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={barcodeUrl} alt="Штрихкод" className="h-20 object-contain" />
-                <span className="absolute top-1.5 right-1.5 p-1 rounded-md bg-background/80 border border-border text-muted-foreground">
-                  <Maximize2 className="h-3.5 w-3.5" />
-                </span>
-              </button>
+                <Maximize2 className="h-4 w-4" />
+                Открыть штрихкод
+              </Button>
             )}
             {order.shippingDate && <div className="flex justify-between"><span className="text-muted-foreground">Отправка</span><span>{formatDate(order.shippingDate)}</span></div>}
             {order.receivedAt && <div className="flex justify-between"><span className="text-muted-foreground">Получено</span><span>{formatDate(order.receivedAt)}</span></div>}
@@ -239,68 +251,66 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
         )}
       </div>
 
-      {/* Fullscreen barcode for shipping */}
-      {showBarcode && barcodeUrl && (
-        <div
-          className="fixed inset-0 z-50 bg-white flex flex-col"
-          onClick={() => setShowBarcode(false)}
-        >
-          <div className="flex items-center justify-between p-4 border-b border-neutral-200">
-            <div>
-              <p className="text-xs text-neutral-500">Заказ №{order.orderNumber}</p>
-              <p className="text-sm font-semibold text-neutral-900">{order.productNameSnapshot}</p>
-            </div>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setShowBarcode(false); }}
-              className="p-2 rounded-full hover:bg-neutral-100 text-neutral-700"
-              aria-label="Закрыть"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
+      {/* Fullscreen barcode for shipping — rendered via portal to body */}
+      {mounted && showBarcode && barcodeUrl &&
+        createPortal(
           <div
-            className="flex-1 flex flex-col items-center justify-center p-6 gap-6"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-white flex flex-col"
+            style={{ zIndex: 9999 }}
+            role="dialog"
+            aria-modal="true"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={barcodeUrl}
-              alt="Штрихкод"
-              className="w-full max-w-md object-contain"
-              style={{ imageRendering: "pixelated" }}
-            />
-            <div className="text-center">
-              <p className="text-xs uppercase tracking-wider text-neutral-500 mb-1">Трек-номер</p>
-              <p className="text-2xl font-bold tracking-wide text-neutral-900 tabular-nums">
-                {order.trackingNumber}
-              </p>
-              <p className="text-sm text-neutral-500 mt-1">{detectCarrier(order.trackingNumber)}</p>
+            <div className="flex items-center justify-between p-4 border-b border-neutral-200">
+              <div>
+                <p className="text-xs text-neutral-500">Заказ №{order.orderNumber}</p>
+                <p className="text-sm font-semibold text-neutral-900">{order.productNameSnapshot}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBarcode(false)}
+                className="p-2 rounded-full hover:bg-neutral-100 text-neutral-700"
+                aria-label="Закрыть"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-          </div>
 
-          <div
-            className="p-4 border-t border-neutral-200 flex gap-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <a
-              href={barcodeUrl}
-              download={`barcode-${order.trackingNumber}.png`}
-              className="flex-1 inline-flex items-center justify-center gap-2 h-11 rounded-lg bg-neutral-900 text-white text-sm font-medium"
-            >
-              <Download className="h-4 w-4" /> Скачать
-            </a>
-            <button
-              type="button"
-              onClick={() => setShowBarcode(false)}
-              className="flex-1 inline-flex items-center justify-center h-11 rounded-lg border border-neutral-300 text-neutral-900 text-sm font-medium"
-            >
-              Закрыть
-            </button>
-          </div>
-        </div>
-      )}
+            <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 overflow-auto">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={barcodeUrl}
+                alt="Штрихкод"
+                className="w-full max-w-md object-contain"
+                style={{ imageRendering: "pixelated" }}
+              />
+              <div className="text-center">
+                <p className="text-xs uppercase tracking-wider text-neutral-500 mb-1">Трек-номер</p>
+                <p className="text-2xl font-bold tracking-wide text-neutral-900 tabular-nums">
+                  {order.trackingNumber}
+                </p>
+                <p className="text-sm text-neutral-500 mt-1">{detectCarrier(order.trackingNumber)}</p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-neutral-200 flex gap-2">
+              <a
+                href={barcodeUrl}
+                download={`barcode-${order.trackingNumber}.png`}
+                className="flex-1 inline-flex items-center justify-center gap-2 h-11 rounded-lg bg-neutral-900 text-white text-sm font-medium"
+              >
+                <Download className="h-4 w-4" /> Скачать
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowBarcode(false)}
+                className="flex-1 inline-flex items-center justify-center h-11 rounded-lg border border-neutral-300 text-neutral-900 text-sm font-medium"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Status change dialog */}
       <Dialog open={showStatusDialog} onOpenChange={(o) => !o && setShowStatusDialog(false)}>
