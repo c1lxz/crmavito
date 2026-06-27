@@ -1,4 +1,5 @@
 import bwipjs from "bwip-js/node";
+import { downloadImageAsBuffer } from "@/lib/avito/fetch-image";
 
 interface OrderNotification {
   orderNumber: string;
@@ -26,7 +27,8 @@ async function generateBarcodePng(text: string): Promise<Buffer | null> {
       paddingheight: 10,
       backgroundcolor: "FFFFFF",
     })) as Buffer;
-  } catch {
+  } catch (e) {
+    console.error("[telegram] barcode gen failed", e);
     return null;
   }
 }
@@ -36,7 +38,21 @@ function formatDate(d: Date): string {
 }
 
 function formatRub(n: number): string {
-  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "RUB",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+async function tgFetch(token: string, method: string, form: FormData): Promise<unknown> {
+  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: "POST", body: form });
+  const json = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string };
+  if (!r.ok || !json.ok) {
+    console.error(`[telegram] ${method} failed: HTTP ${r.status} — ${json.description ?? "unknown"}`);
+    throw new Error(json.description ?? `HTTP ${r.status}`);
+  }
+  return json;
 }
 
 export async function sendOrderToGroup(order: OrderNotification): Promise<void> {
@@ -64,35 +80,53 @@ export async function sendOrderToGroup(order: OrderNotification): Promise<void> 
     .filter(Boolean)
     .join("\n");
 
-  const barcode = await generateBarcodePng(order.trackingNumber);
+  const [barcode, productImage] = await Promise.all([
+    generateBarcodePng(order.trackingNumber),
+    order.productImageUrl ? downloadImageAsBuffer(order.productImageUrl) : Promise.resolve(null),
+  ]);
 
   try {
-    if (order.productImageUrl && barcode) {
+    if (productImage && barcode) {
       const form = new FormData();
       form.append("chat_id", chatId);
       form.append(
         "media",
         JSON.stringify([
-          { type: "photo", media: order.productImageUrl, caption, parse_mode: "HTML" },
+          { type: "photo", media: "attach://product", caption, parse_mode: "HTML" },
           { type: "photo", media: "attach://barcode" },
         ])
       );
+      form.append("product", new Blob([new Uint8Array(productImage)], { type: "image/jpeg" }), "product.jpg");
       form.append("barcode", new Blob([new Uint8Array(barcode)], { type: "image/png" }), "barcode.png");
-      await fetch(`https://api.telegram.org/bot${token}/sendMediaGroup`, { method: "POST", body: form });
-    } else if (barcode) {
+      await tgFetch(token, "sendMediaGroup", form);
+      return;
+    }
+
+    if (productImage) {
+      const form = new FormData();
+      form.append("chat_id", chatId);
+      form.append("photo", new Blob([new Uint8Array(productImage)], { type: "image/jpeg" }), "product.jpg");
+      form.append("caption", caption);
+      form.append("parse_mode", "HTML");
+      await tgFetch(token, "sendPhoto", form);
+      return;
+    }
+
+    if (barcode) {
       const form = new FormData();
       form.append("chat_id", chatId);
       form.append("photo", new Blob([new Uint8Array(barcode)], { type: "image/png" }), "barcode.png");
       form.append("caption", caption);
       form.append("parse_mode", "HTML");
-      await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: "POST", body: form });
-    } else {
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: caption, parse_mode: "HTML" }),
-      });
+      await tgFetch(token, "sendPhoto", form);
+      return;
     }
+
+    const form = new FormData();
+    form.append("chat_id", chatId);
+    form.append("text", caption);
+    form.append("parse_mode", "HTML");
+    await tgFetch(token, "sendMessage", form);
   } catch (e) {
     console.error("[telegram] sendOrderToGroup failed", e);
   }

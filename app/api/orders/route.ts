@@ -5,6 +5,7 @@ import { generateOrderNumber } from "@/lib/db/orders";
 import { createAuditLog } from "@/lib/db/audit";
 import { detectCarrier } from "@/lib/tracking";
 import { sendOrderToGroup } from "@/lib/telegram/notify";
+import { fetchAvitoImageUrl } from "@/lib/avito/fetch-image";
 import { z } from "zod";
 
 const createOrderSchema = z.object({
@@ -109,6 +110,14 @@ export async function POST(req: NextRequest) {
     return o;
   });
 
+  let imageUrl = product.imageUrl;
+  if (!imageUrl && product.avitoListingUrl) {
+    imageUrl = await fetchAvitoImageUrl(product.avitoListingUrl);
+    if (imageUrl) {
+      await prisma.product.update({ where: { id: product.id }, data: { imageUrl } }).catch(() => null);
+    }
+  }
+
   sendOrderToGroup({
     orderNumber: order.orderNumber,
     productName: product.name,
@@ -118,7 +127,7 @@ export async function POST(req: NextRequest) {
     trackingNumber: data.trackingNumber,
     carrier: detectCarrier(data.trackingNumber),
     counterpartyName: counterparty.name,
-    productImageUrl: product.imageUrl,
+    productImageUrl: imageUrl,
     orderDate: new Date(data.orderDate),
   }).catch((e) => console.error("[telegram] notify failed", e));
 
