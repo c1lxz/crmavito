@@ -13,20 +13,26 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const product = await prisma.product.findUnique({ where: { id } });
   if (!product) return NextResponse.json({ error: "Товар не найден" }, { status: 404 });
 
-  if (product.imageUrl) return NextResponse.json({ imageUrl: product.imageUrl, cached: true });
+  if (product.imageUrl) {
+    return NextResponse.json({ imageUrl: product.imageUrl, cached: true });
+  }
   if (!product.avitoItemId && !product.avitoListingUrl) {
-    return NextResponse.json({ imageUrl: null, error: "Товар не связан с объявлением Avito" });
+    return NextResponse.json({
+      imageUrl: null,
+      error: "Товар не связан с объявлением Avito",
+    });
   }
 
-  const imageUrl = await resolveProductImage({
+  const result = await resolveProductImage({
     avitoItemId: product.avitoItemId,
     avitoListingUrl: product.avitoListingUrl,
   });
 
-  if (imageUrl) {
-    await prisma.product.update({ where: { id }, data: { imageUrl } });
-    return NextResponse.json({ imageUrl });
+  if (result.ok) {
+    await prisma.product.update({ where: { id }, data: { imageUrl: result.value } });
+    return NextResponse.json({ imageUrl: result.value });
   }
 
-  return NextResponse.json({ imageUrl: null, error: "Avito не вернул фото" });
+  console.warn(`[avito] resolveProductImage failed for ${id}: ${result.reason}`);
+  return NextResponse.json({ imageUrl: null, error: result.reason });
 }

@@ -110,14 +110,19 @@ export async function POST(req: NextRequest) {
     return o;
   });
 
-  let imageUrl = product.imageUrl;
+  let imageUrl: string | null = product.imageUrl;
   if (!imageUrl && (product.avitoItemId || product.avitoListingUrl)) {
-    imageUrl = await resolveProductImage({
+    const r = await resolveProductImage({
       avitoItemId: product.avitoItemId,
       avitoListingUrl: product.avitoListingUrl,
     });
-    if (imageUrl) {
-      await prisma.product.update({ where: { id: product.id }, data: { imageUrl } }).catch(() => null);
+    if (r.ok) {
+      imageUrl = r.value;
+      await prisma.product
+        .update({ where: { id: product.id }, data: { imageUrl } })
+        .catch(() => null);
+    } else {
+      console.warn(`[avito] order ${order.orderNumber}: ${r.reason}`);
     }
   }
 

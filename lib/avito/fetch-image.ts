@@ -1,4 +1,4 @@
-import { fetchAvitoItemImage } from "./api";
+import { fetchAvitoItemImage, type AvitoResult } from "./api";
 
 export function pickAvitoImage(html: string): string | null {
   const isJunk = (u: string) => /icons?\/|touch-icon|favicon|logo|sprite/i.test(u);
@@ -25,7 +25,7 @@ export function pickAvitoImage(html: string): string | null {
   return null;
 }
 
-async function scrapeListingHtml(listingUrl: string): Promise<string | null> {
+async function scrapeListingHtml(listingUrl: string): Promise<AvitoResult<string>> {
   try {
     const r = await fetch(listingUrl, {
       headers: {
@@ -38,13 +38,16 @@ async function scrapeListingHtml(listingUrl: string): Promise<string | null> {
     });
     if (!r.ok) {
       console.warn(`[avito] listing fetch ${listingUrl} HTTP ${r.status}`);
-      return null;
+      return { ok: false, reason: `HTML scrape HTTP ${r.status}` };
     }
     const html = await r.text();
-    return pickAvitoImage(html);
+    const img = pickAvitoImage(html);
+    if (img) return { ok: true, value: img };
+    return { ok: false, reason: "В HTML страницы нет фото (вероятно captcha)" };
   } catch (e) {
-    console.warn("[avito] listing fetch error", e);
-    return null;
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[avito] listing fetch error", msg);
+    return { ok: false, reason: `HTML scrape error: ${msg.slice(0, 60)}` };
   }
 }
 
@@ -53,20 +56,25 @@ export interface ProductImageSource {
   avitoListingUrl?: string | null;
 }
 
-export async function resolveProductImage(p: ProductImageSource): Promise<string | null> {
+export async function resolveProductImage(
+  p: ProductImageSource
+): Promise<AvitoResult<string>> {
+  const reasons: string[] = [];
   if (p.avitoItemId) {
     const fromApi = await fetchAvitoItemImage(p.avitoItemId);
-    if (fromApi) return fromApi;
+    if (fromApi.ok) return fromApi;
+    reasons.push(`API: ${fromApi.reason}`);
+  } else {
+    reasons.push("API: нет avitoItemId");
   }
   if (p.avitoListingUrl) {
     const fromHtml = await scrapeListingHtml(p.avitoListingUrl);
-    if (fromHtml) return fromHtml;
+    if (fromHtml.ok) return fromHtml;
+    reasons.push(`HTML: ${fromHtml.reason}`);
+  } else {
+    reasons.push("HTML: нет avitoListingUrl");
   }
-  return null;
-}
-
-export async function fetchAvitoImageUrl(listingUrl: string): Promise<string | null> {
-  return scrapeListingHtml(listingUrl);
+  return { ok: false, reason: reasons.join(" | ") };
 }
 
 export async function downloadImageAsBuffer(url: string): Promise<Buffer | null> {

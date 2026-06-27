@@ -25,9 +25,10 @@ describe("Avito API fetcher (smoke)", () => {
     expect(apiSource).toContain("expiresAt");
   });
 
-  it("пробует несколько endpoint'ов /core/v1/items", () => {
+  it("пробует несколько endpoint'ов /core/v1/items + accounts/{id}/items", () => {
     expect(apiSource).toContain("/core/v1/items/");
-    expect(apiSource).toContain("tryEndpoints");
+    expect(apiSource).toContain("/core/v1/accounts/");
+    expect(apiSource).toContain("tryEndpoint");
   });
 
   it("рекурсивно ищет URL картинок в JSON-ответе", () => {
