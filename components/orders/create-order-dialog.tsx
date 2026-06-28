@@ -35,6 +35,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   const [form, setForm] = useState({
     productId: "",
     variant: "",
+    size: "",
     quantity: 1,
     salePriceAtOrder: 0,
     counterpartyId: "",
@@ -223,9 +224,13 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                 <Input placeholder="Белый, Чёрный..." value={form.variant} onChange={(e) => setForm((f) => ({ ...f, variant: e.target.value }))} />
               </div>
               <div className="space-y-1">
-                <Label>Цена продажи (₽)</Label>
-                <Input type="number" min={0} value={form.salePriceAtOrder} onChange={(e) => setForm((f) => ({ ...f, salePriceAtOrder: parseFloat(e.target.value) || 0 }))} required />
+                <Label>Размер</Label>
+                <Input placeholder="XL, 42, 100×50..." value={form.size} onChange={(e) => setForm((f) => ({ ...f, size: e.target.value }))} />
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Цена продажи (₽)</Label>
+              <Input type="number" min={0} value={form.salePriceAtOrder} onChange={(e) => setForm((f) => ({ ...f, salePriceAtOrder: parseFloat(e.target.value) || 0 }))} required />
             </div>
 
             {form.productId && (
@@ -249,32 +254,23 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                       </div>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <Input
-                      type="url"
-                      placeholder="URL фото товара"
-                      value={productImageUrl ?? ""}
-                      onChange={(e) => {
-                        setProductImageUrl(e.target.value);
-                        setProductImageError(null);
-                      }}
-                    />
-                    <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => fetchProductImage(form.productId)}
+                      disabled={productImageLoading}
+                    >
+                      Найти фото
+                    </Button>
+                    {productImageUrl && (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="flex-1"
-                        onClick={() => fetchProductImage(form.productId)}
-                        disabled={productImageLoading}
-                      >
-                        Найти
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
+                        className="w-full"
                         onClick={() => {
                           setProductImageUrl(null);
                           setProductImageError(null);
@@ -282,7 +278,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                       >
                         Очистить
                       </Button>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -329,13 +325,13 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             )}
 
             <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2">
-              <div className="space-y-1">
+              <div className="min-w-0 space-y-1">
                 <Label>Количество *</Label>
                 <Input type="number" min={1} value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: parseInt(e.target.value) || 1 }))} required />
               </div>
-              <div className="space-y-1">
+              <div className="min-w-0 space-y-1">
                 <Label>Дата заказа *</Label>
-                <Input type="date" value={form.orderDate} onChange={(e) => setForm((f) => ({ ...f, orderDate: e.target.value }))} required />
+                <Input type="date" className="w-full" value={form.orderDate} onChange={(e) => setForm((f) => ({ ...f, orderDate: e.target.value }))} required />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-3">

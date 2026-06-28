@@ -5,6 +5,7 @@ interface OrderNotification {
   orderNumber: string;
   productName: string;
   variant: string | null;
+  size: string | null;
   quantity: number;
   salePrice: number;
   trackingNumber: string;
@@ -69,6 +70,7 @@ export async function sendOrderToGroup(order: OrderNotification): Promise<void> 
     ``,
     `<b>Товар:</b> ${order.productName}`,
     order.variant ? `<b>Цвет:</b> ${order.variant}` : null,
+    order.size ? `<b>Размер:</b> ${order.size}` : null,
     `<b>Количество:</b> ${order.quantity} шт.`,
     `<b>Цена:</b> ${formatRub(order.salePrice)}`,
     ``,

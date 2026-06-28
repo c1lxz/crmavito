@@ -11,6 +11,7 @@ import { z } from "zod";
 const createOrderSchema = z.object({
   productId: z.string().uuid(),
   variant: z.string().optional(),
+  size: z.string().optional(),
   quantity: z.number().int().positive(),
   salePriceAtOrder: z.number().positive(),
   counterpartyId: z.string().uuid(),
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
         productId: data.productId,
         productNameSnapshot: product.name,
         variant: data.variant,
+        size: data.size,
         quantity: data.quantity,
         salePriceAtOrder: data.salePriceAtOrder,
         counterpartyId: data.counterpartyId,
@@ -135,10 +137,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  sendOrderToGroup({
+  await sendOrderToGroup({
     orderNumber: order.orderNumber,
     productName: product.name,
     variant: data.variant ?? null,
+    size: data.size ?? null,
     quantity: data.quantity,
     salePrice: data.salePriceAtOrder,
     trackingNumber: data.trackingNumber,
