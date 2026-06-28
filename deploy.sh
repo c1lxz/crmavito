@@ -6,6 +6,7 @@ npm install
 DATABASE_URL_FROM_ENV="$(node -e "require('dotenv/config'); process.stdout.write(process.env.DATABASE_URL || '')")"
 if [ -n "$DATABASE_URL_FROM_ENV" ] && command -v psql >/dev/null 2>&1; then
   psql "$DATABASE_URL_FROM_ENV" -c 'ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "carrier" TEXT;'
+  psql "$DATABASE_URL_FROM_ENV" -c 'ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "size" TEXT;'
 fi
 # Ограничиваем RAM Node чтобы не уронить VPS OOM-киллером
 NODE_OPTIONS="--max-old-space-size=1024" npm run build
