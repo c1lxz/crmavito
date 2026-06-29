@@ -10,7 +10,11 @@ if [ -n "$DATABASE_URL_FROM_ENV" ] && command -v psql >/dev/null 2>&1; then
 fi
 # Ограничиваем RAM Node чтобы не уронить VPS OOM-киллером
 NODE_OPTIONS="--max-old-space-size=1024" npm run build
-pm2 restart crm --update-env 2>/dev/null || pm2 start npm --name crm -- start
+pm2 stop crm 2>/dev/null || true
+sleep 4
+fuser -k 3000/tcp 2>/dev/null || true
+sleep 1
+pm2 start crm --update-env 2>/dev/null || pm2 start npm --name crm -- start
 pm2 restart avito-sync --update-env 2>/dev/null || pm2 start npm --name avito-sync -- run avito:sync-worker
 
 cd /var/www/crmavito/bot
