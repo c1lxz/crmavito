@@ -236,50 +236,22 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             {form.productId && (
               <div className="space-y-2">
                 <Label>Фото товара</Label>
-                <div className="grid gap-2 min-[380px]:grid-cols-[112px_1fr]">
-                  <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md border border-border bg-card">
-                    {productImageLoading ? (
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    ) : productImageUrl ? (
-                      <Image src={productImageUrl} alt="Товар" width={180} height={180} className="object-cover w-full h-full" unoptimized />
-                    ) : (
-                      <div className="text-center text-muted-foreground text-xs px-2">
-                        <Package className="h-6 w-6 mx-auto mb-1 opacity-50" />
-                        Нет фото
-                        {productImageError && (
-                          <div className="mt-1 text-[10px] leading-tight opacity-70">
-                            {productImageError}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-2 justify-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => fetchProductImage(form.productId)}
-                      disabled={productImageLoading}
-                    >
-                      Найти фото
-                    </Button>
-                    {productImageUrl && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => {
-                          setProductImageUrl(null);
-                          setProductImageError(null);
-                        }}
-                      >
-                        Очистить
-                      </Button>
-                    )}
-                  </div>
+                <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-md border border-border bg-card">
+                  {productImageLoading ? (
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  ) : productImageUrl ? (
+                    <Image src={productImageUrl} alt="Товар" width={180} height={180} className="object-cover w-full h-full" unoptimized />
+                  ) : (
+                    <div className="text-center text-muted-foreground text-xs px-2">
+                      <Package className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                      Нет фото
+                      {productImageError && (
+                        <div className="mt-1 text-[10px] leading-tight opacity-70">
+                          {productImageError}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -324,15 +296,20 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-2 min-[430px]:grid-cols-2">
-              <div className="min-w-0 space-y-1">
-                <Label>Количество *</Label>
-                <Input type="number" min={1} value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: parseInt(e.target.value) || 1 }))} required />
-              </div>
-              <div className="min-w-0 space-y-1">
-                <Label>Дата заказа *</Label>
-                <Input type="date" className="w-full" value={form.orderDate} onChange={(e) => setForm((f) => ({ ...f, orderDate: e.target.value }))} required />
-              </div>
+            <div className="space-y-1">
+              <Label>Количество *</Label>
+              <Input type="number" min={1} value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: parseInt(e.target.value) || 1 }))} required />
+            </div>
+            <div className="space-y-1">
+              <Label>Дата заказа *</Label>
+              <input
+                type="date"
+                value={form.orderDate}
+                onChange={(e) => setForm((f) => ({ ...f, orderDate: e.target.value }))}
+                required
+                className="flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm font-medium text-foreground shadow-sm ring-offset-background focus-visible:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2"
+                style={{ boxSizing: "border-box", maxWidth: "100%" }}
+              />
             </div>
             <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-3">
               <div className="space-y-1">
