@@ -15,7 +15,11 @@ async function getReceivedOrders(range: DateRange, city?: string) {
       receivedAt: { gte: range.from, lte: range.to },
       ...(city ? { destinationCity: city } : {}),
     },
-    include: { product: true, counterparty: true },
+    include: {
+      product: true,
+      counterparty: true,
+      items: { include: { product: true }, orderBy: { position: "asc" } },
+    },
   });
 }
 
@@ -35,7 +39,11 @@ export async function getKpiForRange(range: DateRange, city?: string) {
   const avgCheck = orders.length > 0 ? totals.revenue / orders.length : 0;
 
   const returns = await prisma.return.count({
-    where: { status: "RETURNED", createdAt: { gte: range.from, lte: range.to } },
+    where: {
+      status: "RETURNED",
+      createdAt: { gte: range.from, lte: range.to },
+      order: { isDeleted: false },
+    },
   });
   const allOrdersInPeriod = await prisma.order.count({
     where: { isDeleted: false, orderDate: { gte: range.from, lte: range.to } },
@@ -122,26 +130,42 @@ export async function getProductsReport(range: DateRange) {
   > = {};
 
   for (const o of orders) {
-    const fin = calcOrderFinancials({
-      salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
-      quantity: o.quantity,
-      purchasePricePerUnit: toDecimalNumber(o.purchasePricePerUnit),
-      logisticsCost: toDecimalNumber(o.logisticsCost),
-      commissionCost: toDecimalNumber(o.commissionCost),
-      otherCosts: toDecimalNumber(o.otherCosts),
-    });
-    if (!byProduct[o.productId]) {
-      byProduct[o.productId] = {
-        name: o.productNameSnapshot,
-        imageUrl: o.product.imageUrl,
-        sold: 0,
-        revenue: 0,
-        profit: 0,
-      };
+    const items = o.items.length
+      ? o.items
+      : [{
+          productId: o.productId,
+          productNameSnapshot: o.productNameSnapshot,
+          quantity: o.quantity,
+          salePriceAtOrder: o.salePriceAtOrder,
+          purchasePricePerUnit: o.purchasePricePerUnit,
+          product: o.product,
+        }];
+    const orderRevenue = items.reduce(
+      (sum, item) => sum + toDecimalNumber(item.salePriceAtOrder) * item.quantity,
+      0
+    );
+    const sharedCosts =
+      toDecimalNumber(o.logisticsCost) +
+      toDecimalNumber(o.commissionCost) +
+      toDecimalNumber(o.otherCosts);
+
+    for (const item of items) {
+      const revenue = toDecimalNumber(item.salePriceAtOrder) * item.quantity;
+      const cost = toDecimalNumber(item.purchasePricePerUnit) * item.quantity;
+      const allocatedCosts = orderRevenue > 0 ? sharedCosts * (revenue / orderRevenue) : 0;
+      if (!byProduct[item.productId]) {
+        byProduct[item.productId] = {
+          name: item.productNameSnapshot,
+          imageUrl: item.product.imageUrl,
+          sold: 0,
+          revenue: 0,
+          profit: 0,
+        };
+      }
+      byProduct[item.productId].sold += item.quantity;
+      byProduct[item.productId].revenue += revenue;
+      byProduct[item.productId].profit += revenue - cost - allocatedCosts;
     }
-    byProduct[o.productId].sold += o.quantity;
-    byProduct[o.productId].revenue += fin.revenue;
-    byProduct[o.productId].profit += fin.netProfit;
   }
 
   return Object.entries(byProduct)

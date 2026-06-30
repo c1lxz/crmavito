@@ -53,6 +53,15 @@ describe("multiple order items", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("attributes product analytics to every order item", () => {
+    const reportsSource = readFileSync(
+      path.resolve(__dirname, "../lib/db/reports.ts"),
+      "utf8"
+    );
+    expect(reportsSource).toContain("for (const item of items)");
+    expect(reportsSource).toContain("allocatedCosts");
+  });
 });
 
 describe("order management UI/API", () => {
