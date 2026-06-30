@@ -69,7 +69,10 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   }, [open]);
 
   const selectedProduct = products.find((p) => p.id === form.productId);
-  const filteredProducts = products.filter((p) => matchesSearch(p.name, productSearch));
+  const allMatches = products.filter((p) => matchesSearch(p.name, productSearch));
+  const PRODUCT_RESULTS_LIMIT = 50;
+  const filteredProducts = allMatches.slice(0, PRODUCT_RESULTS_LIMIT);
+  const extraMatches = Math.max(0, allMatches.length - PRODUCT_RESULTS_LIMIT);
 
   const detection = form.trackingNumber ? detectCarrier(form.trackingNumber) : null;
   const detectedCarrier = detection?.carrier ?? "";
@@ -180,7 +183,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[92svh] max-w-md overflow-hidden p-0">
-        <DialogHeader className="border-b border-border/70 px-4 py-4 pr-12 text-left">
+        <DialogHeader className="mb-0 border-b border-border/70 px-4 py-4 pr-12 text-left">
           <DialogTitle className="text-lg">Новый заказ</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex max-h-[calc(92svh-61px)] min-h-0 flex-col">
@@ -208,6 +211,11 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                       <span className="text-muted-foreground ml-2">{formatRub(p.salePrice)}</span>
                     </button>
                   ))}
+                  {extraMatches > 0 && (
+                    <div className="border-t border-border/60 bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
+                      Показаны первые {PRODUCT_RESULTS_LIMIT} из {allMatches.length}. Уточните запрос.
+                    </div>
+                  )}
                   {filteredProducts.length === 0 && (
                     <div className="px-3 py-2 text-sm text-muted-foreground">
                       <p className="font-medium">Товар не найден</p>
@@ -243,22 +251,56 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             {form.productId && (
               <div className="space-y-2">
                 <Label>Фото товара</Label>
-                <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-md border border-border bg-card">
-                  {productImageLoading ? (
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  ) : productImageUrl ? (
-                    <Image src={productImageUrl} alt="Товар" width={180} height={180} className="object-cover w-full h-full" unoptimized />
-                  ) : (
-                    <div className="text-center text-muted-foreground text-xs px-2">
-                      <Package className="h-6 w-6 mx-auto mb-1 opacity-50" />
-                      Нет фото
-                      {productImageError && (
-                        <div className="mt-1 text-[10px] leading-tight opacity-70">
-                          {productImageError}
-                        </div>
-                      )}
+                <div className="flex items-start gap-3">
+                  <div className="relative flex h-28 w-28 flex-shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-card">
+                    {productImageLoading ? (
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    ) : productImageUrl ? (
+                      <Image src={productImageUrl} alt="Товар" width={180} height={180} className="object-cover w-full h-full" unoptimized />
+                    ) : (
+                      <div className="text-center text-muted-foreground text-xs px-2">
+                        <Package className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                        Нет фото
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    {productImageLoading && (
+                      <p className="text-xs text-muted-foreground">Загружаем фото из Avito…</p>
+                    )}
+                    {!productImageLoading && !productImageUrl && (
+                      <p className="text-[11px] leading-tight text-muted-foreground">
+                        {productImageError
+                          ? `Avito не отдал фото: ${productImageError.slice(0, 80)}.`
+                          : "Avito не отдал фото."}
+                        {" "}Вставьте URL вручную ниже или попробуйте ещё раз.
+                      </p>
+                    )}
+                    <div className="flex gap-1">
+                      <Input
+                        type="url"
+                        placeholder="https://… (URL фото)"
+                        value={productImageUrl ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setProductImageUrl(v.trim() ? v : null);
+                          if (v.trim()) setProductImageError(null);
+                        }}
+                        className="h-8 text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 flex-shrink-0 px-2"
+                        onClick={() => fetchProductImage(form.productId)}
+                        disabled={productImageLoading}
+                        title="Повторить запрос к Avito"
+                      >
+                        <Loader2 className={`h-3.5 w-3.5 ${productImageLoading ? "animate-spin" : ""}`} />
+                      </Button>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             )}
