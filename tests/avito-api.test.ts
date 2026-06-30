@@ -61,7 +61,10 @@ describe("resolveProductImage (smoke)", () => {
 describe("Telegram notify (smoke)", () => {
   it("качает картинку перед отправкой и шлёт мультипартом", () => {
     expect(notifySource).toContain("downloadImageAsBuffer");
-    expect(notifySource).toContain("attach://product");
+    expect(notifySource).toContain("attach://image");
+    expect(notifySource).toContain("flatMap");
+    expect(notifySource).toContain("offset += 10");
+    expect(notifySource).not.toContain("slice(0, 9)");
   });
 
   it("логирует фейлы Telegram API", () => {
@@ -78,9 +81,9 @@ describe("POST /api/orders integrates image resolver (smoke)", () => {
   it("дотягивает картинку синхронно перед уведомлением", () => {
     expect(ordersRouteSource).toContain("resolveProductImage");
     expect(ordersRouteSource).toContain("sendOrderToGroup");
-    expect(ordersRouteSource).toContain("productImageUrl");
+    expect(ordersRouteSource).toContain("imageUrls");
     // Ищем именно ВЫЗОВ функций (со скобками), а не импорты
-    const resolveCallIdx = ordersRouteSource.indexOf("resolveProductImage({");
+    const resolveCallIdx = ordersRouteSource.indexOf("resolveProductImageWithRetry({");
     const sendCallIdx = ordersRouteSource.indexOf("sendOrderToGroup({");
     expect(resolveCallIdx).toBeGreaterThan(-1);
     expect(sendCallIdx).toBeGreaterThan(resolveCallIdx);

@@ -20,7 +20,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   SHIPPED: "Отправлен",
   RECEIVED: "Получен",
   RETURNING: "На возврате",
-  RETURNED: "Возвращён",
+  RETURNED: "Возврат",
 };
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {

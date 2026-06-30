@@ -1,21 +1,29 @@
 import bwipjs from "bwip-js/node";
 import { downloadImageAsBuffer } from "@/lib/avito/fetch-image";
 
-interface OrderNotification {
-  orderNumber: string;
+interface NotificationItem {
   productName: string;
   variant: string | null;
   size: string | null;
   quantity: number;
   salePrice: number;
+  imageUrls: string[];
+}
+
+interface OrderNotification {
+  orderNumber: string;
+  items: NotificationItem[];
   trackingNumber: string;
   carrier: string;
   counterpartyName: string;
-  productImageUrl?: string | null;
   orderDate: Date;
 }
 
-export function buildOrderCaption(order: Pick<OrderNotification, "trackingNumber" | "carrier" | "size">): string {
+export function buildOrderCaption(order: {
+  trackingNumber: string;
+  carrier: string;
+  size?: string | null;
+}): string {
   return [
     order.trackingNumber,
     order.carrier || null,
@@ -38,18 +46,26 @@ async function generateBarcodePng(text: string): Promise<Buffer | null> {
       paddingheight: 10,
       backgroundcolor: "FFFFFF",
     })) as Buffer;
-  } catch (e) {
-    console.error("[telegram] barcode gen failed", e);
+  } catch (error) {
+    console.error("[telegram] barcode gen failed", error);
     return null;
   }
 }
 
 async function tgFetch(token: string, method: string, form: FormData): Promise<unknown> {
-  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: "POST", body: form });
-  const json = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string };
-  if (!r.ok || !json.ok) {
-    console.error(`[telegram] ${method} failed: HTTP ${r.status} — ${json.description ?? "unknown"}`);
-    throw new Error(json.description ?? `HTTP ${r.status}`);
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    body: form,
+  });
+  const json = (await response.json().catch(() => ({}))) as {
+    ok?: boolean;
+    description?: string;
+  };
+  if (!response.ok || !json.ok) {
+    console.error(
+      `[telegram] ${method} failed: HTTP ${response.status} — ${json.description ?? "unknown"}`
+    );
+    throw new Error(json.description ?? `HTTP ${response.status}`);
   }
   return json;
 }
@@ -62,53 +78,80 @@ export async function sendOrderToGroup(order: OrderNotification): Promise<void> 
     return;
   }
 
-  const caption = buildOrderCaption(order);
-
-  const [barcode, productImage] = await Promise.all([
+  const caption = buildOrderCaption({
+    trackingNumber: order.trackingNumber,
+    carrier: order.carrier,
+    size: order.items.length === 1 ? order.items[0].size : null,
+  });
+  const imageUrls = order.items.flatMap((item) => item.imageUrls);
+  const [barcode, ...downloadedImages] = await Promise.all([
     generateBarcodePng(order.trackingNumber),
-    order.productImageUrl ? downloadImageAsBuffer(order.productImageUrl) : Promise.resolve(null),
+    ...imageUrls.map(downloadImageAsBuffer),
   ]);
+  const productImages = downloadedImages.filter((image): image is Buffer => Boolean(image));
 
   try {
-    if (productImage && barcode) {
+    const allImages = [
+      ...productImages.map((image, index) => ({
+        image,
+        filename: `product-${index + 1}.jpg`,
+        contentType: "image/jpeg",
+        isLast: false,
+      })),
+      ...(barcode
+        ? [{
+            image: barcode,
+            filename: "barcode.png",
+            contentType: "image/png",
+            isLast: true,
+          }]
+        : []),
+    ];
+    if (!barcode && allImages.length) allImages[allImages.length - 1].isLast = true;
+
+    for (let offset = 0; offset < allImages.length; offset += 10) {
+      const batch = allImages.slice(offset, offset + 10);
+      if (batch.length === 1) {
+        const form = new FormData();
+        form.append("chat_id", chatId);
+        form.append(
+          "photo",
+          new Blob([new Uint8Array(batch[0].image)], { type: batch[0].contentType }),
+          batch[0].filename
+        );
+        if (batch[0].isLast) form.append("caption", caption);
+        await tgFetch(token, "sendPhoto", form);
+        continue;
+      }
+
       const form = new FormData();
       form.append("chat_id", chatId);
       form.append(
         "media",
-        JSON.stringify([
-          { type: "photo", media: "attach://product" },
-          { type: "photo", media: "attach://barcode", caption },
-        ])
+        JSON.stringify(
+          batch.map((item, index) => ({
+            type: "photo",
+            media: `attach://image${index}`,
+            ...(item.isLast ? { caption } : {}),
+          }))
+        )
       );
-      form.append("product", new Blob([new Uint8Array(productImage)], { type: "image/jpeg" }), "product.jpg");
-      form.append("barcode", new Blob([new Uint8Array(barcode)], { type: "image/png" }), "barcode.png");
+      batch.forEach((item, index) => {
+        form.append(
+          `image${index}`,
+          new Blob([new Uint8Array(item.image)], { type: item.contentType }),
+          item.filename
+        );
+      });
       await tgFetch(token, "sendMediaGroup", form);
-      return;
     }
-
-    if (productImage) {
-      const form = new FormData();
-      form.append("chat_id", chatId);
-      form.append("photo", new Blob([new Uint8Array(productImage)], { type: "image/jpeg" }), "product.jpg");
-      form.append("caption", caption);
-      await tgFetch(token, "sendPhoto", form);
-      return;
-    }
-
-    if (barcode) {
-      const form = new FormData();
-      form.append("chat_id", chatId);
-      form.append("photo", new Blob([new Uint8Array(barcode)], { type: "image/png" }), "barcode.png");
-      form.append("caption", caption);
-      await tgFetch(token, "sendPhoto", form);
-      return;
-    }
+    if (allImages.length) return;
 
     const form = new FormData();
     form.append("chat_id", chatId);
     form.append("text", caption);
     await tgFetch(token, "sendMessage", form);
-  } catch (e) {
-    console.error("[telegram] sendOrderToGroup failed", e);
+  } catch (error) {
+    console.error("[telegram] sendOrderToGroup failed", error);
   }
 }

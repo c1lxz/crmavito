@@ -199,7 +199,10 @@ export async function getCounterpartiesReport(range: DateRange) {
 
 export async function getReturnsReport(range: DateRange) {
   const returns = await prisma.return.findMany({
-    where: { createdAt: { gte: range.from, lte: range.to } },
+    where: {
+      createdAt: { gte: range.from, lte: range.to },
+      order: { isDeleted: false },
+    },
     include: { product: true },
   });
 

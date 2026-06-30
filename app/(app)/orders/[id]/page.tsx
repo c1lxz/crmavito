@@ -2,19 +2,24 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db/prisma";
 import { OrderDetailClient } from "@/components/orders/order-detail-client";
 import { calcOrderFinancials } from "@/lib/finance/calculations";
-import { toDecimalNumber, getAllowedNextStatuses } from "@/lib/db/orders";
+import { toDecimalNumber } from "@/lib/db/orders";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const order = await prisma.order.findUnique({
-    where: { id, isDeleted: false },
-    include: {
-      product: true,
-      counterparty: true,
-      returns: true,
-      auditLogs: { include: { user: { select: { name: true } } }, orderBy: { timestamp: "desc" } },
-    },
-  });
+  const [order, products, counterparties] = await Promise.all([
+    prisma.order.findUnique({
+      where: { id, isDeleted: false },
+      include: {
+        product: true,
+        counterparty: true,
+        items: { include: { product: true }, orderBy: { position: "asc" } },
+        returns: true,
+        auditLogs: { include: { user: { select: { name: true } } }, orderBy: { timestamp: "desc" } },
+      },
+    }),
+    prisma.product.findMany({ orderBy: { name: "asc" } }),
+    prisma.counterparty.findMany({ orderBy: { name: "asc" } }),
+  ]);
 
   if (!order) notFound();
 
@@ -26,8 +31,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     commissionCost: toDecimalNumber(order.commissionCost),
     otherCosts: toDecimalNumber(order.otherCosts),
   });
-
-  const nextStatuses = getAllowedNextStatuses(order.status);
 
   return (
     <OrderDetailClient
@@ -43,6 +46,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         receivedAt: order.receivedAt?.toISOString() ?? null,
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
+        items: order.items.map((item) => ({
+          ...item,
+          salePriceAtOrder: toDecimalNumber(item.salePriceAtOrder),
+          purchasePricePerUnit: toDecimalNumber(item.purchasePricePerUnit),
+          createdAt: item.createdAt.toISOString(),
+          updatedAt: item.updatedAt.toISOString(),
+          product: {
+            name: item.product.name,
+            imageUrl: item.product.imageUrl,
+          },
+        })),
         auditLogs: order.auditLogs.map((l: (typeof order.auditLogs)[number]) => ({
           ...l,
           timestamp: l.timestamp.toISOString(),
@@ -50,7 +64,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         })),
       }}
       financials={fin}
-      nextStatuses={nextStatuses}
+      products={products.map((product) => ({
+        id: product.id,
+        name: product.name,
+        salePrice: toDecimalNumber(product.salePrice),
+        imageUrl: product.imageUrl,
+      }))}
+      counterparties={counterparties.map((counterparty) => ({
+        id: counterparty.id,
+        name: counterparty.name,
+      }))}
     />
   );
 }

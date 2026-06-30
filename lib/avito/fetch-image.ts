@@ -1,4 +1,6 @@
 import { fetchAvitoItemImage, isLikelyImageUrl, type AvitoResult } from "./api";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 function decodeHtmlValue(value: string): string {
   return value
@@ -123,6 +125,12 @@ export async function resolveProductImage(
 
 export async function downloadImageAsBuffer(url: string): Promise<Buffer | null> {
   try {
+    if (url.startsWith("/uploads/")) {
+      const publicRoot = path.resolve(process.cwd(), "public");
+      const filePath = path.resolve(publicRoot, `.${url}`);
+      if (!filePath.startsWith(`${publicRoot}${path.sep}`)) return null;
+      return await readFile(filePath);
+    }
     const r = await fetch(url, {
       headers: {
         "User-Agent":

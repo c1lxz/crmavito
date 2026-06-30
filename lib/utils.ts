@@ -36,6 +36,13 @@ export function formatDateTime(date: Date | string): string {
   );
 }
 
+export function formatDateInput(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function formatPercent(value: number): string {
   return new Intl.NumberFormat("ru-RU", {
     minimumFractionDigits: 1,

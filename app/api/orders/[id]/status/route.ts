@@ -1,63 +1,85 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { transitionOrderStatus, isTransitionAllowed } from "@/lib/db/orders";
 import { createAuditLog } from "@/lib/db/audit";
-import { z } from "zod";
-import { OrderStatus } from "@prisma/client";
 
 const schema = z.object({
-  status: z.enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNING", "RETURNED"]),
-  shippingDate: z.string().optional(),
-  returnReason: z.string().optional(),
-  returnComment: z.string().optional(),
+  status: z.enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNED"]),
+  shippingDate: z.string().date().optional(),
 });
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 
-  const body = await req.json();
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-
-  const { status: toStatus, shippingDate, returnReason, returnComment } = parsed.data;
+  const parsed = schema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
 
   const order = await prisma.order.findUnique({ where: { id, isDeleted: false } });
-  if (!order) return NextResponse.json({ error: "Не найден" }, { status: 404 });
+  if (!order) return NextResponse.json({ error: "Заказ не найден" }, { status: 404 });
 
-  if (!isTransitionAllowed(order.status, toStatus as OrderStatus)) {
-    return NextResponse.json(
-      { error: `Переход ${order.status} → ${toStatus} недопустим` },
-      { status: 400 }
-    );
-  }
+  const { status, shippingDate } = parsed.data;
+  if (status === order.status) return NextResponse.json({ success: true });
 
-  if (toStatus === "RETURNING") {
-    if (!returnReason) {
-      return NextResponse.json({ error: "Укажите причину возврата" }, { status: 400 });
-    }
-    await prisma.$transaction(async (tx) => {
-      await tx.order.update({ where: { id }, data: { status: "RETURNING" } });
-      await tx.return.create({
-        data: {
-          orderId: id,
-          productId: order.productId,
-          trackingNumber: order.trackingNumber,
-          status: "RETURNING",
-          shippingDate: order.shippingDate,
-          reason: returnReason,
-          comment: returnComment,
-        },
-      });
-      await createAuditLog({ entityType: "ORDER", entityId: id, userId: session.user.id, fieldName: "status", oldValue: order.status, newValue: "RETURNING" }, tx);
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { id },
+      data: {
+        status,
+        receivedAt: status === "RECEIVED" ? new Date() : null,
+        ...(status === "SHIPPED" && shippingDate
+          ? { shippingDate: new Date(shippingDate) }
+          : {}),
+      },
     });
-    return NextResponse.json({ success: true });
-  }
 
-  await transitionOrderStatus(id, toStatus as OrderStatus, session.user.id, {
-    shippingDate: shippingDate ? new Date(shippingDate) : undefined,
+    if (status === "RETURNED") {
+      const existingReturn = await tx.return.findFirst({
+        where: { orderId: id, status: { in: ["RETURNING", "RETURNED"] } },
+      });
+      if (existingReturn) {
+        await tx.return.update({
+          where: { id: existingReturn.id },
+          data: { status: "RETURNED", returnDate: new Date() },
+        });
+      } else {
+        await tx.return.create({
+          data: {
+            orderId: id,
+            productId: order.productId,
+            trackingNumber: order.trackingNumber,
+            status: "RETURNED",
+            shippingDate: order.shippingDate,
+            returnDate: new Date(),
+            reason: "Статус заказа изменён на «Возврат»",
+          },
+        });
+      }
+    } else if (order.status === "RETURNED" || order.status === "RETURNING") {
+      await tx.return.updateMany({
+        where: { orderId: id, status: { in: ["RETURNING", "RETURNED"] } },
+        data: { status: "CANCELLED" },
+      });
+    }
+
+    await createAuditLog(
+      {
+        entityType: "ORDER",
+        entityId: id,
+        userId: session.user.id,
+        fieldName: "status",
+        oldValue: order.status,
+        newValue: status,
+      },
+      tx
+    );
   });
 
   return NextResponse.json({ success: true });

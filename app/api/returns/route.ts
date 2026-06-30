@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search");
   const reason = searchParams.get("reason");
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { order: { isDeleted: false } };
   if (status) where.status = status;
   if (reason) where.reason = { contains: reason, mode: "insensitive" };
   if (search) {
@@ -28,8 +28,8 @@ export async function GET(req: NextRequest) {
   });
 
   const [totalReturning, totalReturned] = await Promise.all([
-    prisma.return.count({ where: { status: "RETURNING" } }),
-    prisma.return.count({ where: { status: "RETURNED" } }),
+    prisma.return.count({ where: { status: "RETURNING", order: { isDeleted: false } } }),
+    prisma.return.count({ where: { status: "RETURNED", order: { isDeleted: false } } }),
   ]);
 
   return NextResponse.json({ returns, totalReturning, totalReturned, total: returns.length });

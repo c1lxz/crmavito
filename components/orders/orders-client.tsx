@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Plus, Search, ChevronRight, Package, PackageOpen } from "lucide-react";
@@ -37,16 +37,27 @@ interface Order {
 interface Props {
   initialOrders: Order[];
   counterparties: { id: string; name: string }[];
-  products: { id: string; name: string; salePrice: number | string }[];
+  products: { id: string; name: string; salePrice: number | string; imageUrl?: string | null }[];
   totalRevenue: number;
   totalProfit: number;
+  initialOpen?: boolean;
+  focusSearch?: boolean;
 }
 
-export function OrdersClient({ initialOrders, counterparties, products, totalRevenue, totalProfit }: Props) {
-  const [orders] = useState(initialOrders);
+export function OrdersClient({ initialOrders, counterparties, products, totalRevenue, totalProfit, initialOpen = false, focusSearch = false }: Props) {
+  const [orders, setOrders] = useState(initialOrders);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [showCreate, setShowCreate] = useState(false);
+  const [showCreate, setShowCreate] = useState(initialOpen);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setOrders(initialOrders);
+  }, [initialOrders]);
+
+  useEffect(() => {
+    if (focusSearch) searchInputRef.current?.focus();
+  }, [focusSearch]);
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
@@ -85,6 +96,7 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              ref={searchInputRef}
               placeholder="Поиск по заказам, треку или товару"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

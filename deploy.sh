@@ -3,6 +3,7 @@ set -e
 
 cd /var/www/crmavito
 npm install
+npx prisma db push
 DATABASE_URL_FROM_ENV="$(node -e "require('dotenv/config'); process.stdout.write(process.env.DATABASE_URL || '')")"
 if [ -n "$DATABASE_URL_FROM_ENV" ] && command -v psql >/dev/null 2>&1; then
   psql "$DATABASE_URL_FROM_ENV" -c 'ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "carrier" TEXT;'

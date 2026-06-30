@@ -5,11 +5,12 @@ import { toDecimalNumber } from "@/lib/db/orders";
 async function getReturns() {
   const [returns, totalReturning, totalReturned] = await Promise.all([
     prisma.return.findMany({
+      where: { order: { isDeleted: false } },
       include: { order: true, product: true },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.return.count({ where: { status: "RETURNING" } }),
-    prisma.return.count({ where: { status: "RETURNED" } }),
+    prisma.return.count({ where: { status: "RETURNING", order: { isDeleted: false } } }),
+    prisma.return.count({ where: { status: "RETURNED", order: { isDeleted: false } } }),
   ]);
   return {
     returns: returns.map((r) => ({

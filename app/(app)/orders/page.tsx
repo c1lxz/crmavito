@@ -10,7 +10,6 @@ async function getOrders() {
     where: { isDeleted: false },
     include: { product: true, counterparty: true },
     orderBy: { createdAt: "desc" },
-    take: 50,
   });
   return orders.map((o) => ({
     ...o,
@@ -67,7 +66,12 @@ async function getProducts() {
   return products.map((p) => ({ id: p.id, name: p.name, salePrice: parseFloat(p.salePrice.toString()), imageUrl: p.imageUrl }));
 }
 
-export default async function OrdersPage() {
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string; search?: string }>;
+}) {
+  const query = await searchParams;
   const [orders, counterparties, products] = await Promise.all([
     getOrders(),
     getCounterparties(),
@@ -83,8 +87,10 @@ export default async function OrdersPage() {
         initialOrders={orders}
         counterparties={counterparties}
         products={products}
-        totalRevenue={orders.reduce((s, o) => s + o.revenue, 0)}
+        totalRevenue={totals.revenue}
         totalProfit={totals.netProfit}
+        initialOpen={query.new === "1"}
+        focusSearch={query.search === "1"}
       />
     </Suspense>
   );

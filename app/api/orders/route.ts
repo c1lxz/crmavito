@@ -1,62 +1,81 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma, type Order } from "@prisma/client";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { generateOrderNumber } from "@/lib/db/orders";
 import { createAuditLog } from "@/lib/db/audit";
 import { detectCarrier } from "@/lib/tracking";
-
 import { sendOrderToGroup } from "@/lib/telegram/notify";
-import { resolveProductImage } from "@/lib/avito/fetch-image";
-import { z } from "zod";
+import { downloadImageAsBuffer, resolveProductImage } from "@/lib/avito/fetch-image";
+import { createOrderSchema, getLegacyOrderTotals } from "@/lib/orders/schema";
 
-const createOrderSchema = z.object({
-  productId: z.string().uuid(),
-  variant: z.string().optional(),
-  size: z.string().optional(),
-  quantity: z.number().int().positive(),
-  salePriceAtOrder: z.number().positive(),
-  counterpartyId: z.string().uuid(),
-  purchasePricePerUnit: z.number().nonnegative(),
-  purchaseComment: z.string().optional(),
-  trackingNumber: z.string().min(1),
-  carrier: z.string().trim().optional(),
-  productImageUrl: z.string().trim().url().optional(),
-  orderDate: z.string(),
-  shippingDate: z.string().optional(),
-  logisticsCost: z.number().nonnegative().default(0),
-  commissionCost: z.number().nonnegative().default(0),
-  otherCosts: z.number().nonnegative().default(0),
-});
+async function resolveProductImageWithRetry(product: {
+  avitoItemId: string | null;
+  avitoListingUrl: string | null;
+}) {
+  let result = await resolveProductImage(product);
+  for (let attempt = 1; !result.ok && attempt < 3; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, attempt * 350));
+    result = await resolveProductImage(product);
+  }
+  return result;
+}
 
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const status = searchParams.get("status");
+  const statusParam = searchParams.get("status");
   const tracking = searchParams.get("tracking");
   const counterpartyId = searchParams.get("counterpartyId");
   const productId = searchParams.get("productId");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
-  const page = parseInt(searchParams.get("page") ?? "1");
-  const pageSize = parseInt(searchParams.get("pageSize") ?? "20");
+  const parsedPage = Number(searchParams.get("page") ?? "1");
+  const parsedPageSize = Number(searchParams.get("pageSize") ?? "20");
+  const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const pageSize =
+    Number.isInteger(parsedPageSize) && parsedPageSize > 0
+      ? Math.min(parsedPageSize, 100)
+      : 20;
 
-  const where: Record<string, unknown> = { isDeleted: false };
-  if (status) where.status = status;
+  const where: Prisma.OrderWhereInput = { isDeleted: false };
+  if (statusParam) {
+    const status = z
+      .enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNING", "RETURNED"])
+      .safeParse(statusParam);
+    if (!status.success) {
+      return NextResponse.json({ error: "Некорректный статус" }, { status: 400 });
+    }
+    where.status = status.data;
+  }
   if (tracking) where.trackingNumber = { contains: tracking, mode: "insensitive" };
   if (counterpartyId) where.counterpartyId = counterpartyId;
-  if (productId) where.productId = productId;
+  if (productId) {
+    where.OR = [{ productId }, { items: { some: { productId } } }];
+  }
   if (dateFrom || dateTo) {
+    if (dateFrom && !z.string().date().safeParse(dateFrom).success) {
+      return NextResponse.json({ error: "Некорректная начальная дата" }, { status: 400 });
+    }
+    if (dateTo && !z.string().date().safeParse(dateTo).success) {
+      return NextResponse.json({ error: "Некорректная конечная дата" }, { status: 400 });
+    }
     where.orderDate = {};
-    if (dateFrom) (where.orderDate as Record<string, Date>).gte = new Date(dateFrom);
-    if (dateTo) (where.orderDate as Record<string, Date>).lte = new Date(dateTo);
+    if (dateFrom) where.orderDate.gte = new Date(dateFrom);
+    if (dateTo) where.orderDate.lte = new Date(dateTo);
   }
 
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
       where,
-      include: { product: true, counterparty: true },
+      include: {
+        product: true,
+        counterparty: true,
+        items: { include: { product: true }, orderBy: { position: "asc" } },
+      },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -71,86 +90,154 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
+  const body = await req.json().catch(() => null);
   const parsed = createOrderSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
   const data = parsed.data;
-  const product = await prisma.product.findUnique({ where: { id: data.productId } });
-  if (!product) return NextResponse.json({ error: "Товар не найден" }, { status: 404 });
-
-  const counterparty = await prisma.counterparty.findUnique({ where: { id: data.counterpartyId } });
-  if (!counterparty) return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
-
-  const orderNumber = await generateOrderNumber();
-  const carrier = data.carrier?.trim() || detectCarrier(data.trackingNumber)?.carrier || "";
-
-  const order = await prisma.$transaction(async (tx) => {
-    const o = await tx.order.create({
-      data: {
-        orderNumber,
-        productId: data.productId,
-        productNameSnapshot: product.name,
-        variant: data.variant,
-        size: data.size,
-        quantity: data.quantity,
-        salePriceAtOrder: data.salePriceAtOrder,
-        counterpartyId: data.counterpartyId,
-        purchasePricePerUnit: data.purchasePricePerUnit,
-        purchaseComment: data.purchaseComment,
-        trackingNumber: data.trackingNumber,
-        carrier,
-        orderDate: new Date(data.orderDate),
-        shippingDate: data.shippingDate ? new Date(data.shippingDate) : null,
-        logisticsCost: data.logisticsCost,
-        commissionCost: data.commissionCost,
-        otherCosts: data.otherCosts,
-        createdByUserId: session.user.id,
-      },
-    });
-    await createAuditLog(
-      { entityType: "ORDER", entityId: o.id, userId: session.user.id, fieldName: "status", oldValue: null, newValue: "ACCEPTED" },
-      tx
-    );
-    return o;
-  });
-
-  let imageUrl: string | null = data.productImageUrl ?? product.imageUrl;
-  if (data.productImageUrl && data.productImageUrl !== product.imageUrl) {
-    await prisma.product
-      .update({ where: { id: product.id }, data: { imageUrl: data.productImageUrl } })
-      .catch(() => null);
+  const productIds = [...new Set(data.items.map((item) => item.productId))];
+  const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
+  if (products.length !== productIds.length) {
+    return NextResponse.json({ error: "Один из товаров не найден" }, { status: 404 });
   }
-  if (!imageUrl && (product.avitoItemId || product.avitoListingUrl)) {
-    const r = await resolveProductImage({
-      avitoItemId: product.avitoItemId,
-      avitoListingUrl: product.avitoListingUrl,
-    });
-    if (r.ok) {
-      imageUrl = r.value;
-      await prisma.product
-        .update({ where: { id: product.id }, data: { imageUrl } })
-        .catch(() => null);
-    } else {
-      console.warn(`[avito] order ${order.orderNumber}: ${r.reason}`);
+  const productsById = new Map(products.map((product) => [product.id, product]));
+  const counterparty = await prisma.counterparty.findUnique({
+    where: { id: data.counterpartyId },
+  });
+  if (!counterparty) {
+    return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
+  }
+
+  const firstItem = data.items[0];
+  const firstProduct = productsById.get(firstItem.productId)!;
+  const totals = getLegacyOrderTotals(data.items);
+  const carrier =
+    data.carrier?.trim() || detectCarrier(data.trackingNumber)?.carrier || "";
+
+  let order: Order | null = null;
+  for (let attempt = 0; attempt < 3 && !order; attempt++) {
+    const orderNumber = await generateOrderNumber();
+    try {
+      order = await prisma.$transaction(async (tx) => {
+        const created = await tx.order.create({
+          data: {
+            orderNumber,
+            productId: firstProduct.id,
+            productNameSnapshot:
+              data.items.length === 1
+                ? firstProduct.name
+                : `${firstProduct.name} + ещё ${data.items.length - 1}`,
+            variant: firstItem.variant || null,
+            size: firstItem.size || null,
+            quantity: totals.quantity,
+            salePriceAtOrder: totals.salePriceAtOrder,
+            counterpartyId: data.counterpartyId,
+            purchasePricePerUnit: totals.purchasePricePerUnit,
+            purchaseComment: data.purchaseComment,
+            trackingNumber: data.trackingNumber,
+            carrier,
+            orderDate: new Date(data.orderDate),
+            shippingDate: data.shippingDate ? new Date(data.shippingDate) : null,
+            destinationCity: data.destinationCity,
+            logisticsCost: data.logisticsCost,
+            commissionCost: data.commissionCost,
+            otherCosts: data.otherCosts,
+            createdByUserId: session.user.id,
+            items: {
+              create: data.items.map((item, position) => ({
+                productId: item.productId,
+                productNameSnapshot: productsById.get(item.productId)!.name,
+                variant: item.variant || null,
+                size: item.size || null,
+                quantity: item.quantity,
+                salePriceAtOrder: item.salePriceAtOrder,
+                purchasePricePerUnit: item.purchasePricePerUnit,
+                imageUrls: item.imageUrls,
+                position,
+              })),
+            },
+          },
+        });
+        await createAuditLog(
+          {
+            entityType: "ORDER",
+            entityId: created.id,
+            userId: session.user.id,
+            fieldName: "status",
+            oldValue: null,
+            newValue: "ACCEPTED",
+          },
+          tx
+        );
+        return created;
+      });
+    } catch (error) {
+      const duplicateOrderNumber =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002" &&
+        String(error.meta?.target ?? "").includes("orderNumber");
+      if (!duplicateOrderNumber || attempt === 2) throw error;
     }
   }
+  if (!order) {
+    return NextResponse.json(
+      { error: "Не удалось сформировать номер заказа" },
+      { status: 409 }
+    );
+  }
+
+  const notificationItems = await Promise.all(
+    data.items.map(async (item) => {
+      const product = productsById.get(item.productId)!;
+      const imageUrls = [...item.imageUrls];
+      if (imageUrls.length === 0 && product.imageUrl) {
+        const cachedImage = await downloadImageAsBuffer(product.imageUrl);
+        if (cachedImage?.length) imageUrls.push(product.imageUrl);
+      }
+      if (imageUrls.length === 0 && (product.avitoItemId || product.avitoListingUrl)) {
+        const result = await resolveProductImageWithRetry({
+          avitoItemId: product.avitoItemId,
+          avitoListingUrl: product.avitoListingUrl,
+        });
+        if (result.ok) {
+          imageUrls.push(result.value);
+          await prisma.product
+            .update({ where: { id: product.id }, data: { imageUrl: result.value } })
+            .catch(() => null);
+        } else {
+          console.warn(`[avito] order ${order!.orderNumber}: ${result.reason}`);
+        }
+      }
+      return {
+        productName: product.name,
+        variant: item.variant ?? null,
+        size: item.size ?? null,
+        quantity: item.quantity,
+        salePrice: item.salePriceAtOrder,
+        imageUrls,
+      };
+    })
+  );
+
+  await prisma.$transaction(
+    notificationItems.map((item, position) =>
+      prisma.orderItem.updateMany({
+        where: { orderId: order!.id, position },
+        data: { imageUrls: item.imageUrls },
+      })
+    )
+  );
 
   await sendOrderToGroup({
     orderNumber: order.orderNumber,
-    productName: product.name,
-    variant: data.variant ?? null,
-    size: data.size ?? null,
-    quantity: data.quantity,
-    salePrice: data.salePriceAtOrder,
+    items: notificationItems,
     trackingNumber: data.trackingNumber,
     carrier,
     counterpartyName: counterparty.name,
-    productImageUrl: imageUrl,
     orderDate: new Date(data.orderDate),
-  }).catch((e) => console.error("[telegram] notify failed", e));
+  }).catch((error) => console.error("[telegram] notify failed", error));
 
   return NextResponse.json(order, { status: 201 });
 }

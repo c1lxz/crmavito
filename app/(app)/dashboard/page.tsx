@@ -18,7 +18,7 @@ async function getDashboardData() {
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
 
-  const [todayOrders, weekOrders, monthOrders, monthExpenses, lastOrders, topProducts] =
+  const [todayOrders, weekOrders, monthOrders, monthExpenses, lastOrders, topProducts, todayOrderCount, weekOrderCount] =
     await Promise.all([
       prisma.order.findMany({
         where: { status: "RECEIVED", receivedAt: { gte: todayStart, lte: todayEnd }, isDeleted: false },
@@ -42,6 +42,12 @@ async function getDashboardData() {
       prisma.order.findMany({
         where: { status: "RECEIVED", isDeleted: false },
         include: { product: true },
+      }),
+      prisma.order.count({
+        where: { isDeleted: false, orderDate: { gte: todayStart, lte: todayEnd } },
+      }),
+      prisma.order.count({
+        where: { isDeleted: false, orderDate: { gte: weekStart, lte: todayEnd } },
       }),
     ]);
 
@@ -82,13 +88,15 @@ async function getDashboardData() {
 
   return {
     todaySales: todayOrders.length,
+    todayOrders: todayOrderCount,
     todayRevenue: todayFin.revenue,
     todayProfit: todayFin.netProfit,
     weekSales: weekOrders.length,
+    weekOrders: weekOrderCount,
     weekProfit: weekFin.netProfit,
     monthRevenue: monthFin.revenue,
     monthExpenses: monthExpensesTotal,
-    monthNetProfit: monthFin.netProfit,
+    monthNetProfit: monthFin.netProfit - monthExpensesTotal,
     lastOrders,
     topProductsList,
   };
@@ -99,16 +107,16 @@ export default async function DashboardPage() {
   const today = new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
   const kpiCards = [
-    { label: "Продажи сегодня", value: `${data.todaySales} заказов`, sub: formatRub(data.todayRevenue) },
-    { label: "Прибыль сегодня", value: formatRub(data.todayProfit) },
-    { label: "Продажи за неделю", value: `${data.weekSales} заказов` },
-    { label: "Прибыль за неделю", value: formatRub(data.weekProfit) },
+    { label: "Заказы сегодня", value: `${data.todayOrders}`, sub: "создано за день" },
+    { label: "Продажи сегодня", value: `${data.todaySales}`, sub: formatRub(data.todayRevenue) },
+    { label: "Заказы за 7 дней", value: `${data.weekOrders}`, sub: "создано за период" },
+    { label: "Продажи за 7 дней", value: `${data.weekSales}`, sub: `${formatRub(data.weekProfit)} прибыли` },
   ];
 
   const quickActions = [
     { label: "Новый заказ", icon: Plus, href: "/orders?new=1" },
     { label: "Найти заказ", icon: Search, href: "/orders?search=1" },
-    { label: "Возврат", icon: RotateCcw, href: "/returns?new=1" },
+    { label: "Возврат", icon: RotateCcw, href: "/orders?search=1" },
     { label: "Расход", icon: Wallet, href: "/expenses?new=1" },
   ];
 

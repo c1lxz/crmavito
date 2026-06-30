@@ -5,17 +5,15 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Package, Maximize2, Download, X } from "lucide-react";
+import { ArrowLeft, Download, Maximize2, Package, Pencil, Trash2, X } from "lucide-react";
 import { detectCarrierName } from "@/lib/tracking";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { formatRub, formatDate, formatDateTime } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatRub, formatDate, formatDateInput, formatDateTime } from "@/lib/utils";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import { toast } from "@/lib/hooks/use-toast";
+import { CreateOrderDialog, type OrderFormInitialValue, type OrderFormProduct } from "./create-order-dialog";
 import type { CalculatedFinancials } from "@/lib/finance/calculations";
 import type { OrderStatus } from "@prisma/client";
 
@@ -28,11 +26,27 @@ interface AuditLog {
   user: { name: string };
 }
 
+interface OrderItem {
+  id?: string;
+  productId: string;
+  productNameSnapshot: string;
+  variant: string | null;
+  size: string | null;
+  quantity: number;
+  salePriceAtOrder: number;
+  purchasePricePerUnit: number;
+  imageUrls: string[];
+  product: { name: string; imageUrl: string | null };
+}
+
 interface OrderDetail {
   id: string;
   orderNumber: string;
+  productId: string;
+  counterpartyId: string;
   productNameSnapshot: string;
   variant: string | null;
+  size: string | null;
   trackingNumber: string;
   carrier: string | null;
   quantity: number;
@@ -48,9 +62,10 @@ interface OrderDetail {
   destinationCity: string | null;
   purchaseComment: string | null;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
   product: { name: string; imageUrl: string | null };
   counterparty: { name: string; contactInfo: string | null };
+  items: OrderItem[];
   auditLogs: AuditLog[];
 }
 
@@ -62,71 +77,123 @@ const FIELD_LABELS: Record<string, string> = {
   salePriceAtOrder: "Цена продажи",
   destinationCity: "Город",
   isDeleted: "Удалён",
+  items: "Товары",
 };
+
+const EDITABLE_STATUSES: OrderStatus[] = ["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNED"];
 
 interface Props {
   order: OrderDetail;
   financials: CalculatedFinancials;
-  nextStatuses: OrderStatus[];
+  products: OrderFormProduct[];
+  counterparties: { id: string; name: string }[];
 }
 
-export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
+export function OrderDetailClient({ order, financials, products, counterparties }: Props) {
   const router = useRouter();
-  const [showStatusDialog, setShowStatusDialog] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<OrderStatus | null>(null);
-  const [shippingDate, setShippingDate] = useState(new Date().toISOString().slice(0, 10));
-  const [returnReason, setReturnReason] = useState("");
-  const [returnComment, setReturnComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [showBarcode, setShowBarcode] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
+  useEffect(() => setMounted(true), []);
   useEffect(() => {
     if (!showBarcode) return;
-    const prev = document.body.style.overflow;
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = previousOverflow;
     };
   }, [showBarcode]);
 
   const barcodeUrl = order.trackingNumber
     ? `/api/barcode?text=${encodeURIComponent(order.trackingNumber)}`
     : null;
+  const displayedItems: OrderItem[] =
+    order.items.length > 0
+      ? order.items
+      : [
+          {
+            productId: order.productId,
+            productNameSnapshot: order.productNameSnapshot,
+            variant: order.variant,
+            size: order.size,
+            quantity: order.quantity,
+            salePriceAtOrder: order.salePriceAtOrder,
+            purchasePricePerUnit: order.purchasePricePerUnit,
+            imageUrls: order.product.imageUrl ? [order.product.imageUrl] : [],
+            product: order.product,
+          },
+        ];
 
-  function openStatusDialog(status: OrderStatus) {
-    setSelectedStatus(status);
-    setShowStatusDialog(true);
-  }
+  const editInitialValue: OrderFormInitialValue = {
+    id: order.id,
+    counterpartyId: order.counterpartyId,
+    purchaseComment: order.purchaseComment ?? "",
+    trackingNumber: order.trackingNumber,
+    carrier: order.carrier ?? "",
+    orderDate: formatDateInput(new Date(order.orderDate)),
+    shippingDate: order.shippingDate
+      ? formatDateInput(new Date(order.shippingDate))
+      : "",
+    destinationCity: order.destinationCity ?? "",
+    logisticsCost: String(order.logisticsCost),
+    commissionCost: String(order.commissionCost),
+    otherCosts: String(order.otherCosts),
+    items: displayedItems.map((item) => ({
+      productId: item.productId,
+      productSearch: item.productNameSnapshot,
+      variant: item.variant ?? "",
+      size: item.size ?? "",
+      quantity: item.quantity,
+      salePriceAtOrder: String(item.salePriceAtOrder),
+      purchasePricePerUnit: String(item.purchasePricePerUnit),
+      imageUrls: item.imageUrls.length
+        ? item.imageUrls
+        : item.product.imageUrl
+          ? [item.product.imageUrl]
+          : [],
+    })),
+  };
 
-  async function handleStatusChange() {
-    if (!selectedStatus) return;
+  async function changeStatus(status: OrderStatus) {
     setLoading(true);
     try {
-      const res = await fetch(`/api/orders/${order.id}/status`, {
+      const response = await fetch(`/api/orders/${order.id}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: selectedStatus,
-          shippingDate: selectedStatus === "SHIPPED" ? shippingDate : undefined,
-          returnReason: selectedStatus === "RETURNING" ? returnReason : undefined,
-          returnComment: selectedStatus === "RETURNING" ? returnComment : undefined,
+          status,
+          shippingDate: status === "SHIPPED" ? formatDateInput() : undefined,
         }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error ?? "Ошибка");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error ?? "Не удалось изменить статус");
       }
-      toast({ title: "Статус обновлён", description: `${ORDER_STATUS_LABELS[order.status]} → ${ORDER_STATUS_LABELS[selectedStatus]}` });
-      setShowStatusDialog(false);
+      toast({ title: "Статус обновлён", description: ORDER_STATUS_LABELS[status] });
       router.refresh();
-    } catch (err) {
-      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
+    } catch (error) {
+      toast({ title: "Ошибка", description: String(error), variant: "destructive" });
     } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteOrder() {
+    if (!window.confirm("Удалить заказ? Он будет исключён из всей статистики.")) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/orders/${order.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error ?? "Не удалось удалить заказ");
+      }
+      toast({ title: "Заказ удалён", description: "Данные исключены из статистики" });
+      router.push("/orders");
+      router.refresh();
+    } catch (error) {
+      toast({ title: "Ошибка", description: String(error), variant: "destructive" });
       setLoading(false);
     }
   }
@@ -138,218 +205,190 @@ export function OrderDetailClient({ order, financials, nextStatuses }: Props) {
           <Link href="/orders" className="icon-tile h-9 w-9">
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div className="flex-1">
-            <h1 className="font-bold text-lg">№{order.orderNumber}</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold">№{order.orderNumber}</h1>
             <p className="text-xs text-muted-foreground">{formatDate(order.orderDate)}</p>
           </div>
-          <span className={`text-xs px-2 py-1 rounded-full font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
-            {ORDER_STATUS_LABELS[order.status]}
-          </span>
+          <Button size="icon" variant="outline" onClick={() => setShowEdit(true)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            className="text-destructive"
+            disabled={loading}
+            onClick={() => void deleteOrder()}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
       <div className="app-content space-y-4">
-        {/* Product */}
         <Card>
-          <CardContent className="p-3 flex gap-3">
-            <div className="w-16 h-16 rounded-md bg-muted overflow-hidden flex-shrink-0">
-              {order.product.imageUrl ? (
-                <Image src={order.product.imageUrl} alt={order.productNameSnapshot} width={64} height={64} className="object-cover w-full h-full" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                  <Package className="h-6 w-6" />
-                </div>
-              )}
-            </div>
-            <div>
-              <p className="font-semibold">{order.productNameSnapshot}</p>
-              {order.variant && <p className="text-sm text-muted-foreground">Цвет: {order.variant}</p>}
-              <p className="text-sm text-muted-foreground">{order.quantity} шт. × {formatRub(order.salePriceAtOrder)}</p>
-            </div>
+          <CardHeader className="p-3 pb-1"><CardTitle className="text-sm">Статус заказа</CardTitle></CardHeader>
+          <CardContent className="p-3 pt-1">
+            <Select
+              value={order.status === "RETURNING" ? "RETURNED" : order.status}
+              disabled={loading}
+              onValueChange={(status) => void changeStatus(status as OrderStatus)}
+            >
+              <SelectTrigger className={ORDER_STATUS_COLORS[order.status]}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EDITABLE_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {ORDER_STATUS_LABELS[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </CardContent>
         </Card>
 
-        {/* Financials */}
+        <div className="space-y-2">
+          {displayedItems.map((item, index) => {
+            const photos = item.imageUrls.length
+              ? item.imageUrls
+              : item.product.imageUrl
+                ? [item.product.imageUrl]
+                : [];
+            return (
+              <Card key={item.id ?? `${item.productId}-${index}`}>
+                <CardContent className="space-y-3 p-3">
+                  <div>
+                    <p className="font-semibold">{item.productNameSnapshot}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.variant ? `${item.variant} · ` : ""}
+                      {item.size ? `${item.size} · ` : ""}
+                      {item.quantity} шт. × {formatRub(item.salePriceAtOrder)}
+                    </p>
+                  </div>
+                  {photos.length ? (
+                    <div className="flex gap-2 overflow-x-auto">
+                      {photos.map((photo, photoIndex) => (
+                        <div
+                          key={`${photo}-${photoIndex}`}
+                          className="relative h-24 w-24 shrink-0 overflow-hidden rounded-md bg-muted"
+                        >
+                          <Image
+                            src={photo}
+                            alt={`${item.productNameSnapshot}, фото ${photoIndex + 1}`}
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex h-20 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      <Package className="h-6 w-6" />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
         <Card>
           <CardHeader className="p-3 pb-1"><CardTitle className="text-sm">Финансы</CardTitle></CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-              <span className="text-muted-foreground">Выручка:</span><span className="font-medium">{formatRub(financials.revenue)}</span>
-              <span className="text-muted-foreground">Себестоимость:</span><span className="font-medium">{formatRub(financials.costOfGoods)}</span>
-              <span className="text-muted-foreground">Валовая прибыль:</span><span className="font-medium">{formatRub(financials.grossProfit)}</span>
-              <span className="text-muted-foreground">Маржинальность:</span><span className="font-medium">{financials.marginPercent.toFixed(1)}%</span>
-              <span className="text-muted-foreground font-medium">Чистая прибыль:</span>
-              <span className={`font-bold tabular-nums ${financials.netProfit >= 0 ? "money-positive" : "money-negative"}`}>{formatRub(financials.netProfit)}</span>
-            </div>
+          <CardContent className="grid grid-cols-2 gap-x-4 gap-y-1 p-3 pt-0 text-sm">
+            <span className="text-muted-foreground">Выручка:</span><span>{formatRub(financials.revenue)}</span>
+            <span className="text-muted-foreground">Себестоимость:</span><span>{formatRub(financials.costOfGoods)}</span>
+            <span className="text-muted-foreground">Валовая прибыль:</span><span>{formatRub(financials.grossProfit)}</span>
+            <span className="font-medium text-muted-foreground">Чистая прибыль:</span>
+            <span className={financials.netProfit >= 0 ? "money-positive font-bold" : "money-negative font-bold"}>
+              {formatRub(financials.netProfit)}
+            </span>
           </CardContent>
         </Card>
 
-        {/* Logistics */}
         <Card>
           <CardHeader className="p-3 pb-1"><CardTitle className="text-sm">Логистика</CardTitle></CardHeader>
-          <CardContent className="p-3 pt-0 space-y-1 text-sm">
+          <CardContent className="space-y-2 p-3 pt-0 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Трек-номер</span><span>{order.trackingNumber}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">ТК</span><span>{order.carrier || detectCarrierName(order.trackingNumber)}</span></div>
-            {barcodeUrl && (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full mt-2 gap-2"
-                onClick={() => setShowBarcode(true)}
-              >
+            {barcodeUrl ? (
+              <Button type="button" variant="outline" className="w-full gap-2" onClick={() => setShowBarcode(true)}>
                 <Maximize2 className="h-4 w-4" />
                 Открыть штрихкод
               </Button>
-            )}
-            {order.shippingDate && <div className="flex justify-between"><span className="text-muted-foreground">Отправка</span><span>{formatDate(order.shippingDate)}</span></div>}
-            {order.receivedAt && <div className="flex justify-between"><span className="text-muted-foreground">Получено</span><span>{formatDate(order.receivedAt)}</span></div>}
-            {order.logisticsCost > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Стоимость доставки</span><span>{formatRub(order.logisticsCost)}</span></div>}
-            {order.commissionCost > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Комиссия</span><span>{formatRub(order.commissionCost)}</span></div>}
+            ) : null}
           </CardContent>
         </Card>
 
-        {/* Supplier */}
         <Card>
           <CardHeader className="p-3 pb-1"><CardTitle className="text-sm">Поставщик</CardTitle></CardHeader>
-          <CardContent className="p-3 pt-0 space-y-1 text-sm">
+          <CardContent className="space-y-1 p-3 pt-0 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Контрагент</span><span>{order.counterparty.name}</span></div>
-            {order.counterparty.contactInfo && <div className="flex justify-between"><span className="text-muted-foreground">Контакт</span><span>{order.counterparty.contactInfo}</span></div>}
-            <div className="flex justify-between"><span className="text-muted-foreground">Закупочная цена</span><span>{formatRub(order.purchasePricePerUnit)} × {order.quantity} шт.</span></div>
-            {order.purchaseComment && <div className="flex justify-between"><span className="text-muted-foreground">Комментарий</span><span>{order.purchaseComment}</span></div>}
+            {order.counterparty.contactInfo ? (
+              <div className="flex justify-between"><span className="text-muted-foreground">Контакт</span><span>{order.counterparty.contactInfo}</span></div>
+            ) : null}
           </CardContent>
         </Card>
 
-        {/* Status change */}
-        {nextStatuses.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Изменить статус:</p>
-            <div className="flex gap-2 flex-wrap">
-              {nextStatuses.map((s) => (
-                <Button key={s} size="sm" variant="outline" onClick={() => openStatusDialog(s)}>
-                  {ORDER_STATUS_LABELS[s]}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Audit log */}
-        {order.auditLogs.length > 0 && (
+        {order.auditLogs.length ? (
           <Card>
             <CardHeader className="p-3 pb-1"><CardTitle className="text-sm">История изменений</CardTitle></CardHeader>
-            <CardContent className="p-3 pt-0 space-y-2">
+            <CardContent className="space-y-2 p-3 pt-0">
               {order.auditLogs.map((log) => (
-                <div key={log.id} className="text-xs border-l border-border pl-3 py-0.5">
+                <div key={log.id} className="border-l pl-3 text-xs">
                   <p className="text-muted-foreground">{formatDateTime(log.timestamp)} · {log.user.name}</p>
                   <p><span className="font-medium">{FIELD_LABELS[log.fieldName] ?? log.fieldName}:</span>{" "}
-                    {log.oldValue && <span className="line-through text-muted-foreground">{log.oldValue}</span>}{" "}
-                    → <span className="font-medium">{log.newValue}</span>
+                    {log.oldValue ? <span className="line-through text-muted-foreground">{log.oldValue}</span> : null}
+                    {" "}→ <span className="font-medium">{log.newValue}</span>
                   </p>
                 </div>
               ))}
             </CardContent>
           </Card>
-        )}
+        ) : null}
       </div>
 
-      {/* Fullscreen barcode for shipping — rendered via portal to body */}
-      {mounted && showBarcode && barcodeUrl &&
-        createPortal(
-          <div
-            className="fixed inset-0 bg-white flex flex-col"
-            style={{ zIndex: 9999 }}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="flex items-center justify-between p-4 border-b border-neutral-200">
-              <div>
-                <p className="text-xs text-neutral-500">Заказ №{order.orderNumber}</p>
-                <p className="text-sm font-semibold text-neutral-900">{order.productNameSnapshot}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowBarcode(false)}
-                className="p-2 rounded-full hover:bg-neutral-100 text-neutral-700"
-                aria-label="Закрыть"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <CreateOrderDialog
+        open={showEdit}
+        onClose={() => setShowEdit(false)}
+        products={products}
+        counterparties={counterparties}
+        initialValue={editInitialValue}
+      />
 
-            <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 overflow-auto">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={barcodeUrl}
-                alt="Штрихкод"
-                className="w-full max-w-md object-contain"
-                style={{ imageRendering: "pixelated" }}
-              />
-              <div className="text-center">
-                <p className="text-xs uppercase tracking-wider text-neutral-500 mb-1">Трек-номер</p>
-                <p className="text-2xl font-bold tracking-wide text-neutral-900 tabular-nums">
-                  {order.trackingNumber}
-                </p>
-                <p className="text-sm text-neutral-500 mt-1">{order.carrier || detectCarrierName(order.trackingNumber)}</p>
+      {mounted && showBarcode && barcodeUrl
+        ? createPortal(
+            <div className="fixed inset-0 flex flex-col bg-white" style={{ zIndex: 9999 }} role="dialog" aria-modal="true">
+              <div className="flex items-center justify-between border-b border-neutral-200 p-4">
+                <div>
+                  <p className="text-xs text-neutral-500">Заказ №{order.orderNumber}</p>
+                  <p className="text-sm font-semibold text-neutral-900">{order.productNameSnapshot}</p>
+                </div>
+                <button type="button" onClick={() => setShowBarcode(false)} className="rounded-full p-2 text-neutral-700 hover:bg-neutral-100" aria-label="Закрыть">
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-            </div>
-
-            <div className="p-4 border-t border-neutral-200 flex gap-2">
-              <a
-                href={barcodeUrl}
-                download={`barcode-${order.trackingNumber}.png`}
-                className="flex-1 inline-flex items-center justify-center gap-2 h-11 rounded-lg bg-neutral-900 text-white text-sm font-medium"
-              >
-                <Download className="h-4 w-4" /> Скачать
-              </a>
-              <button
-                type="button"
-                onClick={() => setShowBarcode(false)}
-                className="flex-1 inline-flex items-center justify-center h-11 rounded-lg border border-neutral-300 text-neutral-900 text-sm font-medium"
-              >
-                Закрыть
-              </button>
-            </div>
-          </div>,
-          document.body
-        )}
-
-      {/* Status change dialog */}
-      <Dialog open={showStatusDialog} onOpenChange={(o) => !o && setShowStatusDialog(false)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>
-              Перевести в «{selectedStatus ? ORDER_STATUS_LABELS[selectedStatus] : ""}»?
-            </DialogTitle>
-          </DialogHeader>
-          {selectedStatus === "SHIPPED" && (
-            <div className="space-y-1">
-              <Label>Дата отправки</Label>
-              <Input type="date" value={shippingDate} onChange={(e) => setShippingDate(e.target.value)} />
-            </div>
-          )}
-          {selectedStatus === "RETURNING" && (
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <Label>Причина возврата *</Label>
-                <Input value={returnReason} onChange={(e) => setReturnReason(e.target.value)} placeholder="Не подошёл размер, брак..." required />
+              <div className="flex flex-1 flex-col items-center justify-center gap-6 overflow-auto p-6">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={barcodeUrl} alt="Штрихкод" className="w-full max-w-md object-contain" style={{ imageRendering: "pixelated" }} />
+                <div className="text-center">
+                  <p className="text-xs uppercase tracking-wider text-neutral-500">Трек-номер</p>
+                  <p className="text-2xl font-bold tracking-wide text-neutral-900">{order.trackingNumber}</p>
+                  <p className="mt-1 text-sm text-neutral-500">{order.carrier || detectCarrierName(order.trackingNumber)}</p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label>Комментарий</Label>
-                <Textarea value={returnComment} onChange={(e) => setReturnComment(e.target.value)} rows={2} />
+              <div className="flex gap-2 border-t border-neutral-200 p-4">
+                <a href={barcodeUrl} download={`barcode-${order.trackingNumber}.png`} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-neutral-900 text-sm font-medium text-white">
+                  <Download className="h-4 w-4" /> Скачать
+                </a>
+                <button type="button" onClick={() => setShowBarcode(false)} className="h-11 flex-1 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-900">
+                  Закрыть
+                </button>
               </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowStatusDialog(false)}>Отмена</Button>
-            <Button
-              onClick={handleStatusChange}
-              disabled={loading || (selectedStatus === "RETURNING" && !returnReason)}
-            >
-              {loading ? "..." : "Подтвердить"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

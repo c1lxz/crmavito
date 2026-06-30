@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { resolveProductImage } from "@/lib/avito/fetch-image";
+import { downloadImageAsBuffer, resolveProductImage } from "@/lib/avito/fetch-image";
 
 export const maxDuration = 30;
 
@@ -14,7 +14,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!product) return NextResponse.json({ error: "Товар не найден" }, { status: 404 });
 
   if (product.imageUrl) {
-    return NextResponse.json({ imageUrl: product.imageUrl, cached: true });
+    const cachedImage = await downloadImageAsBuffer(product.imageUrl);
+    if (cachedImage?.length) {
+      return NextResponse.json({ imageUrl: product.imageUrl, cached: true });
+    }
   }
   if (!product.avitoItemId && !product.avitoListingUrl) {
     return NextResponse.json({
@@ -23,10 +26,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     });
   }
 
-  const result = await resolveProductImage({
+  let result = await resolveProductImage({
     avitoItemId: product.avitoItemId,
     avitoListingUrl: product.avitoListingUrl,
   });
+  for (let attempt = 1; !result.ok && attempt < 3; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, attempt * 350));
+    result = await resolveProductImage({
+      avitoItemId: product.avitoItemId,
+      avitoListingUrl: product.avitoListingUrl,
+    });
+  }
 
   if (result.ok) {
     await prisma.product.update({ where: { id }, data: { imageUrl: result.value } });
