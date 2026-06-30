@@ -116,7 +116,8 @@ export async function transitionOrderStatus(
           await createAuditLog(
             {
               entityType: "RETURN",
-              entityId: r.id,
+              // AuditLog.entityId is constrained to orders.id.
+              entityId: orderId,
               userId,
               fieldName: "status",
               oldValue: "RETURNING",

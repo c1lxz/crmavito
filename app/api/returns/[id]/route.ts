@@ -39,7 +39,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     await tx.order.update({ where: { id: ret.orderId }, data: { status: orderStatus } });
 
-    await createAuditLog({ entityType: "RETURN", entityId: id, userId: session.user.id, fieldName: "status", oldValue: ret.status, newValue: newStatus }, tx);
+    // AuditLog.entityId is constrained to orders.id, including RETURN events.
+    await createAuditLog({ entityType: "RETURN", entityId: ret.orderId, userId: session.user.id, fieldName: "status", oldValue: ret.status, newValue: newStatus }, tx);
     await createAuditLog({ entityType: "ORDER", entityId: ret.orderId, userId: session.user.id, fieldName: "status", oldValue: "RETURNING", newValue: orderStatus }, tx);
   });
 
