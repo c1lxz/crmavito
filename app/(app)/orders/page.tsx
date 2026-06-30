@@ -63,7 +63,7 @@ async function getCounterparties() {
 }
 
 async function getProducts() {
-  const products = await prisma.product.findMany({ orderBy: { name: "asc" }, take: 200 });
+  const products = await prisma.product.findMany({ orderBy: { name: "asc" } });
   return products.map((p) => ({ id: p.id, name: p.name, salePrice: parseFloat(p.salePrice.toString()), imageUrl: p.imageUrl }));
 }
 

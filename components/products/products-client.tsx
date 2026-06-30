@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/hooks/use-toast";
-import { formatDateTime, formatRub } from "@/lib/utils";
+import { formatDateTime, formatRub, matchesSearch } from "@/lib/utils";
 
 interface Product {
   id: string;
@@ -38,7 +38,7 @@ export function ProductsClient({ products: initial, isAdmin }: Props) {
     setProducts(initial);
   }, [initial]);
 
-  const filtered = products.filter((product) => product.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = products.filter((product) => matchesSearch(product.name, search));
   const lastSync = products.find((product) => product.lastSyncedAt)?.lastSyncedAt;
 
   async function handleSync() {

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatRub } from "@/lib/utils";
+import { formatRub, matchesSearch } from "@/lib/utils";
 import { calcOrderFinancials } from "@/lib/finance/calculations";
 import { detectCarrier } from "@/lib/tracking";
 import { toast } from "@/lib/hooks/use-toast";
@@ -86,9 +86,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   }
 
   const selectedProduct = products.find((p) => p.id === form.productId);
-  const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(productSearch.toLowerCase())
-  );
+  const filteredProducts = products.filter((p) => matchesSearch(p.name, productSearch));
 
   const detectedCarrier = form.trackingNumber ? detectCarrier(form.trackingNumber) : "";
   const showProductResults = Boolean(productSearch.trim()) && selectedProduct?.name !== productSearch;
@@ -214,7 +212,12 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                       <span className="text-muted-foreground ml-2">{formatRub(p.salePrice)}</span>
                     </button>
                   ))}
-                  {filteredProducts.length === 0 && <p className="px-3 py-2 text-sm text-muted-foreground">Не найдено</p>}
+                  {filteredProducts.length === 0 && (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      <p className="font-medium">Товар не найден</p>
+                      <p className="mt-0.5 text-xs">Проверьте раздел «Все товары» — возможно, нужна синхронизация с Avito.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

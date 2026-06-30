@@ -55,6 +55,17 @@ export function endOfDay(d: Date): Date {
   return r;
 }
 
+export function normalizeSearch(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+export function matchesSearch(haystack: string, needle: string): boolean {
+  const n = normalizeSearch(needle);
+  if (!n) return true;
+  const h = normalizeSearch(haystack);
+  return n.split(" ").every((token) => h.includes(token));
+}
+
 export function subDays(d: Date, days: number): Date {
   const r = new Date(d);
   r.setDate(r.getDate() - days);
