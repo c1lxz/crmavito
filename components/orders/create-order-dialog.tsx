@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Loader2, Package, Plus, X } from "lucide-react";
+import Link from "next/link";
+import { ExternalLink, Loader2, Package } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,9 +30,6 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [counterparties, setCounterparties] = useState<Counterparty[]>(initialCounterparties);
-  const [showAddCp, setShowAddCp] = useState(false);
-  const [newCp, setNewCp] = useState({ name: "", contactInfo: "" });
-  const [cpLoading, setCpLoading] = useState(false);
   const [form, setForm] = useState({
     productId: "",
     variant: "",
@@ -57,33 +55,6 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   useEffect(() => {
     setCounterparties(initialCounterparties);
   }, [initialCounterparties]);
-
-  async function handleCreateCounterparty() {
-    if (!newCp.name.trim()) return;
-    setCpLoading(true);
-    try {
-      const res = await fetch("/api/counterparties", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newCp.name.trim(),
-          contactInfo: newCp.contactInfo.trim() || undefined,
-        }),
-      });
-      if (!res.ok) throw new Error("Ошибка создания контрагента");
-      const cp = (await res.json()) as Counterparty;
-      setCounterparties((prev) => [...prev, { id: cp.id, name: cp.name }].sort((a, b) => a.name.localeCompare(b.name)));
-      setForm((f) => ({ ...f, counterpartyId: cp.id }));
-      setNewCp({ name: "", contactInfo: "" });
-      setShowAddCp(false);
-      toast({ title: "Контрагент создан" });
-      router.refresh();
-    } catch (e) {
-      toast({ title: "Ошибка", description: String(e), variant: "destructive" });
-    } finally {
-      setCpLoading(false);
-    }
-  }
 
   const selectedProduct = products.find((p) => p.id === form.productId);
   const filteredProducts = products.filter((p) => matchesSearch(p.name, productSearch));
@@ -374,51 +345,24 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             <h3 className="text-sm font-semibold">Закупка</h3>
             <div className="space-y-1">
               <Label>Контрагент (поставщик) *</Label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Select value={form.counterpartyId} onValueChange={(v) => setForm((f) => ({ ...f, counterpartyId: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Выберите поставщика" /></SelectTrigger>
-                    <SelectContent>
-                      {counterparties.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="flex-shrink-0"
-                  onClick={() => setShowAddCp((v) => !v)}
-                  aria-label={showAddCp ? "Скрыть форму" : "Добавить контрагента"}
-                >
-                  {showAddCp ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                </Button>
-              </div>
-              {showAddCp && (
-                <div className="mt-2 space-y-2 rounded-md border border-border bg-card p-3">
-                  <Input
-                    placeholder="Название *"
-                    value={newCp.name}
-                    onChange={(e) => setNewCp((c) => ({ ...c, name: e.target.value }))}
-                  />
-                  <Input
-                    placeholder="Контакт (опционально)"
-                    value={newCp.contactInfo}
-                    onChange={(e) => setNewCp((c) => ({ ...c, contactInfo: e.target.value }))}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="w-full"
-                    onClick={handleCreateCounterparty}
-                    disabled={cpLoading || !newCp.name.trim()}
-                  >
-                    {cpLoading ? "Создание..." : "Создать контрагента"}
-                  </Button>
-                </div>
-              )}
+              <Select value={form.counterpartyId} onValueChange={(v) => setForm((f) => ({ ...f, counterpartyId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Выберите поставщика" /></SelectTrigger>
+                <SelectContent>
+                  {counterparties.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                  {counterparties.length === 0 && (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">Нет контрагентов</div>
+                  )}
+                </SelectContent>
+              </Select>
+              <Link
+                href="/counterparties"
+                className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                onClick={onClose}
+              >
+                <ExternalLink className="h-3 w-3" /> Добавить нового в разделе «Контрагенты»
+              </Link>
             </div>
             <div className="space-y-1">
               <Label>Закупочная цена за ед. (₽) *</Label>
