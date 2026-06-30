@@ -15,6 +15,16 @@ interface OrderNotification {
   orderDate: Date;
 }
 
+export function buildOrderCaption(order: Pick<OrderNotification, "trackingNumber" | "carrier" | "size">): string {
+  return [
+    order.trackingNumber,
+    order.carrier || null,
+    order.size ? order.size.toUpperCase() : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 async function generateBarcodePng(text: string): Promise<Buffer | null> {
   try {
     return (await bwipjs.toBuffer({
@@ -32,18 +42,6 @@ async function generateBarcodePng(text: string): Promise<Buffer | null> {
     console.error("[telegram] barcode gen failed", e);
     return null;
   }
-}
-
-function formatDate(d: Date): string {
-  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function formatRub(n: number): string {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "RUB",
-    maximumFractionDigits: 0,
-  }).format(n);
 }
 
 async function tgFetch(token: string, method: string, form: FormData): Promise<unknown> {
@@ -64,23 +62,7 @@ export async function sendOrderToGroup(order: OrderNotification): Promise<void> 
     return;
   }
 
-  const caption = [
-    `<b>📦 Новый заказ № ${order.orderNumber}</b>`,
-    `<i>${formatDate(order.orderDate)}</i>`,
-    ``,
-    `<b>Товар:</b> ${order.productName}`,
-    order.variant ? `<b>Цвет:</b> ${order.variant}` : null,
-    order.size ? `<b>Размер:</b> ${order.size}` : null,
-    `<b>Количество:</b> ${order.quantity} шт.`,
-    `<b>Цена:</b> ${formatRub(order.salePrice)}`,
-    ``,
-    `<b>Трек:</b> <code>${order.trackingNumber}</code>`,
-    `<b>ТК:</b> ${order.carrier}`,
-    ``,
-    `<b>Поставщик:</b> ${order.counterpartyName}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const caption = buildOrderCaption(order);
 
   const [barcode, productImage] = await Promise.all([
     generateBarcodePng(order.trackingNumber),
@@ -94,8 +76,8 @@ export async function sendOrderToGroup(order: OrderNotification): Promise<void> 
       form.append(
         "media",
         JSON.stringify([
-          { type: "photo", media: "attach://product", caption, parse_mode: "HTML" },
-          { type: "photo", media: "attach://barcode" },
+          { type: "photo", media: "attach://product" },
+          { type: "photo", media: "attach://barcode", caption },
         ])
       );
       form.append("product", new Blob([new Uint8Array(productImage)], { type: "image/jpeg" }), "product.jpg");
@@ -109,7 +91,6 @@ export async function sendOrderToGroup(order: OrderNotification): Promise<void> 
       form.append("chat_id", chatId);
       form.append("photo", new Blob([new Uint8Array(productImage)], { type: "image/jpeg" }), "product.jpg");
       form.append("caption", caption);
-      form.append("parse_mode", "HTML");
       await tgFetch(token, "sendPhoto", form);
       return;
     }
@@ -119,7 +100,6 @@ export async function sendOrderToGroup(order: OrderNotification): Promise<void> 
       form.append("chat_id", chatId);
       form.append("photo", new Blob([new Uint8Array(barcode)], { type: "image/png" }), "barcode.png");
       form.append("caption", caption);
-      form.append("parse_mode", "HTML");
       await tgFetch(token, "sendPhoto", form);
       return;
     }
@@ -127,7 +107,6 @@ export async function sendOrderToGroup(order: OrderNotification): Promise<void> 
     const form = new FormData();
     form.append("chat_id", chatId);
     form.append("text", caption);
-    form.append("parse_mode", "HTML");
     await tgFetch(token, "sendMessage", form);
   } catch (e) {
     console.error("[telegram] sendOrderToGroup failed", e);
