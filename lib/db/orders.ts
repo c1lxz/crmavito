@@ -98,6 +98,36 @@ export async function transitionOrderStatus(
       tx
     );
 
+    // Keep Return records in sync: when an order moves into RETURNED, any
+    // still-open RETURNING return for it must close out too — otherwise it
+    // sticks on the Возвраты screen with "Товар получен" / "Отменить" buttons
+    // that look broken from the user's point of view.
+    if (toStatus === "RETURNED") {
+      const openReturns = await tx.return.findMany({
+        where: { orderId, status: "RETURNING" },
+        select: { id: true },
+      });
+      if (openReturns.length > 0) {
+        await tx.return.updateMany({
+          where: { orderId, status: "RETURNING" },
+          data: { status: "RETURNED", returnDate: extra?.receivedAt ?? new Date() },
+        });
+        for (const r of openReturns) {
+          await createAuditLog(
+            {
+              entityType: "RETURN",
+              entityId: r.id,
+              userId,
+              fieldName: "status",
+              oldValue: "RETURNING",
+              newValue: "RETURNED",
+            },
+            tx
+          );
+        }
+      }
+    }
+
     return updated;
   });
 }

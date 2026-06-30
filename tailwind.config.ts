@@ -2,6 +2,13 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   darkMode: ["class"],
+  future: {
+    // On touch devices `:hover` sticks after a tap until the user taps elsewhere,
+    // making filter chips look "stuck" (e.g. grey hover instead of active blue).
+    // This wraps all `hover:` utilities in `@media (hover: hover)` so they only
+    // apply on devices that actually support hovering.
+    hoverOnlyWhenSupported: true,
+  },
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Package, Plus, RotateCcw, Search } from "lucide-react";
@@ -47,6 +47,11 @@ export function ReturnsClient({ initialData }: Props) {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  // Sync local state when server props change (router.refresh() after status update).
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+
   const filtered = useMemo(() => {
     return data.returns.filter((r) => {
       if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
@@ -69,11 +74,22 @@ export function ReturnsClient({ initialData }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, returnDate }),
       });
-      if (!res.ok) throw new Error("Ошибка обновления");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const message =
+          typeof body?.error === "string"
+            ? body.error
+            : `HTTP ${res.status} — не удалось обновить возврат`;
+        throw new Error(message);
+      }
       toast({ title: "Статус обновлён" });
       router.refresh();
-    } catch {
-      toast({ title: "Ошибка", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Ошибка",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
     } finally {
       setUpdatingId(null);
     }
