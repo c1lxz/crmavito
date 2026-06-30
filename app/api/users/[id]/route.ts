@@ -31,3 +31,36 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
   return NextResponse.json(user);
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  if (id === session.user.id) {
+    return NextResponse.json({ error: "Нельзя удалить свой аккаунт" }, { status: 400 });
+  }
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+  if (!target) return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
+
+  const [ordersCount, expensesCount, auditCount] = await Promise.all([
+    prisma.order.count({ where: { createdByUserId: id } }),
+    prisma.expense.count({ where: { createdByUserId: id } }),
+    prisma.auditLog.count({ where: { userId: id } }),
+  ]);
+
+  if (ordersCount + expensesCount + auditCount > 0) {
+    const archived = await prisma.user.update({
+      where: { id },
+      data: { isActive: false },
+      select: { id: true, isActive: true },
+    });
+    return NextResponse.json({ mode: "soft", user: archived });
+  }
+
+  await prisma.user.delete({ where: { id } });
+  return NextResponse.json({ mode: "hard" });
+}

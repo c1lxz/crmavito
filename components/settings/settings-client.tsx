@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, LogOut, User, Shield, Palette, Users, Plus, ToggleLeft, ToggleRight } from "lucide-react";
+import { ArrowLeft, LogOut, User, Shield, Palette, Users, Plus, ToggleLeft, ToggleRight, Trash2, Database } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +36,8 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", telegramId: "", role: "MANAGER" });
   const [addLoading, setAddLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   async function handleAddUser(e: React.FormEvent) {
     e.preventDefault();
@@ -73,6 +75,31 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
       setUsers((u) => u.map((x) => x.id === id ? { ...x, isActive: !isActive } : x));
     } catch {
       toast({ title: "Ошибка обновления", variant: "destructive" });
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/users/${deleteTarget.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = typeof data?.error === "string" ? data.error : "Ошибка удаления";
+        throw new Error(message);
+      }
+      if (data?.mode === "soft") {
+        setUsers((u) => u.map((x) => (x.id === deleteTarget.id ? { ...x, isActive: false } : x)));
+        toast({ title: "Сотрудник деактивирован", description: "У него есть связанная история — аккаунт сохранён как неактивный." });
+      } else {
+        setUsers((u) => u.filter((x) => x.id !== deleteTarget.id));
+        toast({ title: "Сотрудник удалён" });
+      }
+      setDeleteTarget(null);
+    } catch (err) {
+      toast({ title: "Ошибка", description: String(err), variant: "destructive" });
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -195,12 +222,25 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
                     </SelectContent>
                   </Select>
                   {u.id !== user.id && (
-                    <button onClick={() => toggleActive(u.id, u.isActive)} className="text-muted-foreground hover:text-foreground transition-colors">
-                      {u.isActive
-                        ? <ToggleRight className="h-5 w-5 text-primary" />
-                        : <ToggleLeft className="h-5 w-5" />
-                      }
-                    </button>
+                    <>
+                      <button
+                        onClick={() => toggleActive(u.id, u.isActive)}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={u.isActive ? "Деактивировать" : "Активировать"}
+                      >
+                        {u.isActive
+                          ? <ToggleRight className="h-5 w-5 text-primary" />
+                          : <ToggleLeft className="h-5 w-5" />
+                        }
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(u)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        aria-label="Удалить"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </>
                   )}
                 </div>
               ))}
@@ -210,6 +250,31 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
             </CardContent>
           </Card>
         )}
+
+        {/* References / dictionaries */}
+        <Card>
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Database className="h-4 w-4" /> Справочники
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 space-y-1">
+            <Link
+              href="/counterparties"
+              className="flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-secondary/70 transition-colors"
+            >
+              <span>Контрагенты (поставщики)</span>
+              <ArrowLeft className="h-4 w-4 rotate-180 text-muted-foreground" />
+            </Link>
+            <Link
+              href="/products"
+              className="flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-secondary/70 transition-colors"
+            >
+              <span>Товары (синхронизация с Avito)</span>
+              <ArrowLeft className="h-4 w-4 rotate-180 text-muted-foreground" />
+            </Link>
+          </CardContent>
+        </Card>
 
         {/* Theme */}
         <Card>
@@ -232,6 +297,26 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
           Выйти из системы
         </Button>
       </div>
+
+      {/* Delete user confirmation */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && !deleteLoading && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Удалить сотрудника?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {deleteTarget?.name}. Если у сотрудника есть связанные заказы, расходы или записи в журнале — он будет деактивирован, а не удалён, чтобы не сломать историю.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteTarget(null)} disabled={deleteLoading}>
+              Отмена
+            </Button>
+            <Button variant="destructive" className="flex-1" onClick={confirmDelete} disabled={deleteLoading}>
+              {deleteLoading ? "Удаление..." : "Удалить"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add user dialog */}
       <Dialog open={showAddDialog} onOpenChange={(o) => !o && setShowAddDialog(false)}>
