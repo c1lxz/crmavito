@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   if (!counterparty) return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
 
   const orderNumber = await generateOrderNumber();
-  const carrier = data.carrier?.trim() || detectCarrier(data.trackingNumber)?.carrier || null;
+  const carrier = data.carrier?.trim() || detectCarrier(data.trackingNumber)?.carrier || "";
 
   const order = await prisma.$transaction(async (tx) => {
     const o = await tx.order.create({
