@@ -26,26 +26,28 @@ interface Props {
   counterparties: Counterparty[];
 }
 
+const blankOrderForm = () => ({
+  productId: "",
+  variant: "",
+  size: "",
+  quantity: 1,
+  salePriceAtOrder: "",
+  counterpartyId: "",
+  purchasePricePerUnit: "",
+  purchaseComment: "",
+  trackingNumber: "",
+  carrier: "",
+  orderDate: new Date().toISOString().slice(0, 10),
+  logisticsCost: "",
+  commissionCost: "",
+  otherCosts: "",
+});
+
 export function CreateOrderDialog({ open, onClose, products, counterparties: initialCounterparties }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [counterparties, setCounterparties] = useState<Counterparty[]>(initialCounterparties);
-  const [form, setForm] = useState({
-    productId: "",
-    variant: "",
-    size: "",
-    quantity: 1,
-    salePriceAtOrder: "",
-    counterpartyId: "",
-    purchasePricePerUnit: "",
-    purchaseComment: "",
-    trackingNumber: "",
-    carrier: "",
-    orderDate: new Date().toISOString().slice(0, 10),
-    logisticsCost: "",
-    commissionCost: "",
-    otherCosts: "",
-  });
+  const [form, setForm] = useState(blankOrderForm);
   const [productSearch, setProductSearch] = useState("");
   const [productImageUrl, setProductImageUrl] = useState<string | null>(null);
   const [productImageLoading, setProductImageLoading] = useState(false);
@@ -55,6 +57,16 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   useEffect(() => {
     setCounterparties(initialCounterparties);
   }, [initialCounterparties]);
+
+  useEffect(() => {
+    if (!open) {
+      setForm(blankOrderForm());
+      setProductSearch("");
+      setProductImageUrl(null);
+      setProductImageError(null);
+      setCarrierTouched(false);
+    }
+  }, [open]);
 
   const selectedProduct = products.find((p) => p.id === form.productId);
   const filteredProducts = products.filter((p) => matchesSearch(p.name, productSearch));

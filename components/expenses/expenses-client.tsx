@@ -54,7 +54,7 @@ export function ExpensesClient({ initialData }: Props) {
   const [catFilter, setCatFilter] = useState("ALL");
   const [showCreate, setShowCreate] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
+  const blankForm = () => ({
     date: new Date().toISOString().slice(0, 10),
     category: "" as ExpenseCategory | "",
     title: "",
@@ -62,6 +62,12 @@ export function ExpensesClient({ initialData }: Props) {
     paymentMethod: "",
     comment: "",
   });
+  const [form, setForm] = useState(blankForm);
+
+  function closeCreate() {
+    setShowCreate(false);
+    setForm(blankForm());
+  }
 
   const filtered = useMemo(() => {
     return expenses.filter((e) => {
@@ -89,12 +95,16 @@ export function ExpensesClient({ initialData }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, amount: parseFloat(form.amount) }),
       });
-      if (!res.ok) throw new Error("Ошибка");
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const message = typeof data?.error === "string" ? data.error : "Не удалось сохранить расход";
+        throw new Error(message);
+      }
       toast({ title: "Расход добавлен" });
-      setShowCreate(false);
+      closeCreate();
       router.refresh();
-    } catch {
-      toast({ title: "Ошибка", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Ошибка", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -207,7 +217,7 @@ export function ExpensesClient({ initialData }: Props) {
       </div>
 
       {/* Create dialog */}
-      <Dialog open={showCreate} onOpenChange={(o) => !o && setShowCreate(false)}>
+      <Dialog open={showCreate} onOpenChange={(o) => !o && closeCreate()}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Добавить расход</DialogTitle></DialogHeader>
           <form onSubmit={handleCreate} className="space-y-3">
@@ -230,7 +240,7 @@ export function ExpensesClient({ initialData }: Props) {
             </div>
             <div className="space-y-1">
               <Label>Сумма (₽) *</Label>
-              <Input type="number" min={0} value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} required />
+              <Input type="number" inputMode="decimal" min={0} placeholder="0" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} required />
             </div>
             <div className="space-y-1">
               <Label>Способ оплаты</Label>
@@ -241,7 +251,7 @@ export function ExpensesClient({ initialData }: Props) {
               <Textarea value={form.comment} onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))} rows={2} />
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => setShowCreate(false)}>Отмена</Button>
+              <Button type="button" variant="outline" className="flex-1" onClick={closeCreate}>Отмена</Button>
               <Button type="submit" className="flex-1" disabled={loading || !form.category || !form.amount}>
                 {loading ? "Сохранение..." : "Добавить"}
               </Button>

@@ -87,7 +87,7 @@ export function ReturnsClient({ initialData }: Props) {
             <h1 className="text-xl font-semibold tracking-tight">Возвраты</h1>
             <p className="section-caption">Товары в обратной логистике</p>
           </div>
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" disabled title="Возврат оформляется со страницы заказа">
             <Plus className="h-4 w-4" />
             Оформить возврат
           </Button>
