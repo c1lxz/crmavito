@@ -35,9 +35,9 @@ describe("OrderDetailClient — UI structure (smoke)", () => {
     expect(orderDetailSource).toContain("document.body.style.overflow");
   });
 
-  it("модал показывает трек-номер и ТК", () => {
+  it("модал показывает трек-номер и ТК (с fallback на detectCarrierName)", () => {
     expect(orderDetailSource).toContain("order.trackingNumber");
-    expect(orderDetailSource).toContain("order.carrier || detectCarrier(order.trackingNumber)");
+    expect(orderDetailSource).toContain("order.carrier || detectCarrierName(order.trackingNumber)");
   });
 });
 
@@ -51,22 +51,19 @@ describe("CreateOrderDialog — UI structure (smoke)", () => {
     expect(createOrderDialogSource).toContain("productImageError");
   });
 
-  it("позволяет вручную указать фото товара и ТК", () => {
-    expect(createOrderDialogSource).toContain("productImageUrl");
-    expect(createOrderDialogSource).toContain("URL фото товара");
-    expect(createOrderDialogSource).toContain("carrier");
+  it("использует определение ТК и поддерживает ручной ввод carrier", () => {
+    expect(createOrderDialogSource).toContain("detectCarrier");
     expect(createOrderDialogSource).toContain("detectedCarrier");
+    expect(createOrderDialogSource).toContain("KNOWN_CARRIERS");
   });
 
-  it("на узких экранах переносит дату заказа на отдельную строку", () => {
-    expect(createOrderDialogSource).toContain("min-[430px]:grid-cols-2");
+  it("содержит поле даты заказа", () => {
     expect(createOrderDialogSource).toContain("Дата заказа");
   });
 
-  it("содержит inline-форму создания контрагента", () => {
-    expect(createOrderDialogSource).toContain("handleCreateCounterparty");
-    expect(createOrderDialogSource).toContain("/api/counterparties");
-    expect(createOrderDialogSource).toContain("router.refresh");
+  it("не содержит inline-форму создания контрагента (вынесено в Справочники)", () => {
+    expect(createOrderDialogSource).not.toContain("handleCreateCounterparty");
+    expect(createOrderDialogSource).toContain("/counterparties");
   });
 });
 

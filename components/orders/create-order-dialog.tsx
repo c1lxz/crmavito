@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { formatRub, matchesSearch } from "@/lib/utils";
 import { calcOrderFinancials } from "@/lib/finance/calculations";
-import { detectCarrier } from "@/lib/tracking";
+import { detectCarrier, KNOWN_CARRIERS } from "@/lib/tracking";
 import { toast } from "@/lib/hooks/use-toast";
 
 interface Product { id: string; name: string; salePrice: number; imageUrl?: string | null; }
@@ -59,7 +59,9 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   const selectedProduct = products.find((p) => p.id === form.productId);
   const filteredProducts = products.filter((p) => matchesSearch(p.name, productSearch));
 
-  const detectedCarrier = form.trackingNumber ? detectCarrier(form.trackingNumber) : "";
+  const detection = form.trackingNumber ? detectCarrier(form.trackingNumber) : null;
+  const detectedCarrier = detection?.carrier ?? "";
+  const showCarrierFallback = Boolean(form.trackingNumber) && (!detection || detection.confidence === "low");
   const showProductResults = Boolean(productSearch.trim()) && selectedProduct?.name !== productSearch;
   const barcodeUrl = form.trackingNumber
     ? `/api/barcode?text=${encodeURIComponent(form.trackingNumber)}`
@@ -108,7 +110,8 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   }
 
   function handleTrackingChange(value: string) {
-    const nextCarrier = value ? detectCarrier(value) : "";
+    const next = value ? detectCarrier(value) : null;
+    const nextCarrier = next && next.confidence === "high" ? next.carrier : "";
     setForm((f) => ({
       ...f,
       trackingNumber: value,
@@ -271,10 +274,33 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
                 }}
                 placeholder={detectedCarrier || "Введите транспортную компанию"}
               />
-              {detectedCarrier && form.carrier !== detectedCarrier && (
+              {detectedCarrier && form.carrier !== detectedCarrier && detection?.confidence === "high" && (
                 <p className="text-xs text-muted-foreground">
                   Авто: <button type="button" className="font-medium text-foreground underline-offset-2 hover:underline" onClick={() => setForm((f) => ({ ...f, carrier: detectedCarrier }))}>{detectedCarrier}</button>
                 </p>
+              )}
+              {showCarrierFallback && !form.carrier && (
+                <div className="mt-1 space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    ТК не определена однозначно — выберите вручную:
+                  </p>
+                  <Select
+                    value=""
+                    onValueChange={(v) => {
+                      setCarrierTouched(true);
+                      setForm((f) => ({ ...f, carrier: v }));
+                    }}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Выбрать ТК" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {KNOWN_CARRIERS.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
             </div>
 

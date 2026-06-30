@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { generateOrderNumber } from "@/lib/db/orders";
 import { createAuditLog } from "@/lib/db/audit";
 import { detectCarrier } from "@/lib/tracking";
+
 import { sendOrderToGroup } from "@/lib/telegram/notify";
 import { resolveProductImage } from "@/lib/avito/fetch-image";
 import { z } from "zod";
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
   if (!counterparty) return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
 
   const orderNumber = await generateOrderNumber();
-  const carrier = data.carrier?.trim() || detectCarrier(data.trackingNumber);
+  const carrier = data.carrier?.trim() || detectCarrier(data.trackingNumber)?.carrier || null;
 
   const order = await prisma.$transaction(async (tx) => {
     const o = await tx.order.create({

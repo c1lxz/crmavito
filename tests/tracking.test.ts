@@ -1,118 +1,144 @@
 import { describe, expect, it } from "vitest";
-import { detectCarrier } from "@/lib/tracking";
+import { detectCarrier, detectCarrierName } from "@/lib/tracking";
 
-describe("detectCarrier", () => {
-  describe("Авито Доставка (приоритет — это CRM для Avito)", () => {
-    it("определяет реальный трек пользователя 5112520982", () => {
-      expect(detectCarrier("5112520982")).toBe("Авито Доставка");
-      // С пробелами как ввёл пользователь
-      expect(detectCarrier("511 252 0982")).toBe("Авито Доставка");
-    });
-
-    it("определяет 10 цифр как Авито (а не СДЭК)", () => {
-      expect(detectCarrier("1234567890")).toBe("Авито Доставка");
-      expect(detectCarrier("9876543210")).toBe("Авито Доставка");
-    });
-
-    it("определяет 12 цифр", () => {
-      expect(detectCarrier("123456789012")).toBe("Авито Доставка");
-    });
-
-    it("определяет длинный формат 20+ цифр", () => {
-      expect(detectCarrier("12345678901234567890")).toBe("Авито Доставка");
-      expect(detectCarrier("123456789012345678901234")).toBe("Авито Доставка");
-    });
-
-    it("определяет префикс AVT/AVD", () => {
-      expect(detectCarrier("AVT12345678")).toBe("Авито Доставка");
-      expect(detectCarrier("AVD987654321")).toBe("Авито Доставка");
-    });
+describe("detectCarrier — пользовательские примеры из задачи", () => {
+  it("P04613648744 → Яндекс Доставка (high)", () => {
+    expect(detectCarrier("P04613648744")).toEqual({ carrier: "Яндекс Доставка", confidence: "high" });
   });
 
-  describe("Почта России", () => {
-    it("определяет международный формат EE123456789RU", () => {
-      expect(detectCarrier("RA123456789RU")).toBe("Почта России");
-      expect(detectCarrier("EE987654321CN")).toBe("Почта России");
-    });
-
-    it("определяет внутренний 14-значный формат", () => {
-      expect(detectCarrier("12345678901234")).toBe("Почта России");
-    });
-
-    it("НЕ путает с 5Post (50 + 12 цифр = 14)", () => {
-      expect(detectCarrier("50111111111111")).toBe("5Post");
-    });
-
-    it("НЕ путает с DPD (0 + 13 цифр = 14)", () => {
-      expect(detectCarrier("01234567890123")).toBe("DPD");
-    });
+  it("5112520982 → Авито Доставка (high)", () => {
+    expect(detectCarrier("5112520982")).toEqual({ carrier: "Авито Доставка", confidence: "high" });
   });
 
-  describe("Boxberry", () => {
-    it("определяет формат XX000000", () => {
-      expect(detectCarrier("BB123456789")).toBe("Boxberry");
-    });
+  it("805111822044340 → Почта России (high)", () => {
+    expect(detectCarrier("805111822044340")).toEqual({ carrier: "Почта России", confidence: "high" });
   });
 
-  describe("Яндекс Доставка", () => {
-    it("определяет 13 цифр", () => {
-      expect(detectCarrier("1234567890123")).toBe("Яндекс Доставка");
-    });
+  it("10283054533 → СДЭК (high)", () => {
+    expect(detectCarrier("10283054533")).toEqual({ carrier: "СДЭК", confidence: "high" });
+  });
+});
+
+describe("detectCarrier — Авито Доставка", () => {
+  it("10 цифр с разными первыми — high", () => {
+    expect(detectCarrier("1234567890")?.carrier).toBe("Авито Доставка");
+    expect(detectCarrier("9876543210")?.carrier).toBe("Авито Доставка");
   });
 
-  describe("5Post", () => {
-    it("определяет префикс 50 + 12 цифр", () => {
-      expect(detectCarrier("50123456789012")).toBe("5Post");
-    });
+  it("12 цифр — low (Авито)", () => {
+    expect(detectCarrier("123456789012")).toEqual({ carrier: "Авито Доставка", confidence: "low" });
   });
 
-  describe("DPD", () => {
-    it("определяет 14 цифр начинающихся с 0", () => {
-      expect(detectCarrier("01234567890123")).toBe("DPD");
-    });
+  it("длинный формат 20+ цифр — low", () => {
+    expect(detectCarrier("12345678901234567890")?.carrier).toBe("Авито Доставка");
+    expect(detectCarrier("123456789012345678901234")?.carrier).toBe("Авито Доставка");
   });
 
-  describe("PickPoint", () => {
-    it("определяет 9–11 цифр с префиксом 7", () => {
-      expect(detectCarrier("712345678")).toBe("PickPoint");
-      expect(detectCarrier("71234567890")).toBe("PickPoint");
-    });
+  it("префикс AVT/AVD — high", () => {
+    expect(detectCarrier("AVT12345678")).toEqual({ carrier: "Авито Доставка", confidence: "high" });
+    expect(detectCarrier("AVD987654321")).toEqual({ carrier: "Авито Доставка", confidence: "high" });
+  });
+});
+
+describe("detectCarrier — СДЭК", () => {
+  it("11 цифр начинающихся с 1 — high", () => {
+    expect(detectCarrier("10283054533")?.carrier).toBe("СДЭК");
+    expect(detectCarrier("12345678901")?.carrier).toBe("СДЭК");
+  });
+});
+
+describe("detectCarrier — Яндекс Доставка", () => {
+  it("одна буква + 8–15 цифр — high", () => {
+    expect(detectCarrier("P04613648744")?.carrier).toBe("Яндекс Доставка");
+    expect(detectCarrier("M12345678")?.carrier).toBe("Яндекс Доставка");
+    expect(detectCarrier("Y123456789012345")?.carrier).toBe("Яндекс Доставка");
   });
 
-  describe("Транспортная компания (catch-all)", () => {
-    it("определяет буквенно-цифровой трек", () => {
-      expect(detectCarrier("ABC12345DEF")).toBe("Транспортная компания");
-      expect(detectCarrier("ZX9876543210123456789")).toBe("Транспортная компания");
-    });
+  it("13 цифр — low (исторический паттерн)", () => {
+    expect(detectCarrier("1234567890123")).toEqual({ carrier: "Яндекс Доставка", confidence: "low" });
+  });
+});
 
-    it("определяет любой трек с >=10 цифрами (fallback на цифры)", () => {
-      // Содержит кириллицу — не попадает в строгие regex, но цифр достаточно
-      expect(detectCarrier("трек 1234567890")).toBe("Транспортная компания");
-    });
+describe("detectCarrier — Почта России", () => {
+  it("международный формат RA123456789RU — high", () => {
+    expect(detectCarrier("RA123456789RU")?.carrier).toBe("Почта России");
+    expect(detectCarrier("EE987654321CN")?.carrier).toBe("Почта России");
   });
 
-  describe("Не определена", () => {
-    it("возвращает 'Не определена' для пустой строки", () => {
-      expect(detectCarrier("")).toBe("Не определена");
-      expect(detectCarrier("   ")).toBe("Не определена");
-    });
-
-    it("возвращает 'Не определена' для короткого мусора", () => {
-      expect(detectCarrier("ABC")).toBe("Не определена");
-      expect(detectCarrier("12345")).toBe("Не определена");
-    });
+  it("внутренние 14 и 15 цифр — high", () => {
+    expect(detectCarrier("12345678901234")?.carrier).toBe("Почта России");
+    expect(detectCarrier("805111822044340")?.carrier).toBe("Почта России");
   });
 
-  describe("нормализация ввода", () => {
-    it("игнорирует пробелы, дефисы и подчёркивания", () => {
-      expect(detectCarrier("1234 5678 90")).toBe("Авито Доставка");
-      expect(detectCarrier("1234-5678-90")).toBe("Авито Доставка");
-      expect(detectCarrier("12_34_56_78_90")).toBe("Авито Доставка");
-    });
+  it("НЕ путает с 5Post (50 + 12 цифр)", () => {
+    expect(detectCarrier("50111111111111")?.carrier).toBe("5Post");
+  });
 
-    it("приводит к верхнему регистру", () => {
-      expect(detectCarrier("ra123456789ru")).toBe("Почта России");
-      expect(detectCarrier("avt12345678")).toBe("Авито Доставка");
-    });
+  it("НЕ путает с DPD (0 + 13 цифр)", () => {
+    expect(detectCarrier("01234567890123")?.carrier).toBe("DPD");
+  });
+});
+
+describe("detectCarrier — прочие ТК", () => {
+  it("Boxberry: 2 буквы + 6–12 цифр", () => {
+    expect(detectCarrier("BB123456789")?.carrier).toBe("Boxberry");
+  });
+
+  it("5Post: 50 + 12 цифр", () => {
+    expect(detectCarrier("50123456789012")?.carrier).toBe("5Post");
+  });
+
+  it("DPD: 14 цифр начинающихся с 0", () => {
+    expect(detectCarrier("01234567890123")?.carrier).toBe("DPD");
+  });
+
+  it("PickPoint: 9–11 цифр с префиксом 7 — приоритет над СДЭК", () => {
+    expect(detectCarrier("712345678")?.carrier).toBe("PickPoint");
+    expect(detectCarrier("71234567890")?.carrier).toBe("PickPoint");
+  });
+});
+
+describe("detectCarrier — fallback", () => {
+  it("буквенно-цифровой → Транспортная компания (low)", () => {
+    expect(detectCarrier("ABC12345DEF")).toEqual({ carrier: "Транспортная компания", confidence: "low" });
+    expect(detectCarrier("ZX9876543210123456789")?.carrier).toBe("Транспортная компания");
+  });
+
+  it("кириллица с цифрами >=10 → low fallback", () => {
+    expect(detectCarrier("трек 1234567890")?.carrier).toBe("Транспортная компания");
+  });
+
+  it("пустая строка → null", () => {
+    expect(detectCarrier("")).toBeNull();
+    expect(detectCarrier("   ")).toBeNull();
+  });
+
+  it("слишком короткий мусор → null", () => {
+    expect(detectCarrier("ABC")).toBeNull();
+    expect(detectCarrier("12345")).toBeNull();
+  });
+});
+
+describe("detectCarrier — нормализация ввода", () => {
+  it("игнорирует пробелы/дефисы/подчёркивания", () => {
+    expect(detectCarrier("1234 5678 90")?.carrier).toBe("Авито Доставка");
+    expect(detectCarrier("1234-5678-90")?.carrier).toBe("Авито Доставка");
+    expect(detectCarrier("12_34_56_78_90")?.carrier).toBe("Авито Доставка");
+  });
+
+  it("приводит к верхнему регистру", () => {
+    expect(detectCarrier("ra123456789ru")?.carrier).toBe("Почта России");
+    expect(detectCarrier("avt12345678")?.carrier).toBe("Авито Доставка");
+  });
+});
+
+describe("detectCarrierName", () => {
+  it("возвращает строку для UI", () => {
+    expect(detectCarrierName("5112520982")).toBe("Авито Доставка");
+  });
+
+  it("возвращает 'Не определена' для пустого/мусора", () => {
+    expect(detectCarrierName("")).toBe("Не определена");
+    expect(detectCarrierName("ABC")).toBe("Не определена");
   });
 });
