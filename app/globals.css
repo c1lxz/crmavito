@@ -92,6 +92,40 @@
   h3 {
     text-wrap: balance;
   }
+
+  /* Normalise <input type="date"> width across browsers (iOS/Android often
+     reserve space for spinners on the right, making the field wider than
+     a regular Input). Force the field to fit container, and shrink the
+     calendar indicator so it does not stretch layout. */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"],
+  input[type="month"],
+  input[type="week"] {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator,
+  input[type="week"]::-webkit-calendar-picker-indicator {
+    padding: 0;
+    margin-left: 4px;
+    opacity: 0.55;
+    cursor: pointer;
+  }
+
+  /* Hide noisy spin buttons that some browsers render inside date/time inputs */
+  input[type="date"]::-webkit-inner-spin-button,
+  input[type="datetime-local"]::-webkit-inner-spin-button {
+    display: none;
+  }
 }
 
 @layer components {

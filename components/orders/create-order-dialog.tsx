@@ -374,13 +374,11 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             </div>
             <div className="space-y-1">
               <Label>Дата заказа *</Label>
-              <input
+              <Input
                 type="date"
                 value={form.orderDate}
                 onChange={(e) => setForm((f) => ({ ...f, orderDate: e.target.value }))}
                 required
-                className="flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm font-medium text-foreground shadow-sm ring-offset-background focus-visible:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2"
-                style={{ boxSizing: "border-box", maxWidth: "100%" }}
               />
             </div>
             <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-3">
