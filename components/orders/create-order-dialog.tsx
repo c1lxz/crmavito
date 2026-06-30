@@ -37,16 +37,16 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
     variant: "",
     size: "",
     quantity: 1,
-    salePriceAtOrder: 0,
+    salePriceAtOrder: "",
     counterpartyId: "",
-    purchasePricePerUnit: 0,
+    purchasePricePerUnit: "",
     purchaseComment: "",
     trackingNumber: "",
     carrier: "",
     orderDate: new Date().toISOString().slice(0, 10),
-    logisticsCost: 0,
-    commissionCost: 0,
-    otherCosts: 0,
+    logisticsCost: "",
+    commissionCost: "",
+    otherCosts: "",
   });
   const [productSearch, setProductSearch] = useState("");
   const [productImageUrl, setProductImageUrl] = useState<string | null>(null);
@@ -115,7 +115,7 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
   function handleProductSelect(id: string) {
     const p = products.find((x) => x.id === id);
     if (p) {
-      setForm((f) => ({ ...f, productId: id, salePriceAtOrder: p.salePrice }));
+      setForm((f) => ({ ...f, productId: id, salePriceAtOrder: String(p.salePrice) }));
       setProductSearch(p.name);
       setProductImageError(null);
       if (p.imageUrl) {
@@ -145,13 +145,18 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
     }));
   }
 
+  const toMoney = (v: string): number => {
+    const n = parseFloat(v.replace(",", "."));
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  };
+
   const preview = calcOrderFinancials({
-    salePriceAtOrder: form.salePriceAtOrder,
+    salePriceAtOrder: toMoney(form.salePriceAtOrder),
     quantity: form.quantity,
-    purchasePricePerUnit: form.purchasePricePerUnit,
-    logisticsCost: form.logisticsCost,
-    commissionCost: form.commissionCost,
-    otherCosts: form.otherCosts,
+    purchasePricePerUnit: toMoney(form.purchasePricePerUnit),
+    logisticsCost: toMoney(form.logisticsCost),
+    commissionCost: toMoney(form.commissionCost),
+    otherCosts: toMoney(form.otherCosts),
   });
 
   async function handleSubmit(e: React.FormEvent) {
@@ -163,6 +168,11 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          salePriceAtOrder: toMoney(form.salePriceAtOrder),
+          purchasePricePerUnit: toMoney(form.purchasePricePerUnit),
+          logisticsCost: toMoney(form.logisticsCost),
+          commissionCost: toMoney(form.commissionCost),
+          otherCosts: toMoney(form.otherCosts),
           carrier: form.carrier.trim() || undefined,
           productImageUrl: productImageUrl?.trim() || undefined,
         }),
@@ -233,7 +243,15 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             </div>
             <div className="space-y-1">
               <Label>Цена продажи (₽)</Label>
-              <Input type="number" min={0} value={form.salePriceAtOrder} onChange={(e) => setForm((f) => ({ ...f, salePriceAtOrder: parseFloat(e.target.value) || 0 }))} required />
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                placeholder="0"
+                value={form.salePriceAtOrder}
+                onChange={(e) => setForm((f) => ({ ...f, salePriceAtOrder: e.target.value }))}
+                required
+              />
             </div>
 
             {form.productId && (
@@ -317,15 +335,36 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-3">
               <div className="space-y-1">
                 <Label className="text-xs leading-tight">Логистика ₽</Label>
-                <Input type="number" min={0} value={form.logisticsCost} onChange={(e) => setForm((f) => ({ ...f, logisticsCost: parseFloat(e.target.value) || 0 }))} />
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  placeholder="0"
+                  value={form.logisticsCost}
+                  onChange={(e) => setForm((f) => ({ ...f, logisticsCost: e.target.value }))}
+                />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs leading-tight">Комиссия ₽</Label>
-                <Input type="number" min={0} value={form.commissionCost} onChange={(e) => setForm((f) => ({ ...f, commissionCost: parseFloat(e.target.value) || 0 }))} />
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  placeholder="0"
+                  value={form.commissionCost}
+                  onChange={(e) => setForm((f) => ({ ...f, commissionCost: e.target.value }))}
+                />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs leading-tight">Прочие ₽</Label>
-                <Input type="number" min={0} value={form.otherCosts} onChange={(e) => setForm((f) => ({ ...f, otherCosts: parseFloat(e.target.value) || 0 }))} />
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  placeholder="0"
+                  value={form.otherCosts}
+                  onChange={(e) => setForm((f) => ({ ...f, otherCosts: e.target.value }))}
+                />
               </div>
             </div>
             </div>
@@ -383,7 +422,15 @@ export function CreateOrderDialog({ open, onClose, products, counterparties: ini
             </div>
             <div className="space-y-1">
               <Label>Закупочная цена за ед. (₽) *</Label>
-              <Input type="number" min={0} value={form.purchasePricePerUnit} onChange={(e) => setForm((f) => ({ ...f, purchasePricePerUnit: parseFloat(e.target.value) || 0 }))} required />
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                placeholder="0"
+                value={form.purchasePricePerUnit}
+                onChange={(e) => setForm((f) => ({ ...f, purchasePricePerUnit: e.target.value }))}
+                required
+              />
             </div>
             <div className="space-y-1">
               <Label>Комментарий к закупке</Label>
