@@ -7,6 +7,21 @@ export interface DateRange {
   to: Date;
 }
 
+async function getActiveOrders(range: DateRange, city?: string) {
+  return prisma.order.findMany({
+    where: {
+      isDeleted: false,
+      orderDate: { gte: range.from, lte: range.to },
+      ...(city ? { destinationCity: city } : {}),
+    },
+    include: {
+      product: true,
+      counterparty: true,
+      items: { include: { product: true }, orderBy: { position: "asc" } },
+    },
+  });
+}
+
 async function getReceivedOrders(range: DateRange, city?: string) {
   return prisma.order.findMany({
     where: {
@@ -24,7 +39,7 @@ async function getReceivedOrders(range: DateRange, city?: string) {
 }
 
 export async function getKpiForRange(range: DateRange, city?: string) {
-  const orders = await getReceivedOrders(range, city);
+  const orders = await getActiveOrders(range, city);
   const financials = orders.map((o) =>
     calcOrderFinancials({
       salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),

@@ -128,12 +128,32 @@ model Order {
   returns      Return[]
   items        OrderItem[]
   auditLogs    AuditLog[]
+  notification OrderNotification?
 
   @@index([status])
   @@index([orderDate])
   @@index([receivedAt])
   @@index([trackingNumber])
   @@map("orders")
+}
+
+model OrderNotification {
+  id                  String   @id @default(uuid())
+  orderId             String   @unique
+  status              String   @default("PENDING")
+  attempts            Int      @default(0)
+  sentBatches         Int      @default(0)
+  nextAttemptAt       DateTime @default(now())
+  processingStartedAt DateTime?
+  lastError           String?
+  sentAt              DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@map("order_notifications")
 }
 
 model OrderItem {

@@ -30,7 +30,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
         >
           <div
             className={cn(
-              "flex items-center gap-1 border-t border-border/85 bg-card/96 px-2 py-1.5 shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md",
+              "flex items-center gap-1 border-t border-border/85 bg-card/96 px-2 pt-1.5 pb-[calc(0.375rem+var(--app-bottom-pad,0px))] shadow-[0_-10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md",
               fullWidth && "w-full justify-around"
             )}
           >

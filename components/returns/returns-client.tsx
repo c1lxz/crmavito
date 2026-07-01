@@ -7,7 +7,7 @@ import { Package, Plus, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateInput } from "@/lib/utils";
 import { RETURN_STATUS_LABELS, RETURN_STATUS_COLORS } from "@/lib/constants";
 import { toast } from "@/lib/hooks/use-toast";
 import type { ReturnStatus } from "@prisma/client";
@@ -176,7 +176,7 @@ export function ReturnsClient({ initialData }: Props) {
                     variant="outline"
                     className="flex-1 text-xs"
                     disabled={updatingId === ret.id}
-                    onClick={() => updateStatus(ret.id, "RETURNED", new Date().toISOString().slice(0, 10))}
+                    onClick={() => updateStatus(ret.id, "RETURNED", formatDateInput())}
                   >
                     Товар получен
                   </Button>

@@ -17,8 +17,8 @@ describe("authenticated page auto-refresh", () => {
     expect(appLayoutSource).toContain("<AutoRefresh />");
   });
 
-  it("refreshes server data every 15 seconds and when the tab becomes visible", () => {
-    expect(autoRefreshSource).toContain("15_000");
+  it("refreshes server data every minute and when the tab becomes visible", () => {
+    expect(autoRefreshSource).toContain("60_000");
     expect(autoRefreshSource).toContain("window.setInterval");
     expect(autoRefreshSource).toContain('"visibilitychange"');
     expect(autoRefreshSource).toContain("router.refresh()");

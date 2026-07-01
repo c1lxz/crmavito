@@ -3,7 +3,7 @@
 import { startTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const DEFAULT_INTERVAL_MS = 15_000;
+const DEFAULT_INTERVAL_MS = 60_000;
 
 function isUserEditing(): boolean {
   const active = document.activeElement;

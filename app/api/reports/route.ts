@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getKpiForRange, getPnL, getProductsReport, getCounterpartiesReport, getReturnsReport, getDynamicsChart, getOrderStatusCounts, getExpenseCategoryTotals } from "@/lib/db/reports";
-import { subDays, startOfDay, endOfDay } from "@/lib/utils";
+import { subDays } from "@/lib/utils";
+import { parseReportRange } from "@/lib/reports/range";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -9,11 +10,16 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type") ?? "kpi";
-  const now = new Date();
-  const dateFrom = searchParams.get("dateFrom") ? new Date(searchParams.get("dateFrom")!) : startOfDay(subDays(now, 29));
-  const dateTo = searchParams.get("dateTo") ? new Date(searchParams.get("dateTo")!) : endOfDay(now);
-
-  const range = { from: dateFrom, to: dateTo };
+  let range: ReturnType<typeof parseReportRange>;
+  try {
+    range = parseReportRange(searchParams.get("dateFrom"), searchParams.get("dateTo"));
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Некорректный период" },
+      { status: 400 },
+    );
+  }
+  const { from: dateFrom, to: dateTo } = range;
 
   switch (type) {
     case "kpi": {

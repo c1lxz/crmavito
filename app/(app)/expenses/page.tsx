@@ -37,7 +37,12 @@ async function getExpenses() {
   };
 }
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>;
+}) {
+  const query = await searchParams;
   const data = await getExpenses();
-  return <ExpensesClient initialData={data} />;
+  return <ExpensesClient initialData={data} initialOpen={query.new === "1"} />;
 }

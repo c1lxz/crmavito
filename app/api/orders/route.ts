@@ -6,21 +6,8 @@ import { prisma } from "@/lib/db/prisma";
 import { generateOrderNumber } from "@/lib/db/orders";
 import { createAuditLog } from "@/lib/db/audit";
 import { detectCarrier } from "@/lib/tracking";
-import { sendOrderToGroup } from "@/lib/telegram/notify";
-import { downloadImageAsBuffer, resolveProductImage } from "@/lib/avito/fetch-image";
+import { processOrderNotificationByOrderId } from "@/lib/telegram/order-notification-queue";
 import { createOrderSchema, getLegacyOrderTotals } from "@/lib/orders/schema";
-
-async function resolveProductImageWithRetry(product: {
-  avitoItemId: string | null;
-  avitoListingUrl: string | null;
-}) {
-  let result = await resolveProductImage(product);
-  for (let attempt = 1; !result.ok && attempt < 3; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, attempt * 350));
-    result = await resolveProductImage(product);
-  }
-  return result;
-}
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -158,6 +145,7 @@ export async function POST(req: NextRequest) {
                 position,
               })),
             },
+            notification: { create: {} },
           },
         });
         await createAuditLog(
@@ -188,56 +176,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const notificationItems = await Promise.all(
-    data.items.map(async (item) => {
-      const product = productsById.get(item.productId)!;
-      const imageUrls = [...item.imageUrls];
-      if (imageUrls.length === 0 && product.imageUrl) {
-        const cachedImage = await downloadImageAsBuffer(product.imageUrl);
-        if (cachedImage?.length) imageUrls.push(product.imageUrl);
-      }
-      if (imageUrls.length === 0 && (product.avitoItemId || product.avitoListingUrl)) {
-        const result = await resolveProductImageWithRetry({
-          avitoItemId: product.avitoItemId,
-          avitoListingUrl: product.avitoListingUrl,
-        });
-        if (result.ok) {
-          imageUrls.push(result.value);
-          await prisma.product
-            .update({ where: { id: product.id }, data: { imageUrl: result.value } })
-            .catch(() => null);
-        } else {
-          console.warn(`[avito] order ${order!.orderNumber}: ${result.reason}`);
-        }
-      }
-      return {
-        productName: product.name,
-        variant: item.variant ?? null,
-        size: item.size ?? null,
-        quantity: item.quantity,
-        salePrice: item.salePriceAtOrder,
-        imageUrls,
-      };
-    })
-  );
-
-  await prisma.$transaction(
-    notificationItems.map((item, position) =>
-      prisma.orderItem.updateMany({
-        where: { orderId: order!.id, position },
-        data: { imageUrls: item.imageUrls },
-      })
-    )
-  );
-
-  await sendOrderToGroup({
-    orderNumber: order.orderNumber,
-    items: notificationItems,
-    trackingNumber: data.trackingNumber,
-    carrier,
-    counterpartyName: counterparty.name,
-    orderDate: new Date(data.orderDate),
-  }).catch((error) => console.error("[telegram] notify failed", error));
+  await processOrderNotificationByOrderId(order.id);
 
   return NextResponse.json(order, { status: 201 });
 }

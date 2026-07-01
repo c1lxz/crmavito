@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatRub, formatPercent, subDays, startOfDay, endOfDay } from "@/lib/utils";
+import { formatDateInput, formatRub, formatPercent, startOfMonth } from "@/lib/utils";
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_COLORS, ORDER_STATUS_LABELS } from "@/lib/constants";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { DynamicsChart, type Period } from "@/components/dashboard/DynamicsChart";
@@ -31,42 +31,79 @@ const EXPENSE_ORDER: string[] = [
 ];
 
 export function ReportsClient() {
-  const now = new Date();
-  const [dateFrom, setDateFrom] = useState(startOfDay(subDays(now, 29)).toISOString().slice(0, 10));
-  const [dateTo, setDateTo] = useState(endOfDay(now).toISOString().slice(0, 10));
+  const [dateFrom, setDateFrom] = useState(() => formatDateInput(startOfMonth(new Date())));
+  const [dateTo, setDateTo] = useState(() => formatDateInput());
   const [kpi, setKpi] = useState<{ current: KpiData; prev: KpiData } | null>(null);
   const [pnl, setPnl] = useState<Record<string, number> | null>(null);
   const [products, setProducts] = useState<Array<{ productId: string; name: string; imageUrl: string | null; sold: number; revenue: number; profit: number }>>([]);
+  const [counterparties, setCounterparties] = useState<Array<{ counterpartyId: string; name: string; purchased: number; revenue: number; profit: number }>>([]);
+  const [returns, setReturns] = useState<Array<{ productId: string; name: string; returns: number; returnPercent: number }>>([]);
   const [dynamics, setDynamics] = useState<Array<{ date: string; revenue: number; profit: number }>>([]);
   const [orderStatuses, setOrderStatuses] = useState<Record<string, number>>({});
   const [expenseCategories, setExpenseCategories] = useState<Record<string, number>>({});
   const [period, setPeriod] = useState<Period>("day");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  async function load() {
+  const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
+    setError(null);
     try {
       const params = `dateFrom=${dateFrom}&dateTo=${dateTo}`;
-      const [kpiRes, pnlRes, prodRes, dynRes, statusRes, expCatRes] = await Promise.all([
-        fetch(`/api/reports?type=kpi&${params}`).then((r) => r.json()),
-        fetch(`/api/reports?type=pnl&${params}`).then((r) => r.json()),
-        fetch(`/api/reports?type=products&${params}`).then((r) => r.json()),
-        fetch(`/api/reports?type=dynamics&${params}`).then((r) => r.json()),
-        fetch(`/api/reports?type=order-statuses&${params}`).then((r) => r.json()),
-        fetch(`/api/reports?type=expense-categories&${params}`).then((r) => r.json()),
+      const fetchReport = async <T,>(type: string): Promise<T> => {
+        const response = await fetch(`/api/reports?type=${type}&${params}`, {
+          cache: "no-store",
+        });
+        const body = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(
+            typeof body?.error === "string" ? body.error : `Ошибка загрузки отчёта (${response.status})`,
+          );
+        }
+        return body as T;
+      };
+      const [kpiRes, pnlRes, prodRes, cpRes, returnsRes, dynRes, statusRes, expCatRes] = await Promise.all([
+        fetchReport<{ current: KpiData; prev: KpiData }>("kpi"),
+        fetchReport<Record<string, number>>("pnl"),
+        fetchReport<typeof products>("products"),
+        fetchReport<typeof counterparties>("counterparties"),
+        fetchReport<typeof returns>("returns"),
+        fetchReport<typeof dynamics>("dynamics"),
+        fetchReport<Record<string, number>>("order-statuses"),
+        fetchReport<Record<string, number>>("expense-categories"),
       ]);
+      if (requestId !== requestIdRef.current) return;
       setKpi(kpiRes);
       setPnl(pnlRes);
       setProducts(prodRes);
+      setCounterparties(cpRes);
+      setReturns(returnsRes);
       setDynamics(dynRes);
       setOrderStatuses(statusRes);
       setExpenseCategories(expCatRes);
+    } catch (loadError) {
+      if (requestId === requestIdRef.current) {
+        setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить отчёты");
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
-  }
+  }, [dateFrom, dateTo]);
 
-  useEffect(() => { load(); }, [dateFrom, dateTo]);
+  useEffect(() => {
+    void load();
+    const intervalId = window.setInterval(() => void load(), 60_000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [load]);
 
   const expenseDonutData: ExpenseItem[] = EXPENSE_ORDER.map((key) => ({
     key,
@@ -92,7 +129,7 @@ export function ReportsClient() {
             <h1 className="text-xl font-semibold tracking-tight">Отчёты</h1>
             <p className="section-caption">Деньги, маржа и структура заказов</p>
           </div>
-          <Button size="sm" variant="outline" onClick={load} disabled={loading}>
+          <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
             {loading ? "..." : "Обновить"}
           </Button>
         </div>
@@ -104,6 +141,11 @@ export function ReportsClient() {
       </div>
 
       <div className="app-content">
+        {error && (
+          <div role="alert" className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        )}
         <Tabs defaultValue="dashboard">
           <TabsList className="w-full grid grid-cols-5 mb-4 overflow-hidden">
             <TabsTrigger value="dashboard" className="text-xs">Дашборд</TabsTrigger>
@@ -118,8 +160,8 @@ export function ReportsClient() {
             {/* MetricCards */}
             {kpi && (
               <div className="grid grid-cols-2 gap-3">
-                <MetricCard label="Выручка" value={kpi.current.revenue} prevValue={kpi.prev.revenue} />
-                <MetricCard label="Прибыль" value={kpi.current.netProfit} prevValue={kpi.prev.netProfit} />
+                <MetricCard label="Сумма заказов" value={kpi.current.revenue} prevValue={kpi.prev.revenue} />
+                <MetricCard label="Прибыль заказов" value={kpi.current.netProfit} prevValue={kpi.prev.netProfit} />
                 <MetricCard label="Заказов" value={kpi.current.ordersCount} prevValue={kpi.prev.ordersCount} format={(v) => String(v)} />
                 <MetricCard label="Средний чек" value={kpi.current.avgCheck} prevValue={kpi.prev.avgCheck} />
                 <MetricCard label="Возвраты" value={kpi.current.returnsCount} prevValue={kpi.prev.returnsCount} format={(v) => `${v} шт.`} />
@@ -189,11 +231,38 @@ export function ReportsClient() {
           </TabsContent>
 
           <TabsContent value="counterparties">
-            <p className="text-center text-muted-foreground py-8">Выберите период и нажмите «Обновить»</p>
+            <div className="space-y-2">
+              {counterparties.map((counterparty) => (
+                <Card key={counterparty.counterpartyId}>
+                  <CardContent className="p-3">
+                    <p className="text-sm font-medium">{counterparty.name}</p>
+                    <div className="mt-1 grid grid-cols-3 gap-2 text-xs">
+                      <span className="text-muted-foreground">Закупка<br /><strong className="text-foreground">{formatRub(counterparty.purchased)}</strong></span>
+                      <span className="text-muted-foreground">Выручка<br /><strong className="text-foreground">{formatRub(counterparty.revenue)}</strong></span>
+                      <span className="text-muted-foreground">Прибыль<br /><strong className={counterparty.profit >= 0 ? "money-positive" : "money-negative"}>{formatRub(counterparty.profit)}</strong></span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {counterparties.length === 0 && <p className="py-8 text-center text-muted-foreground">Нет данных за период</p>}
+            </div>
           </TabsContent>
 
           <TabsContent value="returns">
-            <p className="text-center text-muted-foreground py-8">Выберите период и нажмите «Обновить»</p>
+            <div className="space-y-2">
+              {returns.map((item) => (
+                <Card key={item.productId}>
+                  <CardContent className="flex items-center justify-between p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">Возвратов: {item.returns}</p>
+                    </div>
+                    <span className="ml-3 text-sm font-semibold money-negative">{formatPercent(item.returnPercent)}</span>
+                  </CardContent>
+                </Card>
+              ))}
+              {returns.length === 0 && <p className="py-8 text-center text-muted-foreground">Нет данных за период</p>}
+            </div>
           </TabsContent>
         </Tabs>
       </div>

@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import bwipjs from "bwip-js/node";
+import { auth } from "@/lib/auth";
+
+const MAX_BARCODE_LENGTH = 200;
 
 export async function GET(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const text = searchParams.get("text")?.trim();
   if (!text) return NextResponse.json({ error: "text required" }, { status: 400 });
+  if (text.length > MAX_BARCODE_LENGTH) {
+    return NextResponse.json({ error: "text too long" }, { status: 400 });
+  }
 
   try {
     const png = await bwipjs.toBuffer({
@@ -23,7 +32,7 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=86400, immutable",
+        "Cache-Control": "private, max-age=86400, immutable",
       },
     });
   } catch (e) {

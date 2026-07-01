@@ -90,4 +90,9 @@ describe("BottomNav / Dock — UI structure (smoke)", () => {
     expect(bottomNavSource).toContain("usePathname");
     expect(bottomNavSource).toContain("activeHref");
   });
+
+  it("фон дока доходит до низа экрана, а safe-area находится внутри него", () => {
+    expect(bottomNavSource).not.toContain("pb-[var(--app-bottom-pad");
+    expect(dockSource).toContain("pb-[calc(0.375rem+var(--app-bottom-pad");
+  });
 });

@@ -42,6 +42,7 @@ describe("return status updates", () => {
       id: "return-1",
       orderId: "order-1",
       status: "RETURNING",
+      order: { status: "RETURNING", receivedAt: new Date("2026-06-20") },
     });
     mocks.tx.return.update.mockResolvedValue({});
     mocks.tx.order.update.mockResolvedValue({});
@@ -62,7 +63,7 @@ describe("return status updates", () => {
       where: { id: "return-1" },
       data: {
         status: "RETURNED",
-        returnDate: new Date("2026-06-30"),
+        returnDate: new Date("2026-06-30T12:00:00+03:00"),
       },
     });
     expect(mocks.tx.order.update).toHaveBeenCalledWith({
@@ -93,12 +94,57 @@ describe("return status updates", () => {
     expect(response.status).toBe(200);
     expect(mocks.tx.return.update).toHaveBeenCalledWith({
       where: { id: "return-1" },
-      data: { status: "CANCELLED", returnDate: undefined },
+      data: { status: "CANCELLED", returnDate: null },
     });
     expect(mocks.tx.order.update).toHaveBeenCalledWith({
       where: { id: "order-1" },
       data: { status: "RECEIVED" },
     });
+  });
+
+  it("restores SHIPPED when a return started before the order was received", async () => {
+    mocks.prisma.return.findUnique.mockResolvedValue({
+      id: "return-1",
+      orderId: "order-1",
+      status: "RETURNING",
+      order: { status: "RETURNING", receivedAt: null },
+    });
+
+    const response = await PATCH(
+      new NextRequest("http://localhost/api/returns/return-1", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      }),
+      { params: Promise.resolve({ id: "return-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.tx.order.update).toHaveBeenCalledWith({
+      where: { id: "order-1" },
+      data: { status: "SHIPPED" },
+    });
+  });
+
+  it("rejects repeated changes to a completed return", async () => {
+    mocks.prisma.return.findUnique.mockResolvedValue({
+      id: "return-1",
+      orderId: "order-1",
+      status: "RETURNED",
+      order: { status: "RETURNED", receivedAt: new Date() },
+    });
+
+    const response = await PATCH(
+      new NextRequest("http://localhost/api/returns/return-1", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      }),
+      { params: Promise.resolve({ id: "return-1" }) }
+    );
+
+    expect(response.status).toBe(409);
+    expect(mocks.tx.return.update).not.toHaveBeenCalled();
   });
 
   it("keeps an open return in sync when the order is marked returned", async () => {

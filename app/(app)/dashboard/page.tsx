@@ -18,7 +18,7 @@ async function getDashboardData() {
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
 
-  const [todayOrders, weekOrders, monthOrders, monthExpenses, lastOrders, topProducts, todayOrderCount, weekOrderCount] =
+  const [todayOrders, weekOrders, monthOrders, monthExpenses, lastOrders, topProducts, todayCreatedOrders, weekCreatedOrders] =
     await Promise.all([
       prisma.order.findMany({
         where: { status: "RECEIVED", receivedAt: { gte: todayStart, lte: todayEnd }, isDeleted: false },
@@ -46,10 +46,10 @@ async function getDashboardData() {
           items: { include: { product: true }, orderBy: { position: "asc" } },
         },
       }),
-      prisma.order.count({
+      prisma.order.findMany({
         where: { isDeleted: false, orderDate: { gte: todayStart, lte: todayEnd } },
       }),
-      prisma.order.count({
+      prisma.order.findMany({
         where: { isDeleted: false, orderDate: { gte: weekStart, lte: todayEnd } },
       }),
     ]);
@@ -66,6 +66,8 @@ async function getDashboardData() {
 
   const todayFin = calc(todayOrders);
   const weekFin = calc(weekOrders);
+  const todayOrdersFin = calc(todayCreatedOrders);
+  const weekOrdersFin = calc(weekCreatedOrders);
   const monthFin = calc(monthOrders);
   const monthExpensesTotal = monthExpenses.reduce((s, e) => s + toDecimalNumber(e.amount), 0);
 
@@ -110,11 +112,13 @@ async function getDashboardData() {
 
   return {
     todaySales: todayOrders.length,
-    todayOrders: todayOrderCount,
+    todayOrders: todayCreatedOrders.length,
+    todayOrderAmount: todayOrdersFin.revenue,
     todayRevenue: todayFin.revenue,
     todayProfit: todayFin.netProfit,
     weekSales: weekOrders.length,
-    weekOrders: weekOrderCount,
+    weekOrders: weekCreatedOrders.length,
+    weekOrderAmount: weekOrdersFin.revenue,
     weekProfit: weekFin.netProfit,
     monthRevenue: monthFin.revenue,
     monthExpenses: monthExpensesTotal,
@@ -129,9 +133,9 @@ export default async function DashboardPage() {
   const today = new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
   const kpiCards = [
-    { label: "Заказы сегодня", value: `${data.todayOrders}`, sub: "создано за день" },
+    { label: "Заказы сегодня", value: `${data.todayOrders}`, sub: formatRub(data.todayOrderAmount) },
     { label: "Продажи сегодня", value: `${data.todaySales}`, sub: formatRub(data.todayRevenue) },
-    { label: "Заказы за 7 дней", value: `${data.weekOrders}`, sub: "создано за период" },
+    { label: "Заказы за 7 дней", value: `${data.weekOrders}`, sub: formatRub(data.weekOrderAmount) },
     { label: "Продажи за 7 дней", value: `${data.weekSales}`, sub: `${formatRub(data.weekProfit)} прибыли` },
   ];
 

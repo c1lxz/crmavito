@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Search, Building2, Package, TrendingUp } from "lucide-react";
 import Link from "next/link";
@@ -38,6 +38,10 @@ export function CounterpartiesClient({ counterparties: initial }: Props) {
   const [contactInfo, setContactInfo] = useState("");
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setCounterparties(initial);
+  }, [initial]);
 
   const filtered = counterparties.filter((cp) =>
     cp.name.toLowerCase().includes(search.toLowerCase()) ||

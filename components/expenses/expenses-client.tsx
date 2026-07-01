@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, ShoppingCart, Truck, Megaphone, Package, Percent, DollarSign, MoreHorizontal, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatRub, formatDate } from "@/lib/utils";
+import { formatRub, formatDate, formatDateInput } from "@/lib/utils";
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_COLORS } from "@/lib/constants";
 import { toast } from "@/lib/hooks/use-toast";
+import { summarizeExpensesForMonth } from "@/lib/expenses/summary";
 import type { ExpenseCategory } from "@prisma/client";
 
 interface Expense {
@@ -33,6 +34,7 @@ interface Props {
     monthByCategory: Record<string, number>;
     monthTotal: number;
   };
+  initialOpen?: boolean;
 }
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -47,15 +49,15 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 
 const CATEGORIES = Object.entries(EXPENSE_CATEGORY_LABELS) as [ExpenseCategory, string][];
 
-export function ExpensesClient({ initialData }: Props) {
+export function ExpensesClient({ initialData, initialOpen = false }: Props) {
   const router = useRouter();
   const [expenses, setExpenses] = useState(initialData.expenses);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("ALL");
-  const [showCreate, setShowCreate] = useState(false);
+  const [showCreate, setShowCreate] = useState(initialOpen);
   const [loading, setLoading] = useState(false);
   const blankForm = () => ({
-    date: new Date().toISOString().slice(0, 10),
+    date: formatDateInput(),
     category: "" as ExpenseCategory | "",
     title: "",
     amount: "",
@@ -63,6 +65,21 @@ export function ExpensesClient({ initialData }: Props) {
     comment: "",
   });
   const [form, setForm] = useState(blankForm);
+
+  useEffect(() => {
+    setExpenses(initialData.expenses);
+  }, [initialData.expenses]);
+
+  const refreshExpenses = useCallback(async () => {
+    const response = await fetch("/api/expenses", { cache: "no-store" });
+    if (!response.ok) throw new Error("Не удалось обновить расходы");
+    const data = (await response.json()) as {
+      expenses: Array<Expense & { amount: number | string }>;
+    };
+    setExpenses(
+      data.expenses.map((expense) => ({ ...expense, amount: Number(expense.amount) }))
+    );
+  }, []);
 
   function closeCreate() {
     setShowCreate(false);
@@ -81,6 +98,7 @@ export function ExpensesClient({ initialData }: Props) {
   }, [expenses, search, catFilter]);
 
   const totalFiltered = filtered.reduce((s, e) => s + e.amount, 0);
+  const monthSummary = useMemo(() => summarizeExpensesForMonth(expenses), [expenses]);
   const days = filtered.length > 0
     ? Math.max(1, Math.ceil((new Date(filtered[0].date).getTime() - new Date(filtered[filtered.length - 1].date).getTime()) / 86400000) + 1)
     : 1;
@@ -102,6 +120,7 @@ export function ExpensesClient({ initialData }: Props) {
       }
       toast({ title: "Расход добавлен" });
       closeCreate();
+      await refreshExpenses().catch(() => null);
       router.refresh();
     } catch (err) {
       toast({ title: "Ошибка", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
@@ -154,7 +173,7 @@ export function ExpensesClient({ initialData }: Props) {
           <Card className="col-span-4 border-primary/25 bg-accent/65">
             <CardContent className="p-3 text-center">
               <p className="text-xs text-muted-foreground">Всего</p>
-              <p className="text-lg font-semibold text-foreground tabular-nums">{formatRub(initialData.monthTotal)}</p>
+              <p className="text-lg font-semibold text-foreground tabular-nums">{formatRub(monthSummary.total)}</p>
             </CardContent>
           </Card>
         </div>
@@ -166,7 +185,7 @@ export function ExpensesClient({ initialData }: Props) {
                   {CATEGORY_ICONS[cat]}
                 </div>
                 <p className="text-[10px] text-muted-foreground leading-tight mb-0.5">{label}</p>
-                <p className="text-xs font-semibold">{formatRub(initialData.monthByCategory[cat] ?? 0)}</p>
+                <p className="text-xs font-semibold">{formatRub(monthSummary.byCategory[cat] ?? 0)}</p>
               </CardContent>
             </Card>
           ))}

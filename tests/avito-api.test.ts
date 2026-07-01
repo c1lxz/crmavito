@@ -18,6 +18,10 @@ const ordersRouteSource = readFileSync(
   path.resolve(__dirname, "../app/api/orders/route.ts"),
   "utf8"
 );
+const queueSource = readFileSync(
+  path.resolve(__dirname, "../lib/telegram/order-notification-queue.ts"),
+  "utf8"
+);
 
 describe("Avito API fetcher (smoke)", () => {
   it("кеширует OAuth-токен", () => {
@@ -63,7 +67,7 @@ describe("Telegram notify (smoke)", () => {
     expect(notifySource).toContain("downloadImageAsBuffer");
     expect(notifySource).toContain("attach://image");
     expect(notifySource).toContain("flatMap");
-    expect(notifySource).toContain("offset += 10");
+    expect(notifySource).toContain("batchIndex");
     expect(notifySource).not.toContain("slice(0, 9)");
   });
 
@@ -72,20 +76,22 @@ describe("Telegram notify (smoke)", () => {
     expect(notifySource).toContain("[telegram]");
   });
 
-  it("откатывается на текст если нет ни картинки ни штрихкода", () => {
-    expect(notifySource).toContain("sendMessage");
+  it("не проглатывает ошибку Telegram", () => {
+    expect(notifySource).not.toContain("sendOrderToGroup failed");
+    expect(notifySource).toContain("throw new Error");
   });
 });
 
-describe("POST /api/orders integrates image resolver (smoke)", () => {
-  it("дотягивает картинку синхронно перед уведомлением", () => {
-    expect(ordersRouteSource).toContain("resolveProductImage");
-    expect(ordersRouteSource).toContain("sendOrderToGroup");
-    expect(ordersRouteSource).toContain("imageUrls");
-    // Ищем именно ВЫЗОВ функций (со скобками), а не импорты
-    const resolveCallIdx = ordersRouteSource.indexOf("resolveProductImageWithRetry({");
-    const sendCallIdx = ordersRouteSource.indexOf("sendOrderToGroup({");
-    expect(resolveCallIdx).toBeGreaterThan(-1);
-    expect(sendCallIdx).toBeGreaterThan(resolveCallIdx);
+describe("POST /api/orders uses a durable Telegram queue (smoke)", () => {
+  it("creates the queue record atomically and attempts immediate delivery", () => {
+    expect(ordersRouteSource).toContain("notification: { create: {} }");
+    expect(ordersRouteSource).toContain("processOrderNotificationByOrderId(order.id)");
+  });
+
+  it("retries failures and resumes multipart delivery from the last sent batch", () => {
+    expect(queueSource).toContain('status: "RETRY"');
+    expect(queueSource).toContain("nextAttemptAt");
+    expect(queueSource).toContain("sentBatches");
+    expect(queueSource).toContain("processPendingOrderNotifications");
   });
 });

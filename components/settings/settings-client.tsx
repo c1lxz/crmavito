@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, LogOut, User, Shield, Palette, Users, Plus, ToggleLeft, ToggleRight, Trash2, Database } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
@@ -38,6 +38,10 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
   const [addLoading, setAddLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  useEffect(() => {
+    setUsers(initialUsers);
+  }, [initialUsers]);
 
   async function handleAddUser(e: React.FormEvent) {
     e.preventDefault();
