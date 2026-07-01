@@ -9,7 +9,16 @@ export default async function SettingsPage() {
 
   const users = session.user.role === "ADMIN"
     ? await prisma.user.findMany({
-        select: { id: true, name: true, telegramId: true, role: true, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          login: true,
+          telegramId: true,
+          credentialsDeliveredAt: true,
+          credentialsDeliveryError: true,
+          role: true,
+          isActive: true,
+        },
         orderBy: { createdAt: "asc" },
       })
     : [];

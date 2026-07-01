@@ -49,9 +49,12 @@ enum AuditEntityType {
 model User {
   id           String    @id @default(uuid())
   name         String
+  login        String?   @unique
   email        String?   @unique
   passwordHash String?
   telegramId   String?   @unique
+  credentialsDeliveredAt DateTime?
+  credentialsDeliveryError String?
   role         UserRole  @default(MANAGER)
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, LogOut, User, Shield, Palette, Users, Plus, ToggleLeft, ToggleRight, Trash2, Database } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Database, KeyRound, LogOut, Palette, Plus, Shield, ToggleLeft, ToggleRight, Trash2, User, Users } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,9 +16,17 @@ import { toast } from "@/lib/hooks/use-toast";
 interface UserItem {
   id: string;
   name: string;
+  login: string | null;
   telegramId: string | null;
+  credentialsDeliveredAt: string | Date | null;
+  credentialsDeliveryError: string | null;
   role: "ADMIN" | "MANAGER";
   isActive: boolean;
+}
+
+interface IssuedCredentials {
+  credentials: { login: string; password: string };
+  delivery: { sent: boolean; error: string | null };
 }
 
 interface Props {
@@ -38,6 +46,8 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
   const [addLoading, setAddLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [issuedCredentials, setIssuedCredentials] = useState<IssuedCredentials | null>(null);
+  const [issuingUserId, setIssuingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     setUsers(initialUsers);
@@ -57,14 +67,50 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
         const message = typeof data.error === "string" ? data.error : "Ошибка";
         throw new Error(message);
       }
-      setUsers((u) => [...u, data]);
+      setUsers((u) => [...u, data.user]);
       setShowAddDialog(false);
       setAddForm({ name: "", telegramId: "", role: "MANAGER" });
-      toast({ title: "Пользователь добавлен" });
+      setIssuedCredentials({ credentials: data.credentials, delivery: data.delivery });
+      toast({
+        title: "Пользователь добавлен",
+        description: data.delivery.sent
+          ? "Логин и пароль отправлены в Telegram."
+          : "Telegram не принял сообщение — сохраните реквизиты из окна.",
+      });
     } catch (err) {
       toast({ title: "Ошибка", description: String(err), variant: "destructive" });
     } finally {
       setAddLoading(false);
+    }
+  }
+
+  async function issueCredentials(target: UserItem) {
+    setIssuingUserId(target.id);
+    try {
+      const response = await fetch(`/api/users/${target.id}/credentials`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "Ошибка");
+      }
+      setIssuedCredentials(data);
+      setUsers((current) =>
+        current.map((item) =>
+          item.id === target.id
+            ? {
+                ...item,
+                login: data.credentials.login,
+                credentialsDeliveredAt: data.delivery.sent ? new Date().toISOString() : null,
+                credentialsDeliveryError: data.delivery.error,
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      toast({ title: "Не удалось выдать доступ", description: String(error), variant: "destructive" });
+    } finally {
+      setIssuingUserId(null);
     }
   }
 
@@ -209,8 +255,17 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{u.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {u.telegramId ? `TG: ${u.telegramId}` : "—"}
+                      {u.login ? `Логин: ${u.login}` : "Логин не создан"}
                     </p>
+                    {u.credentialsDeliveryError ? (
+                      <p className="truncate text-[11px] font-medium text-destructive">
+                        Telegram: не доставлено
+                      </p>
+                    ) : u.credentialsDeliveredAt ? (
+                      <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                        Доступ отправлен
+                      </p>
+                    ) : null}
                   </div>
                   <Select
                     value={u.role}
@@ -227,6 +282,14 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
                   </Select>
                   {u.id !== user.id && (
                     <>
+                      <button
+                        onClick={() => issueCredentials(u)}
+                        disabled={issuingUserId === u.id}
+                        className="text-muted-foreground transition-colors hover:text-primary disabled:opacity-45"
+                        aria-label={u.login ? "Выдать новый пароль" : "Создать логин и пароль"}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => toggleActive(u.id, u.isActive)}
                         className="text-muted-foreground hover:text-foreground transition-colors"
@@ -347,7 +410,8 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Если указан username, система попробует получить ID через Telegram-бота.
+                Система создаст браузерный логин и пароль. Telegram не позволяет боту
+                написать первым: сотрудник должен хотя бы один раз открыть бота.
               </p>
             </div>
             <div className="space-y-1">
@@ -371,6 +435,53 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!issuedCredentials}
+        onOpenChange={(open) => !open && setIssuedCredentials(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Доступ сотрудника</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Пароль показывается только сейчас. Сохраните его до закрытия окна.
+          </p>
+          <div className="mt-4 space-y-3">
+            <div className="space-y-1">
+              <Label>Логин</Label>
+              <Input readOnly value={issuedCredentials?.credentials.login ?? ""} />
+            </div>
+            <div className="space-y-1">
+              <Label>Пароль</Label>
+              <Input readOnly value={issuedCredentials?.credentials.password ?? ""} />
+            </div>
+            <div
+              className={`flex items-start gap-2 rounded-md border p-3 text-sm ${
+                issuedCredentials?.delivery.sent
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
+                  : "border-destructive/30 bg-destructive/10 text-destructive"
+              }`}
+            >
+              {issuedCredentials?.delivery.sent ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              ) : (
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              )}
+              <span>
+                {issuedCredentials?.delivery.sent
+                  ? "Реквизиты отправлены сотруднику в Telegram."
+                  : `Не удалось отправить в Telegram: ${
+                      issuedCredentials?.delivery.error ?? "неизвестная ошибка"
+                    }`}
+              </span>
+            </div>
+          </div>
+          <Button className="mt-4 w-full" onClick={() => setIssuedCredentials(null)}>
+            Я сохранил реквизиты
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

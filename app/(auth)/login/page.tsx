@@ -65,13 +65,13 @@ export default function LoginPage() {
     setError(null);
     const data = new FormData(e.currentTarget);
     const res = await signIn("credentials", {
-      email: data.get("email"),
+      login: data.get("login"),
       password: data.get("password"),
       redirect: false,
     });
     setLoading(false);
     if (res?.error) {
-      setError("Неверный email или пароль");
+      setError("Неверный логин или пароль");
     } else {
       router.push("/dashboard");
       router.refresh();
@@ -115,8 +115,8 @@ export default function LoginPage() {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" required autoComplete="email" />
+            <Label htmlFor="login">Логин</Label>
+            <Input id="login" name="login" required autoComplete="username" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Пароль</Label>

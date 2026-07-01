@@ -3,6 +3,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 import { UserRole } from "@prisma/client";
+import {
+  prepareCredentials,
+  recordCredentialDelivery,
+} from "@/lib/users/credentials";
 
 const createSchema = z.object({
   name: z.string().min(1),
@@ -45,7 +49,18 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const users = await prisma.user.findMany({
-    select: { id: true, name: true, email: true, telegramId: true, role: true, isActive: true, createdAt: true },
+    select: {
+      id: true,
+      name: true,
+      login: true,
+      email: true,
+      telegramId: true,
+      credentialsDeliveredAt: true,
+      credentialsDeliveryError: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+    },
     orderBy: { createdAt: "asc" },
   });
   return NextResponse.json(users);
@@ -71,9 +86,42 @@ export async function POST(req: NextRequest) {
   const existing = await prisma.user.findUnique({ where: { telegramId } });
   if (existing) return NextResponse.json({ error: "Пользователь с таким Telegram ID уже существует" }, { status: 409 });
 
+  const prepared = await prepareCredentials(telegramId);
   const user = await prisma.user.create({
-    data: { name: parsed.data.name, telegramId, role: parsed.data.role },
-    select: { id: true, name: true, telegramId: true, role: true, isActive: true, createdAt: true },
+    data: {
+      name: parsed.data.name,
+      telegramId,
+      login: prepared.credentials.login,
+      passwordHash: prepared.passwordHash,
+      role: parsed.data.role,
+    },
+    select: {
+      id: true,
+      name: true,
+      login: true,
+      telegramId: true,
+      credentialsDeliveredAt: true,
+      credentialsDeliveryError: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+    },
   });
-  return NextResponse.json(user, { status: 201 });
+  const delivery = await recordCredentialDelivery(
+    user.id,
+    telegramId,
+    prepared.credentials,
+  );
+  return NextResponse.json(
+    {
+      user: {
+        ...user,
+        credentialsDeliveredAt: delivery.sent ? new Date().toISOString() : null,
+        credentialsDeliveryError: delivery.error,
+      },
+      credentials: prepared.credentials,
+      delivery,
+    },
+    { status: 201 },
+  );
 }
