@@ -40,7 +40,7 @@ async function getDashboardData() {
         include: { product: true },
       }),
       prisma.order.findMany({
-        where: { status: "RECEIVED", isDeleted: false },
+        where: { isDeleted: false },
         include: {
           product: true,
           items: { include: { product: true }, orderBy: { position: "asc" } },
@@ -71,7 +71,10 @@ async function getDashboardData() {
   const monthFin = calc(monthOrders);
   const monthExpensesTotal = monthExpenses.reduce((s, e) => s + toDecimalNumber(e.amount), 0);
 
-  const productProfits: Record<string, { name: string; imageUrl: string | null; profit: number }> = {};
+  const productOrderCounts: Record<
+    string,
+    { name: string; imageUrl: string | null; orders: number }
+  > = {};
   for (const o of topProducts) {
     const items = o.items.length
       ? o.items
@@ -83,31 +86,23 @@ async function getDashboardData() {
           purchasePricePerUnit: o.purchasePricePerUnit,
           product: o.product,
         }];
-    const orderRevenue = items.reduce(
-      (sum, item) => sum + toDecimalNumber(item.salePriceAtOrder) * item.quantity,
-      0
-    );
-    const sharedCosts =
-      toDecimalNumber(o.logisticsCost) +
-      toDecimalNumber(o.commissionCost) +
-      toDecimalNumber(o.otherCosts);
+    const productsInOrder = new Set<string>();
     for (const item of items) {
-      const revenue = toDecimalNumber(item.salePriceAtOrder) * item.quantity;
-      const cost = toDecimalNumber(item.purchasePricePerUnit) * item.quantity;
-      const allocatedCosts = orderRevenue > 0 ? sharedCosts * (revenue / orderRevenue) : 0;
-      if (!productProfits[item.productId]) {
-        productProfits[item.productId] = {
+      if (productsInOrder.has(item.productId)) continue;
+      productsInOrder.add(item.productId);
+      if (!productOrderCounts[item.productId]) {
+        productOrderCounts[item.productId] = {
           name: item.productNameSnapshot,
           imageUrl: item.product.imageUrl,
-          profit: 0,
+          orders: 0,
         };
       }
-      productProfits[item.productId].profit += revenue - cost - allocatedCosts;
+      productOrderCounts[item.productId].orders += 1;
     }
   }
-  const topProductsList = Object.entries(productProfits)
+  const topProductsList = Object.entries(productOrderCounts)
     .map(([id, d]) => ({ id, ...d }))
-    .sort((a, b) => b.profit - a.profit)
+    .sort((a, b) => b.orders - a.orders || a.name.localeCompare(b.name, "ru"))
     .slice(0, 5);
 
   return {
@@ -143,6 +138,16 @@ export default async function DashboardPage() {
     { label: "Заказы за 7 дней", value: `${data.weekOrders}`, sub: formatRub(data.weekOrderAmount) },
     { label: "Продажи за 7 дней", value: `${data.weekSales}`, sub: `${formatRub(data.weekProfit)} прибыли` },
   ];
+
+  const formatOrderCount = (count: number) => {
+    const lastTwo = count % 100;
+    const last = count % 10;
+    if (last === 1 && lastTwo !== 11) return `${count} заказ`;
+    if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) {
+      return `${count} заказа`;
+    }
+    return `${count} заказов`;
+  };
 
   const quickActions = [
     { label: "Новый заказ", icon: Plus, href: "/orders?new=1" },
@@ -257,7 +262,9 @@ export default async function DashboardPage() {
                 <div key={p.id} className="flex items-center gap-3 rounded-md px-2 py-2">
                   <span className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary text-xs font-semibold text-muted-foreground">{i + 1}</span>
                   <p className="min-w-0 flex-1 truncate text-sm font-medium">{p.name}</p>
-                  <p className="text-sm font-semibold tabular-nums money-positive">{formatRub(p.profit)}</p>
+                  <p className="whitespace-nowrap text-sm font-semibold tabular-nums">
+                    {formatOrderCount(p.orders)}
+                  </p>
                 </div>
               ))}
               {data.topProductsList.length === 0 && (

@@ -52,4 +52,15 @@ describe("server refresh propagation", () => {
     expect(contents).not.toContain('"создано за день"');
     expect(contents).not.toContain('"создано за период"');
   });
+
+  it("ranks top products by active orders instead of received sales", () => {
+    const contents = source("app/(app)/dashboard/page.tsx");
+    expect(contents).toContain("productOrderCounts");
+    expect(contents).toContain("b.orders - a.orders");
+    expect(contents).toContain("formatOrderCount(p.orders)");
+    expect(contents).not.toContain("productProfits");
+    expect(contents).toMatch(
+      /prisma\.order\.findMany\(\{\s*where: \{ isDeleted: false \},\s*include: \{\s*product: true,\s*items:/,
+    );
+  });
 });
