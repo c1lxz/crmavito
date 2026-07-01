@@ -22,6 +22,10 @@ const queueSource = readFileSync(
   path.resolve(__dirname, "../lib/telegram/order-notification-queue.ts"),
   "utf8"
 );
+const workerSource = readFileSync(
+  path.resolve(__dirname, "../scripts/telegram-notify-worker.js"),
+  "utf8"
+);
 
 describe("Avito API fetcher (smoke)", () => {
   it("кеширует OAuth-токен", () => {
@@ -93,5 +97,11 @@ describe("POST /api/orders uses a durable Telegram queue (smoke)", () => {
     expect(queueSource).toContain("nextAttemptAt");
     expect(queueSource).toContain("sentBatches");
     expect(queueSource).toContain("processPendingOrderNotifications");
+  });
+
+  it("runs the production worker with plain Node.js and no platform-specific TS runtime", () => {
+    expect(workerSource).toContain("/api/internal/telegram-notifications");
+    expect(workerSource).not.toContain("tsx");
+    expect(workerSource).not.toContain("esbuild");
   });
 });

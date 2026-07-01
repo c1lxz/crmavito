@@ -7,7 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start -H 127.0.0.1",
     "avito:sync-worker": "node scripts/avito-sync-worker.js",
-    "telegram:notify-worker": "tsx scripts/telegram-notify-worker.ts",
+    "telegram:notify-worker": "node scripts/telegram-notify-worker.js",
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
