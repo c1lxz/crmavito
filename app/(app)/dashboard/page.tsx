@@ -9,6 +9,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { OrderStatus } from "@prisma/client";
+import { buildTopProductsByOrders } from "@/lib/dashboard/top-products";
 
 async function getDashboardData() {
   const now = new Date();
@@ -71,39 +72,7 @@ async function getDashboardData() {
   const monthFin = calc(monthOrders);
   const monthExpensesTotal = monthExpenses.reduce((s, e) => s + toDecimalNumber(e.amount), 0);
 
-  const productOrderCounts: Record<
-    string,
-    { name: string; imageUrl: string | null; orders: number }
-  > = {};
-  for (const o of topProducts) {
-    const items = o.items.length
-      ? o.items
-      : [{
-          productId: o.productId,
-          productNameSnapshot: o.productNameSnapshot,
-          quantity: o.quantity,
-          salePriceAtOrder: o.salePriceAtOrder,
-          purchasePricePerUnit: o.purchasePricePerUnit,
-          product: o.product,
-        }];
-    const productsInOrder = new Set<string>();
-    for (const item of items) {
-      if (productsInOrder.has(item.productId)) continue;
-      productsInOrder.add(item.productId);
-      if (!productOrderCounts[item.productId]) {
-        productOrderCounts[item.productId] = {
-          name: item.productNameSnapshot,
-          imageUrl: item.product.imageUrl,
-          orders: 0,
-        };
-      }
-      productOrderCounts[item.productId].orders += 1;
-    }
-  }
-  const topProductsList = Object.entries(productOrderCounts)
-    .map(([id, d]) => ({ id, ...d }))
-    .sort((a, b) => b.orders - a.orders || a.name.localeCompare(b.name, "ru"))
-    .slice(0, 5);
+  const topProductsList = buildTopProductsByOrders(topProducts);
 
   return {
     todaySales: todayOrders.length,
