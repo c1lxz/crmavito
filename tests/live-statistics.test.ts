@@ -109,4 +109,16 @@ describe("expense cards", () => {
       )
     ).toEqual({ total: 2500, byCategory: { OTHER: 2500 } });
   });
+
+  it("assigns expenses around midnight to the Moscow calendar month", () => {
+    expect(
+      summarizeExpensesForMonth(
+        [
+          { date: "2026-06-30T20:59:59.999Z", category: "OTHER", amount: 500 },
+          { date: "2026-06-30T21:00:00.000Z", category: "OTHER", amount: 2500 },
+        ],
+        new Date("2026-06-30T22:00:00.000Z"),
+      ),
+    ).toEqual({ total: 2500, byCategory: { OTHER: 2500 } });
+  });
 });

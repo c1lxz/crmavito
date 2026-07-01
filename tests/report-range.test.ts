@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { parseReportRange } from "@/lib/reports/range";
-import { formatDateInput } from "@/lib/utils";
+import {
+  endOfDay,
+  endOfMonth,
+  formatDateInput,
+  startOfDay,
+  startOfMonth,
+} from "@/lib/utils";
 
 describe("report date range", () => {
   it("includes the full final day in Moscow time", () => {
@@ -16,7 +22,16 @@ describe("report date range", () => {
 });
 
 describe("date input formatting", () => {
-  it("uses local calendar fields instead of UTC conversion", () => {
-    expect(formatDateInput(new Date(2026, 5, 30, 0, 5))).toBe("2026-06-30");
+  it("switches the calendar day exactly at Moscow midnight", () => {
+    expect(formatDateInput(new Date("2026-07-01T20:59:59.999Z"))).toBe("2026-07-01");
+    expect(formatDateInput(new Date("2026-07-01T21:00:00.000Z"))).toBe("2026-07-02");
+  });
+
+  it("builds Moscow day and month boundaries independently of server timezone", () => {
+    const instant = new Date("2026-07-01T22:30:00.000Z");
+    expect(startOfDay(instant).toISOString()).toBe("2026-07-01T21:00:00.000Z");
+    expect(endOfDay(instant).toISOString()).toBe("2026-07-02T20:59:59.999Z");
+    expect(startOfMonth(instant).toISOString()).toBe("2026-06-30T21:00:00.000Z");
+    expect(endOfMonth(instant).toISOString()).toBe("2026-07-31T20:59:59.999Z");
   });
 });

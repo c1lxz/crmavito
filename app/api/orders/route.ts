@@ -8,6 +8,7 @@ import { createAuditLog } from "@/lib/db/audit";
 import { detectCarrier } from "@/lib/tracking";
 import { processOrderNotificationByOrderId } from "@/lib/telegram/order-notification-queue";
 import { createOrderSchema, getLegacyOrderTotals } from "@/lib/orders/schema";
+import { parseMoscowDateInput } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -51,8 +52,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Некорректная конечная дата" }, { status: 400 });
     }
     where.orderDate = {};
-    if (dateFrom) where.orderDate.gte = new Date(dateFrom);
-    if (dateTo) where.orderDate.lte = new Date(dateTo);
+    if (dateFrom) where.orderDate.gte = parseMoscowDateInput(dateFrom);
+    if (dateTo) where.orderDate.lte = parseMoscowDateInput(dateTo, true);
   }
 
   const [orders, total] = await Promise.all([

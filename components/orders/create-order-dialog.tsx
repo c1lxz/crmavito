@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, ImagePlus, Loader2, Package, Plus, Trash2 } from "lucide-react";
+import { ExternalLink, ImagePlus, Loader2, Package, Plus, Trash2, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -279,11 +279,14 @@ export function CreateOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-h-[94svh] max-w-lg overflow-hidden p-0">
+      <DialogContent className="top-[calc((100dvh+var(--app-top-pad,48px)+2rem-var(--app-bottom-pad,0px))/2)] max-h-[calc(100dvh-var(--app-top-pad,48px)-var(--app-bottom-pad,0px)-3rem)] max-w-lg overflow-hidden p-0">
         <DialogHeader className="border-b border-border/70 px-4 py-4 pr-12 text-left">
           <DialogTitle>{isEditing ? "Редактирование заказа" : "Новый заказ"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex max-h-[calc(94svh-61px)] flex-col">
+        <form
+          onSubmit={handleSubmit}
+          className="flex max-h-[calc(100dvh-var(--app-top-pad,48px)-var(--app-bottom-pad,0px)-7rem)] flex-col"
+        >
           <div className="min-h-0 space-y-4 overflow-y-auto px-4 py-3">
             {form.items.map((item, index) => {
               const selectedProduct = productsById.get(item.productId);
@@ -419,7 +422,8 @@ export function CreateOrderDialog({
                           />
                           <button
                             type="button"
-                            className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white"
+                            aria-label={`Удалить фото ${photoIndex + 1}`}
+                            className="absolute right-1 top-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/75 p-0 text-white shadow-sm"
                             onClick={() =>
                               updateItem(index, {
                                 imageUrls: item.imageUrls.filter(
@@ -428,7 +432,7 @@ export function CreateOrderDialog({
                               })
                             }
                           >
-                            <XIcon />
+                            <X className="h-4 w-4" aria-hidden />
                           </button>
                         </div>
                       ))}
@@ -545,7 +549,7 @@ export function CreateOrderDialog({
                   />
                 ) : null}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className={isEditing ? "grid grid-cols-2 gap-2" : undefined}>
                 <div className="space-y-1">
                   <Label>Дата заказа</Label>
                   <Input
@@ -557,24 +561,28 @@ export function CreateOrderDialog({
                     }
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label>Дата отправки</Label>
-                  <Input
-                    type="date"
-                    value={form.shippingDate}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, shippingDate: event.target.value }))
-                    }
-                  />
-                </div>
+                {isEditing ? (
+                  <div className="space-y-1">
+                    <Label>Дата отправки</Label>
+                    <Input
+                      type="date"
+                      value={form.shippingDate}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, shippingDate: event.target.value }))
+                      }
+                    />
+                  </div>
+                ) : null}
               </div>
-              <Input
-                placeholder="Город назначения"
-                value={form.destinationCity}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, destinationCity: event.target.value }))
-                }
-              />
+              {isEditing ? (
+                <Input
+                  placeholder="Город назначения"
+                  value={form.destinationCity}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, destinationCity: event.target.value }))
+                  }
+                />
+              ) : null}
               <Textarea
                 placeholder="Комментарий к закупке"
                 value={form.purchaseComment}
@@ -619,8 +627,4 @@ export function CreateOrderDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function XIcon() {
-  return <span aria-hidden>×</span>;
 }

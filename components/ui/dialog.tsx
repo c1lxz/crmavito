@@ -40,13 +40,13 @@ const DialogContent = React.forwardRef<
         onOpenAutoFocus?.(e);
       }}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] rounded-lg border border-border/90 bg-card p-5 shadow-2xl shadow-slate-950/20 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98",
+        "fixed left-[50%] top-[calc((100dvh+var(--app-top-pad,48px)-var(--app-bottom-pad,0px))/2)] z-50 max-h-[calc(100dvh-var(--app-top-pad,48px)-var(--app-bottom-pad,0px)-1rem)] w-[calc(100%-1rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] overflow-y-auto rounded-lg border border-border/90 bg-card p-5 shadow-2xl shadow-slate-950/20 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98",
         className
       )}
       {...props}
     >
       {children}
-      <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100">
+      <DialogClose className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-md opacity-70 outline-none hover:bg-muted hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogClose>

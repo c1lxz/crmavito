@@ -1,12 +1,9 @@
-import { endOfDay, startOfDay, subDays } from "@/lib/utils";
+import { endOfDay, parseMoscowDateInput, startOfDay, subDays } from "@/lib/utils";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const MOSCOW_OFFSET = "+03:00";
-
 function parseDate(value: string, end: boolean): Date {
   if (!DATE_RE.test(value)) throw new Error("Некорректный формат даты");
-  const time = end ? "23:59:59.999" : "00:00:00.000";
-  const date = new Date(`${value}T${time}${MOSCOW_OFFSET}`);
+  const date = parseMoscowDateInput(value, end);
   if (Number.isNaN(date.getTime())) throw new Error("Некорректная дата");
   const roundTrip = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Moscow",

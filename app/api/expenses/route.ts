@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 import { ExpenseCategory } from "@prisma/client";
 import { toDecimalNumber } from "@/lib/db/orders";
+import { parseMoscowDateInput } from "@/lib/utils";
 
 const createSchema = z.object({
   date: z.string(),
@@ -31,8 +32,8 @@ export async function GET(req: NextRequest) {
   if (search) where.title = { contains: search, mode: "insensitive" };
   if (dateFrom || dateTo) {
     where.date = {};
-    if (dateFrom) (where.date as Record<string, Date>).gte = new Date(dateFrom);
-    if (dateTo) (where.date as Record<string, Date>).lte = new Date(dateTo);
+    if (dateFrom) (where.date as Record<string, Date>).gte = parseMoscowDateInput(dateFrom);
+    if (dateTo) (where.date as Record<string, Date>).lte = parseMoscowDateInput(dateTo, true);
   }
 
   const expenses = await prisma.expense.findMany({

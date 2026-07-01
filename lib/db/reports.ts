@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { calcOrderFinancials, sumFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "./orders";
+import { formatDateInput } from "@/lib/utils";
 
 export interface DateRange {
   from: Date;
@@ -310,7 +311,7 @@ export async function getDynamicsChart(range: DateRange) {
       commissionCost: toDecimalNumber(o.commissionCost),
       otherCosts: toDecimalNumber(o.otherCosts),
     });
-    const day = (o.receivedAt ?? o.orderDate).toISOString().slice(0, 10);
+    const day = formatDateInput(o.receivedAt ?? o.orderDate);
     if (!byDay[day]) byDay[day] = { revenue: 0, profit: 0 };
     byDay[day].revenue += fin.revenue;
     byDay[day].profit += fin.netProfit;

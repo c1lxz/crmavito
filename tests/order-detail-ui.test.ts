@@ -45,10 +45,22 @@ const createOrderDialogSource = readFileSync(
   path.resolve(__dirname, "../components/orders/create-order-dialog.tsx"),
   "utf8"
 );
+const dialogSource = readFileSync(
+  path.resolve(__dirname, "../components/ui/dialog.tsx"),
+  "utf8",
+);
 
 describe("CreateOrderDialog — UI structure (smoke)", () => {
   it("показывает причину ошибки фото товара", () => {
     expect(createOrderDialogSource).toContain("productImageError");
+  });
+
+  it("использует строго круглую кнопку удаления фото", () => {
+    expect(createOrderDialogSource).toContain(
+      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+    );
+    expect(createOrderDialogSource).toContain("Удалить фото");
+    expect(createOrderDialogSource).not.toContain("function XIcon");
   });
 
   it("использует определение ТК и поддерживает ручной ввод carrier", () => {
@@ -59,6 +71,31 @@ describe("CreateOrderDialog — UI structure (smoke)", () => {
 
   it("содержит поле даты заказа", () => {
     expect(createOrderDialogSource).toContain("Дата заказа");
+  });
+
+  it("показывает дату отправки и город назначения только при редактировании", () => {
+    expect(createOrderDialogSource).toMatch(
+      /isEditing \? \([\s\S]*Дата отправки[\s\S]*\) : null/,
+    );
+    expect(createOrderDialogSource).toMatch(
+      /isEditing \? \([\s\S]*Город назначения[\s\S]*\) : null/,
+    );
+  });
+
+  it("ограничивает все диалоги безопасной областью Telegram", () => {
+    expect(dialogSource).toContain("var(--app-top-pad,48px)");
+    expect(dialogSource).toContain("var(--app-bottom-pad,0px)");
+    expect(dialogSource).toContain("100dvh");
+    expect(createOrderDialogSource).not.toContain("94svh");
+  });
+
+  it("опускает окно нового заказа ниже системных кнопок Telegram", () => {
+    expect(createOrderDialogSource).toContain(
+      "var(--app-top-pad,48px)+2rem",
+    );
+    expect(createOrderDialogSource).toContain(
+      "var(--app-bottom-pad,0px)-3rem",
+    );
   });
 
   it("не содержит inline-форму создания контрагента (вынесено в Справочники)", () => {

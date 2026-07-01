@@ -1,3 +1,5 @@
+import { formatDateInput } from "@/lib/utils";
+
 export interface ExpenseSummaryItem {
   date: string | Date;
   category: string;
@@ -8,15 +10,14 @@ export function summarizeExpensesForMonth(
   expenses: ExpenseSummaryItem[],
   now = new Date()
 ): { total: number; byCategory: Record<string, number> } {
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const monthKey = formatDateInput(now).slice(0, 7);
   const byCategory: Record<string, number> = {};
   let total = 0;
 
   for (const expense of expenses) {
-    const dateKey =
-      typeof expense.date === "string"
-        ? expense.date.slice(0, 7)
-        : `${expense.date.getFullYear()}-${String(expense.date.getMonth() + 1).padStart(2, "0")}`;
+    const dateKey = formatDateInput(
+      typeof expense.date === "string" ? new Date(expense.date) : expense.date,
+    ).slice(0, 7);
     if (dateKey !== monthKey) continue;
     const amount = Number(expense.amount);
     if (!Number.isFinite(amount)) continue;

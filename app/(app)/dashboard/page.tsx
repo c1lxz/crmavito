@@ -130,7 +130,12 @@ async function getDashboardData() {
 
 export default async function DashboardPage() {
   const [session, data] = await Promise.all([auth(), getDashboardData()]);
-  const today = new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+  const today = new Date().toLocaleDateString("ru-RU", {
+    timeZone: "Europe/Moscow",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   const kpiCards = [
     { label: "Заказы сегодня", value: `${data.todayOrders}`, sub: formatRub(data.todayOrderAmount) },
