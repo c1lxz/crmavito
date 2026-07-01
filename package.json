@@ -8,7 +8,7 @@
     "start": "next start -H 127.0.0.1",
     "avito:sync-worker": "node scripts/avito-sync-worker.js",
     "telegram:notify-worker": "node scripts/telegram-notify-worker.js",
-    "users:provision-credentials": "tsx scripts/provision-user-credentials.ts",
+    "users:provision-credentials": "node scripts/provision-user-credentials.js",
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

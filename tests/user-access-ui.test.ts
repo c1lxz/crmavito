@@ -32,9 +32,9 @@ describe("unified Telegram and browser user access", () => {
   });
 
   it("includes a one-time provisioning script for existing users", () => {
-    const script = source("scripts/provision-user-credentials.ts");
-    expect(script).toContain("issueUserCredentials");
+    const script = source("scripts/provision-user-credentials.js");
+    expect(script).toContain("randomBytes");
     expect(script).toContain("login: null");
-    expect(script).not.toContain("credentials.password");
+    expect(script).not.toContain("console.log(password");
   });
 });
