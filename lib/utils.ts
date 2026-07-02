@@ -60,6 +60,19 @@ export function parseMoscowDateInput(value: string, end = false): Date {
   return new Date(`${value}T${time}+03:00`);
 }
 
+export function parseDatabaseDateInput(value: string, end = false): Date {
+  const time = end ? "23:59:59.999" : "00:00:00.000";
+  return new Date(`${value}T${time}Z`);
+}
+
+export function startOfDatabaseDate(date: Date): Date {
+  return parseDatabaseDateInput(formatDateInput(date));
+}
+
+export function endOfDatabaseDate(date: Date): Date {
+  return parseDatabaseDateInput(formatDateInput(date), true);
+}
+
 export function formatPercent(value: number): string {
   return new Intl.NumberFormat("ru-RU", {
     minimumFractionDigits: 1,

@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/db/prisma";
 import { ExpensesClient } from "@/components/expenses/expenses-client";
 import { toDecimalNumber } from "@/lib/db/orders";
-import { startOfMonth, endOfMonth } from "@/lib/utils";
+import {
+  endOfDatabaseDate,
+  endOfMonth,
+  startOfDatabaseDate,
+  startOfMonth,
+} from "@/lib/utils";
 
 async function getExpenses() {
   const now = new Date();
@@ -14,7 +19,12 @@ async function getExpenses() {
       orderBy: { date: "desc" },
     }),
     prisma.expense.findMany({
-      where: { date: { gte: monthStart, lte: monthEnd } },
+      where: {
+        date: {
+          gte: startOfDatabaseDate(monthStart),
+          lte: endOfDatabaseDate(monthEnd),
+        },
+      },
     }),
   ]);
 

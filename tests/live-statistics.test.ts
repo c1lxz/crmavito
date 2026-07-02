@@ -29,6 +29,10 @@ const range = {
   from: new Date("2026-06-30T21:00:00.000Z"),
   to: new Date("2026-07-31T20:59:59.999Z"),
 };
+const databaseDateRange = {
+  from: new Date("2026-07-01T00:00:00.000Z"),
+  to: new Date("2026-07-31T23:59:59.999Z"),
+};
 
 describe("live statistics calculations", () => {
   beforeEach(() => {
@@ -60,7 +64,7 @@ describe("live statistics calculations", () => {
         where: expect.objectContaining({
           isDeleted: false,
           status: { not: "CANCELLED" },
-          orderDate: { gte: range.from, lte: range.to },
+          orderDate: { gte: databaseDateRange.from, lte: databaseDateRange.to },
         }),
       })
     );
@@ -84,7 +88,7 @@ describe("live statistics calculations", () => {
         where: {
           isDeleted: false,
           status: { not: "CANCELLED" },
-          orderDate: { gte: range.from, lte: range.to },
+          orderDate: { gte: databaseDateRange.from, lte: databaseDateRange.to },
         },
       })
     );

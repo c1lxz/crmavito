@@ -1,19 +1,31 @@
 import { prisma } from "./prisma";
 import { calcOrderFinancials, sumFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "./orders";
-import { formatDateInput } from "@/lib/utils";
+import {
+  endOfDatabaseDate,
+  formatDateInput,
+  startOfDatabaseDate,
+} from "@/lib/utils";
 
 export interface DateRange {
   from: Date;
   to: Date;
 }
 
+function getDatabaseDateRange(range: DateRange): DateRange {
+  return {
+    from: startOfDatabaseDate(range.from),
+    to: endOfDatabaseDate(range.to),
+  };
+}
+
 async function getActiveOrders(range: DateRange, city?: string) {
+  const dateRange = getDatabaseDateRange(range);
   return prisma.order.findMany({
     where: {
       isDeleted: false,
       status: { not: "CANCELLED" },
-      orderDate: { gte: range.from, lte: range.to },
+      orderDate: { gte: dateRange.from, lte: dateRange.to },
       ...(city ? { destinationCity: city } : {}),
     },
     include: {
@@ -41,6 +53,7 @@ async function getReceivedOrders(range: DateRange, city?: string) {
 }
 
 export async function getKpiForRange(range: DateRange, city?: string) {
+  const dateRange = getDatabaseDateRange(range);
   const orders = await getActiveOrders(range, city);
   const financials = orders.map((o) =>
     calcOrderFinancials({
@@ -66,7 +79,7 @@ export async function getKpiForRange(range: DateRange, city?: string) {
     where: {
       isDeleted: false,
       status: { not: "CANCELLED" },
-      orderDate: { gte: range.from, lte: range.to },
+      orderDate: { gte: dateRange.from, lte: dateRange.to },
     },
   });
 
@@ -80,6 +93,7 @@ export async function getKpiForRange(range: DateRange, city?: string) {
 }
 
 export async function getPnL(range: DateRange) {
+  const dateRange = getDatabaseDateRange(range);
   const orders = await getReceivedOrders(range);
   const financials = orders.map((o) =>
     calcOrderFinancials({
@@ -103,7 +117,7 @@ export async function getPnL(range: DateRange) {
   );
 
   const expenses = await prisma.expense.findMany({
-    where: { date: { gte: range.from, lte: range.to } },
+    where: { date: { gte: dateRange.from, lte: dateRange.to } },
   });
 
   const expByCategory = expenses.reduce(
@@ -195,11 +209,12 @@ export async function getProductsReport(range: DateRange) {
 }
 
 export async function getCounterpartiesReport(range: DateRange) {
+  const dateRange = getDatabaseDateRange(range);
   const orders = await prisma.order.findMany({
     where: {
       isDeleted: false,
       status: { not: "CANCELLED" },
-      orderDate: { gte: range.from, lte: range.to },
+      orderDate: { gte: dateRange.from, lte: dateRange.to },
     },
     include: { counterparty: true },
   });
@@ -286,12 +301,13 @@ export async function getReturnsReport(range: DateRange) {
 }
 
 export async function getOrderStatusCounts(range: DateRange) {
+  const dateRange = getDatabaseDateRange(range);
   const counts = await prisma.order.groupBy({
     by: ["status"],
     where: {
       isDeleted: false,
       status: { not: "CANCELLED" },
-      orderDate: { gte: range.from, lte: range.to },
+      orderDate: { gte: dateRange.from, lte: dateRange.to },
     },
     _count: { _all: true },
   });
@@ -301,8 +317,9 @@ export async function getOrderStatusCounts(range: DateRange) {
 }
 
 export async function getExpenseCategoryTotals(range: DateRange) {
+  const dateRange = getDatabaseDateRange(range);
   const expenses = await prisma.expense.findMany({
-    where: { date: { gte: range.from, lte: range.to } },
+    where: { date: { gte: dateRange.from, lte: dateRange.to } },
     select: { category: true, amount: true },
   });
   const result: Record<string, number> = {};

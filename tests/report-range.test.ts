@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { parseReportRange } from "@/lib/reports/range";
 import {
   endOfDay,
+  endOfDatabaseDate,
   endOfMonth,
   formatDateInput,
+  startOfDatabaseDate,
   startOfDay,
   startOfMonth,
 } from "@/lib/utils";
@@ -33,5 +35,11 @@ describe("date input formatting", () => {
     expect(endOfDay(instant).toISOString()).toBe("2026-07-02T20:59:59.999Z");
     expect(startOfMonth(instant).toISOString()).toBe("2026-06-30T21:00:00.000Z");
     expect(endOfMonth(instant).toISOString()).toBe("2026-07-31T20:59:59.999Z");
+  });
+
+  it("uses UTC calendar boundaries for PostgreSQL DATE columns", () => {
+    const instant = new Date("2026-07-01T22:30:00.000Z");
+    expect(startOfDatabaseDate(instant).toISOString()).toBe("2026-07-02T00:00:00.000Z");
+    expect(endOfDatabaseDate(instant).toISOString()).toBe("2026-07-02T23:59:59.999Z");
   });
 });

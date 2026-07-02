@@ -2,7 +2,16 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { calcOrderFinancials, sumFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "@/lib/db/orders";
-import { formatRub, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth } from "@/lib/utils";
+import {
+  endOfDatabaseDate,
+  endOfDay,
+  endOfMonth,
+  formatRub,
+  startOfDatabaseDate,
+  startOfDay,
+  startOfMonth,
+  subDays,
+} from "@/lib/utils";
 import { ChevronRight, Package, Plus, RotateCcw, Search, Settings, Wallet } from "lucide-react";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import Link from "next/link";
@@ -21,6 +30,11 @@ async function getDashboardData() {
   const weekStart = startOfDay(subDays(now, 6));
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
+  const todayDateStart = startOfDatabaseDate(now);
+  const todayDateEnd = endOfDatabaseDate(now);
+  const weekDateStart = startOfDatabaseDate(subDays(now, 6));
+  const monthDateStart = startOfDatabaseDate(monthStart);
+  const monthDateEnd = endOfDatabaseDate(monthEnd);
 
   const [todayOrders, weekOrders, monthOrders, monthExpenses, lastOrders, topProducts, todayCreatedOrders, weekCreatedOrders] =
     await Promise.all([
@@ -35,7 +49,7 @@ async function getDashboardData() {
         include: { product: true },
       }),
       prisma.expense.findMany({
-        where: { date: { gte: monthStart, lte: monthEnd } },
+        where: { date: { gte: monthDateStart, lte: monthDateEnd } },
       }),
       prisma.order.findMany({
         where: { isDeleted: false },
@@ -54,14 +68,14 @@ async function getDashboardData() {
         where: {
           isDeleted: false,
           status: { not: "CANCELLED" },
-          orderDate: { gte: todayStart, lte: todayEnd },
+          orderDate: { gte: todayDateStart, lte: todayDateEnd },
         },
       }),
       prisma.order.findMany({
         where: {
           isDeleted: false,
           status: { not: "CANCELLED" },
-          orderDate: { gte: weekStart, lte: todayEnd },
+          orderDate: { gte: weekDateStart, lte: todayDateEnd },
         },
       }),
     ]);
