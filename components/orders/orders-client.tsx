@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Search, ChevronRight, Package, PackageOpen } from "lucide-react";
+import { Check, ChevronRight, Package, PackageOpen, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/lib/hooks/use-toast";
 import { formatRub, formatDate } from "@/lib/utils";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import { CreateOrderDialog } from "./create-order-dialog";
@@ -44,11 +46,25 @@ interface Props {
   focusSearch?: boolean;
 }
 
+const EDITABLE_STATUSES: OrderStatus[] = [
+  "ACCEPTED",
+  "SHIPPED",
+  "RECEIVED",
+  "RETURNED",
+  "CANCELLED",
+];
+
 export function OrdersClient({ initialOrders, counterparties, products, totalRevenue, totalProfit, initialOpen = false, focusSearch = false }: Props) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [orders, setOrders] = useState(initialOrders);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [showCreate, setShowCreate] = useState(initialOpen);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus | "">("");
+  const [isUpdating, setIsUpdating] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -79,6 +95,79 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
     ...Object.entries(ORDER_STATUS_LABELS).map(([v, l]) => ({ value: v, label: l })),
   ];
 
+  const filteredIds = useMemo(() => filtered.map((order) => order.id), [filtered]);
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+
+  function toggleSelectionMode() {
+    if (selectionMode) {
+      setSelectedIds(new Set());
+      setBulkStatus("");
+    }
+    setSelectionMode(!selectionMode);
+  }
+
+  function toggleOrder(orderId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  }
+
+  function toggleFiltered() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allFilteredSelected) filteredIds.forEach((id) => next.delete(id));
+      else filteredIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  async function updateSelectedStatuses() {
+    if (!bulkStatus || selectedIds.size === 0) return;
+
+    setIsUpdating(true);
+    try {
+      const response = await fetch("/api/orders/bulk-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderIds: [...selectedIds],
+          status: bulkStatus,
+        }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось обновить заказы");
+      }
+
+      const changedIds = new Set(selectedIds);
+      setOrders((current) =>
+        current.map((order) =>
+          changedIds.has(order.id) ? { ...order, status: bulkStatus } : order,
+        ),
+      );
+      toast({
+        title: "Статусы обновлены",
+        description: `${result.updatedCount} из ${selectedIds.size} заказов`,
+      });
+      setSelectedIds(new Set());
+      setBulkStatus("");
+      setSelectionMode(false);
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Не удалось обновить статусы",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
   return (
     <div className="app-shell">
       <div className="app-header">
@@ -87,10 +176,23 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
             <h1 className="text-xl font-semibold tracking-tight">Заказы</h1>
             <p className="section-caption">Всего {filtered.length} из {orders.length}</p>
           </div>
-          <Button size="sm" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4" />
-            Новый заказ
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={selectionMode ? "secondary" : "outline"}
+              onClick={toggleSelectionMode}
+              aria-pressed={selectionMode}
+            >
+              {selectionMode ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+              {selectionMode ? "Отмена" : "Выбрать"}
+            </Button>
+            {!selectionMode && (
+              <Button size="sm" onClick={() => setShowCreate(true)}>
+                <Plus className="h-4 w-4" />
+                Новый заказ
+              </Button>
+            )}
+          </div>
         </div>
         <div className="px-4 pb-3 space-y-2">
           <div className="relative">
@@ -118,10 +220,52 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
               </button>
             ))}
           </div>
+          {selectionMode && (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2">
+              <p className="text-xs font-semibold">
+                Выбрано: <span className="tabular-nums text-primary">{selectedIds.size}</span>
+              </p>
+              <button
+                type="button"
+                onClick={toggleFiltered}
+                disabled={filteredIds.length === 0}
+                className="text-xs font-semibold text-primary hover:underline disabled:pointer-events-none disabled:opacity-50"
+              >
+                {allFilteredSelected ? "Снять найденные" : `Выбрать найденные (${filteredIds.length})`}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="app-content space-y-3">
+        {selectionMode && selectedIds.size > 0 && (
+          <div className="sticky top-[calc(var(--app-top-pad)+11.75rem)] z-20 flex gap-2 rounded-lg border border-primary/25 bg-card p-2 shadow-lg shadow-foreground/10">
+            <Select
+              value={bulkStatus}
+              onValueChange={(value) => setBulkStatus(value as OrderStatus)}
+              disabled={isUpdating}
+            >
+              <SelectTrigger className="min-w-0 flex-1">
+                <SelectValue placeholder="Новый статус" />
+              </SelectTrigger>
+              <SelectContent>
+                {EDITABLE_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {ORDER_STATUS_LABELS[status]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={updateSelectedStatuses}
+              disabled={!bulkStatus || isUpdating}
+              className="shrink-0"
+            >
+              {isUpdating ? "Сохраняем..." : `Изменить (${selectedIds.size})`}
+            </Button>
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-2">
           <Card>
             <CardContent className="p-3">
@@ -143,11 +287,30 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
           </Card>
         </div>
 
-        {filtered.map((order) => (
-          <Link key={order.id} href={`/orders/${order.id}`} className="block">
-            <Card className="transition-colors hover:border-primary/25 hover:bg-accent/45">
+        {filtered.map((order) => {
+          const selected = selectedIds.has(order.id);
+          const content = (
+            <Card
+              className={`transition-colors ${
+                selected
+                  ? "border-primary bg-accent/70 ring-1 ring-primary/20"
+                  : "hover:border-primary/25 hover:bg-accent/45"
+              }`}
+            >
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
+                  {selectionMode && (
+                    <span
+                      aria-hidden="true"
+                      className={`mt-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                        selected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input bg-background text-transparent"
+                      }`}
+                    >
+                      <Check className="h-4 w-4" strokeWidth={3} />
+                    </span>
+                  )}
                   <div className="w-12 h-12 rounded-md bg-muted overflow-hidden flex-shrink-0">
                     {order.product.imageUrl ? (
                       <Image src={order.product.imageUrl} alt={order.productNameSnapshot} width={48} height={48} className="object-cover w-full h-full" />
@@ -178,12 +341,31 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
                       </div>
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
+                  {!selectionMode && (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
+                  )}
                 </div>
               </CardContent>
             </Card>
-          </Link>
-        ))}
+          );
+
+          return selectionMode ? (
+            <button
+              key={order.id}
+              type="button"
+              onClick={() => toggleOrder(order.id)}
+              aria-pressed={selected}
+              aria-label={`${selected ? "Снять выбор" : "Выбрать"}: заказ №${order.orderNumber}`}
+              className="block w-full text-left"
+            >
+              {content}
+            </button>
+          ) : (
+            <Link key={order.id} href={`/orders/${order.id}`} className="block">
+              {content}
+            </Link>
+          );
+        })}
         {filtered.length === 0 && (
           <div className="text-center text-muted-foreground py-16 flex flex-col items-center gap-3">
             <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center">
