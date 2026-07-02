@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   const where: Prisma.OrderWhereInput = { isDeleted: false };
   if (statusParam) {
     const status = z
-      .enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNING", "RETURNED"])
+      .enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNING", "RETURNED", "CANCELLED"])
       .safeParse(statusParam);
     if (!status.success) {
       return NextResponse.json({ error: "Некорректный статус" }, { status: 400 });

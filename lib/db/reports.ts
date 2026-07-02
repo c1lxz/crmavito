@@ -12,6 +12,7 @@ async function getActiveOrders(range: DateRange, city?: string) {
   return prisma.order.findMany({
     where: {
       isDeleted: false,
+      status: { not: "CANCELLED" },
       orderDate: { gte: range.from, lte: range.to },
       ...(city ? { destinationCity: city } : {}),
     },
@@ -58,11 +59,15 @@ export async function getKpiForRange(range: DateRange, city?: string) {
     where: {
       status: "RETURNED",
       createdAt: { gte: range.from, lte: range.to },
-      order: { isDeleted: false },
+      order: { isDeleted: false, status: { not: "CANCELLED" } },
     },
   });
   const allOrdersInPeriod = await prisma.order.count({
-    where: { isDeleted: false, orderDate: { gte: range.from, lte: range.to } },
+    where: {
+      isDeleted: false,
+      status: { not: "CANCELLED" },
+      orderDate: { gte: range.from, lte: range.to },
+    },
   });
 
   return {
@@ -191,7 +196,11 @@ export async function getProductsReport(range: DateRange) {
 
 export async function getCounterpartiesReport(range: DateRange) {
   const orders = await prisma.order.findMany({
-    where: { isDeleted: false, orderDate: { gte: range.from, lte: range.to } },
+    where: {
+      isDeleted: false,
+      status: { not: "CANCELLED" },
+      orderDate: { gte: range.from, lte: range.to },
+    },
     include: { counterparty: true },
   });
 
@@ -241,7 +250,7 @@ export async function getReturnsReport(range: DateRange) {
   const returns = await prisma.return.findMany({
     where: {
       createdAt: { gte: range.from, lte: range.to },
-      order: { isDeleted: false },
+      order: { isDeleted: false, status: { not: "CANCELLED" } },
     },
     include: { product: true },
   });
@@ -258,6 +267,7 @@ export async function getReturnsReport(range: DateRange) {
     by: ["productId", "productNameSnapshot"],
     where: {
       isDeleted: false,
+      status: { not: "CANCELLED" },
       receivedAt: { gte: range.from, lte: range.to },
     },
     _count: true,
@@ -278,7 +288,11 @@ export async function getReturnsReport(range: DateRange) {
 export async function getOrderStatusCounts(range: DateRange) {
   const counts = await prisma.order.groupBy({
     by: ["status"],
-    where: { isDeleted: false, orderDate: { gte: range.from, lte: range.to } },
+    where: {
+      isDeleted: false,
+      status: { not: "CANCELLED" },
+      orderDate: { gte: range.from, lte: range.to },
+    },
     _count: { _all: true },
   });
   const result: Record<string, number> = {};

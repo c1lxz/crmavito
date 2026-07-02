@@ -11,6 +11,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { OrderStatus } from "@prisma/client";
 import { buildTopProductsByOrders } from "@/lib/dashboard/top-products";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 async function getDashboardData() {
   const now = new Date();
   const todayStart = startOfDay(now);
@@ -41,17 +44,25 @@ async function getDashboardData() {
         include: { product: true },
       }),
       prisma.order.findMany({
-        where: { isDeleted: false },
+        where: { isDeleted: false, status: { not: "CANCELLED" } },
         include: {
           product: true,
           items: { include: { product: true }, orderBy: { position: "asc" } },
         },
       }),
       prisma.order.findMany({
-        where: { isDeleted: false, orderDate: { gte: todayStart, lte: todayEnd } },
+        where: {
+          isDeleted: false,
+          status: { not: "CANCELLED" },
+          orderDate: { gte: todayStart, lte: todayEnd },
+        },
       }),
       prisma.order.findMany({
-        where: { isDeleted: false, orderDate: { gte: weekStart, lte: todayEnd } },
+        where: {
+          isDeleted: false,
+          status: { not: "CANCELLED" },
+          orderDate: { gte: weekStart, lte: todayEnd },
+        },
       }),
     ]);
 

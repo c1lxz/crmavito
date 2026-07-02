@@ -12,6 +12,10 @@ import { DynamicsChart, type Period } from "@/components/dashboard/DynamicsChart
 import { ExpensesDonut, type ExpenseItem } from "@/components/dashboard/ExpensesDonut";
 import { OrdersStatusDonut, type OrderStatusItem } from "@/components/dashboard/OrdersStatusDonut";
 import { TopProductsProfit } from "@/components/dashboard/TopProductsProfit";
+import {
+  MOSCOW_DAY_CHANGED_EVENT,
+  type MoscowDayChangedDetail,
+} from "@/lib/time/moscow-day";
 
 interface KpiData {
   revenue: number; costOfGoods: number; grossProfit: number; marginPercent: number; netProfit: number;
@@ -24,6 +28,7 @@ const ORDER_STATUS_HEX: Record<string, string> = {
   RECEIVED: "#22c55e",
   RETURNING: "#f97316",
   RETURNED: "#ef4444",
+  CANCELLED: "#64748b",
 };
 
 const EXPENSE_ORDER: string[] = [
@@ -104,6 +109,23 @@ export function ReportsClient() {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [load]);
+
+  useEffect(() => {
+    const handleMoscowDayChanged = (event: Event) => {
+      const detail = (event as CustomEvent<MoscowDayChangedDetail>).detail;
+      setDateTo(detail.currentDay);
+      setDateFrom((current) => {
+        const previousMonthStart = `${detail.previousDay.slice(0, 7)}-01`;
+        return current === previousMonthStart
+          ? `${detail.currentDay.slice(0, 7)}-01`
+          : current;
+      });
+    };
+    window.addEventListener(MOSCOW_DAY_CHANGED_EVENT, handleMoscowDayChanged);
+    return () => {
+      window.removeEventListener(MOSCOW_DAY_CHANGED_EVENT, handleMoscowDayChanged);
+    };
+  }, []);
 
   const expenseDonutData: ExpenseItem[] = EXPENSE_ORDER.map((key) => ({
     key,

@@ -58,7 +58,7 @@ describe("server refresh propagation", () => {
     expect(contents).toContain("buildTopProductsByOrders(topProducts)");
     expect(contents).toContain("formatOrderCount(p.orders)");
     expect(contents).toMatch(
-      /prisma\.order\.findMany\(\{\s*where: \{ isDeleted: false \},\s*include: \{\s*product: true,\s*items:/,
+      /prisma\.order\.findMany\(\{\s*where: \{ isDeleted: false, status: \{ not: "CANCELLED" \} \},\s*include: \{\s*product: true,\s*items:/,
     );
   });
 });

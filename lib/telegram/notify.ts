@@ -23,11 +23,15 @@ export function buildOrderCaption(order: {
   trackingNumber: string;
   carrier: string;
   size?: string | null;
+  sizes?: Array<string | null>;
 }): string {
+  const sizes = (order.sizes ?? [order.size])
+    .filter((size): size is string => Boolean(size?.trim()))
+    .map((size) => size.trim().toUpperCase());
   return [
     order.trackingNumber,
     order.carrier || null,
-    order.size ? order.size.toUpperCase() : null,
+    ...sizes,
   ]
     .filter(Boolean)
     .join("\n");
@@ -95,7 +99,7 @@ export async function sendOrderToGroup(
   const caption = buildOrderCaption({
     trackingNumber: order.trackingNumber,
     carrier: order.carrier,
-    size: order.items.length === 1 ? order.items[0].size : null,
+    sizes: order.items.map((item) => item.size),
   });
   const imageUrls = order.items.flatMap((item) => item.imageUrls);
   const [barcode, ...downloadedImages] = await Promise.all([

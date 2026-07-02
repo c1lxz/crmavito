@@ -59,6 +59,7 @@ describe("live statistics calculations", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           isDeleted: false,
+          status: { not: "CANCELLED" },
           orderDate: { gte: range.from, lte: range.to },
         }),
       })
@@ -72,7 +73,7 @@ describe("live statistics calculations", () => {
     expect(result.marginPercent).toBe(60);
   });
 
-  it("filters deleted orders from status statistics", async () => {
+  it("filters deleted and cancelled orders from status statistics", async () => {
     mocks.prisma.order.groupBy.mockResolvedValue([
       { status: "ACCEPTED", _count: { _all: 7 } },
     ]);
@@ -82,6 +83,7 @@ describe("live statistics calculations", () => {
       expect.objectContaining({
         where: {
           isDeleted: false,
+          status: { not: "CANCELLED" },
           orderDate: { gte: range.from, lte: range.to },
         },
       })

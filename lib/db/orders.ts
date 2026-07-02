@@ -4,11 +4,12 @@ import { calcOrderFinancials } from "@/lib/finance/calculations";
 import { createAuditLog } from "./audit";
 
 const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  ACCEPTED: ["SHIPPED"],
-  SHIPPED: ["RECEIVED", "RETURNING"],
-  RECEIVED: ["RETURNING"],
-  RETURNING: ["RETURNED"],
-  RETURNED: [],
+  ACCEPTED: ["SHIPPED", "CANCELLED"],
+  SHIPPED: ["RECEIVED", "RETURNING", "CANCELLED"],
+  RECEIVED: ["RETURNING", "CANCELLED"],
+  RETURNING: ["RETURNED", "CANCELLED"],
+  RETURNED: ["CANCELLED"],
+  CANCELLED: [],
 };
 
 export function getAllowedNextStatuses(current: OrderStatus): OrderStatus[] {

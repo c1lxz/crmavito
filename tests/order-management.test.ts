@@ -95,7 +95,9 @@ describe("order management UI/API", () => {
   it("allows deleting an order in every status", () => {
     expect(orderRouteSource).toContain("export async function DELETE");
     expect(orderRouteSource).not.toContain('order.status !== "ACCEPTED"');
-    expect(reportsSource).toContain("order: { isDeleted: false }");
+    expect(reportsSource).toContain(
+      'order: { isDeleted: false, status: { not: "CANCELLED" } }',
+    );
   });
 
   it("supports adding products and uploading multiple photos", () => {

@@ -7,6 +7,7 @@ export const ORDER_STATUS_TONES: Record<OrderStatus, { tone: StatusBadgeTone; pu
   RECEIVED: { tone: "emerald", pulse: false },
   RETURNING: { tone: "orange", pulse: true },
   RETURNED: { tone: "red", pulse: false },
+  CANCELLED: { tone: "slate", pulse: false },
 };
 
 export const RETURN_STATUS_TONES: Record<ReturnStatus, { tone: StatusBadgeTone; pulse: boolean }> = {
@@ -21,6 +22,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   RECEIVED: "Получен",
   RETURNING: "На возврате",
   RETURNED: "Возврат",
+  CANCELLED: "Отменён",
 };
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
@@ -29,6 +31,7 @@ export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   RECEIVED: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
   RETURNING: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
   RETURNED: "bg-red-500/15 text-red-700 dark:text-red-300",
+  CANCELLED: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
 };
 
 export const RETURN_STATUS_LABELS: Record<ReturnStatus, string> = {

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { createAuditLog } from "@/lib/db/audit";
 
 const schema = z.object({
-  status: z.enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNED"]),
+  status: z.enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNED", "CANCELLED"]),
   shippingDate: z.string().date().optional(),
 });
 

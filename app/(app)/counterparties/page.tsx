@@ -10,7 +10,7 @@ async function getCounterpartiesWithStats() {
     orderBy: { name: "asc" },
     include: {
       orders: {
-        where: { isDeleted: false },
+        where: { isDeleted: false, status: { not: "CANCELLED" } },
         select: {
           status: true,
           salePriceAtOrder: true,

@@ -80,7 +80,13 @@ const FIELD_LABELS: Record<string, string> = {
   items: "Товары",
 };
 
-const EDITABLE_STATUSES: OrderStatus[] = ["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNED"];
+const EDITABLE_STATUSES: OrderStatus[] = [
+  "ACCEPTED",
+  "SHIPPED",
+  "RECEIVED",
+  "RETURNED",
+  "CANCELLED",
+];
 
 interface Props {
   order: OrderDetail;

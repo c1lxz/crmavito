@@ -10,6 +10,14 @@ const appLayoutSource = readFileSync(
   path.resolve(__dirname, "../app/(app)/layout.tsx"),
   "utf8"
 );
+const reportsSource = readFileSync(
+  path.resolve(__dirname, "../components/reports/reports-client.tsx"),
+  "utf8",
+);
+const dashboardSource = readFileSync(
+  path.resolve(__dirname, "../app/(app)/dashboard/page.tsx"),
+  "utf8",
+);
 
 describe("authenticated page auto-refresh", () => {
   it("mounts once for every authenticated app page", () => {
@@ -33,5 +41,19 @@ describe("authenticated page auto-refresh", () => {
   it("cleans up its timer and event listener", () => {
     expect(autoRefreshSource).toContain("window.clearInterval");
     expect(autoRefreshSource).toContain('removeEventListener("visibilitychange"');
+  });
+
+  it("detects Moscow midnight and advances open report date ranges", () => {
+    expect(autoRefreshSource).toContain("formatDateInput()");
+    expect(autoRefreshSource).toContain("MOSCOW_DAY_CHANGED_EVENT");
+    expect(autoRefreshSource).toContain("window.dispatchEvent");
+    expect(autoRefreshSource).toContain("!dayChanged && isUserEditing()");
+    expect(reportsSource).toContain("handleMoscowDayChanged");
+    expect(reportsSource).toContain("setDateTo(detail.currentDay)");
+  });
+
+  it("forces fresh server calculations for the main dashboard", () => {
+    expect(dashboardSource).toContain('dynamic = "force-dynamic"');
+    expect(dashboardSource).toContain("revalidate = 0");
   });
 });

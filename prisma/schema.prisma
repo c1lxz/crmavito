@@ -19,6 +19,7 @@ enum OrderStatus {
   RECEIVED
   RETURNING
   RETURNED
+  CANCELLED
 }
 
 enum ReturnStatus {

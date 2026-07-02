@@ -21,4 +21,14 @@ describe("Telegram order notification", () => {
       })
     ).toBe("10283054533");
   });
+
+  it("prints sizes of all order items in their original order", () => {
+    expect(
+      buildOrderCaption({
+        trackingNumber: "10283054533",
+        carrier: "СДЭК",
+        sizes: ["m", "xl"],
+      }),
+    ).toBe("10283054533\nСДЭК\nM\nXL");
+  });
 });
