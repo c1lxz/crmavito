@@ -39,7 +39,7 @@ async def detect_product_color(
     image_path: Path,
     credentials: str,
     scope: str = "GIGACHAT_API_PERS",
-    model: str = "GigaChat",
+    model: str = "GigaChat-Pro",
     verify_ssl: bool = False,
 ) -> str | None:
     """Определяет основной цвет товара по фотографии через GigaChat Vision."""
@@ -100,7 +100,12 @@ async def detect_product_color(
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as resp:
                 if resp.status != 200:
-                    log.warning("GigaChat color detection failed [%d]", resp.status)
+                    error_text = await resp.text()
+                    log.warning(
+                        "GigaChat color detection failed [%d]: %s",
+                        resp.status,
+                        error_text[:500],
+                    )
                     return None
                 raw = (await resp.json())["choices"][0]["message"]["content"]
                 color = normalize_avito_color(raw)
@@ -121,10 +126,16 @@ async def detect_product_color(
 
 def normalize_avito_color(value: str) -> str | None:
     normalized = value.strip().strip(".\"«»").casefold().replace("ё", "е")
-    return next(
+    exact = next(
         (color for color in AVITO_COLORS if color.casefold().replace("ё", "е") == normalized),
         None,
     )
+    if exact:
+        return exact
+    for color in sorted(AVITO_COLORS, key=len, reverse=True):
+        if color.casefold().replace("ё", "е") in normalized:
+            return color
+    return None
 
 
 async def generate_design_block(

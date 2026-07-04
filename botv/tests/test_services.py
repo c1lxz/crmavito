@@ -15,7 +15,7 @@ import pytest
 from services.price_parser import parse_prices
 from services.ai_description import _clean_design_text, normalize_avito_color
 from services.color_parser import parse_ordered_colors
-from services.product_rules import SIZES, choose_size, load_locations, product_extra
+from services.product_rules import SIZES, choose_size, choose_sizes, load_locations, product_extra
 
 
 def test_design_text_cleanup():
@@ -26,6 +26,7 @@ def test_design_text_cleanup():
 
 def test_color_normalization_and_manual_input():
     assert normalize_avito_color("«тёмно-синий»") == "Тёмно-синий"
+    assert normalize_avito_color("Основной цвет одежды: белый.") == "Белый"
     assert parse_ordered_colors("Белый\nхаки", 2) == ["Белый", "Хаки"]
     assert parse_ordered_colors("Белый", 2) is None
     assert parse_ordered_colors("Неизвестный", 1) is None
@@ -213,25 +214,33 @@ def test_xml_has_materials_odezhda():
 def test_xml_has_required_size():
     gen, td = _make_xml_generator()
     with td:
-        xml = gen.build([_sample_ad(extra={"Size": "48"})]).decode("utf-8")
-    assert "<Size>48</Size>" in xml
+        xml = gen.build([_sample_ad(extra={"Size": "48 (M)"})]).decode("utf-8")
+    assert "<Size>48 (M)</Size>" in xml
 
 
 def test_longsleeve_uses_sweatshirt_subcategory():
-    assert product_extra("Лонгслив Saint Michael", "46") == {
-        "Size": "46",
-        "GoodsSubType": "Свитшоты",
+    assert product_extra("Лонгслив Saint Michael", "46 (S)") == {
+        "Size": "46 (S)",
+        "GoodsSubType": "Свитшот",
     }
-    assert product_extra("Футболка Saint Michael", "50") == {"Size": "50"}
+    assert product_extra("Футболка Saint Michael", "50 (L)") == {"Size": "50 (L)"}
     assert {choose_size() for _ in range(100)} <= set(SIZES)
+    generated = choose_sizes(7)
+    assert set(generated[:3]) == set(SIZES)
+    assert set(generated[3:6]) == set(SIZES)
 
 
 def test_locations_are_exact_and_generate_one_ad_per_city():
     locations = load_locations(_SETTINGS_DIR / "locations.json")
     assert [location["city"] for location in locations] == [
-        "Москва",
-        "Нижний Новгород",
         "Санкт-Петербург",
+        "Нижний Новгород",
+        "Москва",
+    ]
+    assert [location["address"] for location in locations] == [
+        "Санкт-Петербург, Невский проспект, 30",
+        "Нижний Новгород, Советская пл., 5",
+        "Москва, Болотниковская ул., 12",
     ]
     assert all(location["address"] != location["city"] for location in locations)
 
@@ -240,7 +249,7 @@ def test_locations_are_exact_and_generate_one_ad_per_city():
         ads = [
             _sample_ad(
                 ad_id=f"SKU-{index}",
-                extra={"Address": location["address"], "Size": "46"},
+                extra={"Address": location["address"], "Size": "46 (S)"},
             )
             for index, location in enumerate(locations, 1)
         ]

@@ -87,8 +87,9 @@ class YandexDiskClient:
 
     async def get_public_url(self, remote_path: str) -> str:
         """
-        Возвращает прямой URL для скачивания опубликованного файла.
-        Для Avito XML нужен именно прямой .jpg/.png URL, а не страница-обёртка.
+        Возвращает постоянную публичную ссылку опубликованного файла.
+        В XML Avito используются стабильные ссылки disk.yandex.ru/i/..., а не
+        временные downloader.disk.yandex.ru URL с истекающей подписью.
         """
         params = {"path": remote_path, "fields": "public_url,file"}
         async with aiohttp.ClientSession(headers=self._headers) as session:
@@ -99,17 +100,6 @@ class YandexDiskClient:
                 public_url: Optional[str] = data.get("public_url")
                 if not public_url:
                     raise YandexDiskError(f"public_url отсутствует для '{remote_path}'")
-
-                # Пытаемся получить прямую ссылку для скачивания
-                async with session.get(
-                    f"{API_BASE}/public/resources/download",
-                    params={"public_key": public_url},
-                ) as dl_resp:
-                    if dl_resp.status == 200:
-                        dl_data = await dl_resp.json()
-                        href = dl_data.get("href")
-                        if href:
-                            return href
                 return public_url
 
 

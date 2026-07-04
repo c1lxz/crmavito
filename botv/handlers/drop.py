@@ -19,7 +19,7 @@ from services.color_parser import parse_ordered_colors
 from services.description import DescriptionRenderer
 from services.price_parser import parse_prices
 from services.brand_detector import detect_brand
-from services.product_rules import choose_size, load_locations, product_extra
+from services.product_rules import choose_sizes, load_locations, product_extra
 from services.xml_generator import AvitoAd, XmlGenerator, make_ad_id
 from services.yandex_disk import YandexDiskClient, YandexDiskError, extract_disk_link, upload_product_photos
 from utils.states import DropStates
@@ -436,7 +436,7 @@ async def _detect_colors(message: Message, products: list[dict]) -> tuple[dict[s
                 photo,
                 config.gigachat_credentials,
                 scope=config.gigachat_scope,
-                model=config.gigachat_model,
+                model=config.gigachat_vision_model,
                 verify_ssl=config.gigachat_verify_ssl,
             )
             if color:
@@ -523,6 +523,7 @@ async def _process_and_send_xml(message: Message, state: FSMContext, bot: Bot, b
         return
 
     total = len(products)
+    product_sizes = choose_sizes(total)
     for idx, prod in enumerate(products, 1):
         name = prod["name"]
         ad_title = prod["ad_title"].strip()
@@ -550,7 +551,7 @@ async def _process_and_send_xml(message: Message, state: FSMContext, bot: Bot, b
         color = colors[name]
         price_val = prices[name]
         price_fmt = f"{price_val:,}".replace(",", " ")
-        size = choose_size()
+        size = product_sizes[idx - 1]
 
         design_text = ""
         if config.gigachat_credentials:

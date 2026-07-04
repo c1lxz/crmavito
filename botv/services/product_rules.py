@@ -5,7 +5,7 @@ import random
 from pathlib import Path
 from typing import Sequence
 
-SIZES = ("46", "48", "50")
+SIZES = ("46 (S)", "48 (M)", "50 (L)")
 
 
 def load_locations(path: Path) -> list[dict[str, str]]:
@@ -24,8 +24,20 @@ def choose_size(choices: Sequence[str] = SIZES) -> str:
     return random.choice(tuple(choices))
 
 
+def choose_sizes(count: int, choices: Sequence[str] = SIZES) -> list[str]:
+    """Возвращает равномерно перемешанные размеры без длинных серий повторов."""
+    if count < 0 or not choices:
+        raise ValueError("Количество и набор размеров должны быть корректными")
+    result: list[str] = []
+    while len(result) < count:
+        cycle = list(choices)
+        random.shuffle(cycle)
+        result.extend(cycle)
+    return result[:count]
+
+
 def product_extra(name: str, size: str) -> dict[str, str]:
     extra = {"Size": size}
     if "лонгслив" in name.casefold():
-        extra["GoodsSubType"] = "Свитшоты"
+        extra["GoodsSubType"] = "Свитшот"
     return extra

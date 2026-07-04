@@ -29,7 +29,7 @@ Telegram-бот, который принимает архив с папками 
 6. GigaChat определяет цвет по фотографии. Если это не удалось, бот просит
    пользователя ввести цвета вручную.
 7. Бот заливает фотографии на Яндекс.Диск, публикует их и получает прямые ссылки.
-8. Для каждого товара бот случайно выбирает размер 46, 48 или 50 и создаёт
+8. Для каждого товара бот равномерно выбирает размер 46 (S), 48 (M) или 50 (L) и создаёт
    отдельное объявление для каждого адреса из `settings/locations.json`.
 9. Бот собирает XML по шаблону `settings/xml_schema.json` +
    `settings/avito_defaults.json` + `settings/description_template.txt`
@@ -60,6 +60,7 @@ copy .env.example .env
 | `GIGACHAT_CREDENTIALS` | Ключ авторизации GigaChat API |
 | `GIGACHAT_SCOPE` | Scope проекта GigaChat, обычно `GIGACHAT_API_PERS` |
 | `GIGACHAT_MODEL` | Модель GigaChat, по умолчанию `GigaChat` |
+| `GIGACHAT_VISION_MODEL` | Модель распознавания фото, по умолчанию `GigaChat-Pro` |
 | `GIGACHAT_VERIFY_SSL` | Проверка TLS-сертификата; для стандартного GigaChat endpoint на Windows обычно `false` |
 
 ## Запуск
