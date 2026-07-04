@@ -102,6 +102,8 @@ export function OrdersClient({
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkStatus, setBulkStatus] = useState<OrderStatus | "">("");
+  const [bulkCounterpartyId, setBulkCounterpartyId] = useState("");
+  const [bulkPurchasePrice, setBulkPurchasePrice] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -153,11 +155,18 @@ export function OrdersClient({
   );
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+  const parsedBulkPurchasePrice = Number(bulkPurchasePrice);
+  const hasValidBulkPurchasePrice =
+    bulkPurchasePrice !== "" &&
+    Number.isFinite(parsedBulkPurchasePrice) &&
+    parsedBulkPurchasePrice >= 0;
 
   function toggleSelectionMode() {
     if (selectionMode) {
       setSelectedIds(new Set());
       setBulkStatus("");
+      setBulkCounterpartyId("");
+      setBulkPurchasePrice("");
     }
     setSelectionMode(!selectionMode);
   }
@@ -182,24 +191,11 @@ export function OrdersClient({
 
   async function updateSelectedStatuses() {
     if (!bulkStatus || selectedIds.size === 0) return;
-
-    setIsUpdating(true);
-    try {
-      const response = await fetch("/api/orders/bulk-status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderIds: [...selectedIds],
-          status: bulkStatus,
-        }),
-      });
-      const result = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(result?.error ?? "Не удалось обновить заказы");
-      }
-
-      const changedIds = new Set(selectedIds);
-      setOrders((current) =>
+    await applyBulkAction(
+      { action: "status", status: bulkStatus },
+      "Статусы обновлены",
+      "Не удалось обновить статусы",
+      (current, changedIds) =>
         current.map((order) =>
           changedIds.has(order.id)
             ? {
@@ -216,24 +212,83 @@ export function OrdersClient({
               }
             : order,
         ),
-      );
+    );
+  }
+
+  async function applyBulkAction(
+    payload: Record<string, unknown>,
+    successTitle: string,
+    errorTitle: string,
+    updateLocalOrders?: (current: Order[], changedIds: Set<string>) => Order[],
+  ) {
+    if (selectedIds.size === 0) return;
+    setIsUpdating(true);
+    try {
+      const response = await fetch("/api/orders/bulk-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          orderIds: [...selectedIds],
+        }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось обновить заказы");
+      }
+
+      const changedIds = new Set(selectedIds);
+      if (updateLocalOrders) {
+        setOrders((current) => updateLocalOrders(current, changedIds));
+      }
       toast({
-        title: "Статусы обновлены",
+        title: successTitle,
         description: `${result.updatedCount} из ${selectedIds.size} заказов`,
       });
       setSelectedIds(new Set());
       setBulkStatus("");
+      setBulkCounterpartyId("");
+      setBulkPurchasePrice("");
       setSelectionMode(false);
       router.refresh();
     } catch (error) {
       toast({
-        title: "Не удалось обновить статусы",
+        title: errorTitle,
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
     } finally {
       setIsUpdating(false);
     }
+  }
+
+  async function updateSelectedCounterparty() {
+    if (!bulkCounterpartyId) return;
+    const counterparty = counterparties.find(
+      (item) => item.id === bulkCounterpartyId,
+    );
+    if (!counterparty) return;
+    await applyBulkAction(
+      { action: "counterparty", counterpartyId: bulkCounterpartyId },
+      "Контрагент обновлён",
+      "Не удалось обновить контрагента",
+      (current, changedIds) =>
+        current.map((order) =>
+          changedIds.has(order.id) ? { ...order, counterparty } : order,
+        ),
+    );
+  }
+
+  async function updateSelectedPurchasePrice() {
+    if (!hasValidBulkPurchasePrice) return;
+    await applyBulkAction(
+      {
+        action: "purchasePrice",
+        purchasePricePerUnit: parsedBulkPurchasePrice,
+      },
+      "Стоимость закупки обновлена",
+      "Не удалось обновить стоимость закупки",
+    );
   }
 
   async function copyTrackingNumbers(trackingNumbers: string[]) {
@@ -371,30 +426,81 @@ export function OrdersClient({
 
       <div className="app-content space-y-3">
         {selectionMode && selectedIds.size > 0 && (
-          <div className="sticky top-[calc(var(--app-top-pad)+19.25rem)] z-20 flex flex-wrap gap-2 rounded-lg border border-primary/25 bg-card p-2 shadow-lg shadow-foreground/10">
-            <Select
-              value={bulkStatus}
-              onValueChange={(value) => setBulkStatus(value as OrderStatus)}
-              disabled={isUpdating}
-            >
-              <SelectTrigger className="min-w-40 flex-1">
-                <SelectValue placeholder="Новый статус" />
-              </SelectTrigger>
-              <SelectContent>
-                {EDITABLE_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {ORDER_STATUS_LABELS[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              onClick={updateSelectedStatuses}
-              disabled={!bulkStatus || isUpdating}
-              className="shrink-0"
-            >
-              {isUpdating ? "Сохраняем..." : `Изменить (${selectedIds.size})`}
-            </Button>
+          <div className="sticky top-[calc(var(--app-top-pad)+19.25rem)] z-20 space-y-2 rounded-lg border border-primary/25 bg-card p-2 shadow-lg shadow-foreground/10">
+            <div className="flex gap-2">
+              <Select
+                value={bulkStatus}
+                onValueChange={(value) => setBulkStatus(value as OrderStatus)}
+                disabled={isUpdating}
+              >
+                <SelectTrigger className="min-w-0 flex-1">
+                  <SelectValue placeholder="Новый статус" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EDITABLE_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {ORDER_STATUS_LABELS[status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={updateSelectedStatuses}
+                disabled={!bulkStatus || isUpdating}
+                className="shrink-0"
+                aria-label="Применить новый статус"
+              >
+                Применить
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Select
+                value={bulkCounterpartyId}
+                onValueChange={setBulkCounterpartyId}
+                disabled={isUpdating}
+              >
+                <SelectTrigger className="min-w-0 flex-1">
+                  <SelectValue placeholder="Новый контрагент" />
+                </SelectTrigger>
+                <SelectContent>
+                  {counterparties.map((counterparty) => (
+                    <SelectItem key={counterparty.id} value={counterparty.id}>
+                      {counterparty.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={updateSelectedCounterparty}
+                disabled={!bulkCounterpartyId || isUpdating}
+                className="shrink-0"
+                aria-label="Применить нового контрагента"
+              >
+                Применить
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={bulkPurchasePrice}
+                onChange={(event) => setBulkPurchasePrice(event.target.value)}
+                placeholder="Закупка за единицу, ₽"
+                disabled={isUpdating}
+                className="min-w-0 flex-1"
+              />
+              <Button
+                onClick={updateSelectedPurchasePrice}
+                disabled={
+                  !hasValidBulkPurchasePrice || isUpdating
+                }
+                className="shrink-0"
+                aria-label="Применить стоимость закупки"
+              >
+                Применить
+              </Button>
+            </div>
             <Button
               variant="outline"
               onClick={() =>
@@ -405,6 +511,7 @@ export function OrdersClient({
                 )
               }
               className="w-full"
+              disabled={isUpdating}
             >
               <Clipboard className="h-4 w-4" />
               Скопировать трек-номера

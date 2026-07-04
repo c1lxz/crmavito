@@ -5,10 +5,31 @@ import { prisma } from "@/lib/db/prisma";
 import { createAuditLog } from "@/lib/db/audit";
 import { getStatusFinancialUpdate } from "@/lib/orders/status";
 
-const schema = z.object({
-  orderIds: z.array(z.string().min(1)).min(1).max(500),
-  status: z.enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNING", "RETURNED", "CANCELLED"]),
-});
+const orderIdsSchema = z.array(z.string().min(1)).min(1).max(500);
+const schema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("status"),
+    orderIds: orderIdsSchema,
+    status: z.enum([
+      "ACCEPTED",
+      "SHIPPED",
+      "RECEIVED",
+      "RETURNING",
+      "RETURNED",
+      "CANCELLED",
+    ]),
+  }).strict(),
+  z.object({
+    action: z.literal("counterparty"),
+    orderIds: orderIdsSchema,
+    counterpartyId: z.string().uuid(),
+  }).strict(),
+  z.object({
+    action: z.literal("purchasePrice"),
+    orderIds: orderIdsSchema,
+    purchasePricePerUnit: z.number().finite().nonnegative().max(1_000_000_000),
+  }).strict(),
+]);
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -21,18 +42,88 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const orderIds = [...new Set(parsed.data.orderIds)];
-  const { status } = parsed.data;
+  const data = parsed.data;
+  const orderIds = [...new Set(data.orderIds)];
+
+  if (data.action === "counterparty") {
+    const counterparty = await prisma.counterparty.findUnique({
+      where: { id: data.counterpartyId },
+      select: { id: true },
+    });
+    if (!counterparty) {
+      return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
+    }
+  }
 
   const updatedCount = await prisma.$transaction(async (tx) => {
     const orders = await tx.order.findMany({
       where: { id: { in: orderIds }, isDeleted: false },
+      include: {
+        items: {
+          select: { quantity: true, sourceReturnId: true },
+        },
+      },
     });
 
     if (orders.length !== orderIds.length) return null;
 
     let changed = 0;
     for (const order of orders) {
+      if (data.action === "counterparty") {
+        if (order.counterpartyId === data.counterpartyId) continue;
+        await tx.order.update({
+          where: { id: order.id },
+          data: { counterpartyId: data.counterpartyId },
+        });
+        await createAuditLog(
+          {
+            entityType: "ORDER",
+            entityId: order.id,
+            userId: session.user.id,
+            fieldName: "counterpartyId",
+            oldValue: order.counterpartyId,
+            newValue: data.counterpartyId,
+          },
+          tx,
+        );
+        changed += 1;
+        continue;
+      }
+
+      if (data.action === "purchasePrice") {
+        if (order.status === "CANCELLED") continue;
+        const eligibleQuantity =
+          order.items.length > 0
+            ? order.items.reduce(
+                (sum, item) => sum + (item.sourceReturnId ? 0 : item.quantity),
+                0,
+              )
+            : order.quantity;
+        const legacyPurchaseTotal = data.purchasePricePerUnit * eligibleQuantity;
+        await tx.order.update({
+          where: { id: order.id },
+          data: { purchasePricePerUnit: legacyPurchaseTotal },
+        });
+        await tx.orderItem.updateMany({
+          where: { orderId: order.id, sourceReturnId: null },
+          data: { purchasePricePerUnit: data.purchasePricePerUnit },
+        });
+        await createAuditLog(
+          {
+            entityType: "ORDER",
+            entityId: order.id,
+            userId: session.user.id,
+            fieldName: "purchasePricePerUnit",
+            oldValue: String(order.purchasePricePerUnit),
+            newValue: String(legacyPurchaseTotal),
+          },
+          tx,
+        );
+        changed += 1;
+        continue;
+      }
+
+      const status = data.status;
       if (order.status === status) continue;
 
       const financialUpdate = getStatusFinancialUpdate(status);
