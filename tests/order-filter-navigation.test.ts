@@ -26,7 +26,9 @@ describe("order filter navigation", () => {
   });
 
   it("does not persist an inactive status or unrelated parameters", () => {
-    expect(buildOrderFilterQuery({ status: "ALL" })).toBe("");
+    expect(
+      buildOrderFilterQuery({ status: "ALL", counterpartyId: "ALL" }),
+    ).toBe("");
     expect(sanitizeOrderFilterQuery("q=test&admin=true&status=SHIPPED")).toBe(
       "q=test&status=SHIPPED",
     );

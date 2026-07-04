@@ -18,7 +18,9 @@ export function buildOrderFilterQuery(filters: OrderFilterValues): string {
   const params = new URLSearchParams();
   for (const key of ORDER_FILTER_KEYS) {
     const value = filters[key]?.trim();
-    if (value && !(key === "status" && value === "ALL")) {
+    const isInactiveChoice =
+      (key === "status" || key === "counterpartyId") && value === "ALL";
+    if (value && !isInactiveChoice) {
       params.set(key, value);
     }
   }
