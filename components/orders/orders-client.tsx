@@ -199,21 +199,37 @@ export function OrdersClient({ initialOrders, counterparties, products, deposite
     const text = trackingNumbers.filter(Boolean).join("\n");
     if (!text) return;
     try {
-      await navigator.clipboard.writeText(text);
-      toast({
-        title: "Скопировано",
-        description:
-          trackingNumbers.length === 1
-            ? trackingNumbers[0]
-            : `${trackingNumbers.length} трек-номеров`,
-      });
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        throw new Error("Clipboard API unavailable");
+      }
     } catch {
-      toast({
-        title: "Не удалось скопировать",
-        description: "Разрешите доступ к буферу обмена",
-        variant: "destructive",
-      });
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand("copy");
+      textarea.remove();
+      if (!copied) {
+        toast({
+          title: "Не удалось скопировать",
+          description: "Разрешите доступ к буферу обмена",
+          variant: "destructive",
+        });
+        return;
+      }
     }
+    toast({
+      title: "Скопировано",
+      description:
+        trackingNumbers.length === 1
+          ? trackingNumbers[0]
+          : `${trackingNumbers.length} трек-номеров`,
+    });
   }
 
   return (
