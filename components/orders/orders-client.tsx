@@ -34,7 +34,7 @@ interface Order {
   commissionCost: number;
   otherCosts: number;
   product: { imageUrl: string | null };
-  counterparty: { name: string };
+  counterparty: { id: string; name: string };
 }
 
 interface Props {
@@ -55,6 +55,7 @@ interface Props {
   focusSearch?: boolean;
   initialSearch?: string;
   initialStatusFilter?: string;
+  initialCounterpartyFilter?: string;
   initialDateFrom?: string;
   initialDateTo?: string;
 }
@@ -79,6 +80,7 @@ export function OrdersClient({
   focusSearch = false,
   initialSearch = "",
   initialStatusFilter = "ALL",
+  initialCounterpartyFilter = "ALL",
   initialDateFrom = "",
   initialDateTo = "",
 }: Props) {
@@ -88,6 +90,11 @@ export function OrdersClient({
   const [search, setSearch] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState<string>(
     initialStatusFilter in ORDER_STATUS_LABELS ? initialStatusFilter : "ALL",
+  );
+  const [counterpartyFilter, setCounterpartyFilter] = useState(
+    counterparties.some((counterparty) => counterparty.id === initialCounterpartyFilter)
+      ? initialCounterpartyFilter
+      : "ALL",
   );
   const [dateFrom, setDateFrom] = useState(initialDateFrom);
   const [dateTo, setDateTo] = useState(initialDateTo);
@@ -109,6 +116,9 @@ export function OrdersClient({
   const filtered = useMemo(() => {
     return orders.filter((o) => {
       if (statusFilter !== "ALL" && o.status !== statusFilter) return false;
+      if (counterpartyFilter !== "ALL" && o.counterparty.id !== counterpartyFilter) {
+        return false;
+      }
       const orderDay = new Date(o.orderDate).toISOString().slice(0, 10);
       if (dateFrom && orderDay < dateFrom) return false;
       if (dateTo && orderDay > dateTo) return false;
@@ -122,7 +132,7 @@ export function OrdersClient({
       }
       return true;
     });
-  }, [dateFrom, dateTo, orders, search, statusFilter]);
+  }, [counterpartyFilter, dateFrom, dateTo, orders, search, statusFilter]);
 
   const statuses: Array<{ value: string; label: string }> = [
     { value: "ALL", label: "Все статусы" },
@@ -135,10 +145,11 @@ export function OrdersClient({
       buildOrderFilterQuery({
         q: search,
         status: statusFilter,
+        counterpartyId: counterpartyFilter,
         dateFrom,
         dateTo,
       }),
-    [dateFrom, dateTo, search, statusFilter],
+    [counterpartyFilter, dateFrom, dateTo, search, statusFilter],
   );
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
@@ -324,6 +335,22 @@ export function OrdersClient({
               <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
             </label>
           </div>
+          <label className="block space-y-1 text-xs font-medium text-muted-foreground">
+            Контрагент
+            <Select value={counterpartyFilter} onValueChange={setCounterpartyFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Все контрагенты" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Все контрагенты</SelectItem>
+                {counterparties.map((counterparty) => (
+                  <SelectItem key={counterparty.id} value={counterparty.id}>
+                    {counterparty.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
           {selectionMode && (
             <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2">
               <p className="text-xs font-semibold">
@@ -344,7 +371,7 @@ export function OrdersClient({
 
       <div className="app-content space-y-3">
         {selectionMode && selectedIds.size > 0 && (
-          <div className="sticky top-[calc(var(--app-top-pad)+15.5rem)] z-20 flex flex-wrap gap-2 rounded-lg border border-primary/25 bg-card p-2 shadow-lg shadow-foreground/10">
+          <div className="sticky top-[calc(var(--app-top-pad)+19.25rem)] z-20 flex flex-wrap gap-2 rounded-lg border border-primary/25 bg-card p-2 shadow-lg shadow-foreground/10">
             <Select
               value={bulkStatus}
               onValueChange={(value) => setBulkStatus(value as OrderStatus)}

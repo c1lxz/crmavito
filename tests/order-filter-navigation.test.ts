@@ -9,6 +9,7 @@ describe("order filter navigation", () => {
     const query = buildOrderFilterQuery({
       q: "трек 123",
       status: "RETURNING",
+      counterpartyId: "counterparty-1",
       dateFrom: "2026-07-01",
       dateTo: "2026-07-05",
     });
@@ -17,6 +18,7 @@ describe("order filter navigation", () => {
       new URLSearchParams({
         q: "трек 123",
         status: "RETURNING",
+        counterpartyId: "counterparty-1",
         dateFrom: "2026-07-01",
         dateTo: "2026-07-05",
       }),

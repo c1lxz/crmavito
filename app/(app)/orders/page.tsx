@@ -90,6 +90,7 @@ export default async function OrdersPage({
     search?: string;
     q?: string;
     status?: string;
+    counterpartyId?: string;
     dateFrom?: string;
     dateTo?: string;
   }>;
@@ -118,6 +119,7 @@ export default async function OrdersPage({
         focusSearch={query.search === "1"}
         initialSearch={query.q}
         initialStatusFilter={query.status}
+        initialCounterpartyFilter={query.counterpartyId}
         initialDateFrom={query.dateFrom}
         initialDateTo={query.dateTo}
       />

@@ -1,8 +1,15 @@
-const ORDER_FILTER_KEYS = ["q", "status", "dateFrom", "dateTo"] as const;
+const ORDER_FILTER_KEYS = [
+  "q",
+  "status",
+  "counterpartyId",
+  "dateFrom",
+  "dateTo",
+] as const;
 
 export interface OrderFilterValues {
   q?: string;
   status?: string;
+  counterpartyId?: string;
   dateFrom?: string;
   dateTo?: string;
 }
