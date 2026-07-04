@@ -24,9 +24,12 @@ else
   pm2 restart avito-sync --update-env 2>/dev/null || pm2 start npm --name avito-sync -- run avito:sync-worker
 fi
 
-cd /var/www/crmavito/bot
+cd /var/www/crmavito/botv
+test -f .env
+test -x venv/bin/python3 || python3 -m venv venv
 venv/bin/pip install -r requirements.txt -q
-pm2 restart bot --update-env 2>/dev/null || pm2 start /var/www/crmavito/bot/main.py \
+pm2 delete bot 2>/dev/null || true
+pm2 start /var/www/crmavito/botv/main.py \
   --name bot \
-  --interpreter /var/www/crmavito/bot/venv/bin/python3
+  --interpreter /var/www/crmavito/botv/venv/bin/python3
 pm2 save

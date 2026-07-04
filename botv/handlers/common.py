@@ -1,0 +1,52 @@
+from __future__ import annotations
+
+from aiogram import F, Router
+from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
+from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
+
+from utils.states import DropStates
+
+router = Router()
+
+
+WELCOME = (
+    "Пришли архив (.zip/.rar/.7z) или ссылку на Яндекс.Диск."
+)
+
+START_BUTTON_TEXT = "🚀 Начать"
+START_KEYBOARD = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text=START_BUTTON_TEXT)]],
+    resize_keyboard=True,
+    is_persistent=True,
+    one_time_keyboard=False,
+    input_field_placeholder="Нажми «Начать» или отправь файл/ссылку",
+)
+
+
+async def _start_flow(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await state.set_state(DropStates.waiting_archive)
+    await message.answer(WELCOME, reply_markup=START_KEYBOARD)
+
+
+@router.message(CommandStart())
+async def cmd_start(message: Message, state: FSMContext) -> None:
+    await _start_flow(message, state)
+
+
+@router.message(F.text == START_BUTTON_TEXT)
+async def start_button(message: Message, state: FSMContext) -> None:
+    await _start_flow(message, state)
+
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await state.set_state(DropStates.waiting_archive)
+    await message.answer("Отменено.", reply_markup=START_KEYBOARD)
+
+
+@router.message(Command("help"))
+async def cmd_help(message: Message) -> None:
+    await message.answer(WELCOME, reply_markup=START_KEYBOARD)

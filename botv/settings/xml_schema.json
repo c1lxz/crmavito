@@ -1,0 +1,33 @@
+{
+  "root_tag": "Ads",
+  "root_attrs": {
+    "formatVersion": "3",
+    "target": "Avito.ru"
+  },
+  "ad_tag": "Ad",
+  "id_prefix": "SKU-",
+  "fields_order": [
+    "Id",
+    "ContactPhone",
+    "Address",
+    "Images",
+    "ContactMethod",
+    "Title",
+    "Description",
+    "Category",
+    "Delivery",
+    "TryOn",
+    "DeliverySubsidy",
+    "Price",
+    "GoodsType",
+    "Condition",
+    "AdType",
+    "Brand",
+    "Color",
+    "MaterialsOdezhda",
+    "Apparel",
+    "Size",
+    "GoodsSubType",
+    "TargetAudience"
+  ]
+}
