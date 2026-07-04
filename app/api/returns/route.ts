@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { createAuditLog } from "@/lib/db/audit";
+import { getStatusFinancialUpdate } from "@/lib/orders/status";
+import { z } from "zod";
+
+const createReturnSchema = z.object({
+  trackingNumber: z.string().trim().min(1),
+  productId: z.string().uuid(),
+  productNameSnapshot: z.string().trim().min(1),
+  variant: z.string().trim().optional(),
+  size: z.string().trim().optional(),
+  shippingDate: z.string().date().nullable().optional(),
+  reason: z.string().trim().min(1),
+  comment: z.string().trim().optional(),
+});
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -11,26 +26,142 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search");
   const reason = searchParams.get("reason");
 
-  const where: Record<string, unknown> = { order: { isDeleted: false } };
-  if (status) where.status = status;
+  const where: Prisma.ReturnWhereInput = {
+    AND: [{ OR: [{ orderId: null }, { order: { isDeleted: false } }] }],
+  };
+  if (status) {
+    const parsedStatus = z.enum(["RETURNING", "RETURNED", "CANCELLED"]).safeParse(status);
+    if (!parsedStatus.success) {
+      return NextResponse.json({ error: "Некорректный статус" }, { status: 400 });
+    }
+    where.status = parsedStatus.data;
+  }
   if (reason) where.reason = { contains: reason, mode: "insensitive" };
   if (search) {
-    where.OR = [
-      { trackingNumber: { contains: search, mode: "insensitive" } },
-      { order: { productNameSnapshot: { contains: search, mode: "insensitive" } } },
+    const and = Array.isArray(where.AND) ? where.AND : [where.AND!];
+    where.AND = [
+      ...and,
+      {
+        OR: [
+          { trackingNumber: { contains: search, mode: "insensitive" } },
+          { productNameSnapshot: { contains: search, mode: "insensitive" } },
+        ],
+      },
     ];
   }
 
   const returns = await prisma.return.findMany({
     where,
-    include: { order: true, product: true },
+    include: {
+      order: true,
+      product: true,
+      usedByOrderItems: {
+        select: { order: { select: { orderNumber: true } } },
+        take: 1,
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 
   const [totalReturning, totalReturned] = await Promise.all([
-    prisma.return.count({ where: { status: "RETURNING", order: { isDeleted: false } } }),
-    prisma.return.count({ where: { status: "RETURNED", order: { isDeleted: false } } }),
+    prisma.return.count({
+      where: {
+        status: "RETURNING",
+        OR: [{ orderId: null }, { order: { isDeleted: false } }],
+      },
+    }),
+    prisma.return.count({
+      where: {
+        status: "RETURNED",
+        usedByOrderItems: { none: {} },
+        OR: [{ orderId: null }, { order: { isDeleted: false } }],
+      },
+    }),
   ]);
 
   return NextResponse.json({ returns, totalReturning, totalReturned, total: returns.length });
+}
+
+export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const parsed = createReturnSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const data = parsed.data;
+  const [matchingOrder, product] = await Promise.all([
+    prisma.order.findFirst({
+      where: {
+        trackingNumber: { equals: data.trackingNumber, mode: "insensitive" },
+        isDeleted: false,
+      },
+      include: { items: { orderBy: { position: "asc" }, take: 1 } },
+    }),
+    prisma.product.findUnique({ where: { id: data.productId } }),
+  ]);
+  if (!product) {
+    return NextResponse.json({ error: "Товар не найден" }, { status: 404 });
+  }
+
+  const orderItem = matchingOrder?.items[0];
+  const existing = matchingOrder
+    ? await prisma.return.findFirst({
+        where: {
+          orderId: matchingOrder.id,
+          status: { in: ["RETURNING", "RETURNED"] },
+        },
+      })
+    : null;
+  if (existing) {
+    return NextResponse.json({ error: "Возврат для этого заказа уже оформлен" }, { status: 409 });
+  }
+
+  const created = await prisma.$transaction(async (tx) => {
+    const ret = await tx.return.create({
+      data: {
+        orderId: matchingOrder?.id ?? null,
+        productId: matchingOrder?.productId ?? data.productId,
+        productNameSnapshot:
+          orderItem?.productNameSnapshot ??
+          matchingOrder?.productNameSnapshot ??
+          data.productNameSnapshot,
+        variant: orderItem?.variant ?? matchingOrder?.variant ?? data.variant ?? null,
+        size: orderItem?.size ?? matchingOrder?.size ?? data.size ?? null,
+        trackingNumber: data.trackingNumber,
+        status: "RETURNING",
+        shippingDate: data.shippingDate ? new Date(data.shippingDate) : null,
+        reason: data.reason,
+        comment: data.comment,
+      },
+    });
+
+    if (matchingOrder) {
+      const financialUpdate = getStatusFinancialUpdate("RETURNING");
+      await tx.order.update({
+        where: { id: matchingOrder.id },
+        data: { status: "RETURNING", receivedAt: null, ...financialUpdate.order },
+      });
+      await tx.orderItem.updateMany({
+        where: { orderId: matchingOrder.id },
+        data: financialUpdate.items!,
+      });
+      await createAuditLog(
+        {
+          entityType: "ORDER",
+          entityId: matchingOrder.id,
+          userId: session.user.id,
+          fieldName: "status",
+          oldValue: matchingOrder.status,
+          newValue: "RETURNING",
+        },
+        tx,
+      );
+    }
+    return ret;
+  });
+
+  return NextResponse.json(created, { status: 201 });
 }

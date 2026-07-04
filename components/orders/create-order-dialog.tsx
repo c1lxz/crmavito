@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, ImagePlus, Loader2, Package, Plus, Trash2, X } from "lucide-react";
+import { ExternalLink, ImagePlus, Loader2, Package, Plus, Trash2, Warehouse, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ export interface OrderFormItem {
   salePriceAtOrder: string;
   purchasePricePerUnit: string;
   imageUrls: string[];
+  sourceReturnId?: string | null;
   productImageLoading?: boolean;
   productImageError?: string | null;
 }
@@ -61,6 +62,16 @@ interface Props {
   products: OrderFormProduct[];
   counterparties: Counterparty[];
   initialValue?: OrderFormInitialValue;
+  depositedReturns?: DepositedReturn[];
+}
+
+export interface DepositedReturn {
+  id: string;
+  productId: string;
+  productNameSnapshot: string;
+  size: string | null;
+  variant: string | null;
+  trackingNumber: string;
 }
 
 const emptyItem = (): OrderFormItem => ({
@@ -72,6 +83,7 @@ const emptyItem = (): OrderFormItem => ({
   salePriceAtOrder: "",
   purchasePricePerUnit: "",
   imageUrls: [],
+  sourceReturnId: null,
   productImageError: null,
 });
 
@@ -100,6 +112,7 @@ export function CreateOrderDialog({
   products,
   counterparties,
   initialValue,
+  depositedReturns = [],
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -171,6 +184,7 @@ export function CreateOrderDialog({
       salePriceAtOrder: String(product.salePrice),
       imageUrls: product.imageUrl ? [product.imageUrl] : [],
       productImageError: null,
+      sourceReturnId: null,
     });
     void fetchProductImage(index, productId);
   }
@@ -252,6 +266,7 @@ export function CreateOrderDialog({
               salePriceAtOrder: toMoney(item.salePriceAtOrder),
               purchasePricePerUnit: toMoney(item.purchasePricePerUnit),
               imageUrls: item.imageUrls,
+              sourceReturnId: item.sourceReturnId ?? null,
             })),
           }),
         }
@@ -296,6 +311,14 @@ export function CreateOrderDialog({
                       .filter((product) => matchesSearch(product.name, item.productSearch))
                       .slice(0, 50)
                   : [];
+              const matchingDeposits = item.productId
+                ? depositedReturns.filter(
+                    (ret) =>
+                      ret.productId === item.productId &&
+                      (ret.size ?? "").trim().toLowerCase() ===
+                        item.size.trim().toLowerCase(),
+                  )
+                : [];
               return (
                 <section
                   key={index}
@@ -363,7 +386,12 @@ export function CreateOrderDialog({
                       <Label>Размер</Label>
                       <Input
                         value={item.size}
-                        onChange={(event) => updateItem(index, { size: event.target.value })}
+                        onChange={(event) =>
+                          updateItem(index, {
+                            size: event.target.value,
+                            sourceReturnId: null,
+                          })
+                        }
                       />
                     </div>
                     <div className="space-y-1">
@@ -391,6 +419,38 @@ export function CreateOrderDialog({
                       />
                     </div>
                   </div>
+                  {matchingDeposits.length > 0 ? (
+                    <div className="space-y-2 rounded-md border border-emerald-500/35 bg-emerald-500/10 p-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                        <Warehouse className="h-4 w-4" />
+                        Товар присутствует на депозите
+                      </div>
+                      {matchingDeposits.map((ret) => (
+                        <label
+                          key={ret.id}
+                          className="flex cursor-pointer items-start gap-2 text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={item.sourceReturnId === ret.id}
+                            onChange={(event) =>
+                              updateItem(index, {
+                                sourceReturnId: event.target.checked ? ret.id : null,
+                                ...(event.target.checked
+                                  ? { purchasePricePerUnit: "0" }
+                                  : {}),
+                              })
+                            }
+                            className="mt-0.5 h-4 w-4 accent-emerald-600"
+                          />
+                          <span>
+                            Взять с возврата — трек <strong>{ret.trackingNumber}</strong>
+                            {ret.variant ? `, ${ret.variant}` : ""}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="space-y-1">
                     <Label>Закупочная цена за единицу, ₽</Label>
                     <Input
@@ -398,6 +458,7 @@ export function CreateOrderDialog({
                       min={0}
                       step="0.01"
                       required
+                      disabled={Boolean(item.sourceReturnId)}
                       value={item.purchasePricePerUnit}
                       onChange={(event) =>
                         updateItem(index, { purchasePricePerUnit: event.target.value })

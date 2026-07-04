@@ -48,17 +48,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       },
     });
 
-    const orderStatus =
-      newStatus === "RETURNED" ? "RETURNED"
-      : newStatus === "CANCELLED" && ret.order.receivedAt ? "RECEIVED"
-      : newStatus === "CANCELLED" ? "SHIPPED"
-      : "RETURNING";
+    if (ret.orderId && ret.order) {
+      const orderStatus =
+        newStatus === "RETURNED" ? "RETURNED"
+        : newStatus === "CANCELLED" && ret.order.receivedAt ? "RECEIVED"
+        : newStatus === "CANCELLED" ? "SHIPPED"
+        : "RETURNING";
 
-    await tx.order.update({ where: { id: ret.orderId }, data: { status: orderStatus } });
+      await tx.order.update({ where: { id: ret.orderId }, data: { status: orderStatus } });
 
-    // AuditLog.entityId is constrained to orders.id, including RETURN events.
-    await createAuditLog({ entityType: "RETURN", entityId: ret.orderId, userId: session.user.id, fieldName: "status", oldValue: ret.status, newValue: newStatus }, tx);
-    await createAuditLog({ entityType: "ORDER", entityId: ret.orderId, userId: session.user.id, fieldName: "status", oldValue: ret.order.status, newValue: orderStatus }, tx);
+      // AuditLog.entityId is constrained to orders.id, including RETURN events.
+      await createAuditLog({ entityType: "RETURN", entityId: ret.orderId, userId: session.user.id, fieldName: "status", oldValue: ret.status, newValue: newStatus }, tx);
+      await createAuditLog({ entityType: "ORDER", entityId: ret.orderId, userId: session.user.id, fieldName: "status", oldValue: ret.order.status, newValue: orderStatus }, tx);
+    }
   });
 
   return NextResponse.json({ success: true });

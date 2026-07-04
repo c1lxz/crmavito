@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Check, ChevronRight, Package, PackageOpen, Plus, Search, X } from "lucide-react";
+import { Check, ChevronRight, Clipboard, Copy, Package, PackageOpen, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,6 +40,14 @@ interface Props {
   initialOrders: Order[];
   counterparties: { id: string; name: string }[];
   products: { id: string; name: string; salePrice: number | string; imageUrl?: string | null }[];
+  depositedReturns: Array<{
+    id: string;
+    productId: string;
+    productNameSnapshot: string;
+    size: string | null;
+    variant: string | null;
+    trackingNumber: string;
+  }>;
   totalRevenue: number;
   totalProfit: number;
   initialOpen?: boolean;
@@ -50,16 +58,19 @@ const EDITABLE_STATUSES: OrderStatus[] = [
   "ACCEPTED",
   "SHIPPED",
   "RECEIVED",
+  "RETURNING",
   "RETURNED",
   "CANCELLED",
 ];
 
-export function OrdersClient({ initialOrders, counterparties, products, totalRevenue, totalProfit, initialOpen = false, focusSearch = false }: Props) {
+export function OrdersClient({ initialOrders, counterparties, products, depositedReturns, totalRevenue, totalProfit, initialOpen = false, focusSearch = false }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [orders, setOrders] = useState(initialOrders);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [showCreate, setShowCreate] = useState(initialOpen);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -78,6 +89,9 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
   const filtered = useMemo(() => {
     return orders.filter((o) => {
       if (statusFilter !== "ALL" && o.status !== statusFilter) return false;
+      const orderDay = new Date(o.orderDate).toISOString().slice(0, 10);
+      if (dateFrom && orderDay < dateFrom) return false;
+      if (dateTo && orderDay > dateTo) return false;
       if (search) {
         const q = search.toLowerCase();
         return (
@@ -88,7 +102,7 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
       }
       return true;
     });
-  }, [orders, search, statusFilter]);
+  }, [dateFrom, dateTo, orders, search, statusFilter]);
 
   const statuses: Array<{ value: string; label: string }> = [
     { value: "ALL", label: "Все статусы" },
@@ -146,7 +160,20 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
       const changedIds = new Set(selectedIds);
       setOrders((current) =>
         current.map((order) =>
-          changedIds.has(order.id) ? { ...order, status: bulkStatus } : order,
+          changedIds.has(order.id)
+            ? {
+                ...order,
+                status: bulkStatus,
+                salePriceAtOrder:
+                  bulkStatus === "RETURNING" ||
+                  bulkStatus === "RETURNED" ||
+                  bulkStatus === "CANCELLED"
+                    ? 0
+                    : order.salePriceAtOrder,
+                purchasePricePerUnit:
+                  bulkStatus === "CANCELLED" ? 0 : order.purchasePricePerUnit,
+              }
+            : order,
         ),
       );
       toast({
@@ -165,6 +192,27 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
       });
     } finally {
       setIsUpdating(false);
+    }
+  }
+
+  async function copyTrackingNumbers(trackingNumbers: string[]) {
+    const text = trackingNumbers.filter(Boolean).join("\n");
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({
+        title: "Скопировано",
+        description:
+          trackingNumbers.length === 1
+            ? trackingNumbers[0]
+            : `${trackingNumbers.length} трек-номеров`,
+      });
+    } catch {
+      toast({
+        title: "Не удалось скопировать",
+        description: "Разрешите доступ к буферу обмена",
+        variant: "destructive",
+      });
     }
   }
 
@@ -220,6 +268,16 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
               </button>
             ))}
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1 text-xs font-medium text-muted-foreground">
+              С даты
+              <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+            </label>
+            <label className="space-y-1 text-xs font-medium text-muted-foreground">
+              По дату
+              <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            </label>
+          </div>
           {selectionMode && (
             <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2">
               <p className="text-xs font-semibold">
@@ -240,13 +298,13 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
 
       <div className="app-content space-y-3">
         {selectionMode && selectedIds.size > 0 && (
-          <div className="sticky top-[calc(var(--app-top-pad)+11.75rem)] z-20 flex gap-2 rounded-lg border border-primary/25 bg-card p-2 shadow-lg shadow-foreground/10">
+          <div className="sticky top-[calc(var(--app-top-pad)+15.5rem)] z-20 flex flex-wrap gap-2 rounded-lg border border-primary/25 bg-card p-2 shadow-lg shadow-foreground/10">
             <Select
               value={bulkStatus}
               onValueChange={(value) => setBulkStatus(value as OrderStatus)}
               disabled={isUpdating}
             >
-              <SelectTrigger className="min-w-0 flex-1">
+              <SelectTrigger className="min-w-40 flex-1">
                 <SelectValue placeholder="Новый статус" />
               </SelectTrigger>
               <SelectContent>
@@ -263,6 +321,20 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
               className="shrink-0"
             >
               {isUpdating ? "Сохраняем..." : `Изменить (${selectedIds.size})`}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() =>
+                void copyTrackingNumbers(
+                  orders
+                    .filter((order) => selectedIds.has(order.id))
+                    .map((order) => order.trackingNumber),
+                )
+              }
+              className="w-full"
+            >
+              <Clipboard className="h-4 w-4" />
+              Скопировать трек-номера
             </Button>
           </div>
         )}
@@ -330,8 +402,22 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
                     <p className="font-medium text-sm mt-0.5 truncate">{order.productNameSnapshot}</p>
                     {order.variant && <p className="text-xs text-muted-foreground">Цвет: {order.variant}</p>}
                     <div className="flex items-center justify-between mt-1">
-                      <div className="text-xs text-muted-foreground">
-                        <span>Трек: {order.trackingNumber}</span>
+                      <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                        <span className="truncate">Трек: {order.trackingNumber}</span>
+                        {!selectionMode ? (
+                          <button
+                            type="button"
+                            className="rounded p-1 text-primary hover:bg-primary/10"
+                            aria-label={`Скопировать трек-номер ${order.trackingNumber}`}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void copyTrackingNumbers([order.trackingNumber]);
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
                         <span className="mx-1">·</span>
                         <span>{order.quantity} шт.</span>
                       </div>
@@ -381,6 +467,7 @@ export function OrdersClient({ initialOrders, counterparties, products, totalRev
         onClose={() => setShowCreate(false)}
         counterparties={counterparties}
         products={products.map((p) => ({ ...p, salePrice: typeof p.salePrice === 'string' ? parseFloat(p.salePrice) : p.salePrice }))}
+        depositedReturns={depositedReturns}
       />
     </div>
   );

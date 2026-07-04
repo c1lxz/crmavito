@@ -8,6 +8,7 @@ DATABASE_URL_FROM_ENV="$(node -e "require('dotenv/config'); process.stdout.write
 if [ -n "$DATABASE_URL_FROM_ENV" ] && command -v psql >/dev/null 2>&1; then
   psql "$DATABASE_URL_FROM_ENV" -c 'ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "carrier" TEXT;'
   psql "$DATABASE_URL_FROM_ENV" -c 'ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "size" TEXT;'
+  psql "$DATABASE_URL_FROM_ENV" -c 'UPDATE "returns" r SET "productNameSnapshot" = o."productNameSnapshot", "variant" = COALESCE(r."variant", o."variant"), "size" = COALESCE(r."size", o."size") FROM "orders" o WHERE r."orderId" = o."id" AND (r."productNameSnapshot" = '"'"''"'"' OR r."variant" IS NULL OR r."size" IS NULL);'
 fi
 # Ограничиваем RAM Node чтобы не уронить VPS OOM-киллером
 NODE_OPTIONS="--max-old-space-size=1024" npm run build

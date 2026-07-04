@@ -3,22 +3,46 @@ import { ReturnsClient } from "@/components/returns/returns-client";
 import { toDecimalNumber } from "@/lib/db/orders";
 
 async function getReturns() {
-  const [returns, totalReturning, totalReturned] = await Promise.all([
+  const visibleReturnWhere = {
+    OR: [{ orderId: null }, { order: { isDeleted: false } }],
+  };
+  const [returns, totalReturning, totalReturned, products] = await Promise.all([
     prisma.return.findMany({
-      where: { order: { isDeleted: false } },
-      include: { order: true, product: true },
+      where: visibleReturnWhere,
+      include: {
+        order: true,
+        product: true,
+        usedByOrderItems: {
+          select: { order: { select: { orderNumber: true } } },
+          take: 1,
+        },
+      },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.return.count({ where: { status: "RETURNING", order: { isDeleted: false } } }),
-    prisma.return.count({ where: { status: "RETURNED", order: { isDeleted: false } } }),
+    prisma.return.count({ where: { status: "RETURNING", ...visibleReturnWhere } }),
+    prisma.return.count({
+      where: {
+        status: "RETURNED",
+        usedByOrderItems: { none: {} },
+        ...visibleReturnWhere,
+      },
+    }),
+    prisma.product.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, imageUrl: true },
+    }),
   ]);
   return {
     returns: returns.map((r) => ({
       ...r,
+      productNameSnapshot:
+        r.productNameSnapshot || r.order?.productNameSnapshot || r.product.name,
+      variant: r.variant ?? r.order?.variant ?? null,
+      size: r.size ?? r.order?.size ?? null,
       shippingDate: r.shippingDate ? r.shippingDate.toISOString() : null,
       returnDate: r.returnDate ? r.returnDate.toISOString() : null,
       createdAt: r.createdAt.toISOString(),
-      order: {
+      order: r.order ? {
         ...r.order,
         salePriceAtOrder: toDecimalNumber(r.order.salePriceAtOrder),
         purchasePricePerUnit: toDecimalNumber(r.order.purchasePricePerUnit),
@@ -30,10 +54,11 @@ async function getReturns() {
         receivedAt: r.order.receivedAt ? r.order.receivedAt.toISOString() : null,
         createdAt: r.order.createdAt.toISOString(),
         updatedAt: r.order.updatedAt.toISOString(),
-      },
+      } : null,
     })),
     totalReturning,
     totalReturned,
+    products,
   };
 }
 

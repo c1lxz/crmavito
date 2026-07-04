@@ -9,9 +9,9 @@ function source(file: string): string {
 describe("unified Telegram and browser user access", () => {
   it("stores login and delivery state on the same User model", () => {
     const schema = source("prisma/schema.prisma");
-    expect(schema).toContain("login        String?   @unique");
-    expect(schema).toContain("passwordHash String?");
-    expect(schema).toContain("telegramId   String?   @unique");
+    expect(schema).toMatch(/login\s+String\?\s+@unique/);
+    expect(schema).toMatch(/passwordHash\s+String\?/);
+    expect(schema).toMatch(/telegramId\s+String\?\s+@unique/);
     expect(schema).toContain("credentialsDeliveredAt");
     expect(schema).toContain("credentialsDeliveryError");
   });

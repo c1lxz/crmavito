@@ -3,10 +3,14 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Package, Plus, RotateCcw, Search } from "lucide-react";
+import { Loader2, Package, Plus, RotateCcw, Search, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatDateInput } from "@/lib/utils";
 import { RETURN_STATUS_LABELS, RETURN_STATUS_COLORS } from "@/lib/constants";
 import { toast } from "@/lib/hooks/use-toast";
@@ -20,9 +24,13 @@ interface ReturnItem {
   returnDate: string | null;
   reason: string;
   comment: string | null;
+  productNameSnapshot: string;
+  variant: string | null;
+  size: string | null;
   createdAt: string;
-  order: { productNameSnapshot: string; variant: string | null; orderNumber: string };
+  order: { productNameSnapshot: string; variant: string | null; orderNumber: string } | null;
   product: { imageUrl: string | null };
+  usedByOrderItems: Array<{ order: { orderNumber: string } }>;
 }
 
 interface Props {
@@ -30,6 +38,7 @@ interface Props {
     returns: ReturnItem[];
     totalReturning: number;
     totalReturned: number;
+    products: Array<{ id: string; name: string; imageUrl: string | null }>;
   };
 }
 
@@ -46,6 +55,20 @@ export function ReturnsClient({ initialData }: Props) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [returnForm, setReturnForm] = useState({
+    trackingNumber: "",
+    productId: "",
+    productNameSnapshot: "",
+    variant: "",
+    size: "",
+    shippingDate: formatDateInput(),
+    reason: "",
+    comment: "",
+    matchedOrder: "",
+  });
 
   // Sync local state when server props change (router.refresh() after status update).
   useEffect(() => {
@@ -59,7 +82,7 @@ export function ReturnsClient({ initialData }: Props) {
         const q = search.toLowerCase();
         return (
           r.trackingNumber.toLowerCase().includes(q) ||
-          r.order.productNameSnapshot.toLowerCase().includes(q)
+          r.productNameSnapshot.toLowerCase().includes(q)
         );
       }
       return true;
@@ -95,6 +118,91 @@ export function ReturnsClient({ initialData }: Props) {
     }
   }
 
+  async function lookupOrder(trackingNumber: string) {
+    const tracking = trackingNumber.trim();
+    if (!tracking) return;
+    setLookingUp(true);
+    try {
+      const response = await fetch(
+        `/api/orders?tracking=${encodeURIComponent(tracking)}&pageSize=10`,
+      );
+      const body = await response.json();
+      const order = body.orders?.find(
+        (candidate: { trackingNumber: string }) =>
+          candidate.trackingNumber.toLowerCase() === tracking.toLowerCase(),
+      );
+      if (!order) {
+        setReturnForm((current) => ({ ...current, matchedOrder: "" }));
+        return;
+      }
+      const item = order.items?.[0];
+      setReturnForm((current) => ({
+        ...current,
+        productId: item?.productId ?? order.productId,
+        productNameSnapshot:
+          item?.productNameSnapshot ?? order.productNameSnapshot,
+        variant: item?.variant ?? order.variant ?? "",
+        size: item?.size ?? order.size ?? "",
+        matchedOrder: order.orderNumber,
+      }));
+    } catch {
+      // If lookup is unavailable, the user can still fill the return manually.
+    } finally {
+      setLookingUp(false);
+    }
+  }
+
+  async function createReturn(event: React.FormEvent) {
+    event.preventDefault();
+    setCreating(true);
+    try {
+      const response = await fetch("/api/returns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trackingNumber: returnForm.trackingNumber,
+          productId: returnForm.productId,
+          productNameSnapshot: returnForm.productNameSnapshot,
+          variant: returnForm.variant || undefined,
+          size: returnForm.size || undefined,
+          shippingDate: returnForm.shippingDate || null,
+          reason: returnForm.reason,
+          comment: returnForm.comment || undefined,
+        }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          typeof body?.error === "string"
+            ? body.error
+            : "Проверьте заполненные поля",
+        );
+      }
+      toast({ title: "Возврат оформлен" });
+      setShowCreate(false);
+      setReturnForm({
+        trackingNumber: "",
+        productId: "",
+        productNameSnapshot: "",
+        variant: "",
+        size: "",
+        shippingDate: formatDateInput(),
+        reason: "",
+        comment: "",
+        matchedOrder: "",
+      });
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Не удалось оформить возврат",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <div className="app-shell">
       <div className="app-header">
@@ -103,7 +211,7 @@ export function ReturnsClient({ initialData }: Props) {
             <h1 className="text-xl font-semibold tracking-tight">Возвраты</h1>
             <p className="section-caption">Товары в обратной логистике</p>
           </div>
-          <Button size="sm" variant="outline" disabled title="Возврат оформляется со страницы заказа">
+          <Button size="sm" variant="outline" onClick={() => setShowCreate(true)}>
             <Plus className="h-4 w-4" />
             Оформить возврат
           </Button>
@@ -153,13 +261,16 @@ export function ReturnsClient({ initialData }: Props) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground">№{ret.order.orderNumber}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {ret.order ? `№${ret.order.orderNumber}` : "Ручной возврат"}
+                    </span>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${RETURN_STATUS_COLORS[ret.status]}`}>
                       {RETURN_STATUS_LABELS[ret.status]}
                     </span>
                   </div>
-                  <p className="font-medium text-sm truncate">{ret.order.productNameSnapshot}</p>
-                  {ret.order.variant && <p className="text-xs text-muted-foreground">Цвет: {ret.order.variant}</p>}
+                  <p className="font-medium text-sm truncate">{ret.productNameSnapshot}</p>
+                  {ret.variant && <p className="text-xs text-muted-foreground">Цвет: {ret.variant}</p>}
+                  {ret.size && <p className="text-xs text-muted-foreground">Размер: {ret.size}</p>}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-x-4 text-xs text-muted-foreground">
@@ -167,6 +278,12 @@ export function ReturnsClient({ initialData }: Props) {
                 {ret.shippingDate && <div>Отправка: <span className="text-foreground">{formatDate(ret.shippingDate)}</span></div>}
                 {ret.returnDate && <div>Возврат: <span className="text-foreground">{formatDate(ret.returnDate)}</span></div>}
                 <div className="col-span-2">Причина: <span className="text-foreground">{ret.reason}</span></div>
+                {ret.usedByOrderItems[0] ? (
+                  <div className="col-span-2 mt-1 flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-300">
+                    <Warehouse className="h-3.5 w-3.5" />
+                    Взят с депозита в заказ №{ret.usedByOrderItems[0].order.orderNumber}
+                  </div>
+                ) : null}
               </div>
               {/* Actions */}
               {ret.status === "RETURNING" && (
@@ -210,6 +327,147 @@ export function ReturnsClient({ initialData }: Props) {
           <span>Возвращено: <strong className="money-negative">{data.totalReturned}</strong></span>
         </div>
       </div>
+
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="max-h-[85dvh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Оформить возврат</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-3" onSubmit={createReturn}>
+            <div className="space-y-1">
+              <Label>Трек-номер возврата</Label>
+              <div className="flex gap-2">
+                <Input
+                  required
+                  value={returnForm.trackingNumber}
+                  onChange={(event) =>
+                    setReturnForm((current) => ({
+                      ...current,
+                      trackingNumber: event.target.value,
+                      matchedOrder: "",
+                    }))
+                  }
+                  onBlur={(event) => void lookupOrder(event.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  disabled={lookingUp}
+                  onClick={() => void lookupOrder(returnForm.trackingNumber)}
+                  aria-label="Найти заказ по трек-номеру"
+                >
+                  {lookingUp ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              {returnForm.matchedOrder ? (
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                  Найден заказ №{returnForm.matchedOrder}, данные подставлены
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Если заказа нет, заполните данные вручную
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label>Товар</Label>
+              <Select
+                required
+                value={returnForm.productId}
+                onValueChange={(productId) => {
+                  const product = data.products.find((item) => item.id === productId);
+                  setReturnForm((current) => ({
+                    ...current,
+                    productId,
+                    productNameSnapshot: product?.name ?? "",
+                    matchedOrder: "",
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите товар" />
+                </SelectTrigger>
+                <SelectContent>
+                  {data.products.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label>Цвет / вариант</Label>
+                <Input
+                  value={returnForm.variant}
+                  onChange={(event) =>
+                    setReturnForm((current) => ({ ...current, variant: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Размер</Label>
+                <Input
+                  value={returnForm.size}
+                  onChange={(event) =>
+                    setReturnForm((current) => ({ ...current, size: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Дата отправки покупателем</Label>
+              <Input
+                type="date"
+                value={returnForm.shippingDate}
+                onChange={(event) =>
+                  setReturnForm((current) => ({
+                    ...current,
+                    shippingDate: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Причина</Label>
+              <Input
+                required
+                value={returnForm.reason}
+                onChange={(event) =>
+                  setReturnForm((current) => ({ ...current, reason: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Комментарий</Label>
+              <Textarea
+                value={returnForm.comment}
+                onChange={(event) =>
+                  setReturnForm((current) => ({ ...current, comment: event.target.value }))
+                }
+              />
+            </div>
+            <Button
+              className="w-full"
+              type="submit"
+              disabled={
+                creating ||
+                !returnForm.productId ||
+                !returnForm.productNameSnapshot
+              }
+            >
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Оформить возврат
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

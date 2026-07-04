@@ -170,33 +170,40 @@ model OrderItem {
   quantity             Int
   salePriceAtOrder     Decimal  @db.Decimal(12, 2)
   purchasePricePerUnit Decimal  @db.Decimal(12, 2)
-  imageUrls             String[] @default([])
-  position              Int      @default(0)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  imageUrls            String[] @default([])
+  sourceReturnId       String?
+  position             Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product @relation(fields: [productId], references: [id])
+  sourceReturn Return? @relation("ReturnSource", fields: [sourceReturnId], references: [id])
 
   @@index([orderId])
   @@index([productId])
+  @@index([sourceReturnId])
   @@map("order_items")
 }
 
 model Return {
-  id             String       @id @default(uuid())
-  orderId        String
-  productId      String
-  trackingNumber String
-  status         ReturnStatus @default(RETURNING)
-  shippingDate   DateTime?    @db.Date
-  returnDate     DateTime?    @db.Date
-  reason         String
-  comment        String?
-  createdAt      DateTime     @default(now())
+  id                  String       @id @default(uuid())
+  orderId             String?
+  productId           String
+  productNameSnapshot String       @default("")
+  variant             String?
+  size                String?
+  trackingNumber      String
+  status              ReturnStatus @default(RETURNING)
+  shippingDate        DateTime?    @db.Date
+  returnDate          DateTime?    @db.Date
+  reason              String
+  comment             String?
+  createdAt           DateTime     @default(now())
 
-  order   Order   @relation(fields: [orderId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  order            Order?      @relation(fields: [orderId], references: [id])
+  product          Product     @relation(fields: [productId], references: [id])
+  usedByOrderItems OrderItem[] @relation("ReturnSource")
 
   @@index([status])
   @@index([orderId])

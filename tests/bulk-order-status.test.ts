@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   findMany: vi.fn(),
   orderUpdate: vi.fn(),
+  orderItemUpdateMany: vi.fn(),
   returnFindFirst: vi.fn(),
   returnUpdate: vi.fn(),
   returnCreate: vi.fn(),
@@ -47,6 +48,7 @@ describe("POST /api/orders/bulk-status", () => {
           findMany: mocks.findMany,
           update: mocks.orderUpdate,
         },
+        orderItem: { updateMany: mocks.orderItemUpdateMany },
         return: {
           findFirst: mocks.returnFindFirst,
           update: mocks.returnUpdate,
@@ -123,5 +125,32 @@ describe("POST /api/orders/bulk-status", () => {
 
     expect(response.status).toBe(400);
     expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps purchase cost but clears sale price while items are returning", async () => {
+    const response = await POST(
+      new NextRequest("http://localhost/api/orders/bulk-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderIds: ["order-1", "order-2"],
+          status: "RETURNING",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.orderUpdate).toHaveBeenCalledWith({
+      where: { id: "order-1" },
+      data: {
+        status: "RETURNING",
+        receivedAt: null,
+        salePriceAtOrder: 0,
+      },
+    });
+    expect(mocks.orderItemUpdateMany).toHaveBeenCalledWith({
+      where: { orderId: "order-1" },
+      data: { salePriceAtOrder: 0 },
+    });
   });
 });

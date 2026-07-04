@@ -3,9 +3,10 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { createAuditLog } from "@/lib/db/audit";
+import { getStatusFinancialUpdate } from "@/lib/orders/status";
 
 const schema = z.object({
-  status: z.enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNED", "CANCELLED"]),
+  status: z.enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNING", "RETURNED", "CANCELLED"]),
   shippingDate: z.string().date().optional(),
 });
 
@@ -29,36 +30,53 @@ export async function POST(
   if (status === order.status) return NextResponse.json({ success: true });
 
   await prisma.$transaction(async (tx) => {
+    const financialUpdate = getStatusFinancialUpdate(status);
     await tx.order.update({
       where: { id },
       data: {
         status,
         receivedAt: status === "RECEIVED" ? new Date() : null,
+        ...financialUpdate.order,
         ...(status === "SHIPPED" && shippingDate
           ? { shippingDate: new Date(shippingDate) }
           : {}),
       },
     });
+    if (financialUpdate.items) {
+      await tx.orderItem.updateMany({
+        where: { orderId: id },
+        data: financialUpdate.items,
+      });
+    }
 
-    if (status === "RETURNED") {
+    if (status === "RETURNING" || status === "RETURNED") {
       const existingReturn = await tx.return.findFirst({
         where: { orderId: id, status: { in: ["RETURNING", "RETURNED"] } },
       });
       if (existingReturn) {
         await tx.return.update({
           where: { id: existingReturn.id },
-          data: { status: "RETURNED", returnDate: new Date() },
+          data: {
+            status,
+            returnDate: status === "RETURNED" ? new Date() : null,
+          },
         });
       } else {
         await tx.return.create({
           data: {
             orderId: id,
             productId: order.productId,
+            productNameSnapshot: order.productNameSnapshot,
+            variant: order.variant,
+            size: order.size,
             trackingNumber: order.trackingNumber,
-            status: "RETURNED",
+            status,
             shippingDate: order.shippingDate,
-            returnDate: new Date(),
-            reason: "Статус заказа изменён на «Возврат»",
+            returnDate: status === "RETURNED" ? new Date() : null,
+            reason:
+              status === "RETURNED"
+                ? "Статус заказа изменён на «Возвращён»"
+                : "Статус заказа изменён на «На возврате»",
           },
         });
       }

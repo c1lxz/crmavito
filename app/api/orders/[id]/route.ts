@@ -49,11 +49,55 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const productIds = data.items
     ? [...new Set(data.items.map((item) => item.productId))]
     : [];
-  const products = productIds.length
-    ? await prisma.product.findMany({ where: { id: { in: productIds } } })
-    : [];
+  const sourceReturnIds = data.items?.flatMap((item) =>
+    item.sourceReturnId ? [item.sourceReturnId] : [],
+  ) ?? [];
+  const [products, sourceReturns] = await Promise.all([
+    productIds.length
+      ? prisma.product.findMany({ where: { id: { in: productIds } } })
+      : Promise.resolve([]),
+    sourceReturnIds.length
+      ? prisma.return.findMany({
+          where: {
+            id: { in: sourceReturnIds },
+            status: "RETURNED",
+            OR: [
+              { usedByOrderItems: { none: {} } },
+              { usedByOrderItems: { some: { orderId: id } } },
+            ],
+          },
+        })
+      : Promise.resolve([]),
+  ]);
   if (data.items && products.length !== productIds.length) {
     return NextResponse.json({ error: "Один из товаров не найден" }, { status: 404 });
+  }
+  if (sourceReturns.length !== sourceReturnIds.length) {
+    return NextResponse.json(
+      { error: "Один из товаров с депозита уже использован или недоступен" },
+      { status: 409 },
+    );
+  }
+  const sourceReturnsById = new Map(sourceReturns.map((ret) => [ret.id, ret]));
+  const normalizedItems = data.items?.map((item) => ({
+    ...item,
+    purchasePricePerUnit: item.sourceReturnId ? 0 : item.purchasePricePerUnit,
+  }));
+  if (
+    normalizedItems?.some((item) => {
+      if (!item.sourceReturnId) return false;
+      const ret = sourceReturnsById.get(item.sourceReturnId);
+      return (
+        !ret ||
+        ret.productId !== item.productId ||
+        (ret.size ?? "").trim().toLowerCase() !== (item.size ?? "").trim().toLowerCase()
+      );
+    })
+  ) {
+    return NextResponse.json(
+      { error: "Товар с депозита не совпадает с выбранной позицией и размером" },
+      { status: 400 },
+    );
   }
   if (
     data.counterpartyId &&
@@ -102,16 +146,16 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   setField("commissionCost", data.commissionCost, order.commissionCost);
   setField("otherCosts", data.otherCosts, order.otherCosts);
 
-  if (data.items) {
-    const firstItem = data.items[0];
+  if (normalizedItems) {
+    const firstItem = normalizedItems[0];
     const firstProduct = productsById.get(firstItem.productId)!;
-    const totals = getLegacyOrderTotals(data.items);
+    const totals = getLegacyOrderTotals(normalizedItems);
     Object.assign(updateData, {
       productId: firstProduct.id,
       productNameSnapshot:
-        data.items.length === 1
+        normalizedItems.length === 1
           ? firstProduct.name
-          : `${firstProduct.name} + ещё ${data.items.length - 1}`,
+          : `${firstProduct.name} + ещё ${normalizedItems.length - 1}`,
       variant: firstItem.variant || null,
       size: firstItem.size || null,
       quantity: totals.quantity,
@@ -121,15 +165,15 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     auditEntries.push({
       fieldName: "items",
       oldValue: `${order.items.length || 1}`,
-      newValue: `${data.items.length}`,
+      newValue: `${normalizedItems.length}`,
     });
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    if (data.items) {
+    if (normalizedItems) {
       await tx.orderItem.deleteMany({ where: { orderId: id } });
       await tx.orderItem.createMany({
-        data: data.items.map((item, position) => ({
+        data: normalizedItems.map((item, position) => ({
           orderId: id,
           productId: item.productId,
           productNameSnapshot: productsById.get(item.productId)!.name,
@@ -139,6 +183,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
           salePriceAtOrder: item.salePriceAtOrder,
           purchasePricePerUnit: item.purchasePricePerUnit,
           imageUrls: item.imageUrls,
+          sourceReturnId: item.sourceReturnId ?? null,
           position,
         })),
       });

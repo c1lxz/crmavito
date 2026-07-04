@@ -86,10 +86,50 @@ export async function POST(req: NextRequest) {
 
   const data = parsed.data;
   const productIds = [...new Set(data.items.map((item) => item.productId))];
-  const products = await prisma.product.findMany({ where: { id: { in: productIds } } });
+  const sourceReturnIds = data.items.flatMap((item) =>
+    item.sourceReturnId ? [item.sourceReturnId] : [],
+  );
+  const [products, sourceReturns] = await Promise.all([
+    prisma.product.findMany({ where: { id: { in: productIds } } }),
+    sourceReturnIds.length
+      ? prisma.return.findMany({
+          where: {
+            id: { in: sourceReturnIds },
+            status: "RETURNED",
+            usedByOrderItems: { none: {} },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
   if (products.length !== productIds.length) {
     return NextResponse.json({ error: "Один из товаров не найден" }, { status: 404 });
   }
+  if (sourceReturns.length !== sourceReturnIds.length) {
+    return NextResponse.json(
+      { error: "Один из товаров с депозита уже использован или недоступен" },
+      { status: 409 },
+    );
+  }
+  const sourceReturnsById = new Map(sourceReturns.map((ret) => [ret.id, ret]));
+  const sourceMismatch = data.items.some((item) => {
+    if (!item.sourceReturnId) return false;
+    const ret = sourceReturnsById.get(item.sourceReturnId);
+    return (
+      !ret ||
+      ret.productId !== item.productId ||
+      (ret.size ?? "").trim().toLowerCase() !== (item.size ?? "").trim().toLowerCase()
+    );
+  });
+  if (sourceMismatch) {
+    return NextResponse.json(
+      { error: "Товар с депозита не совпадает с выбранной позицией и размером" },
+      { status: 400 },
+    );
+  }
+  const normalizedItems = data.items.map((item) => ({
+    ...item,
+    purchasePricePerUnit: item.sourceReturnId ? 0 : item.purchasePricePerUnit,
+  }));
   const productsById = new Map(products.map((product) => [product.id, product]));
   const counterparty = await prisma.counterparty.findUnique({
     where: { id: data.counterpartyId },
@@ -98,9 +138,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
   }
 
-  const firstItem = data.items[0];
+  const firstItem = normalizedItems[0];
   const firstProduct = productsById.get(firstItem.productId)!;
-  const totals = getLegacyOrderTotals(data.items);
+  const totals = getLegacyOrderTotals(normalizedItems);
   const carrier =
     data.carrier?.trim() || detectCarrier(data.trackingNumber)?.carrier || "";
 
@@ -114,9 +154,9 @@ export async function POST(req: NextRequest) {
             orderNumber,
             productId: firstProduct.id,
             productNameSnapshot:
-              data.items.length === 1
+              normalizedItems.length === 1
                 ? firstProduct.name
-                : `${firstProduct.name} + ещё ${data.items.length - 1}`,
+                : `${firstProduct.name} + ещё ${normalizedItems.length - 1}`,
             variant: firstItem.variant || null,
             size: firstItem.size || null,
             quantity: totals.quantity,
@@ -134,7 +174,7 @@ export async function POST(req: NextRequest) {
             otherCosts: data.otherCosts,
             createdByUserId: session.user.id,
             items: {
-              create: data.items.map((item, position) => ({
+              create: normalizedItems.map((item, position) => ({
                 productId: item.productId,
                 productNameSnapshot: productsById.get(item.productId)!.name,
                 variant: item.variant || null,
@@ -143,6 +183,7 @@ export async function POST(req: NextRequest) {
                 salePriceAtOrder: item.salePriceAtOrder,
                 purchasePricePerUnit: item.purchasePricePerUnit,
                 imageUrls: item.imageUrls,
+                sourceReturnId: item.sourceReturnId ?? null,
                 position,
               })),
             },

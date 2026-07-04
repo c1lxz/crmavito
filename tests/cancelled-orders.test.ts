@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
   transaction: vi.fn(),
   orderUpdate: vi.fn(),
+  orderItemUpdateMany: vi.fn(),
   returnFindFirst: vi.fn(),
   returnUpdateMany: vi.fn(),
   createAuditLog: vi.fn(),
@@ -38,6 +39,7 @@ describe("cancelled orders", () => {
     mocks.transaction.mockImplementation(async (callback) =>
       callback({
         order: { update: mocks.orderUpdate },
+        orderItem: { updateMany: mocks.orderItemUpdateMany },
         return: {
           findFirst: mocks.returnFindFirst,
           updateMany: mocks.returnUpdateMany,
@@ -62,6 +64,15 @@ describe("cancelled orders", () => {
       data: {
         status: "CANCELLED",
         receivedAt: null,
+        salePriceAtOrder: 0,
+        purchasePricePerUnit: 0,
+      },
+    });
+    expect(mocks.orderItemUpdateMany).toHaveBeenCalledWith({
+      where: { orderId: "order-1" },
+      data: {
+        salePriceAtOrder: 0,
+        purchasePricePerUnit: 0,
       },
     });
     expect(mocks.createAuditLog).toHaveBeenCalledWith(

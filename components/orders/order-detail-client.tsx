@@ -36,6 +36,8 @@ interface OrderItem {
   salePriceAtOrder: number;
   purchasePricePerUnit: number;
   imageUrls: string[];
+  sourceReturnId: string | null;
+  sourceReturn: { trackingNumber: string } | null;
   product: { name: string; imageUrl: string | null };
 }
 
@@ -84,6 +86,7 @@ const EDITABLE_STATUSES: OrderStatus[] = [
   "ACCEPTED",
   "SHIPPED",
   "RECEIVED",
+  "RETURNING",
   "RETURNED",
   "CANCELLED",
 ];
@@ -128,6 +131,8 @@ export function OrderDetailClient({ order, financials, products, counterparties 
             salePriceAtOrder: order.salePriceAtOrder,
             purchasePricePerUnit: order.purchasePricePerUnit,
             imageUrls: order.product.imageUrl ? [order.product.imageUrl] : [],
+            sourceReturnId: null,
+            sourceReturn: null,
             product: order.product,
           },
         ];
@@ -159,6 +164,7 @@ export function OrderDetailClient({ order, financials, products, counterparties 
         : item.product.imageUrl
           ? [item.product.imageUrl]
           : [],
+      sourceReturnId: item.sourceReturnId,
     })),
   };
 
@@ -235,7 +241,7 @@ export function OrderDetailClient({ order, financials, products, counterparties 
           <CardHeader className="p-3 pb-1"><CardTitle className="text-sm">Статус заказа</CardTitle></CardHeader>
           <CardContent className="p-3 pt-1">
             <Select
-              value={order.status === "RETURNING" ? "RETURNED" : order.status}
+              value={order.status}
               disabled={loading}
               onValueChange={(status) => void changeStatus(status as OrderStatus)}
             >
@@ -270,6 +276,11 @@ export function OrderDetailClient({ order, financials, products, counterparties 
                       {item.size ? `${item.size} · ` : ""}
                       {item.quantity} шт. × {formatRub(item.salePriceAtOrder)}
                     </p>
+                    {item.sourceReturn ? (
+                      <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                        Взят с депозита · возврат {item.sourceReturn.trackingNumber}
+                      </p>
+                    ) : null}
                   </div>
                   {photos.length ? (
                     <div className="flex gap-2 overflow-x-auto">

@@ -8,6 +8,7 @@ export const orderItemInputSchema = z.object({
   salePriceAtOrder: z.number().positive(),
   purchasePricePerUnit: z.number().nonnegative(),
   imageUrls: z.array(z.string().trim().min(1)).max(9).default([]),
+  sourceReturnId: z.string().uuid().nullable().optional(),
 });
 
 export const orderFieldsSchema = z.object({

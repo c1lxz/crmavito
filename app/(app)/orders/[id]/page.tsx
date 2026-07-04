@@ -12,7 +12,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       include: {
         product: true,
         counterparty: true,
-        items: { include: { product: true }, orderBy: { position: "asc" } },
+        items: {
+          include: {
+            product: true,
+            sourceReturn: { select: { trackingNumber: true } },
+          },
+          orderBy: { position: "asc" },
+        },
         returns: true,
         auditLogs: { include: { user: { select: { name: true } } }, orderBy: { timestamp: "desc" } },
       },
@@ -56,6 +62,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             name: item.product.name,
             imageUrl: item.product.imageUrl,
           },
+          sourceReturn: item.sourceReturn,
         })),
         auditLogs: order.auditLogs.map((l: (typeof order.auditLogs)[number]) => ({
           ...l,

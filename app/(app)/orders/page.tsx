@@ -66,16 +66,33 @@ async function getProducts() {
   return products.map((p) => ({ id: p.id, name: p.name, salePrice: parseFloat(p.salePrice.toString()), imageUrl: p.imageUrl }));
 }
 
+async function getDepositedReturns() {
+  const returns = await prisma.return.findMany({
+    where: { status: "RETURNED", usedByOrderItems: { none: {} } },
+    select: {
+      id: true,
+      productId: true,
+      productNameSnapshot: true,
+      size: true,
+      variant: true,
+      trackingNumber: true,
+    },
+    orderBy: { returnDate: "desc" },
+  });
+  return returns;
+}
+
 export default async function OrdersPage({
   searchParams,
 }: {
   searchParams: Promise<{ new?: string; search?: string }>;
 }) {
   const query = await searchParams;
-  const [orders, counterparties, products] = await Promise.all([
+  const [orders, counterparties, products, depositedReturns] = await Promise.all([
     getOrders(),
     getCounterparties(),
     getProducts(),
+    getDepositedReturns(),
   ]);
 
   const receivedOrders = orders.filter((o) => o.status === "RECEIVED" as OrderStatus);
@@ -87,6 +104,7 @@ export default async function OrdersPage({
         initialOrders={orders}
         counterparties={counterparties}
         products={products}
+        depositedReturns={depositedReturns}
         totalRevenue={totals.revenue}
         totalProfit={totals.netProfit}
         initialOpen={query.new === "1"}
