@@ -238,7 +238,7 @@ def test_locations_are_exact_and_generate_one_ad_per_city():
         "Москва",
     ]
     assert [location["address"] for location in locations] == [
-        "Санкт-Петербург, Невский проспект, 30",
+        "Санкт-Петербург, наб. реки Фонтанки, 59Б",
         "Нижний Новгород, Советская пл., 5",
         "Москва, Болотниковская ул., 12",
     ]
