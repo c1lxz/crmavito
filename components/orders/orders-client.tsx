@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/lib/hooks/use-toast";
 import { formatRub, formatDate } from "@/lib/utils";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
+import { buildOrderFilterQuery } from "@/lib/orders/filters";
 import { CreateOrderDialog } from "./create-order-dialog";
 import type { OrderStatus } from "@prisma/client";
 
@@ -52,6 +53,10 @@ interface Props {
   totalProfit: number;
   initialOpen?: boolean;
   focusSearch?: boolean;
+  initialSearch?: string;
+  initialStatusFilter?: string;
+  initialDateFrom?: string;
+  initialDateTo?: string;
 }
 
 const EDITABLE_STATUSES: OrderStatus[] = [
@@ -63,14 +68,29 @@ const EDITABLE_STATUSES: OrderStatus[] = [
   "CANCELLED",
 ];
 
-export function OrdersClient({ initialOrders, counterparties, products, depositedReturns, totalRevenue, totalProfit, initialOpen = false, focusSearch = false }: Props) {
+export function OrdersClient({
+  initialOrders,
+  counterparties,
+  products,
+  depositedReturns,
+  totalRevenue,
+  totalProfit,
+  initialOpen = false,
+  focusSearch = false,
+  initialSearch = "",
+  initialStatusFilter = "ALL",
+  initialDateFrom = "",
+  initialDateTo = "",
+}: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [orders, setOrders] = useState(initialOrders);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [search, setSearch] = useState(initialSearch);
+  const [statusFilter, setStatusFilter] = useState<string>(
+    initialStatusFilter in ORDER_STATUS_LABELS ? initialStatusFilter : "ALL",
+  );
+  const [dateFrom, setDateFrom] = useState(initialDateFrom);
+  const [dateTo, setDateTo] = useState(initialDateTo);
   const [showCreate, setShowCreate] = useState(initialOpen);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -110,6 +130,16 @@ export function OrdersClient({ initialOrders, counterparties, products, deposite
   ];
 
   const filteredIds = useMemo(() => filtered.map((order) => order.id), [filtered]);
+  const returnQuery = useMemo(
+    () =>
+      buildOrderFilterQuery({
+        q: search,
+        status: statusFilter,
+        dateFrom,
+        dateTo,
+      }),
+    [dateFrom, dateTo, search, statusFilter],
+  );
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
 
@@ -463,7 +493,13 @@ export function OrdersClient({ initialOrders, counterparties, products, deposite
               {content}
             </button>
           ) : (
-            <Link key={order.id} href={`/orders/${order.id}`} className="block">
+            <Link
+              key={order.id}
+              href={`/orders/${order.id}${
+                returnQuery ? `?returnTo=${encodeURIComponent(returnQuery)}` : ""
+              }`}
+              className="block"
+            >
               {content}
             </Link>
           );

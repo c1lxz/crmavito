@@ -3,9 +3,19 @@ import { prisma } from "@/lib/db/prisma";
 import { OrderDetailClient } from "@/components/orders/order-detail-client";
 import { calcOrderFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "@/lib/db/orders";
+import { sanitizeOrderFilterQuery } from "@/lib/orders/filters";
 
-export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function OrderDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
+}) {
   const { id } = await params;
+  const query = await searchParams;
+  const returnQuery = sanitizeOrderFilterQuery(query.returnTo ?? "");
+  const returnHref = returnQuery ? `/orders?${returnQuery}` : "/orders";
   const [order, products, counterparties] = await Promise.all([
     prisma.order.findUnique({
       where: { id, isDeleted: false },
@@ -81,6 +91,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         id: counterparty.id,
         name: counterparty.name,
       }))}
+      returnHref={returnHref}
     />
   );
 }

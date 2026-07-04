@@ -96,9 +96,10 @@ interface Props {
   financials: CalculatedFinancials;
   products: OrderFormProduct[];
   counterparties: { id: string; name: string }[];
+  returnHref: string;
 }
 
-export function OrderDetailClient({ order, financials, products, counterparties }: Props) {
+export function OrderDetailClient({ order, financials, products, counterparties, returnHref }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showBarcode, setShowBarcode] = useState(false);
@@ -214,7 +215,7 @@ export function OrderDetailClient({ order, financials, products, counterparties 
     <div className="app-shell">
       <div className="app-header">
         <div className="flex items-center gap-3">
-          <Link href="/orders" className="icon-tile h-9 w-9">
+          <Link href={returnHref} className="icon-tile h-9 w-9">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="min-w-0 flex-1">

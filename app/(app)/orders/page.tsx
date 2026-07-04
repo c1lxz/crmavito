@@ -85,7 +85,14 @@ async function getDepositedReturns() {
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ new?: string; search?: string }>;
+  searchParams: Promise<{
+    new?: string;
+    search?: string;
+    q?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }>;
 }) {
   const query = await searchParams;
   const [orders, counterparties, products, depositedReturns] = await Promise.all([
@@ -109,6 +116,10 @@ export default async function OrdersPage({
         totalProfit={totals.netProfit}
         initialOpen={query.new === "1"}
         focusSearch={query.search === "1"}
+        initialSearch={query.q}
+        initialStatusFilter={query.status}
+        initialDateFrom={query.dateFrom}
+        initialDateTo={query.dateTo}
       />
     </Suspense>
   );
