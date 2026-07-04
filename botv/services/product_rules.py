@@ -41,3 +41,14 @@ def product_extra(name: str, size: str) -> dict[str, str]:
     if "лонгслив" in name.casefold():
         extra["GoodsSubType"] = "Свитшот"
     return extra
+
+
+def location_extras(
+    locations: Sequence[dict[str, str]],
+    base_extra: dict[str, str],
+) -> list[dict[str, str]]:
+    """Создаёт отдельный набор XML-полей для каждого точного адреса."""
+    return [
+        {**base_extra, "Address": location["address"]}
+        for location in locations
+    ]

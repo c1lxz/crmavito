@@ -15,7 +15,14 @@ import pytest
 from services.price_parser import parse_prices
 from services.ai_description import _clean_design_text, normalize_avito_color
 from services.color_parser import parse_ordered_colors
-from services.product_rules import SIZES, choose_size, choose_sizes, load_locations, product_extra
+from services.product_rules import (
+    SIZES,
+    choose_size,
+    choose_sizes,
+    load_locations,
+    location_extras,
+    product_extra,
+)
 
 
 def test_design_text_cleanup():
@@ -234,29 +241,43 @@ def test_locations_are_exact_and_generate_one_ad_per_city():
     locations = load_locations(_SETTINGS_DIR / "locations.json")
     assert [location["city"] for location in locations] == [
         "Санкт-Петербург",
-        "Нижний Новгород",
         "Москва",
+        "Нижний Новгород",
     ]
     assert [location["address"] for location in locations] == [
-        "Санкт-Петербург, наб. реки Фонтанки, 59Б",
-        "Нижний Новгород, Советская пл., 5",
+        "Санкт-Петербург, Невский проспект, 30",
         "Москва, Болотниковская ул., 12",
+        "Нижний Новгород, Советская пл., 5",
     ]
     assert all(location["address"] != location["city"] for location in locations)
 
     gen, td = _make_xml_generator()
     with td:
+        variants = location_extras(
+            locations,
+            {"Size": "48 (M)", "GoodsSubType": "Свитшот"},
+        )
         ads = [
             _sample_ad(
                 ad_id=f"SKU-{index}",
-                extra={"Address": location["address"], "Size": "46 (S)"},
+                title="Лонгслив Test",
+                price=3490,
+                description="Цена: 3 490₽",
+                images=["https://disk.yandex.ru/i/one", "https://disk.yandex.ru/i/two"],
+                extra=extra,
             )
-            for index, location in enumerate(locations, 1)
+            for index, extra in enumerate(variants, 1)
         ]
         xml = gen.build(ads).decode("utf-8")
     assert xml.count("<Ad>") == 3
-    assert xml.count("<Price>1000</Price>") == 3
+    assert xml.count("<Price>3490</Price>") == 3
+    assert xml.count("Цена: 3 490₽") == 3
+    assert xml.count("<Size>48 (M)</Size>") == 3
+    assert xml.count("<GoodsSubType>Свитшот</GoodsSubType>") == 3
+    assert xml.count("https://disk.yandex.ru/i/one") == 3
+    assert len({ad.ad_id for ad in ads}) == 3
     for location in locations:
+        assert xml.count(f"<Address>{location['address']}</Address>") == 1
         assert f"<Address>{location['address']}</Address>" in xml
 
 

@@ -19,7 +19,7 @@ from services.color_parser import parse_ordered_colors
 from services.description import DescriptionRenderer
 from services.price_parser import parse_prices
 from services.brand_detector import detect_brand
-from services.product_rules import choose_sizes, load_locations, product_extra
+from services.product_rules import choose_sizes, load_locations, location_extras, product_extra
 from services.xml_generator import AvitoAd, XmlGenerator, make_ad_id
 from services.yandex_disk import YandexDiskClient, YandexDiskError, extract_disk_link, upload_product_photos
 from utils.states import DropStates
@@ -566,7 +566,8 @@ async def _process_and_send_xml(message: Message, state: FSMContext, bot: Bot, b
         text = description.render(title=name, color=color, price=price_fmt, design=design_text)
         brand = detect_brand(name, brands or [])
         base_extra = product_extra(f"{name} {ad_title}", size)
-        for location_index, location in enumerate(locations, 1):
+        variants = location_extras(locations, base_extra)
+        for location_index, extra in enumerate(variants, 1):
             ad_number = (idx - 1) * len(locations) + location_index
             ad = AvitoAd(
                 ad_id=make_ad_id(id_prefix, ad_number),
@@ -576,7 +577,7 @@ async def _process_and_send_xml(message: Message, state: FSMContext, bot: Bot, b
                 color=color,
                 images=urls,
                 brand=brand,
-                extra={**base_extra, "Address": location["address"]},
+                extra=extra,
             )
             ads.append(ad)
 
