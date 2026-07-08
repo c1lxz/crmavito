@@ -10,7 +10,9 @@ describe("botv mini app UI", () => {
   it("mounts on /v and uploads archives through botv API", () => {
     expect(pageSource).toContain("BotvMiniApp");
     expect(clientSource).toContain("/api/botv/session");
+    expect(clientSource).toContain("Ссылка на Яндекс.Диск");
     expect(apiSource).toContain("createSessionFromFile");
+    expect(apiSource).toContain("createSessionFromLink");
   });
 
   it("supports the requested listing workflow", () => {

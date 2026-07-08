@@ -26,6 +26,7 @@ export function BotvMiniApp() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [bulkPrice, setBulkPrice] = useState("");
+  const [diskLink, setDiskLink] = useState("");
   const [preview, setPreview] = useState<BotvProduct | null>(null);
 
   const products = session?.products ?? [];
@@ -35,6 +36,20 @@ export function BotvMiniApp() {
   }, [products, query]);
   const selectedIds = Array.from(selected);
   const allVisibleSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.index));
+
+  async function uploadLink() {
+    if (!diskLink.trim()) return;
+    setStatus("uploading");
+    setError("");
+    setSelected(new Set());
+    const form = new FormData();
+    form.append("link", diskLink.trim());
+    const res = await fetch("/api/botv/session", { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить ссылку");
+    setSession(data);
+    setStatus("ready");
+  }
 
   async function upload(file: File) {
     setStatus("uploading");
@@ -108,6 +123,10 @@ export function BotvMiniApp() {
             Архив
           </Button>
           <input ref={fileRef} type="file" accept=".zip,.rar,.7z" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) run(() => upload(f)); }} />
+        </div>
+        <div className="mb-2 flex gap-2">
+          <Input placeholder="Ссылка на Яндекс.Диск" value={diskLink} onChange={(e) => setDiskLink(e.target.value)} />
+          <Button variant="outline" onClick={() => run(uploadLink)} disabled={status === "uploading" || !diskLink.trim()}>Загрузить</Button>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

@@ -20,7 +20,7 @@ from services.color_detector import ColorDetector
 from services.description import DescriptionRenderer
 from services.product_rules import choose_sizes, load_locations, location_extras, product_extra
 from services.xml_generator import AvitoAd, XmlGenerator, make_ad_id
-from services.yandex_disk import YandexDiskClient, upload_product_photos
+from services.yandex_disk import YandexDiskClient, extract_disk_link, upload_product_photos
 
 SESSIONS_DIR = config.tmp_dir / "web_sessions"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -88,6 +88,15 @@ def _public_state(state: dict) -> dict:
     }
 
 
+
+def _state_from_root(session_id: str, session_dir: Path, root: Path, source_name: str, progress: list[str]) -> dict:
+    found = scan_products(root)
+    products = [{"name": p["name"], "ad_title": "", "price": None, "photos": [str(photo) for photo in p["photos"]], "deleted": False, "use_original_title": False} for p in found]
+    progress.append(f"Найдено товаров: {len(products)}")
+    state = {"id": session_id, "created_at": int(time.time()), "source_name": source_name, "session_dir": str(session_dir), "root": str(root), "products": products, "progress": progress}
+    _write_json(session_dir / "state.json", state)
+    return _public_state(state)
+
 def create_from_archive(archive_path: Path, source_name: str) -> dict:
     session_id = f"v_{int(time.time())}_{os.getpid()}"
     session_dir = _session_dir(session_id)
@@ -102,13 +111,32 @@ def create_from_archive(archive_path: Path, source_name: str) -> dict:
     except ArchiveError as exc:
         raise SystemExit(str(exc)) from exc
     progress.append("Сканирую папки товаров и фотографии")
-    found = scan_products(root)
-    products = [{"name": p["name"], "ad_title": "", "price": None, "photos": [str(photo) for photo in p["photos"]], "deleted": False, "use_original_title": False} for p in found]
-    progress.append(f"Найдено товаров: {len(products)}")
-    state = {"id": session_id, "created_at": int(time.time()), "source_name": source_name, "session_dir": str(session_dir), "root": str(root), "products": products, "progress": progress}
-    _write_json(session_dir / "state.json", state)
-    return _public_state(state)
+    return _state_from_root(session_id, session_dir, root, source_name, progress)
 
+
+
+def create_from_link(raw_link: str) -> dict:
+    link = extract_disk_link(raw_link)
+    if not link:
+        raise SystemExit("Не удалось распознать ссылку на Яндекс.Диск")
+    import asyncio
+    session_id = f"v_{int(time.time())}_{os.getpid()}"
+    session_dir = _session_dir(session_id)
+    if session_dir.exists():
+        shutil.rmtree(session_dir)
+    session_dir.mkdir(parents=True)
+    local_root = session_dir / "disk_download"
+    progress = ["Ссылка получена", "Скачиваю с Яндекс.Диска"]
+    yd = YandexDiskClient(config.yandex_disk_token)
+    asyncio.run(yd.download_public_folder(link, local_root, max_size_bytes=config.max_archive_mb * 1024 * 1024))
+    archives = list(local_root.glob("*.zip")) + list(local_root.glob("*.rar")) + list(local_root.glob("*.7z"))
+    if archives:
+        progress.append("Распаковываю скачанный архив")
+        root = extract_archive(archives[0], session_dir / "extracted")
+    else:
+        root = local_root
+    progress.append("Сканирую папки товаров и фотографии")
+    return _state_from_root(session_id, session_dir, root, "Яндекс.Диск", progress)
 
 def update_session(session_id: str, payload: dict) -> dict:
     state_path = _session_dir(session_id) / "state.json"
@@ -217,6 +245,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_create = sub.add_parser("create"); p_create.add_argument("archive"); p_create.add_argument("source_name")
+    p_link = sub.add_parser("link"); p_link.add_argument("url")
     p_state = sub.add_parser("state"); p_state.add_argument("session_id")
     p_update = sub.add_parser("update"); p_update.add_argument("session_id"); p_update.add_argument("payload")
     p_xml = sub.add_parser("xml"); p_xml.add_argument("session_id")
@@ -224,6 +253,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.cmd == "create":
         print(json.dumps(create_from_archive(Path(args.archive), args.source_name), ensure_ascii=False))
+    elif args.cmd == "link":
+        print(json.dumps(create_from_link(args.url), ensure_ascii=False))
     elif args.cmd == "state":
         print(json.dumps(_public_state(_read_json(_session_dir(args.session_id) / "state.json")), ensure_ascii=False))
     elif args.cmd == "update":

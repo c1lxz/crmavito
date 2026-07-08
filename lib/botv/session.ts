@@ -50,6 +50,10 @@ export async function createSessionFromFile(file: File): Promise<BotvSession> {
   return JSON.parse(await runCli(["create", target, file.name])) as BotvSession;
 }
 
+export async function createSessionFromLink(link: string): Promise<BotvSession> {
+  return JSON.parse(await runCli(["link", link])) as BotvSession;
+}
+
 export async function getSession(id: string): Promise<BotvSession> {
   return JSON.parse(await runCli(["state", id])) as BotvSession;
 }
