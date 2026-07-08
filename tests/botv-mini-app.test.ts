@@ -21,5 +21,8 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("deleteSelected");
     expect(clientSource).toContain("Как на Avito");
     expect(clientSource).toContain("firstPhoto");
+    expect(clientSource).toContain("lg:grid-cols-[minmax(0,1fr)_420px]");
+    expect(clientSource).toContain("xl:grid-cols-2");
+    expect(clientSource).toContain("lg:sticky lg:top-28");
   });
 });
