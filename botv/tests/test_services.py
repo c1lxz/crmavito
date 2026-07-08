@@ -139,7 +139,7 @@ def test_brand_does_not_match_model_word():
 # ---------------------------------------------------------------------------
 
 from services.xml_generator import AvitoAd, XmlGenerator
-from handlers.drop import _format_product_list, _missing_ad_title_indices
+from handlers.drop import _ad_titles_keyboard, _format_product_list, _missing_ad_title_indices
 from handlers.common import START_BUTTON_TEXT, START_KEYBOARD
 from config import Config, DEFAULT_MAX_ARCHIVE_MB
 
@@ -288,6 +288,60 @@ def test_all_ad_titles_are_required():
         {"name": "Название для описания 2", "ad_title": ""},
     ]
     assert _missing_ad_title_indices(products) == [2]
+
+
+def _keyboard_callbacks(keyboard):
+    return [
+        button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+    ]
+
+
+def test_ad_title_keyboard_paginates_more_than_100_products():
+    products = [
+        {"name": f"Товар {i}", "ad_title": "", "photos": ["photo.jpg"]}
+        for i in range(1, 143)
+    ]
+
+    first_page = _ad_titles_keyboard(products)
+    third_page = _ad_titles_keyboard(products, 2)
+
+    assert first_page is not None
+    first_callbacks = _keyboard_callbacks(first_page)
+    assert len(first_callbacks) == 52
+    assert "rename:1:0" in first_callbacks
+    assert "rename:50:0" in first_callbacks
+    assert "rename:51:0" not in first_callbacks
+    assert "titles_page:1" in first_callbacks
+
+    assert third_page is not None
+    third_callbacks = _keyboard_callbacks(third_page)
+    assert "rename:101:2" in third_callbacks
+    assert "rename:142:2" in third_callbacks
+    assert "titles_page:1" in third_callbacks
+
+
+def test_ad_title_keyboard_hides_completed_titles():
+    products = [
+        {"name": "Товар 1", "ad_title": "Готовое объявление", "photos": ["photo.jpg"]},
+        {"name": "Товар 2", "ad_title": "", "photos": ["photo.jpg"]},
+    ]
+
+    keyboard = _ad_titles_keyboard(products)
+
+    assert keyboard is not None
+    callbacks = _keyboard_callbacks(keyboard)
+    assert "rename:1:0" not in callbacks
+    assert "rename:2:0" in callbacks
+
+
+def test_ad_title_keyboard_is_removed_when_all_titles_completed():
+    products = [
+        {"name": "Товар 1", "ad_title": "Готовое объявление", "photos": ["photo.jpg"]},
+    ]
+
+    assert _ad_titles_keyboard(products) is None
 
 
 def test_default_archive_limit_is_1536_mb(monkeypatch):

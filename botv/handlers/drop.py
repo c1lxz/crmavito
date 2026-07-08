@@ -26,6 +26,7 @@ from utils.states import DropStates
 
 log = logging.getLogger(__name__)
 router = Router()
+AD_TITLE_BUTTONS_PER_PAGE = 50
 
 
 # ------------- helpers -------------
@@ -64,16 +65,46 @@ def _format_product_list(products: list[dict], max_chars: int = 3000) -> str:
     return "\n".join(blocks)
 
 
-def _ad_titles_keyboard(products: list[dict]) -> InlineKeyboardMarkup:
+def _ad_titles_keyboard(products: list[dict], page: int = 0) -> InlineKeyboardMarkup | None:
+    missing = [
+        (i, product)
+        for i, product in enumerate(products, 1)
+        if not (product.get("ad_title") or "").strip()
+    ]
+    if not missing:
+        return None
+
+    total_pages = (len(missing) - 1) // AD_TITLE_BUTTONS_PER_PAGE + 1
+    page = max(0, min(page, total_pages - 1))
+    start = page * AD_TITLE_BUTTONS_PER_PAGE
+    page_items = missing[start:start + AD_TITLE_BUTTONS_PER_PAGE]
+
     buttons: list[list[InlineKeyboardButton]] = []
-    for i, p in enumerate(products, 1):
-        ad_title = (p.get("ad_title") or "").strip()
-        marker = "✅" if ad_title else "✏️"
-        label = ad_title or p["name"]
+    for i, product in page_items:
+        label = product["name"]
         buttons.append([InlineKeyboardButton(
-            text=f"{marker} #{i} {label[:32]}…",
-            callback_data=f"rename:{i}",
+            text=f"✏️ #{i} {label[:32]}…",
+            callback_data=f"rename:{i}:{page}",
         )])
+
+    if total_pages > 1:
+        nav: list[InlineKeyboardButton] = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(
+                text="←",
+                callback_data=f"titles_page:{page - 1}",
+            ))
+        nav.append(InlineKeyboardButton(
+            text=f"{page + 1}/{total_pages}",
+            callback_data="titles_page:noop",
+        ))
+        if page < total_pages - 1:
+            nav.append(InlineKeyboardButton(
+                text="→",
+                callback_data=f"titles_page:{page + 1}",
+            ))
+        buttons.append(nav)
+
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -293,9 +324,30 @@ async def on_wrong_archive_message(message: Message) -> None:
 # ------------- 2) Переименование через inline-кнопки -------------
 
 
+@router.callback_query(F.data.startswith("titles_page:"))
+async def on_ad_titles_page(callback: CallbackQuery, state: FSMContext) -> None:
+    raw_page = callback.data.split(":", 1)[1]
+    if raw_page == "noop":
+        await callback.answer()
+        return
+
+    data = await state.get_data()
+    products: list[dict] = data.get("products") or []
+    try:
+        page = int(raw_page)
+    except ValueError:
+        await callback.answer()
+        return
+
+    await callback.message.edit_reply_markup(reply_markup=_ad_titles_keyboard(products, page))
+    await callback.answer()
+
+
 @router.callback_query(F.data.startswith("rename:"))
 async def on_rename_button(callback: CallbackQuery, state: FSMContext) -> None:
-    idx = int(callback.data.split(":")[1])
+    parts = callback.data.split(":")
+    idx = int(parts[1])
+    page = int(parts[2]) if len(parts) > 2 else 0
     data = await state.get_data()
     products: list[dict] = data.get("products") or []
 
@@ -303,7 +355,12 @@ async def on_rename_button(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.answer("Товар не найден.")
         return
 
-    await state.update_data(rename_idx=idx)
+    await state.update_data(
+        rename_idx=idx,
+        rename_keyboard_chat_id=callback.message.chat.id,
+        rename_keyboard_message_id=callback.message.message_id,
+        rename_keyboard_page=page,
+    )
     await state.set_state(DropStates.waiting_rename)
     await callback.message.answer(
         f"Введи название объявления для #{idx}.\n"
@@ -338,7 +395,17 @@ async def on_rename_text(message: Message, state: FSMContext) -> None:
     await state.set_state(DropStates.waiting_prices)
 
     total_photos = sum(len(p["photos"]) for p in products)
-    kb = _ad_titles_keyboard(products)
+    page = int(data.get("rename_keyboard_page") or 0)
+    kb = _ad_titles_keyboard(products, page)
+    try:
+        await message.bot.edit_message_reply_markup(
+            chat_id=data.get("rename_keyboard_chat_id"),
+            message_id=data.get("rename_keyboard_message_id"),
+            reply_markup=kb,
+        )
+    except Exception:
+        pass
+
     missing_count = sum(not (p.get("ad_title") or "").strip() for p in products)
     next_step = (
         f"Осталось задать названий: <b>{missing_count}</b>."
