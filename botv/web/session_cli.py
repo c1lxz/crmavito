@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import re
 import json
 import os
 import shutil
@@ -54,6 +55,7 @@ def _photo_path(token: str) -> Path:
 def _serialize_product(index: int, product: dict) -> dict:
     photos = [Path(p) for p in product.get("photos", [])]
     first_photo = photos[0] if photos else None
+    details = product.get("details", {})
     return {
         "id": str(index),
         "index": index,
@@ -65,6 +67,8 @@ def _serialize_product(index: int, product: dict) -> dict:
         "photoCount": len(photos),
         "firstPhoto": _photo_token(first_photo) if first_photo else None,
         "photos": [_photo_token(photo) for photo in photos],
+        "description": product.get("description", ""),
+        "details": details if isinstance(details, dict) else {},
     }
 
 
@@ -89,13 +93,82 @@ def _public_state(state: dict) -> dict:
 
 
 
+def _product_details(name: str, photos: list[Path]) -> dict:
+    color_detector = ColorDetector(config.settings_dir / "color_rules.json")
+    locations = load_locations(config.settings_dir / "locations.json")
+    sizes = choose_sizes(1)
+    color = color_detector.detect(name)
+    extra = product_extra(name, sizes[0] if sizes else "")
+    return {
+        "category": "Одежда, обувь, аксессуары",
+        "color": color,
+        "size": extra.get("Size") or extra.get("Размер") or "",
+        "goodsType": extra.get("GoodsType") or "Мужская одежда",
+        "condition": extra.get("Condition") or "Новое с биркой",
+        "location": locations[0].get("Address", "") if locations else "",
+        "photos": len(photos),
+    }
+
+
+def _description_for_preview(name: str, title: str, price: int | None) -> str:
+    color_detector = ColorDetector(config.settings_dir / "color_rules.json")
+    description = DescriptionRenderer(config.settings_dir / "description_template.txt")
+    color = color_detector.detect(f"{name} {title}")
+    price_fmt = f"{price:,}".replace(",", " ") if price is not None else ""
+    return description.render(title=name, color=color, price=price_fmt, design="")
+
+
 def _state_from_root(session_id: str, session_dir: Path, root: Path, source_name: str, progress: list[str]) -> dict:
     found = scan_products(root)
-    products = [{"name": p["name"], "ad_title": "", "price": None, "photos": [str(photo) for photo in p["photos"]], "deleted": False, "use_original_title": False} for p in found]
+    products = []
+    for p in found:
+        photos = [Path(photo) for photo in p["photos"]]
+        products.append({
+            "name": p["name"],
+            "ad_title": "",
+            "price": None,
+            "photos": [str(photo) for photo in photos],
+            "deleted": False,
+            "use_original_title": False,
+            "description": _description_for_preview(p["name"], p["name"], None),
+            "details": _product_details(p["name"], photos),
+        })
     progress.append(f"Найдено товаров: {len(products)}")
     state = {"id": session_id, "created_at": int(time.time()), "source_name": source_name, "session_dir": str(session_dir), "root": str(root), "products": products, "progress": progress}
     _write_json(session_dir / "state.json", state)
     return _public_state(state)
+
+
+def _reorder_photos(product: dict, order_tokens: list[str]) -> None:
+    current = [Path(path) for path in product.get("photos", [])]
+    by_token = {_photo_token(path): path for path in current}
+    seen: set[str] = set()
+    ordered: list[Path] = []
+    for token in order_tokens:
+        if token in by_token and token not in seen:
+            ordered.append(by_token[token])
+            seen.add(token)
+    ordered.extend(path for path in current if _photo_token(path) not in seen)
+    product["photos"] = [str(path) for path in ordered]
+
+
+def _move_photo(product: dict, token: str, direction: str) -> None:
+    current = [Path(path) for path in product.get("photos", [])]
+    tokens = [_photo_token(path) for path in current]
+    if token not in tokens:
+        return
+    index = tokens.index(token)
+    if direction == "first":
+        target = 0
+    elif direction == "left":
+        target = max(0, index - 1)
+    elif direction == "right":
+        target = min(len(current) - 1, index + 1)
+    else:
+        return
+    item = current.pop(index)
+    current.insert(target, item)
+    product["photos"] = [str(path) for path in current]
 
 def create_from_archive(archive_path: Path, source_name: str) -> dict:
     session_id = f"v_{int(time.time())}_{os.getpid()}"
@@ -158,6 +231,14 @@ def update_session(session_id: str, payload: dict) -> dict:
         if "price" in item:
             value = item["price"]
             product["price"] = int(value) if value not in (None, "") else None
+        title = (product.get("ad_title") or product["name"]).strip()
+        product["description"] = _description_for_preview(product["name"], title, product.get("price"))
+        product["details"] = _product_details(product["name"], [Path(p) for p in product.get("photos", [])])
+        if "photoOrder" in item and isinstance(item["photoOrder"], list):
+            _reorder_photos(product, [str(token) for token in item["photoOrder"]])
+        if "movePhoto" in item and isinstance(item["movePhoto"], dict):
+            move = item["movePhoto"]
+            _move_photo(product, str(move.get("token", "")), str(move.get("direction", "")))
     ids = {int(i) for i in payload.get("ids", [])}
     if "bulkOriginalTitle" in payload:
         for index, product in enumerate(products, 1):
@@ -179,6 +260,13 @@ def update_session(session_id: str, payload: dict) -> dict:
     return _public_state(state)
 
 
+def _replace_phone(xml: str, phone: str) -> str:
+    clean = re.sub(r"[^\d+]", "", phone.strip())
+    if not clean:
+        raise SystemExit("Введите номер телефона")
+    return re.sub(r"<ContactPhone>.*?</ContactPhone>", f"<ContactPhone>{clean}</ContactPhone>", xml)
+
+
 async def _image_urls(client: YandexDiskClient | None, product_name: str, photos: list[Path]) -> list[str]:
     if client is None:
         return [photo.resolve().as_uri() for photo in photos]
@@ -190,7 +278,7 @@ async def _image_urls(client: YandexDiskClient | None, product_name: str, photos
     )
 
 
-def generate_xml(session_id: str) -> dict:
+def generate_xml(session_id: str, phone: str | None = None) -> dict:
     state_path = _session_dir(session_id) / "state.json"
     state = _read_json(state_path)
     products = [p for p in state["products"] if not p.get("deleted")]
@@ -224,21 +312,30 @@ def generate_xml(session_id: str) -> dict:
         price = int(product["price"])
         color = color_detector.detect(f"{name} {title}")
         price_fmt = f"{price:,}".replace(",", " ")
-        text = description.render(title=name, color=color, price=price_fmt, design="")
         brand = detect_brand(name, brands)
         base_extra = product_extra(f"{name} {title}", sizes[idx - 1])
         photos = [Path(p) for p in product.get("photos", [])]
+        text = description.render(title=name, color=color, price=price_fmt, design="")
+        product["description"] = text
+        product["details"] = _product_details(name, photos)
         images = asyncio.run(_image_urls(yd, name, photos))
         for location_index, extra in enumerate(location_extras(locations, base_extra), 1):
             ad_number = (idx - 1) * len(locations) + location_index
             ads.append(AvitoAd(ad_id=make_ad_id(id_prefix, ad_number), title=title, price=price, description=text, color=color, images=images, brand=brand, extra=extra))
-    xml_bytes = xml_gen.build(ads)
-    out_path = _session_dir(session_id) / f"avito_{int(time.time())}.xml"
+    xml_text = xml_gen.build(ads).decode("utf-8")
+    if phone:
+        xml_text = _replace_phone(xml_text, phone)
+    xml_bytes = xml_text.encode("utf-8")
+    suffix = "_phone" if phone else ""
+    out_path = _session_dir(session_id) / f"avito_{int(time.time())}{suffix}.xml"
     out_path.write_bytes(xml_bytes)
-    state["progress"] = [*state.get("progress", []), f"XML создан: {len(ads)} объявлений"][-12:]
+    message = f"XML создан: {len(ads)} объявлений"
+    if phone:
+        message = f"XML с новым телефоном создан: {len(ads)} объявлений"
+    state["progress"] = [*state.get("progress", []), message][-12:]
     state["last_xml"] = str(out_path)
     _write_json(state_path, state)
-    return {"filename": out_path.name, "xml": xml_bytes.decode("utf-8"), "ads": len(ads), "products": len(products)}
+    return {"filename": out_path.name, "xml": xml_text, "ads": len(ads), "products": len(products)}
 
 
 def main() -> None:
@@ -248,7 +345,7 @@ def main() -> None:
     p_link = sub.add_parser("link"); p_link.add_argument("url")
     p_state = sub.add_parser("state"); p_state.add_argument("session_id")
     p_update = sub.add_parser("update"); p_update.add_argument("session_id"); p_update.add_argument("payload")
-    p_xml = sub.add_parser("xml"); p_xml.add_argument("session_id")
+    p_xml = sub.add_parser("xml"); p_xml.add_argument("session_id"); p_xml.add_argument("--phone", default="")
     p_photo = sub.add_parser("photo"); p_photo.add_argument("token")
     args = parser.parse_args()
     if args.cmd == "create":
@@ -260,7 +357,7 @@ def main() -> None:
     elif args.cmd == "update":
         print(json.dumps(update_session(args.session_id, json.loads(args.payload)), ensure_ascii=False))
     elif args.cmd == "xml":
-        print(json.dumps(generate_xml(args.session_id), ensure_ascii=False))
+        print(json.dumps(generate_xml(args.session_id, args.phone or None), ensure_ascii=False))
     elif args.cmd == "photo":
         path = _photo_path(args.token).resolve()
         if path.suffix.lower() not in IMAGE_EXTENSIONS or not path.exists():

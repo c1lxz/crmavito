@@ -21,8 +21,18 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("deleteSelected");
     expect(clientSource).toContain("Как на Avito");
     expect(clientSource).toContain("firstPhoto");
-    expect(clientSource).toContain("lg:grid-cols-[minmax(0,1fr)_420px]");
-    expect(clientSource).toContain("xl:grid-cols-2");
-    expect(clientSource).toContain("lg:sticky lg:top-28");
+    expect(clientSource).toContain("setPhonePromptOpen(true)");
+    expect(clientSource).toContain("movePhoto");
+    expect(clientSource).toContain("PanelTop");
+    expect(clientSource).toContain("Описание");
+    expect(clientSource).toContain("fixed inset-0 z-50");
+    expect(clientSource).toContain("cursor-pointer");
+    expect(clientSource).not.toContain("<Eye");
+  });
+
+  it("requests duplicate XML with a replacement phone", () => {
+    expect(clientSource).toContain("JSON.stringify({ phone })");
+    expect(clientSource).toContain("Создать XML с другим телефоном?");
+    expect(clientSource).toContain("Скачать");
   });
 });

@@ -14,6 +14,8 @@ export interface BotvProduct {
   photoCount: number;
   firstPhoto: string | null;
   photos: string[];
+  description: string;
+  details: Record<string, string | number>;
 }
 
 export interface BotvSession {
@@ -62,8 +64,10 @@ export async function updateSession(id: string, payload: unknown): Promise<BotvS
   return JSON.parse(await runCli(["update", id, JSON.stringify(payload)])) as BotvSession;
 }
 
-export async function buildXml(id: string): Promise<{ filename: string; xml: string; ads: number; products: number }> {
-  return JSON.parse(await runCli(["xml", id]));
+export async function buildXml(id: string, phone?: string): Promise<{ filename: string; xml: string; ads: number; products: number }> {
+  const args = ["xml", id];
+  if (phone?.trim()) args.push("--phone", phone.trim());
+  return JSON.parse(await runCli(args));
 }
 
 export async function resolvePhoto(token: string): Promise<string> {

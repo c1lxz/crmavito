@@ -147,7 +147,7 @@ from handlers.drop import (
     _parse_title_and_price,
     _product_prices,
 )
-from handlers.common import MINI_APP_BUTTON_TEXT, START_BUTTON_TEXT, START_KEYBOARD
+from handlers.common import MINI_APP_BUTTON_TEXT, MINI_APP_WINDOW_KEYBOARD, MINI_APP_WINDOW_TEXT, START_BUTTON_TEXT, START_KEYBOARD
 from config import Config, DEFAULT_MAX_ARCHIVE_MB
 
 
@@ -406,6 +406,13 @@ def test_start_keyboard_has_mini_app_button():
     assert button.text == MINI_APP_BUTTON_TEXT
     assert button.web_app is not None
     assert button.web_app.url.endswith("/v")
+
+
+def test_window_keyboard_uses_url_button():
+    button = MINI_APP_WINDOW_KEYBOARD.inline_keyboard[0][0]
+    assert button.text == MINI_APP_WINDOW_TEXT
+    assert button.url.endswith("/v")
+    assert button.web_app is None
 
 
 def test_xml_title_is_independent_from_description_name():

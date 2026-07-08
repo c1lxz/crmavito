@@ -2,13 +2,15 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
+  ArrowLeft,
+  ArrowRight,
   Check,
   Download,
-  Eye,
   FileArchive,
   ImageIcon,
   Loader2,
   Package,
+  PanelTop,
   Search,
   Trash2,
   UploadCloud,
@@ -35,30 +37,30 @@ function photoUrl(sessionId: string, token: string | null) {
 function ListingPreview({ product, sessionId }: { product: BotvProduct | null; sessionId: string | null }) {
   if (!product || !sessionId) {
     return (
-      <Card className="lg:sticky lg:top-28">
+      <Card>
         <CardContent className="flex min-h-[360px] flex-col items-center justify-center p-6 text-center text-muted-foreground">
-          <Eye className="mb-3 h-9 w-9 opacity-50" />
+          <ImageIcon className="mb-3 h-9 w-9 opacity-50" />
           <p className="text-sm font-semibold text-foreground">Предпросмотр</p>
-          <p className="mt-1 text-xs">Выбери объявление в списке, чтобы увидеть карточку Avito.</p>
+          <p className="mt-1 text-xs">Нажми на карточку объявления, чтобы увидеть вид Avito.</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="lg:sticky lg:top-28">
-      <CardContent className="space-y-4 p-4">
+    <Card className="max-h-[calc(100vh-2rem)] overflow-y-auto">
+      <CardContent className="space-y-4 p-4 sm:p-5">
         <div>
           <p className="text-xs font-medium uppercase text-muted-foreground">Как на Avito</p>
-          <h2 className="mt-1 text-base font-semibold leading-tight">{product.adTitle}</h2>
+          <h2 className="mt-1 text-xl font-semibold leading-tight">{product.adTitle}</h2>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex snap-x gap-2 overflow-x-auto pb-1">
           {product.photos.length > 0 ? (
             product.photos.map((token) => (
               <img
                 key={token}
                 src={photoUrl(sessionId, token)}
-                className="h-64 w-full min-w-72 rounded-md object-cover lg:h-72"
+                className="h-72 w-full min-w-full snap-center rounded-md object-cover sm:h-96"
                 alt=""
               />
             ))
@@ -77,6 +79,18 @@ function ListingPreview({ product, sessionId }: { product: BotvProduct | null; s
             {product.deleted && <span className="text-destructive">Удалено из XML</span>}
           </div>
         </div>
+        <div className="grid gap-2 rounded-md border border-border/80 bg-muted/35 p-3 text-sm sm:grid-cols-2">
+          <div><span className="text-muted-foreground">Категория: </span>{product.details.category || "Одежда"}</div>
+          <div><span className="text-muted-foreground">Цвет: </span>{product.details.color || "Не указан"}</div>
+          <div><span className="text-muted-foreground">Размер: </span>{product.details.size || "Без размера"}</div>
+          <div><span className="text-muted-foreground">Состояние: </span>{product.details.condition || "Новое"}</div>
+          <div><span className="text-muted-foreground">Тип: </span>{product.details.goodsType || "Мужская одежда"}</div>
+          <div><span className="text-muted-foreground">Адрес: </span>{product.details.location || "Москва"}</div>
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-semibold">Описание</p>
+          <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground">{product.description || "Описание будет сформировано при создании XML."}</p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -92,6 +106,8 @@ export function BotvMiniApp() {
   const [bulkPrice, setBulkPrice] = useState("");
   const [diskLink, setDiskLink] = useState("");
   const [preview, setPreview] = useState<BotvProduct | null>(null);
+  const [phonePromptOpen, setPhonePromptOpen] = useState(false);
+  const [replacementPhone, setReplacementPhone] = useState("");
 
   const products = session?.products ?? [];
   const filtered = useMemo(() => {
@@ -102,7 +118,6 @@ export function BotvMiniApp() {
   }, [products, query]);
   const selectedIds = Array.from(selected);
   const allVisibleSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.index));
-  const desktopPreview = preview ?? filtered.find((product) => !product.deleted) ?? filtered[0] ?? null;
 
   async function uploadLink() {
     if (!diskLink.trim()) return;
@@ -145,11 +160,15 @@ export function BotvMiniApp() {
     setStatus("ready");
   }
 
-  async function generateXml() {
+  async function downloadXml(phone?: string) {
     if (!session) return;
     setStatus("generating");
     setError("");
-    const res = await fetch(`/api/botv/session/${session.id}/xml`, { method: "POST" });
+    const res = await fetch(`/api/botv/session/${session.id}/xml`, {
+      method: "POST",
+      headers: phone ? { "content-type": "application/json" } : undefined,
+      body: phone ? JSON.stringify({ phone }) : undefined,
+    });
     if (!res.ok) {
       const data = await res.json();
       throw new Error(data.error ?? "Не удалось собрать XML");
@@ -162,6 +181,11 @@ export function BotvMiniApp() {
     a.click();
     URL.revokeObjectURL(url);
     setStatus("ready");
+  }
+
+  async function generateXml() {
+    await downloadXml();
+    setPhonePromptOpen(true);
   }
 
   async function run(action: () => Promise<void>) {
@@ -180,6 +204,29 @@ export function BotvMiniApp() {
       else next.add(index);
       return next;
     });
+  }
+
+  function openPreview(product: BotvProduct) {
+    setPreview(product);
+  }
+
+  async function movePhoto(product: BotvProduct, token: string, direction: "first" | "left" | "right") {
+    await patch({ products: [{ index: product.index, movePhoto: { token, direction } }] });
+    setPreview((current) => current && current.index === product.index ? {
+      ...current,
+      photos: reorderTokens(current.photos, token, direction),
+      firstPhoto: reorderTokens(current.photos, token, direction)[0] ?? null,
+    } : current);
+  }
+
+  function reorderTokens(tokens: string[], token: string, direction: "first" | "left" | "right") {
+    const next = [...tokens];
+    const index = next.indexOf(token);
+    if (index < 0) return next;
+    const [item] = next.splice(index, 1);
+    const target = direction === "first" ? 0 : direction === "left" ? Math.max(0, index - 1) : Math.min(next.length, index + 1);
+    next.splice(target, 0, item);
+    return next;
   }
 
   return (
@@ -222,7 +269,7 @@ export function BotvMiniApp() {
         </div>
       )}
 
-      <div className="app-content mx-auto grid w-full max-w-[1600px] gap-4 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:px-8">
+      <div className="app-content mx-auto w-full max-w-[1600px] lg:px-8">
         <div className="space-y-3">
           {!session && (
             <Card><CardContent className="p-6 text-center lg:p-10">
@@ -235,7 +282,7 @@ export function BotvMiniApp() {
           {error && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
           {session && (
-            <Card className="lg:sticky lg:top-24 lg:z-20"><CardContent className="space-y-3 p-3">
+            <Card className="sticky top-[132px] z-20 lg:top-[142px]"><CardContent className="space-y-3 p-3">
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={() => setSelected(allVisibleSelected ? new Set() : new Set(filtered.map((p) => p.index)))}>{allVisibleSelected ? "Снять выбор" : "Выбрать видимые"}</Button>
                 <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, bulkOriginalTitle: true }))}><Check className="h-4 w-4" /> Название из папки</Button>
@@ -248,42 +295,76 @@ export function BotvMiniApp() {
             </CardContent></Card>
           )}
 
-          <div className="grid gap-3 xl:grid-cols-2">
+          <div className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-3">
             {filtered.map((product) => (
-              <Card key={product.id} className={product.deleted ? "opacity-45" : "transition-colors hover:border-primary/25 hover:bg-accent/45"}>
+              <Card key={product.id} className={product.deleted ? "opacity-45" : "cursor-pointer transition-colors hover:border-primary/25 hover:bg-accent/45"} onClick={() => openPreview(product)}>
                 <CardContent className="flex gap-3 p-3">
-                  <button className="mt-4 h-5 w-5 rounded border border-input text-xs" onClick={() => toggle(product.index)}>{selected.has(product.index) ? "✓" : ""}</button>
-                  <button className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted" onClick={() => setPreview(product)}>
+                  <button className="mt-4 h-5 w-5 rounded border border-input text-xs" onClick={(e) => { e.stopPropagation(); toggle(product.index); }}>{selected.has(product.index) ? "✓" : ""}</button>
+                  <button className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted" onClick={(e) => { e.stopPropagation(); openPreview(product); }}>
                     {product.firstPhoto && session ? <img src={photoUrl(session.id, product.firstPhoto)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>}
                   </button>
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex gap-2">
                       <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">#{product.index} {product.name}</p><p className="text-xs text-muted-foreground">{product.photoCount} фото · {formatRub(product.price)}</p></div>
-                      <Button size="icon" variant="ghost" onClick={() => setPreview(product)}><Eye className="h-4 w-4" /></Button>
                     </div>
-                    <Input value={product.adTitle} disabled={product.useOriginalTitle || product.deleted} onChange={(e) => setSession((s) => s && ({ ...s, products: s.products.map((p) => p.index === product.index ? { ...p, adTitle: e.target.value } : p) }))} onBlur={() => run(() => patch({ products: [{ index: product.index, adTitle: product.adTitle }] }))} />
+                    <Input value={product.adTitle} disabled={product.useOriginalTitle || product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => setSession((s) => s && ({ ...s, products: s.products.map((p) => p.index === product.index ? { ...p, adTitle: e.target.value } : p) }))} onBlur={() => run(() => patch({ products: [{ index: product.index, adTitle: product.adTitle }] }))} />
                     <div className="flex gap-2">
-                      <Input inputMode="numeric" placeholder="Цена" value={product.price ?? ""} disabled={product.deleted} onChange={(e) => setSession((s) => s && ({ ...s, products: s.products.map((p) => p.index === product.index ? { ...p, price: e.target.value ? Number(e.target.value) : null } : p) }))} onBlur={() => run(() => patch({ products: [{ index: product.index, price: product.price }] }))} />
-                      <Button size="icon" variant={product.useOriginalTitle ? "default" : "outline"} onClick={() => run(() => patch({ products: [{ index: product.index, useOriginalTitle: !product.useOriginalTitle }] }))}><Package className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="outline" onClick={() => run(() => patch({ products: [{ index: product.index, deleted: !product.deleted }] }))}>{product.deleted ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}</Button>
+                      <Input inputMode="numeric" placeholder="Цена" value={product.price ?? ""} disabled={product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => setSession((s) => s && ({ ...s, products: s.products.map((p) => p.index === product.index ? { ...p, price: e.target.value ? Number(e.target.value) : null } : p) }))} onBlur={() => run(() => patch({ products: [{ index: product.index, price: product.price }] }))} />
+                      <Button size="icon" variant={product.useOriginalTitle ? "default" : "outline"} onClick={(e) => { e.stopPropagation(); run(() => patch({ products: [{ index: product.index, useOriginalTitle: !product.useOriginalTitle }] })); }}><Package className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="outline" onClick={(e) => { e.stopPropagation(); run(() => patch({ products: [{ index: product.index, deleted: !product.deleted }] })); }}>{product.deleted ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}</Button>
                     </div>
+                    {product.photos.length > 1 && (
+                      <div className="flex gap-1 overflow-x-auto pb-1" onClick={(e) => e.stopPropagation()}>
+                        {product.photos.slice(0, 8).map((token, photoIndex) => (
+                          <div key={token} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+                            {session && <img src={photoUrl(session.id, token)} alt="" className="h-full w-full object-cover" />}
+                            <span className="absolute left-1 top-1 rounded bg-background/85 px-1 text-[10px] font-semibold">{photoIndex + 1}</span>
+                            <div className="absolute inset-x-0 bottom-0 flex justify-center gap-0.5 bg-background/80 p-0.5">
+                              <button title="Сделать первой" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "first"))}><PanelTop className="h-3 w-3" /></button>
+                              <button title="Сдвинуть влево" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "left"))}><ArrowLeft className="h-3 w-3" /></button>
+                              <button title="Сдвинуть вправо" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "right"))}><ArrowRight className="h-3 w-3" /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         </div>
-
-        <aside className="hidden lg:block">
-          <ListingPreview product={desktopPreview} sessionId={session?.id ?? null} />
-        </aside>
       </div>
 
       {preview && session && (
-        <div className="fixed inset-0 z-50 bg-background/85 p-4 backdrop-blur-sm lg:hidden" onClick={() => setPreview(null)}>
-          <div onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/85 p-3 pt-6 backdrop-blur-sm sm:p-6" onClick={() => setPreview(null)}>
+          <div className="w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => setPreview(null)}><X className="h-4 w-4" /> Закрыть</Button>
+            </div>
             <ListingPreview product={preview} sessionId={session.id} />
           </div>
+        </div>
+      )}
+
+      {phonePromptOpen && session && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 p-4 backdrop-blur-sm" onClick={() => setPhonePromptOpen(false)}>
+          <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <CardContent className="space-y-4 p-5">
+              <div>
+                <p className="text-base font-semibold">Создать XML с другим телефоном?</p>
+                <p className="mt-1 text-sm text-muted-foreground">Будет взят такой же XML, но номер телефона заменится во всех объявлениях.</p>
+              </div>
+              <Input placeholder="+7 999 000 00 00" value={replacementPhone} onChange={(e) => setReplacementPhone(e.target.value)} />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setPhonePromptOpen(false)}>Не нужно</Button>
+                <Button disabled={!replacementPhone.trim() || status === "generating"} onClick={() => run(async () => { await downloadXml(replacementPhone); setPhonePromptOpen(false); setReplacementPhone(""); })}>
+                  {status === "generating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Скачать
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

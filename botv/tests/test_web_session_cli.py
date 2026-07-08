@@ -45,3 +45,29 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert xml["ads"] == 3
     assert "Product Black" in xml["xml"]
     assert "Product White" not in xml["xml"]
+
+    phone_xml = _run_cli("xml", state["id"], "--phone", "+7 999 111-22-33")
+    assert "+79991112233" in phone_xml["xml"]
+    assert "+7 900 000 00 00" not in phone_xml["xml"]
+
+
+def test_web_session_photo_reorder(tmp_path):
+    archive = tmp_path / "drop.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("Drop/Product Black/one.jpg", b"jpg")
+        zf.writestr("Drop/Product Black/two.jpg", b"jpg")
+        zf.writestr("Drop/Product Black/three.jpg", b"jpg")
+
+    state = _run_cli("create", str(archive), "drop.zip")
+    product = state["products"][0]
+    assert product["photoCount"] == 3
+    third = product["photos"][2]
+
+    updated = _run_cli("update", state["id"], json.dumps({
+        "products": [{"index": 1, "movePhoto": {"token": third, "direction": "first"}}],
+    }, ensure_ascii=False))
+
+    assert updated["products"][0]["photos"][0] == third
+    assert updated["products"][0]["firstPhoto"] == third
+    assert updated["products"][0]["description"]
+    assert updated["products"][0]["details"]["photos"] == 3
