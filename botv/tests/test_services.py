@@ -139,7 +139,14 @@ def test_brand_does_not_match_model_word():
 # ---------------------------------------------------------------------------
 
 from services.xml_generator import AvitoAd, XmlGenerator
-from handlers.drop import _ad_titles_keyboard, _format_product_list, _missing_ad_title_indices
+from handlers.drop import (
+    _ad_titles_keyboard,
+    _format_product_list,
+    _missing_ad_title_indices,
+    _missing_price_indices,
+    _parse_title_and_price,
+    _product_prices,
+)
 from handlers.common import START_BUTTON_TEXT, START_KEYBOARD
 from config import Config, DEFAULT_MAX_ARCHIVE_MB
 
@@ -342,6 +349,30 @@ def test_ad_title_keyboard_is_removed_when_all_titles_completed():
     ]
 
     assert _ad_titles_keyboard(products) is None
+
+
+def test_parse_title_and_price_from_two_lines():
+    assert _parse_title_and_price("Футболка Oversize Black\n3 290 ₽") == (
+        "Футболка Oversize Black",
+        3290,
+    )
+
+
+def test_parse_title_and_price_requires_two_lines():
+    assert _parse_title_and_price("Футболка Oversize Black") is None
+
+
+def test_product_prices_include_button_prices():
+    products = [
+        {"name": "Товар 1", "ad_title": "Объявление 1", "price": 3290},
+        {"name": "Товар 2", "ad_title": "Объявление 2", "price": None},
+    ]
+
+    assert _missing_price_indices(products) == [2]
+    assert _product_prices(products, {"Товар 2": 4490}) == {
+        "Товар 1": 3290,
+        "Товар 2": 4490,
+    }
 
 
 def test_default_archive_limit_is_1536_mb(monkeypatch):

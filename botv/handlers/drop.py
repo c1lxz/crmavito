@@ -115,6 +115,38 @@ def _missing_ad_title_indices(products: list[dict]) -> list[int]:
     ]
 
 
+def _missing_price_indices(products: list[dict]) -> list[int]:
+    return [
+        i for i, product in enumerate(products, 1)
+        if product.get("price") is None
+    ]
+
+
+def _parse_title_and_price(text: str) -> tuple[str, int] | None:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return None
+
+    title = lines[0]
+    price_match = re.search(r"\d[\d\s.,]*", lines[1])
+    if not title or price_match is None:
+        return None
+
+    price_raw = re.sub(r"\D", "", price_match.group(0))
+    if not price_raw:
+        return None
+
+    return title, int(price_raw)
+
+
+def _product_prices(products: list[dict], parsed_prices: dict[str, int] | None = None) -> dict[str, int]:
+    prices: dict[str, int] = dict(parsed_prices or {})
+    for product in products:
+        if product.get("price") is not None:
+            prices[product["name"]] = int(product["price"])
+    return prices
+
+
 # ------------- 1) Приём архива -------------
 
 @router.message(DropStates.waiting_archive, F.document)
@@ -206,8 +238,8 @@ async def on_archive(message: Message, state: FSMContext, bot: Bot) -> None:
     await status.edit_text(
         f"{_format_product_list(state_products)}\n\n"
         f"<b>{len(products)}</b> товаров, <b>{total_photos}</b> фото.\n\n"
-        "Сначала задай название объявления для каждого товара кнопками ниже. "
-        "После этого пришли цены по порядку, каждая с новой строки.",
+        "Сначала задай название и цену объявления для каждого товара кнопками ниже: "
+        "первая строка — название, вторая — цена.",
         reply_markup=kb,
     )
 
@@ -310,8 +342,8 @@ async def on_disk_link(message: Message, state: FSMContext) -> None:
     await status.edit_text(
         f"{_format_product_list(state_products)}\n\n"
         f"<b>{len(products)}</b> товаров, <b>{total_photos}</b> фото.\n\n"
-        "Сначала задай название объявления для каждого товара кнопками ниже. "
-        "После этого пришли цены по порядку, каждая с новой строки.",
+        "Сначала задай название и цену объявления для каждого товара кнопками ниже: "
+        "первая строка — название, вторая — цена.",
         reply_markup=kb,
     )
 
@@ -363,7 +395,9 @@ async def on_rename_button(callback: CallbackQuery, state: FSMContext) -> None:
     )
     await state.set_state(DropStates.waiting_rename)
     await callback.message.answer(
-        f"Введи название объявления для #{idx}.\n"
+        f"Введи название объявления и цену для #{idx}:\n"
+        "1 строка — название объявления\n"
+        "2 строка — цена\n\n"
         f"Название в описании останется прежним: "
         f"<b>{escape(products[idx - 1]['name'])}</b>"
     )
@@ -380,17 +414,24 @@ async def on_rename_text(message: Message, state: FSMContext) -> None:
         await state.set_state(DropStates.waiting_prices)
         return
 
-    new_title = message.text.strip()
-    if not new_title:
-        await message.answer("Название объявления не может быть пустым.")
+    parsed = _parse_title_and_price(message.text or "")
+    if parsed is None:
+        await message.answer(
+            "Пришли двумя строками: название объявления и цену.\n"
+            "Например:\n"
+            "Футболка Oversize Black\n"
+            "3290"
+        )
         return
+
+    new_title, price = parsed
     if len(new_title) > 50:
         await message.answer(
             f"Название слишком длинное: {len(new_title)} символов. Максимум — 50."
         )
         return
 
-    products[idx - 1] = {**products[idx - 1], "ad_title": new_title}
+    products[idx - 1] = {**products[idx - 1], "ad_title": new_title, "price": price}
     await state.update_data(products=products, rename_idx=None)
     await state.set_state(DropStates.waiting_prices)
 
@@ -407,13 +448,14 @@ async def on_rename_text(message: Message, state: FSMContext) -> None:
         pass
 
     missing_count = sum(not (p.get("ad_title") or "").strip() for p in products)
+    missing_price_count = len(_missing_price_indices(products))
     next_step = (
-        f"Осталось задать названий: <b>{missing_count}</b>."
-        if missing_count
-        else "Все названия заданы. Теперь пришли цены по порядку, каждая с новой строки."
+        f"Осталось заполнить: <b>{missing_count}</b> названий и <b>{missing_price_count}</b> цен."
+        if missing_count or missing_price_count
+        else "Все названия и цены заданы. Можно прислать любое сообщение, чтобы начать сборку XML."
     )
     await message.answer(
-        f"✅ Объявление #{idx} → «{escape(new_title)}»\n\n"
+        f"✅ Объявление #{idx} → «{escape(new_title)}», цена {price}\n\n"
         f"{_format_product_list(products)}\n\n"
         f"<b>{len(products)}</b> товаров, <b>{total_photos}</b> фото.\n\n"
         f"{next_step}",
@@ -437,30 +479,40 @@ async def on_prices(message: Message, state: FSMContext, bot: Bot, brands: list[
     if missing_titles:
         numbers = ", ".join(f"#{i}" for i in missing_titles)
         await message.answer(
-            f"⚠️ Сначала задай названия всех объявлений. Не заполнены: {numbers}.",
+            f"⚠️ Сначала задай названия и цены всех объявлений. Не заполнены: {numbers}.",
             reply_markup=_ad_titles_keyboard(products),
         )
         return
 
-    names = [p["name"] for p in products]
-    result = parse_prices(message.text or "", names)
+    missing_prices = _missing_price_indices(products)
+    prices_map = _product_prices(products)
+    if missing_prices:
+        products_without_prices = [products[i - 1] for i in missing_prices]
+        names = [p["name"] for p in products_without_prices]
+        result = parse_prices(message.text or "", names)
 
-    if result.missing:
-        missing_txt = "\n".join(f"• {escape(n)}" for n in result.missing)
-        unmatched_txt = ""
-        if result.unmatched_lines:
-            unmatched_txt = "\n\nНе распознал строки:\n" + "\n".join(
-                f"• <code>{escape(x)}</code>" for x in result.unmatched_lines
+        if result.missing:
+            missing_txt = "\n".join(f"• {escape(n)}" for n in result.missing)
+            unmatched_txt = ""
+            if result.unmatched_lines:
+                unmatched_txt = "\n\nНе распознал строки:\n" + "\n".join(
+                    f"• <code>{escape(x)}</code>" for x in result.unmatched_lines
+                )
+            await message.answer(
+                "⚠️ Не хватает цен для товаров:\n"
+                f"{missing_txt}"
+                f"{unmatched_txt}\n\n"
+                "Можно задать цену через кнопку товара или прислать список недостающих цен."
             )
-        await message.answer(
-            "⚠️ Не хватает цен для товаров:\n"
-            f"{missing_txt}"
-            f"{unmatched_txt}\n\n"
-            "Пришли полный список ещё раз."
-        )
-        return
+            return
 
-    prices_map = {m.product_name: m.price for m in result.matched}
+        parsed_prices = {m.product_name: m.price for m in result.matched}
+        prices_map.update(parsed_prices)
+        for product in products:
+            if product["name"] in parsed_prices:
+                product["price"] = parsed_prices[product["name"]]
+        await state.update_data(products=products)
+
     await state.update_data(prices=prices_map)
 
     colors, missing_indices = await _detect_colors(message, products)
