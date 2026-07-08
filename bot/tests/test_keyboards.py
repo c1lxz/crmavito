@@ -1,0 +1,12 @@
+from __future__ import annotations
+
+from utils.keyboards import BTN_MINI_APP, main_menu
+
+
+def test_main_menu_has_crm_mini_app_button():
+    keyboard = main_menu()
+    button = keyboard.keyboard[0][0]
+
+    assert button.text == BTN_MINI_APP
+    assert button.web_app is not None
+    assert button.web_app.url == "https://crmavito.duckdns.org"

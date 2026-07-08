@@ -49,6 +49,9 @@ class Config:
     counterparty: str = field(
         default_factory=lambda: os.getenv("COUNTERPARTY", "")
     )
+    mini_app_url: str = field(
+        default_factory=lambda: os.getenv("CRM_MINI_APP_URL", "https://crmavito.duckdns.org")
+    )
 
     # Таймаут ожидания второго фото (секунды)
     photo_wait_timeout: int = 300

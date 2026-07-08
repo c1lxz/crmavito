@@ -55,6 +55,9 @@ class Config:
     max_archive_mb: int = field(
         default_factory=lambda: int(os.getenv("MAX_ARCHIVE_MB", str(DEFAULT_MAX_ARCHIVE_MB)))
     )
+    mini_app_url: str = field(
+        default_factory=lambda: os.getenv("BOTV_MINI_APP_URL", "https://crmavito.duckdns.org/v")
+    )
 
     gigachat_credentials: str = field(
         default_factory=lambda: os.getenv("GIGACHAT_CREDENTIALS", "")

@@ -7,12 +7,14 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    WebAppInfo,
 )
 
-from config import EDITABLE_FIELDS
+from config import EDITABLE_FIELDS, config
 
 BTN_NEW_ORDER = "➕ Новый заказ"
 BTN_SEARCH = "🔍 Поиск по трек-номеру"
+BTN_MINI_APP = "Открыть CRM mini app"
 
 ORDER_STATUSES = ["Отправлен", "Получен", "На возврате", "Отменён"]
 PAYMENT_STATUSES = ["Оплачено", "Не оплачено"]
@@ -21,6 +23,7 @@ PAYMENT_STATUSES = ["Оплачено", "Не оплачено"]
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
+            [KeyboardButton(text=BTN_MINI_APP, web_app=WebAppInfo(url=config.mini_app_url))],
             [KeyboardButton(text=BTN_NEW_ORDER)],
             [KeyboardButton(text=BTN_SEARCH)],
         ],

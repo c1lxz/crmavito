@@ -3,8 +3,9 @@ from __future__ import annotations
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup, WebAppInfo
 
+from config import config
 from utils.states import DropStates
 
 router = Router()
@@ -15,8 +16,12 @@ WELCOME = (
 )
 
 START_BUTTON_TEXT = "🚀 Начать"
+MINI_APP_BUTTON_TEXT = "Открыть mini app"
 START_KEYBOARD = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text=START_BUTTON_TEXT)]],
+    keyboard=[
+        [KeyboardButton(text=MINI_APP_BUTTON_TEXT, web_app=WebAppInfo(url=config.mini_app_url))],
+        [KeyboardButton(text=START_BUTTON_TEXT)],
+    ],
     resize_keyboard=True,
     is_persistent=True,
     one_time_keyboard=False,

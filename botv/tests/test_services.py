@@ -147,7 +147,7 @@ from handlers.drop import (
     _parse_title_and_price,
     _product_prices,
 )
-from handlers.common import START_BUTTON_TEXT, START_KEYBOARD
+from handlers.common import MINI_APP_BUTTON_TEXT, START_BUTTON_TEXT, START_KEYBOARD
 from config import Config, DEFAULT_MAX_ARCHIVE_MB
 
 
@@ -398,7 +398,14 @@ def test_large_product_list_fits_telegram_message():
 def test_start_keyboard_is_persistent():
     assert START_KEYBOARD.is_persistent is True
     assert START_KEYBOARD.one_time_keyboard is False
-    assert START_KEYBOARD.keyboard[0][0].text == START_BUTTON_TEXT
+    assert START_KEYBOARD.keyboard[1][0].text == START_BUTTON_TEXT
+
+
+def test_start_keyboard_has_mini_app_button():
+    button = START_KEYBOARD.keyboard[0][0]
+    assert button.text == MINI_APP_BUTTON_TEXT
+    assert button.web_app is not None
+    assert button.web_app.url.endswith("/v")
 
 
 def test_xml_title_is_independent_from_description_name():
