@@ -141,6 +141,7 @@ def test_brand_does_not_match_model_word():
 from services.xml_generator import AvitoAd, XmlGenerator
 from handlers.drop import _format_product_list, _missing_ad_title_indices
 from handlers.common import START_BUTTON_TEXT, START_KEYBOARD
+from config import Config, DEFAULT_MAX_ARCHIVE_MB
 
 
 def _make_xml_generator(
@@ -287,6 +288,12 @@ def test_all_ad_titles_are_required():
         {"name": "Название для описания 2", "ad_title": ""},
     ]
     assert _missing_ad_title_indices(products) == [2]
+
+
+def test_default_archive_limit_is_1536_mb(monkeypatch):
+    monkeypatch.delenv("MAX_ARCHIVE_MB", raising=False)
+    assert DEFAULT_MAX_ARCHIVE_MB == 1536
+    assert Config().max_archive_mb == 1536
 
 
 def test_large_product_list_fits_telegram_message():

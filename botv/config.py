@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_MAX_ARCHIVE_MB = 1536
 
 
 def _require(key: str) -> str:
@@ -52,7 +53,7 @@ class Config:
     )
 
     max_archive_mb: int = field(
-        default_factory=lambda: int(os.getenv("MAX_ARCHIVE_MB", "200"))
+        default_factory=lambda: int(os.getenv("MAX_ARCHIVE_MB", str(DEFAULT_MAX_ARCHIVE_MB)))
     )
 
     gigachat_credentials: str = field(
