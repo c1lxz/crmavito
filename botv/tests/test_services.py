@@ -2,15 +2,62 @@
 from __future__ import annotations
 
 import json
+import asyncio
 import tempfile
 from pathlib import Path
 
 import pytest
+from services.yandex_disk import YandexDiskClient
 
 
 # ---------------------------------------------------------------------------
 # price_parser tests
 # ---------------------------------------------------------------------------
+
+
+class _FakeDiskResponse:
+    def __init__(self, status: int, text: str = "") -> None:
+        self.status = status
+        self._text = text
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def text(self) -> str:
+        return self._text
+
+
+class _FakeDiskSession:
+    def __init__(self) -> None:
+        self.put_calls = 0
+        self.get_calls = 0
+
+    def put(self, *args, **kwargs):
+        self.put_calls += 1
+        if self.put_calls == 1:
+            return _FakeDiskResponse(423, '{"error":"DiskResourceLockedError"}')
+        return _FakeDiskResponse(201)
+
+    def get(self, *args, **kwargs):
+        self.get_calls += 1
+        return _FakeDiskResponse(200)
+
+
+def test_yandex_disk_mkdir_retries_locked_resource(monkeypatch):
+    async def no_sleep(delay):
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    client = YandexDiskClient("token")
+    session = _FakeDiskSession()
+
+    asyncio.run(client._create_dir(session, "Avito"))
+
+    assert session.put_calls == 1
+    assert session.get_calls == 1
 
 from services.price_parser import parse_prices
 from services.ai_description import _clean_design_text, normalize_avito_color

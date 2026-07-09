@@ -39,15 +39,29 @@ class YandexDiskClient:
                 current = f"{current}/{part}" if current else part
                 await self._create_dir(session, current)
 
+    async def _resource_exists(self, session: aiohttp.ClientSession, path: str) -> bool:
+        params = {"path": path, "fields": "type"}
+        async with session.get(f"{API_BASE}/resources", params=params) as resp:
+            return resp.status == 200
+
     async def _create_dir(self, session: aiohttp.ClientSession, path: str) -> None:
         params = {"path": path}
-        async with session.put(f"{API_BASE}/resources", params=params) as resp:
-            if resp.status in (200, 201):
+        last_text = ""
+        last_status = 0
+        for attempt in range(5):
+            async with session.put(f"{API_BASE}/resources", params=params) as resp:
+                if resp.status in (200, 201, 409):
+                    return
+                last_status = resp.status
+                last_text = await resp.text()
+                if resp.status != 423:
+                    break
+            await asyncio.sleep(0.8 * (attempt + 1))
+            if await self._resource_exists(session, path):
                 return
-            if resp.status == 409:  # уже существует
-                return
-            text = await resp.text()
-            raise YandexDiskError(f"mkdir '{path}' failed [{resp.status}]: {text}")
+        if last_status == 423 and await self._resource_exists(session, path):
+            return
+        raise YandexDiskError(f"mkdir '{path}' failed [{last_status}]: {last_text}")
 
     async def upload_file(self, local: Path, remote_path: str, overwrite: bool = True) -> None:
         """Заливает локальный файл в remote_path (полный путь на Диске)."""
