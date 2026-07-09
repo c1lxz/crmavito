@@ -5,15 +5,17 @@ import { describe, expect, it } from "vitest";
 const clientSource = readFileSync(path.resolve(__dirname, "../components/botv/botv-mini-app.tsx"), "utf8");
 const pageSource = readFileSync(path.resolve(__dirname, "../app/v/page.tsx"), "utf8");
 const apiSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/route.ts"), "utf8");
+const aliasSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/work/route.ts"), "utf8");
 
 describe("botv mini app UI", () => {
   it("mounts on /v and uploads archives through botv API", () => {
     expect(pageSource).toContain("BotvMiniApp");
-    expect(clientSource).toContain("/api/botv/session");
+    expect(clientSource).toContain("/v-data/botv/work");
     expect(clientSource).toContain("Ссылка на Яндекс.Диск");
     expect(apiSource).toContain("createSessionFromFile");
     expect(apiSource).toContain("createSessionFromLink");
     expect(apiSource).toContain("listSessions");
+    expect(aliasSource).toContain("@/app/api/botv/session/route");
   });
 
   it("supports the requested listing workflow", () => {
@@ -46,7 +48,7 @@ describe("botv mini app UI", () => {
 
   it("shows saved unfinished sessions", () => {
     expect(clientSource).toContain("История сохранений");
-    expect(clientSource).toContain("/api/botv/session?limit=12");
+    expect(clientSource).toContain("`${BOTV_API_BASE}?limit=12`");
     expect(clientSource).toContain("botv:lastSessionId");
     expect(clientSource).toContain("Можно продолжить работу без созданного XML");
   });
@@ -65,6 +67,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("readJsonResponse");
     expect(clientSource).not.toContain("Failed to fetch");
     expect(clientSource).not.toContain("await fetch(`/api/botv/session/${session.id}`");
+    expect(clientSource).not.toContain('fetch("/api/botv/session');
   });
 
   it("keeps edits fast and avoids per-photo Python hops", () => {

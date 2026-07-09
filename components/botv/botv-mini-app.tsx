@@ -29,9 +29,11 @@ function formatRub(value: number | null) {
   return new Intl.NumberFormat("ru-RU").format(value) + " ₽";
 }
 
+const BOTV_API_BASE = "/v-data/botv/work";
+
 function photoUrl(sessionId: string, token: string | null) {
   return token
-    ? `/api/botv/session/${sessionId}/photo?token=${encodeURIComponent(token)}`
+    ? `${BOTV_API_BASE}/${sessionId}/photo?token=${encodeURIComponent(token)}`
     : "";
 }
 
@@ -190,7 +192,7 @@ export function BotvMiniApp() {
   }
 
   async function refreshHistory() {
-    const res = await apiFetch("/api/botv/session?limit=12");
+    const res = await apiFetch(`${BOTV_API_BASE}?limit=12`);
     if (!res.ok) return;
     const data = await readJsonResponse(res, "Не удалось загрузить историю");
     setHistory(Array.isArray(data.sessions) ? data.sessions : []);
@@ -214,7 +216,7 @@ export function BotvMiniApp() {
   async function openSession(id: string) {
     setStatus("uploading");
     setError("");
-    const res = await apiFetch(`/api/botv/session/${id}`);
+    const res = await apiFetch(`${BOTV_API_BASE}/${id}`);
     const data = await readJsonResponse(res, "Не удалось открыть сохранение");
     if (!res.ok) throw new Error(data.error ?? "Не удалось открыть сохранение");
     rememberSession(data);
@@ -230,7 +232,7 @@ export function BotvMiniApp() {
     setSelected(new Set());
     const form = new FormData();
     form.append("link", diskLink.trim());
-    const res = await apiFetch("/api/botv/session", { method: "POST", body: form });
+    const res = await apiFetch(BOTV_API_BASE, { method: "POST", body: form });
     const data = await readJsonResponse(res, "Не удалось загрузить ссылку");
     if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить ссылку");
     rememberSession(data);
@@ -244,7 +246,7 @@ export function BotvMiniApp() {
     setSelected(new Set());
     const form = new FormData();
     form.append("archive", file);
-    const res = await apiFetch("/api/botv/session", { method: "POST", body: form });
+    const res = await apiFetch(BOTV_API_BASE, { method: "POST", body: form });
     const data = await readJsonResponse(res, "Не удалось загрузить архив");
     if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить архив");
     rememberSession(data);
@@ -255,7 +257,7 @@ export function BotvMiniApp() {
   async function patch(payload: unknown) {
     if (!session) return;
     setStatus("saving");
-    const res = await apiFetch(`/api/botv/session/${session.id}`, {
+    const res = await apiFetch(`${BOTV_API_BASE}/${session.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -271,7 +273,7 @@ export function BotvMiniApp() {
     if (!session) return;
     setStatus("generating");
     setError("");
-    const res = await apiFetch(`/api/botv/session/${session.id}/xml`, {
+    const res = await apiFetch(`${BOTV_API_BASE}/${session.id}/xml`, {
       method: "POST",
       headers: phone ? { "content-type": "application/json" } : undefined,
       body: phone ? JSON.stringify({ phone }) : undefined,
