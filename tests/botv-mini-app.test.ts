@@ -57,4 +57,12 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("setTimeout(() => setHideSavedProgress(true), 5000)");
     expect(clientSource).toContain("visibleProgress.map");
   });
+
+  it("retries transient API fetch failures", () => {
+    expect(clientSource).toContain("async function apiFetch");
+    expect(clientSource).toContain("Сервер временно не ответил");
+    expect(clientSource).toContain("await wait(500 * (attempt + 1))");
+    expect(clientSource).toContain("readJsonResponse");
+    expect(clientSource).not.toContain("await fetch(`/api/botv/session/${session.id}`");
+  });
 });

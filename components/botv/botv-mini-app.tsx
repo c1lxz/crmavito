@@ -45,6 +45,40 @@ function formatDate(value: number | null | undefined) {
   }).format(new Date(value * 1000));
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function apiFetch(input: RequestInfo | URL, init?: RequestInit, retries = 3) {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < retries; attempt += 1) {
+    try {
+      return await fetch(input, init);
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries - 1) {
+        await wait(500 * (attempt + 1));
+      }
+    }
+  }
+  throw new Error(
+    lastError instanceof Error && lastError.message !== "Failed to fetch"
+      ? lastError.message
+      : "Сервер временно не ответил. Попробуй ещё раз.",
+  );
+}
+
+async function readJsonResponse(res: Response, fallback: string) {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (!res.ok) throw new Error(fallback);
+    return {};
+  }
+}
+
 function ListingPreview({ product, sessionId }: { product: BotvProduct | null; sessionId: string | null }) {
   if (!product || !sessionId) {
     return (
@@ -161,9 +195,9 @@ export function BotvMiniApp() {
   }
 
   async function refreshHistory() {
-    const res = await fetch("/api/botv/session?limit=12");
+    const res = await apiFetch("/api/botv/session?limit=12");
     if (!res.ok) return;
-    const data = await res.json();
+    const data = await readJsonResponse(res, "Не удалось загрузить историю");
     setHistory(Array.isArray(data.sessions) ? data.sessions : []);
   }
 
@@ -175,8 +209,8 @@ export function BotvMiniApp() {
   async function openSession(id: string) {
     setStatus("uploading");
     setError("");
-    const res = await fetch(`/api/botv/session/${id}`);
-    const data = await res.json();
+    const res = await apiFetch(`/api/botv/session/${id}`);
+    const data = await readJsonResponse(res, "Не удалось открыть сохранение");
     if (!res.ok) throw new Error(data.error ?? "Не удалось открыть сохранение");
     rememberSession(data);
     setSelected(new Set());
@@ -191,8 +225,8 @@ export function BotvMiniApp() {
     setSelected(new Set());
     const form = new FormData();
     form.append("link", diskLink.trim());
-    const res = await fetch("/api/botv/session", { method: "POST", body: form });
-    const data = await res.json();
+    const res = await apiFetch("/api/botv/session", { method: "POST", body: form });
+    const data = await readJsonResponse(res, "Не удалось загрузить ссылку");
     if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить ссылку");
     rememberSession(data);
     await refreshHistory();
@@ -205,8 +239,8 @@ export function BotvMiniApp() {
     setSelected(new Set());
     const form = new FormData();
     form.append("archive", file);
-    const res = await fetch("/api/botv/session", { method: "POST", body: form });
-    const data = await res.json();
+    const res = await apiFetch("/api/botv/session", { method: "POST", body: form });
+    const data = await readJsonResponse(res, "Не удалось загрузить архив");
     if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить архив");
     rememberSession(data);
     await refreshHistory();
@@ -216,12 +250,12 @@ export function BotvMiniApp() {
   async function patch(payload: unknown) {
     if (!session) return;
     setStatus("saving");
-    const res = await fetch(`/api/botv/session/${session.id}`, {
+    const res = await apiFetch(`/api/botv/session/${session.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
+    const data = await readJsonResponse(res, "Не удалось сохранить");
     if (!res.ok) throw new Error(data.error ?? "Не удалось сохранить");
     rememberSession(data);
     await refreshHistory();
@@ -232,13 +266,13 @@ export function BotvMiniApp() {
     if (!session) return;
     setStatus("generating");
     setError("");
-    const res = await fetch(`/api/botv/session/${session.id}/xml`, {
+    const res = await apiFetch(`/api/botv/session/${session.id}/xml`, {
       method: "POST",
       headers: phone ? { "content-type": "application/json" } : undefined,
       body: phone ? JSON.stringify({ phone }) : undefined,
     });
     if (!res.ok) {
-      const data = await res.json();
+      const data = await readJsonResponse(res, "Не удалось собрать XML");
       throw new Error(data.error ?? "Не удалось собрать XML");
     }
     const blob = await res.blob();
