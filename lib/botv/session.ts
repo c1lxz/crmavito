@@ -21,10 +21,19 @@ export interface BotvProduct {
 export interface BotvSession {
   id: string;
   createdAt: number;
+  updatedAt: number;
   sourceName: string;
   products: BotvProduct[];
   summary: { total: number; active: number; deleted: number; ready: number; photos: number };
   progress: string[];
+}
+
+export interface BotvSessionHistoryItem {
+  id: string;
+  createdAt: number;
+  updatedAt: number;
+  sourceName: string;
+  summary: BotvSession["summary"];
 }
 
 const root = process.cwd();
@@ -58,6 +67,11 @@ export async function createSessionFromLink(link: string): Promise<BotvSession> 
 
 export async function getSession(id: string): Promise<BotvSession> {
   return JSON.parse(await runCli(["state", id])) as BotvSession;
+}
+
+export async function listSessions(limit = 20): Promise<BotvSessionHistoryItem[]> {
+  const raw = JSON.parse(await runCli(["list", "--limit", String(limit)])) as { sessions: BotvSessionHistoryItem[] };
+  return raw.sessions;
 }
 
 export async function updateSession(id: string, payload: unknown): Promise<BotvSession> {

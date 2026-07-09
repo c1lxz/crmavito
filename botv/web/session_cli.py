@@ -79,6 +79,7 @@ def _public_state(state: dict) -> dict:
     return {
         "id": state["id"],
         "createdAt": state.get("created_at"),
+        "updatedAt": state.get("updated_at") or state.get("created_at"),
         "sourceName": state.get("source_name"),
         "products": [_serialize_product(i, p) for i, p in enumerate(products, 1)],
         "summary": {
@@ -134,7 +135,8 @@ def _state_from_root(session_id: str, session_dir: Path, root: Path, source_name
             "details": _product_details(p["name"], photos),
         })
     progress.append(f"Найдено товаров: {len(products)}")
-    state = {"id": session_id, "created_at": int(time.time()), "source_name": source_name, "session_dir": str(session_dir), "root": str(root), "products": products, "progress": progress}
+    now = int(time.time())
+    state = {"id": session_id, "created_at": now, "updated_at": now, "source_name": source_name, "session_dir": str(session_dir), "root": str(root), "products": products, "progress": progress}
     _write_json(session_dir / "state.json", state)
     return _public_state(state)
 
@@ -256,8 +258,31 @@ def update_session(session_id: str, payload: dict) -> dict:
             if index in ids:
                 product["deleted"] = True
     state["progress"] = [*state.get("progress", []), "Изменения сохранены"][-12:]
+    state["updated_at"] = int(time.time())
     _write_json(state_path, state)
     return _public_state(state)
+
+
+def list_sessions(limit: int = 20) -> dict:
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    items: list[dict] = []
+    for state_path in SESSIONS_DIR.glob("*/state.json"):
+        try:
+            state = _read_json(state_path)
+            public = _public_state(state)
+            stat = state_path.stat()
+            updated_at = int(public.get("updatedAt") or stat.st_mtime)
+            items.append({
+                "id": public["id"],
+                "createdAt": public.get("createdAt"),
+                "updatedAt": updated_at,
+                "sourceName": public.get("sourceName"),
+                "summary": public.get("summary"),
+            })
+        except Exception:
+            continue
+    items.sort(key=lambda item: int(item.get("updatedAt") or 0), reverse=True)
+    return {"sessions": items[:limit]}
 
 
 def _replace_phone(xml: str, phone: str) -> str:
@@ -334,6 +359,7 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
         message = f"XML с новым телефоном создан: {len(ads)} объявлений"
     state["progress"] = [*state.get("progress", []), message][-12:]
     state["last_xml"] = str(out_path)
+    state["updated_at"] = int(time.time())
     _write_json(state_path, state)
     return {"filename": out_path.name, "xml": xml_text, "ads": len(ads), "products": len(products)}
 
@@ -344,6 +370,7 @@ def main() -> None:
     p_create = sub.add_parser("create"); p_create.add_argument("archive"); p_create.add_argument("source_name")
     p_link = sub.add_parser("link"); p_link.add_argument("url")
     p_state = sub.add_parser("state"); p_state.add_argument("session_id")
+    p_list = sub.add_parser("list"); p_list.add_argument("--limit", type=int, default=20)
     p_update = sub.add_parser("update"); p_update.add_argument("session_id"); p_update.add_argument("payload")
     p_xml = sub.add_parser("xml"); p_xml.add_argument("session_id"); p_xml.add_argument("--phone", default="")
     p_photo = sub.add_parser("photo"); p_photo.add_argument("token")
@@ -354,6 +381,8 @@ def main() -> None:
         print(json.dumps(create_from_link(args.url), ensure_ascii=False))
     elif args.cmd == "state":
         print(json.dumps(_public_state(_read_json(_session_dir(args.session_id) / "state.json")), ensure_ascii=False))
+    elif args.cmd == "list":
+        print(json.dumps(list_sessions(args.limit), ensure_ascii=False))
     elif args.cmd == "update":
         print(json.dumps(update_session(args.session_id, json.loads(args.payload)), ensure_ascii=False))
     elif args.cmd == "xml":

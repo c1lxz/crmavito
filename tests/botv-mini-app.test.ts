@@ -13,6 +13,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Ссылка на Яндекс.Диск");
     expect(apiSource).toContain("createSessionFromFile");
     expect(apiSource).toContain("createSessionFromLink");
+    expect(apiSource).toContain("listSessions");
   });
 
   it("supports the requested listing workflow", () => {
@@ -34,5 +35,12 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("JSON.stringify({ phone })");
     expect(clientSource).toContain("Создать XML с другим телефоном?");
     expect(clientSource).toContain("Скачать");
+  });
+
+  it("shows saved unfinished sessions", () => {
+    expect(clientSource).toContain("История сохранений");
+    expect(clientSource).toContain("/api/botv/session?limit=12");
+    expect(clientSource).toContain("botv:lastSessionId");
+    expect(clientSource).toContain("Можно продолжить работу без созданного XML");
   });
 });

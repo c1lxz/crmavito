@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
-import { createSessionFromFile, createSessionFromLink } from "@/lib/botv/session";
+import { createSessionFromFile, createSessionFromLink, listSessions } from "@/lib/botv/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const limit = Number(url.searchParams.get("limit") ?? 20);
+    return NextResponse.json({ sessions: await listSessions(Number.isFinite(limit) ? limit : 20) });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Ошибка истории" }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {

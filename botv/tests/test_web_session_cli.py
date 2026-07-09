@@ -71,3 +71,25 @@ def test_web_session_photo_reorder(tmp_path):
     assert updated["products"][0]["firstPhoto"] == third
     assert updated["products"][0]["description"]
     assert updated["products"][0]["details"]["photos"] == 3
+
+
+def test_web_session_history_keeps_unfinished_work(tmp_path):
+    archive = tmp_path / "drop.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("Drop/Product Black/one.jpg", b"jpg")
+
+    state = _run_cli("create", str(archive), "drop.zip")
+    updated = _run_cli("update", state["id"], json.dumps({
+        "products": [{"index": 1, "adTitle": "Saved title", "price": 1990}],
+    }, ensure_ascii=False))
+    history = _run_cli("list", "--limit", "5")
+    saved = next(item for item in history["sessions"] if item["id"] == state["id"])
+
+    assert saved["summary"]["ready"] == 1
+    assert saved["summary"]["active"] == 1
+    assert saved["updatedAt"] >= saved["createdAt"]
+
+    restored = _run_cli("state", state["id"])
+    assert restored["products"][0]["adTitle"] == "Saved title"
+    assert restored["products"][0]["price"] == 1990
+    assert updated["updatedAt"] >= state["createdAt"]

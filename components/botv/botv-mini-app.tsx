@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
   Check,
   Download,
   FileArchive,
+  History,
   ImageIcon,
   Loader2,
   Package,
@@ -19,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { BotvProduct, BotvSession } from "@/lib/botv/session";
+import type { BotvProduct, BotvSession, BotvSessionHistoryItem } from "@/lib/botv/session";
 
 type Status = "idle" | "uploading" | "ready" | "saving" | "generating";
 
@@ -32,6 +33,16 @@ function photoUrl(sessionId: string, token: string | null) {
   return token
     ? `/api/botv/session/${sessionId}/photo?token=${encodeURIComponent(token)}`
     : "";
+}
+
+function formatDate(value: number | null | undefined) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value * 1000));
 }
 
 function ListingPreview({ product, sessionId }: { product: BotvProduct | null; sessionId: string | null }) {
@@ -108,6 +119,8 @@ export function BotvMiniApp() {
   const [preview, setPreview] = useState<BotvProduct | null>(null);
   const [phonePromptOpen, setPhonePromptOpen] = useState(false);
   const [replacementPhone, setReplacementPhone] = useState("");
+  const [history, setHistory] = useState<BotvSessionHistoryItem[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(true);
 
   const products = session?.products ?? [];
   const filtered = useMemo(() => {
@@ -119,6 +132,46 @@ export function BotvMiniApp() {
   const selectedIds = Array.from(selected);
   const allVisibleSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.index));
 
+  useEffect(() => {
+    runInitialLoad();
+  }, []);
+
+  async function runInitialLoad() {
+    await refreshHistory();
+    const savedId = window.localStorage.getItem("botv:lastSessionId");
+    if (!savedId) return;
+    try {
+      await openSession(savedId);
+    } catch {
+      window.localStorage.removeItem("botv:lastSessionId");
+      setStatus("idle");
+    }
+  }
+
+  async function refreshHistory() {
+    const res = await fetch("/api/botv/session?limit=12");
+    if (!res.ok) return;
+    const data = await res.json();
+    setHistory(Array.isArray(data.sessions) ? data.sessions : []);
+  }
+
+  function rememberSession(data: BotvSession) {
+    setSession(data);
+    window.localStorage.setItem("botv:lastSessionId", data.id);
+  }
+
+  async function openSession(id: string) {
+    setStatus("uploading");
+    setError("");
+    const res = await fetch(`/api/botv/session/${id}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Не удалось открыть сохранение");
+    rememberSession(data);
+    setSelected(new Set());
+    setPreview(null);
+    setStatus("ready");
+  }
+
   async function uploadLink() {
     if (!diskLink.trim()) return;
     setStatus("uploading");
@@ -129,7 +182,8 @@ export function BotvMiniApp() {
     const res = await fetch("/api/botv/session", { method: "POST", body: form });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить ссылку");
-    setSession(data);
+    rememberSession(data);
+    await refreshHistory();
     setStatus("ready");
   }
 
@@ -142,7 +196,8 @@ export function BotvMiniApp() {
     const res = await fetch("/api/botv/session", { method: "POST", body: form });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить архив");
-    setSession(data);
+    rememberSession(data);
+    await refreshHistory();
     setStatus("ready");
   }
 
@@ -156,7 +211,8 @@ export function BotvMiniApp() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Не удалось сохранить");
-    setSession(data);
+    rememberSession(data);
+    await refreshHistory();
     setStatus("ready");
   }
 
@@ -243,6 +299,10 @@ export function BotvMiniApp() {
               {status === "uploading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
               Архив
             </Button>
+            <Button size="sm" variant="outline" onClick={() => setHistoryOpen((value) => !value)}>
+              <History className="h-4 w-4" />
+              История
+            </Button>
             <input ref={fileRef} type="file" accept=".zip,.rar,.7z" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) run(() => upload(f)); }} />
           </div>
           <div className="grid gap-2 lg:grid-cols-[minmax(320px,1fr)_minmax(260px,420px)]">
@@ -271,6 +331,42 @@ export function BotvMiniApp() {
 
       <div className="app-content mx-auto w-full max-w-[1600px] lg:px-8">
         <div className="space-y-3">
+          {historyOpen && history.length > 0 && (
+            <Card>
+              <CardContent className="space-y-3 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">История сохранений</p>
+                    <p className="text-xs text-muted-foreground">Можно продолжить работу без созданного XML.</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => run(refreshHistory)}>Обновить</Button>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {history.map((item) => (
+                    <button
+                      key={item.id}
+                      className={`rounded-md border p-3 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${session?.id === item.id ? "border-primary/40 bg-accent" : "border-border"}`}
+                      onClick={() => run(() => openSession(item.id))}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">{item.sourceName || "Сохранение"}</p>
+                          <p className="text-xs text-muted-foreground">Изменено: {formatDate(item.updatedAt)}</p>
+                        </div>
+                        <span className="rounded bg-secondary px-2 py-1 text-xs font-semibold">{item.summary.ready}/{item.summary.active}</span>
+                      </div>
+                      <div className="mt-2 flex gap-3 text-xs text-muted-foreground">
+                        <span>Всего {item.summary.total}</span>
+                        <span>Удалено {item.summary.deleted}</span>
+                        <span>Фото {item.summary.photos}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {!session && (
             <Card><CardContent className="p-6 text-center lg:p-10">
               <UploadCloud className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
