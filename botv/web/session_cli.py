@@ -9,6 +9,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from urllib.parse import quote, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -292,9 +293,31 @@ def _replace_phone(xml: str, phone: str) -> str:
     return re.sub(r"<ContactPhone>.*?</ContactPhone>", f"<ContactPhone>{clean}</ContactPhone>", xml)
 
 
-async def _image_urls(client: YandexDiskClient | None, product_name: str, photos: list[Path]) -> list[str]:
-    if client is None:
+def _public_base_url() -> str:
+    explicit = os.getenv("BOTV_PUBLIC_BASE_URL", "").strip().rstrip("/")
+    if explicit:
+        return explicit
+    parsed = urlparse(config.mini_app_url)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return "https://crmavito.duckdns.org"
+
+
+def _public_photo_urls(session_id: str, photos: list[Path]) -> list[str]:
+    base = _public_base_url()
+    return [
+        f"{base}/v-data/botv/work/{session_id}/photo?token={quote(_photo_token(photo), safe='')}"
+        for photo in photos
+    ]
+
+
+async def _image_urls(client: YandexDiskClient | None, session_id: str, product_name: str, photos: list[Path]) -> list[str]:
+    if os.getenv("BOTV_WEB_LOCAL_IMAGES") == "1":
         return [photo.resolve().as_uri() for photo in photos]
+    if os.getenv("BOTV_WEB_PUBLIC_IMAGES", "1").strip().lower() not in {"0", "false", "no", "off"}:
+        return _public_photo_urls(session_id, photos)
+    if client is None:
+        return _public_photo_urls(session_id, photos)
     return await upload_product_photos(
         client=client,
         base_dir=config.yandex_disk_upload_dir,
@@ -326,7 +349,9 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
     schema = json.loads((settings_dir / "xml_schema.json").read_text(encoding="utf-8"))
     id_prefix = schema.get("id_prefix", "SKU-")
     import asyncio
-    yd = None if os.getenv("BOTV_WEB_LOCAL_IMAGES") == "1" else YandexDiskClient(config.yandex_disk_token)
+    use_public_images = os.getenv("BOTV_WEB_PUBLIC_IMAGES", "1").strip().lower() not in {"0", "false", "no", "off"}
+    use_local_images = os.getenv("BOTV_WEB_LOCAL_IMAGES") == "1"
+    yd = None if (use_local_images or use_public_images) else YandexDiskClient(config.yandex_disk_token)
     if yd is not None:
         asyncio.run(yd.ensure_dir(config.yandex_disk_upload_dir))
     sizes = choose_sizes(len(products))
@@ -343,7 +368,7 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
         text = description.render(title=name, color=color, price=price_fmt, design="")
         product["description"] = text
         product["details"] = _product_details(name, photos)
-        images = asyncio.run(_image_urls(yd, name, photos))
+        images = asyncio.run(_image_urls(yd, session_id, name, photos))
         for location_index, extra in enumerate(location_extras(locations, base_extra), 1):
             ad_number = (idx - 1) * len(locations) + location_index
             ads.append(AvitoAd(ad_id=make_ad_id(id_prefix, ad_number), title=title, price=price, description=text, color=color, images=images, brand=brand, extra=extra))

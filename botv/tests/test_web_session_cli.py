@@ -5,15 +5,21 @@ import zipfile
 from pathlib import Path
 
 
-def _run_cli(*args: str) -> dict:
+def _run_cli(*args: str, env: dict[str, str | None] | None = None) -> dict:
     root = Path(__file__).resolve().parents[1]
+    cli_env = {**os.environ, "BOTV_WEB_LOCAL_IMAGES": "1"}
+    for key, value in (env or {}).items():
+        if value is None:
+            cli_env.pop(key, None)
+        else:
+            cli_env[key] = value
     result = subprocess.run(
         [str(root / "venv" / "bin" / "python"), str(root / "web" / "session_cli.py"), *args],
         cwd=root,
         text=True,
         capture_output=True,
         check=True,
-        env={**os.environ, "BOTV_WEB_LOCAL_IMAGES": "1"},
+        env=cli_env,
     )
     return json.loads(result.stdout)
 
@@ -93,3 +99,27 @@ def test_web_session_history_keeps_unfinished_work(tmp_path):
     assert restored["products"][0]["adTitle"] == "Saved title"
     assert restored["products"][0]["price"] == 1990
     assert updated["updatedAt"] >= state["createdAt"]
+
+
+def test_web_session_xml_uses_public_photo_urls_by_default(tmp_path):
+    archive = tmp_path / "drop.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("Drop/Product Black/one.jpg", b"jpg")
+
+    state = _run_cli("create", str(archive), "drop.zip")
+    _run_cli("update", state["id"], json.dumps({
+        "products": [{"index": 1, "adTitle": "Public title", "price": 1990}],
+    }, ensure_ascii=False))
+
+    xml = _run_cli(
+        "xml",
+        state["id"],
+        env={
+            "BOTV_WEB_LOCAL_IMAGES": None,
+            "BOTV_PUBLIC_BASE_URL": "https://example.test",
+        },
+    )
+
+    assert "file://" not in xml["xml"]
+    assert "https://example.test/v-data/botv/work/" in xml["xml"]
+    assert f"/v-data/botv/work/{state['id']}/photo?token=" in xml["xml"]
