@@ -51,6 +51,9 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert xml["ads"] == 3
     assert "Product Black" in xml["xml"]
     assert "Product White" not in xml["xml"]
+    assert "<Delivery>" not in xml["xml"]
+    assert "<TryOn>" not in xml["xml"]
+    assert "<DeliverySubsidy>" not in xml["xml"]
 
     phone_xml = _run_cli("xml", state["id"], "--phone", "+7 999 111-22-33")
     assert "+79991112233" in phone_xml["xml"]
