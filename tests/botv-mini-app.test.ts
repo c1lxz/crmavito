@@ -34,7 +34,14 @@ describe("botv mini app UI", () => {
   it("requests duplicate XML with a replacement phone", () => {
     expect(clientSource).toContain("JSON.stringify({ phone })");
     expect(clientSource).toContain("Создать XML с другим телефоном?");
-    expect(clientSource).toContain("Скачать");
+    expect(clientSource).toContain("Скачать ещё");
+  });
+
+  it("can download many replacement-phone XML files from one prompt", () => {
+    expect(clientSource).toContain("downloadReplacementXml");
+    expect(clientSource).toContain("setReplacementPhone(\"\")");
+    expect(clientSource).toContain("setReplacementXmlCount((count) => count + 1)");
+    expect(clientSource).not.toContain("await downloadXml(replacementPhone); setPhonePromptOpen(false)");
   });
 
   it("shows saved unfinished sessions", () => {

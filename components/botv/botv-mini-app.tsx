@@ -119,6 +119,7 @@ export function BotvMiniApp() {
   const [preview, setPreview] = useState<BotvProduct | null>(null);
   const [phonePromptOpen, setPhonePromptOpen] = useState(false);
   const [replacementPhone, setReplacementPhone] = useState("");
+  const [replacementXmlCount, setReplacementXmlCount] = useState(0);
   const [history, setHistory] = useState<BotvSessionHistoryItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [hideSavedProgress, setHideSavedProgress] = useState(false);
@@ -252,7 +253,14 @@ export function BotvMiniApp() {
 
   async function generateXml() {
     await downloadXml();
+    setReplacementXmlCount(0);
     setPhonePromptOpen(true);
+  }
+
+  async function downloadReplacementXml() {
+    await downloadXml(replacementPhone);
+    setReplacementPhone("");
+    setReplacementXmlCount((count) => count + 1);
   }
 
   async function run(action: () => Promise<void>) {
@@ -460,14 +468,17 @@ export function BotvMiniApp() {
             <CardContent className="space-y-4 p-5">
               <div>
                 <p className="text-base font-semibold">Создать XML с другим телефоном?</p>
-                <p className="mt-1 text-sm text-muted-foreground">Будет взят такой же XML, но номер телефона заменится во всех объявлениях.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Можно скачать несколько XML подряд: номер заменится во всех объявлениях, окно останется открытым.</p>
+                {replacementXmlCount > 0 && (
+                  <p className="mt-2 text-xs font-medium text-primary">Дополнительных XML скачано: {replacementXmlCount}</p>
+                )}
               </div>
               <Input placeholder="+7 999 000 00 00" value={replacementPhone} onChange={(e) => setReplacementPhone(e.target.value)} />
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setPhonePromptOpen(false)}>Не нужно</Button>
-                <Button disabled={!replacementPhone.trim() || status === "generating"} onClick={() => run(async () => { await downloadXml(replacementPhone); setPhonePromptOpen(false); setReplacementPhone(""); })}>
+                <Button variant="outline" onClick={() => setPhonePromptOpen(false)}>Готово</Button>
+                <Button disabled={!replacementPhone.trim() || status === "generating"} onClick={() => run(downloadReplacementXml)}>
                   {status === "generating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  Скачать
+                  Скачать ещё
                 </Button>
               </div>
             </CardContent>
