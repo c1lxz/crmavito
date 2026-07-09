@@ -50,22 +50,16 @@ function wait(ms: number) {
 }
 
 async function apiFetch(input: RequestInfo | URL, init?: RequestInit, retries = 3) {
-  let lastError: unknown = null;
   for (let attempt = 0; attempt < retries; attempt += 1) {
     try {
       return await fetch(input, init);
-    } catch (error) {
-      lastError = error;
+    } catch {
       if (attempt < retries - 1) {
         await wait(500 * (attempt + 1));
       }
     }
   }
-  throw new Error(
-    lastError instanceof Error && lastError.message !== "Failed to fetch"
-      ? lastError.message
-      : "Сервер временно не ответил. Попробуй ещё раз.",
-  );
+  throw new Error("Сервер временно не ответил. Попробуй ещё раз.");
 }
 
 async function readJsonResponse(res: Response, fallback: string) {
@@ -107,6 +101,7 @@ function ListingPreview({ product, sessionId }: { product: BotvProduct | null; s
                 src={photoUrl(sessionId, token)}
                 className="h-72 w-full min-w-full snap-center rounded-md object-cover sm:h-96"
                 alt=""
+                decoding="async"
               />
             ))
           ) : (
@@ -206,6 +201,16 @@ export function BotvMiniApp() {
     window.localStorage.setItem("botv:lastSessionId", data.id);
   }
 
+  function updateLocalProduct(index: number, update: Partial<BotvProduct>) {
+    setSession((current) => current && ({
+      ...current,
+      products: current.products.map((product) => (
+        product.index === index ? { ...product, ...update } : product
+      )),
+    }));
+    setPreview((current) => current?.index === index ? { ...current, ...update } : current);
+  }
+
   async function openSession(id: string) {
     setStatus("uploading");
     setError("");
@@ -258,7 +263,7 @@ export function BotvMiniApp() {
     const data = await readJsonResponse(res, "Не удалось сохранить");
     if (!res.ok) throw new Error(data.error ?? "Не удалось сохранить");
     rememberSession(data);
-    await refreshHistory();
+    void refreshHistory();
     setStatus("ready");
   }
 
@@ -320,12 +325,33 @@ export function BotvMiniApp() {
   }
 
   async function movePhoto(product: BotvProduct, token: string, direction: "first" | "left" | "right") {
+    const nextPhotos = reorderTokens(product.photos, token, direction);
+    updateLocalProduct(product.index, { photos: nextPhotos, firstPhoto: nextPhotos[0] ?? null });
     await patch({ products: [{ index: product.index, movePhoto: { token, direction } }] });
-    setPreview((current) => current && current.index === product.index ? {
-      ...current,
-      photos: reorderTokens(current.photos, token, direction),
-      firstPhoto: reorderTokens(current.photos, token, direction)[0] ?? null,
-    } : current);
+  }
+
+  async function toggleOriginalTitle(product: BotvProduct) {
+    const useOriginalTitle = !product.useOriginalTitle;
+    updateLocalProduct(product.index, {
+      useOriginalTitle,
+      adTitle: useOriginalTitle ? product.name : product.adTitle,
+    });
+    await patch({ products: [{ index: product.index, useOriginalTitle }] });
+  }
+
+  async function toggleDeleted(product: BotvProduct) {
+    updateLocalProduct(product.index, { deleted: !product.deleted });
+    await patch({ products: [{ index: product.index, deleted: !product.deleted }] });
+  }
+
+  async function saveProductTitle(index: number, value: string) {
+    updateLocalProduct(index, { adTitle: value });
+    await patch({ products: [{ index, adTitle: value }] });
+  }
+
+  async function saveProductPrice(index: number, value: number | null) {
+    updateLocalProduct(index, { price: value });
+    await patch({ products: [{ index, price: value }] });
   }
 
   function reorderTokens(tokens: string[], token: string, direction: "first" | "left" | "right") {
@@ -450,23 +476,23 @@ export function BotvMiniApp() {
                 <CardContent className="flex gap-3 p-3">
                   <button className="mt-4 h-5 w-5 rounded border border-input text-xs" onClick={(e) => { e.stopPropagation(); toggle(product.index); }}>{selected.has(product.index) ? "✓" : ""}</button>
                   <button className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted" onClick={(e) => { e.stopPropagation(); openPreview(product); }}>
-                    {product.firstPhoto && session ? <img src={photoUrl(session.id, product.firstPhoto)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>}
+                    {product.firstPhoto && session ? <img src={photoUrl(session.id, product.firstPhoto)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" /> : <div className="flex h-full w-full items-center justify-center text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>}
                   </button>
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex gap-2">
                       <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">#{product.index} {product.name}</p><p className="text-xs text-muted-foreground">{product.photoCount} фото · {formatRub(product.price)}</p></div>
                     </div>
-                    <Input value={product.adTitle} disabled={product.useOriginalTitle || product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => setSession((s) => s && ({ ...s, products: s.products.map((p) => p.index === product.index ? { ...p, adTitle: e.target.value } : p) }))} onBlur={() => run(() => patch({ products: [{ index: product.index, adTitle: product.adTitle }] }))} />
+                    <Input value={product.adTitle} disabled={product.useOriginalTitle || product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { adTitle: e.target.value })} onBlur={(e) => run(() => saveProductTitle(product.index, e.currentTarget.value))} />
                     <div className="flex gap-2">
-                      <Input inputMode="numeric" placeholder="Цена" value={product.price ?? ""} disabled={product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => setSession((s) => s && ({ ...s, products: s.products.map((p) => p.index === product.index ? { ...p, price: e.target.value ? Number(e.target.value) : null } : p) }))} onBlur={() => run(() => patch({ products: [{ index: product.index, price: product.price }] }))} />
-                      <Button size="icon" variant={product.useOriginalTitle ? "default" : "outline"} onClick={(e) => { e.stopPropagation(); run(() => patch({ products: [{ index: product.index, useOriginalTitle: !product.useOriginalTitle }] })); }}><Package className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="outline" onClick={(e) => { e.stopPropagation(); run(() => patch({ products: [{ index: product.index, deleted: !product.deleted }] })); }}>{product.deleted ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}</Button>
+                      <Input inputMode="numeric" placeholder="Цена" value={product.price ?? ""} disabled={product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { price: e.target.value ? Number(e.target.value) : null })} onBlur={(e) => run(() => saveProductPrice(product.index, e.currentTarget.value ? Number(e.currentTarget.value) : null))} />
+                      <Button size="icon" variant={product.useOriginalTitle ? "default" : "outline"} onClick={(e) => { e.stopPropagation(); run(() => toggleOriginalTitle(product)); }}><Package className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="outline" onClick={(e) => { e.stopPropagation(); run(() => toggleDeleted(product)); }}>{product.deleted ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}</Button>
                     </div>
                     {product.photos.length > 1 && (
                       <div className="flex gap-1 overflow-x-auto pb-1" onClick={(e) => e.stopPropagation()}>
                         {product.photos.slice(0, 8).map((token, photoIndex) => (
                           <div key={token} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
-                            {session && <img src={photoUrl(session.id, token)} alt="" className="h-full w-full object-cover" />}
+                            {session && <img src={photoUrl(session.id, token)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />}
                             <span className="absolute left-1 top-1 rounded bg-background/85 px-1 text-[10px] font-semibold">{photoIndex + 1}</span>
                             <div className="absolute inset-x-0 bottom-0 flex justify-center gap-0.5 bg-background/80 p-0.5">
                               <button title="Сделать первой" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "first"))}><PanelTop className="h-3 w-3" /></button>

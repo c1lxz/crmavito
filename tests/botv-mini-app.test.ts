@@ -63,6 +63,19 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Сервер временно не ответил");
     expect(clientSource).toContain("await wait(500 * (attempt + 1))");
     expect(clientSource).toContain("readJsonResponse");
+    expect(clientSource).not.toContain("Failed to fetch");
     expect(clientSource).not.toContain("await fetch(`/api/botv/session/${session.id}`");
+  });
+
+  it("keeps edits fast and avoids per-photo Python hops", () => {
+    const photoRouteSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/[id]/photo/route.ts"), "utf8");
+
+    expect(clientSource).toContain("function updateLocalProduct");
+    expect(clientSource).toContain("void refreshHistory()");
+    expect(clientSource).toContain("saveProductTitle(product.index, e.currentTarget.value)");
+    expect(clientSource).toContain("toggleOriginalTitle(product)");
+    expect(clientSource).toContain('loading="lazy"');
+    expect(photoRouteSource).toContain("decodePhotoToken");
+    expect(photoRouteSource).not.toContain("resolvePhoto");
   });
 });
