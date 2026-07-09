@@ -43,4 +43,11 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("botv:lastSessionId");
     expect(clientSource).toContain("Можно продолжить работу без созданного XML");
   });
+
+  it("hides saved progress after five seconds", () => {
+    expect(clientSource).toContain("hideSavedProgress");
+    expect(clientSource).toContain("Изменения сохранены");
+    expect(clientSource).toContain("setTimeout(() => setHideSavedProgress(true), 5000)");
+    expect(clientSource).toContain("visibleProgress.map");
+  });
 });

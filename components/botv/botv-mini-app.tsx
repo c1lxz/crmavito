@@ -121,6 +121,7 @@ export function BotvMiniApp() {
   const [replacementPhone, setReplacementPhone] = useState("");
   const [history, setHistory] = useState<BotvSessionHistoryItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [hideSavedProgress, setHideSavedProgress] = useState(false);
 
   const products = session?.products ?? [];
   const filtered = useMemo(() => {
@@ -131,10 +132,20 @@ export function BotvMiniApp() {
   }, [products, query]);
   const selectedIds = Array.from(selected);
   const allVisibleSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.index));
+  const visibleProgress = (session?.progress ?? [])
+    .slice(-6)
+    .filter((item) => !(hideSavedProgress && item === "Изменения сохранены"));
 
   useEffect(() => {
     runInitialLoad();
   }, []);
+
+  useEffect(() => {
+    if (!session?.progress.includes("Изменения сохранены")) return;
+    setHideSavedProgress(false);
+    const timer = window.setTimeout(() => setHideSavedProgress(true), 5000);
+    return () => window.clearTimeout(timer);
+  }, [session?.updatedAt, session?.progress]);
 
   async function runInitialLoad() {
     await refreshHistory();
@@ -387,7 +398,7 @@ export function BotvMiniApp() {
                 <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
                 <Button size="sm" disabled={status === "generating"} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
               </div>
-              <div className="grid gap-1 text-xs text-muted-foreground lg:grid-cols-2">{session.progress.slice(-6).map((item, i) => <div key={i}>• {item}</div>)}</div>
+              <div className="grid gap-1 text-xs text-muted-foreground lg:grid-cols-2">{visibleProgress.map((item, i) => <div key={i}>• {item}</div>)}</div>
             </CardContent></Card>
           )}
 
