@@ -69,7 +69,7 @@ class Config:
         default_factory=lambda: os.getenv("GIGACHAT_MODEL", "GigaChat")
     )
     gigachat_vision_model: str = field(
-        default_factory=lambda: os.getenv("GIGACHAT_VISION_MODEL", "GigaChat-Pro")
+        default_factory=lambda: os.getenv("GIGACHAT_VISION_MODEL", "GigaChat-Max")
     )
     gigachat_verify_ssl: bool = field(
         default_factory=lambda: _bool_env("GIGACHAT_VERIFY_SSL", False)
