@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import zipfile
 from pathlib import Path
@@ -7,7 +8,7 @@ from pathlib import Path
 
 def _run_cli(*args: str, env: dict[str, str | None] | None = None) -> dict:
     root = Path(__file__).resolve().parents[1]
-    cli_env = {**os.environ, "BOTV_WEB_LOCAL_IMAGES": "1"}
+    cli_env = {**os.environ, "BOTV_WEB_LOCAL_IMAGES": "1", "GIGACHAT_CREDENTIALS": ""}
     for key, value in (env or {}).items():
         if value is None:
             cli_env.pop(key, None)
@@ -51,6 +52,8 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert xml["ads"] == 3
     assert "Product Black" in xml["xml"]
     assert "Product White" not in xml["xml"]
+    assert "<Color>\u0427\u0451\u0440\u043d\u044b\u0439</Color>" in xml["xml"]
+    assert "\u0414\u0438\u0437\u0430\u0439\u043d:&lt;br&gt;\u0413\u0440\u0430\u0444\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0434\u0438\u0437\u0430\u0439\u043d" in xml["xml"]
     assert "<Delivery>" not in xml["xml"]
     assert "<TryOn>" not in xml["xml"]
     assert "<DeliverySubsidy>" not in xml["xml"]
@@ -58,6 +61,12 @@ def test_web_session_archive_update_and_xml(tmp_path):
     phone_xml = _run_cli("xml", state["id"], "--phone", "+7 999 111-22-33")
     assert "+79991112233" in phone_xml["xml"]
     assert "+7 900 000 00 00" not in phone_xml["xml"]
+    replaced_phone_xml = re.sub(
+        r"<ContactPhone>.*?</ContactPhone>",
+        "<ContactPhone>+79991112233</ContactPhone>",
+        xml["xml"],
+    )
+    assert phone_xml["xml"] == replaced_phone_xml
 
 
 def test_web_session_photo_reorder(tmp_path):

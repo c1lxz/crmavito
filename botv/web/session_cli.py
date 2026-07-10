@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from config import config
+from services.ai_description import detect_product_color, generate_design_block, normalize_avito_color
 from services.archive import ArchiveError, extract_archive, scan_products
 from services.brand_detector import detect_brand
 from services.color_detector import ColorDetector
@@ -26,6 +27,62 @@ from services.yandex_disk import YandexDiskClient, extract_disk_link, upload_pro
 
 SESSIONS_DIR = config.tmp_dir / "web_sessions"
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+BINARY_COLORS = {"Белый", "Чёрный"}
+
+
+def _binary_color(value: str | None) -> str:
+    normalized = normalize_avito_color(value or "")
+    if normalized in BINARY_COLORS:
+        return normalized
+    text = (value or "").casefold().replace("ё", "е")
+    if "бел" in text or "white" in text or "light" in text:
+        return "Белый"
+    return "Чёрный"
+
+
+def _fallback_design_text(title: str) -> str:
+    clean = re.sub(r"\s+", " ", title).strip() or "модели"
+    return (
+        f"Графический дизайн {clean} выполнен в актуальной уличной эстетике и делает модель выразительной. "
+        "Акцентный принт добавляет образу характер, сохраняя лаконичный стиль вещи."
+    )
+
+
+async def _detect_product_binary_color(product: dict, title: str, photos: list[Path], color_detector: ColorDetector) -> str:
+    cached = str(product.get("color") or "")
+    if cached:
+        return _binary_color(cached)
+    if config.gigachat_credentials:
+        for photo in photos:
+            color = await detect_product_color(
+                photo,
+                config.gigachat_credentials,
+                scope=config.gigachat_scope,
+                model=config.gigachat_vision_model,
+                verify_ssl=config.gigachat_verify_ssl,
+            )
+            if color:
+                return _binary_color(color)
+    return _binary_color(color_detector.detect(f"{product.get('name', '')} {title}"))
+
+
+async def _generate_product_design(product: dict, title: str) -> str:
+    cached = str(product.get("design") or "").strip()
+    if cached:
+        return cached
+    if config.gigachat_credentials:
+        design = await generate_design_block(
+            title or str(product.get("name") or ""),
+            config.gigachat_credentials,
+            scope=config.gigachat_scope,
+            model=config.gigachat_model,
+            verify_ssl=config.gigachat_verify_ssl,
+        )
+        if design:
+            return design
+    return _fallback_design_text(title or str(product.get("name") or ""))
+
 
 
 def _session_dir(session_id: str) -> Path:
@@ -95,11 +152,11 @@ def _public_state(state: dict) -> dict:
 
 
 
-def _product_details(name: str, photos: list[Path]) -> dict:
+def _product_details(name: str, photos: list[Path], color: str | None = None) -> dict:
     color_detector = ColorDetector(config.settings_dir / "color_rules.json")
     locations = load_locations(config.settings_dir / "locations.json")
     sizes = choose_sizes(1)
-    color = color_detector.detect(name)
+    color = color or _binary_color(color_detector.detect(name))
     extra = product_extra(name, sizes[0] if sizes else "")
     return {
         "category": "Одежда, обувь, аксессуары",
@@ -112,12 +169,10 @@ def _product_details(name: str, photos: list[Path]) -> dict:
     }
 
 
-def _description_for_preview(name: str, title: str, price: int | None) -> str:
-    color_detector = ColorDetector(config.settings_dir / "color_rules.json")
+def _description_for_preview(name: str, title: str, price: int | None, design: str = "") -> str:
     description = DescriptionRenderer(config.settings_dir / "description_template.txt")
-    color = color_detector.detect(f"{name} {title}")
     price_fmt = f"{price:,}".replace(",", " ") if price is not None else ""
-    return description.render(title=name, color=color, price=price_fmt, design="")
+    return description.render(title=name, color="", price=price_fmt, design=design)
 
 
 def _state_from_root(session_id: str, session_dir: Path, root: Path, source_name: str, progress: list[str]) -> dict:
@@ -236,7 +291,7 @@ def update_session(session_id: str, payload: dict) -> dict:
             product["price"] = int(value) if value not in (None, "") else None
         title = (product.get("ad_title") or product["name"]).strip()
         product["description"] = _description_for_preview(product["name"], title, product.get("price"))
-        product["details"] = _product_details(product["name"], [Path(p) for p in product.get("photos", [])])
+        product["details"] = _product_details(product["name"], [Path(p) for p in product.get("photos", [])], product.get("color"))
         if "photoOrder" in item and isinstance(item["photoOrder"], list):
             _reorder_photos(product, [str(token) for token in item["photoOrder"]])
         if "movePhoto" in item and isinstance(item["movePhoto"], dict):
@@ -326,10 +381,43 @@ async def _image_urls(client: YandexDiskClient | None, session_id: str, product_
     )
 
 
+def _write_xml_file(session_id: str, xml_text: str, phone: str | None = None) -> Path:
+    suffix = "_phone" if phone else ""
+    out_path = _session_dir(session_id) / f"avito_{int(time.time())}{suffix}.xml"
+    out_path.write_bytes(xml_text.encode("utf-8"))
+    return out_path
+
+
+def _read_last_base_xml(state: dict) -> str | None:
+    for key in ("last_base_xml", "last_xml"):
+        value = state.get(key)
+        if not value:
+            continue
+        path = Path(str(value))
+        if path.name.endswith("_phone.xml"):
+            continue
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+    return None
+
+
 def generate_xml(session_id: str, phone: str | None = None) -> dict:
     state_path = _session_dir(session_id) / "state.json"
     state = _read_json(state_path)
     products = [p for p in state["products"] if not p.get("deleted")]
+    if phone:
+        base_xml = _read_last_base_xml(state)
+        if base_xml is None:
+            base_result = generate_xml(session_id, None)
+            state = _read_json(state_path)
+            base_xml = base_result["xml"]
+        xml_text = _replace_phone(base_xml, phone)
+        out_path = _write_xml_file(session_id, xml_text, phone)
+        state["progress"] = [*state.get("progress", []), f"XML with replacement phone created: {len(products) * len(load_locations(config.settings_dir / 'locations.json'))} ads"][-12:]
+        state["last_phone_xml"] = str(out_path)
+        state["updated_at"] = int(time.time())
+        _write_json(state_path, state)
+        return {"filename": out_path.name, "xml": xml_text, "ads": len(products) * len(load_locations(config.settings_dir / "locations.json")), "products": len(products)}
     missing = [i for i, p in enumerate(products, 1) if not (p.get("ad_title") or "").strip() or p.get("price") is None]
     if missing:
         raise SystemExit("Не заполнены название или цена: " + ", ".join(f"#{i}" for i in missing))
@@ -360,30 +448,26 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
         name = product["name"]
         title = (product.get("ad_title") or name).strip()
         price = int(product["price"])
-        color = color_detector.detect(f"{name} {title}")
         price_fmt = f"{price:,}".replace(",", " ")
         brand = detect_brand(name, brands)
         base_extra = product_extra(f"{name} {title}", sizes[idx - 1])
         photos = [Path(p) for p in product.get("photos", [])]
-        text = description.render(title=name, color=color, price=price_fmt, design="")
+        color = asyncio.run(_detect_product_binary_color(product, title, photos, color_detector))
+        design_text = asyncio.run(_generate_product_design(product, title or name))
+        text = description.render(title=name, color=color, price=price_fmt, design=design_text)
+        product["color"] = color
+        product["design"] = design_text
         product["description"] = text
-        product["details"] = _product_details(name, photos)
+        product["details"] = _product_details(name, photos, color)
         images = asyncio.run(_image_urls(yd, session_id, name, photos))
         for location_index, extra in enumerate(location_extras(locations, base_extra), 1):
             ad_number = (idx - 1) * len(locations) + location_index
             ads.append(AvitoAd(ad_id=make_ad_id(id_prefix, ad_number), title=title, price=price, description=text, color=color, images=images, brand=brand, extra=extra))
     xml_text = xml_gen.build(ads).decode("utf-8")
-    if phone:
-        xml_text = _replace_phone(xml_text, phone)
-    xml_bytes = xml_text.encode("utf-8")
-    suffix = "_phone" if phone else ""
-    out_path = _session_dir(session_id) / f"avito_{int(time.time())}{suffix}.xml"
-    out_path.write_bytes(xml_bytes)
-    message = f"XML создан: {len(ads)} объявлений"
-    if phone:
-        message = f"XML с новым телефоном создан: {len(ads)} объявлений"
-    state["progress"] = [*state.get("progress", []), message][-12:]
+    out_path = _write_xml_file(session_id, xml_text)
+    state["progress"] = [*state.get("progress", []), f"XML created: {len(ads)} ads"][-12:]
     state["last_xml"] = str(out_path)
+    state["last_base_xml"] = str(out_path)
     state["updated_at"] = int(time.time())
     _write_json(state_path, state)
     return {"filename": out_path.name, "xml": xml_text, "ads": len(ads), "products": len(products)}

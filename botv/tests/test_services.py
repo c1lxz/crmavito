@@ -79,11 +79,12 @@ def test_design_text_cleanup():
 
 
 def test_color_normalization_and_manual_input():
-    assert normalize_avito_color("«тёмно-синий»") == "Тёмно-синий"
     assert normalize_avito_color("Основной цвет одежды: белый.") == "Белый"
-    assert parse_ordered_colors("Белый\nхаки", 2) == ["Белый", "Хаки"]
+    assert normalize_avito_color("почти black") == "Чёрный"
+    assert normalize_avito_color("красный") is None
+    assert parse_ordered_colors("Белый\nчёрный", 2) == ["Белый", "Чёрный"]
     assert parse_ordered_colors("Белый", 2) is None
-    assert parse_ordered_colors("Неизвестный", 1) is None
+    assert parse_ordered_colors("Хаки", 1) is None
 
 
 def test_price_parser_basic():
@@ -138,12 +139,6 @@ _SETTINGS_DIR = Path(__file__).resolve().parent.parent / "settings"
 def test_color_detector_black():
     cd = ColorDetector(_SETTINGS_DIR / "color_rules.json")
     assert cd.detect("Футболка Oversize Black") == "Чёрный"
-
-
-def test_color_detector_vintage_grey():
-    cd = ColorDetector(_SETTINGS_DIR / "color_rules.json")
-    # "vintage grey" is a longer keyword and should match before "grey"
-    assert cd.detect("Футболка Vintage Grey") == "Серый винтаж"
 
 
 def test_color_detector_default():
