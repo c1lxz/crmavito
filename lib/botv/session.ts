@@ -44,13 +44,15 @@ const uploadDir = path.join(botvDir, "tmp", "web_uploads");
 
 async function runCli(args: string[]) {
   const child = spawn(python, [cli, ...args], { cwd: botvDir, env: process.env });
-  let stdout = "";
-  let stderr = "";
-  child.stdout.on("data", (chunk) => { stdout += chunk; });
-  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const stdoutChunks: Buffer[] = [];
+  const stderrChunks: Buffer[] = [];
+  child.stdout.on("data", (chunk: Buffer) => { stdoutChunks.push(chunk); });
+  child.stderr.on("data", (chunk: Buffer) => { stderrChunks.push(chunk); });
   const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
-  if (code !== 0) throw new Error(stderr.trim() || stdout.trim() || "botv command failed");
-  return stdout.trim();
+  const stdout = Buffer.concat(stdoutChunks).toString("utf8").trim();
+  const stderr = Buffer.concat(stderrChunks).toString("utf8").trim();
+  if (code !== 0) throw new Error(stderr || stdout || "botv command failed");
+  return stdout;
 }
 
 export async function createSessionFromFile(file: File): Promise<BotvSession> {

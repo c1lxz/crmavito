@@ -60,6 +60,14 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("visibleProgress.map");
   });
 
+  it("keeps Python CLI UTF-8 output intact", () => {
+    const sessionSource = readFileSync(path.resolve(__dirname, "../lib/botv/session.ts"), "utf8");
+
+    expect(sessionSource).toContain("stdoutChunks: Buffer[]");
+    expect(sessionSource).toContain("Buffer.concat(stdoutChunks).toString(\"utf8\")");
+    expect(sessionSource).not.toContain("stdout += chunk");
+  });
+
   it("retries transient API fetch failures", () => {
     expect(clientSource).toContain("async function apiFetch");
     expect(clientSource).toContain("Сервер временно не ответил");
