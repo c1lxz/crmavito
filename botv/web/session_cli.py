@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import base64
 import re
 import json
@@ -49,36 +50,79 @@ def _fallback_design_text(title: str) -> str:
     )
 
 
-async def _detect_product_binary_color(product: dict, title: str, photos: list[Path], color_detector: ColorDetector) -> str:
+def _gigachat_xml_timeout() -> float:
+    try:
+        return max(1.0, float(os.getenv("BOTV_GIGACHAT_XML_TIMEOUT", "6")))
+    except ValueError:
+        return 6.0
+
+
+def _gigachat_xml_product_limit(product_count: int) -> int:
+    raw = os.getenv("BOTV_GIGACHAT_XML_MAX_PRODUCTS")
+    if raw is not None:
+        try:
+            return max(0, int(raw))
+        except ValueError:
+            return 0
+    return product_count if product_count <= 5 else 1
+
+
+async def _detect_product_binary_color(
+    product: dict,
+    title: str,
+    photos: list[Path],
+    color_detector: ColorDetector,
+    *,
+    allow_ai: bool = True,
+    timeout: float | None = None,
+) -> str:
     cached = str(product.get("color") or "")
     if cached:
         return _binary_color(cached)
-    if config.gigachat_credentials:
-        for photo in photos:
-            color = await detect_product_color(
-                photo,
-                config.gigachat_credentials,
-                scope=config.gigachat_scope,
-                model=config.gigachat_vision_model,
-                verify_ssl=config.gigachat_verify_ssl,
-            )
+    if allow_ai and config.gigachat_credentials:
+        for photo in photos[:1]:
+            try:
+                color = await asyncio.wait_for(
+                    detect_product_color(
+                        photo,
+                        config.gigachat_credentials,
+                        scope=config.gigachat_scope,
+                        model=config.gigachat_vision_model,
+                        verify_ssl=config.gigachat_verify_ssl,
+                    ),
+                    timeout=timeout or _gigachat_xml_timeout(),
+                )
+            except asyncio.TimeoutError:
+                color = None
             if color:
                 return _binary_color(color)
     return _binary_color(color_detector.detect(f"{product.get('name', '')} {title}"))
 
 
-async def _generate_product_design(product: dict, title: str) -> str:
+async def _generate_product_design(
+    product: dict,
+    title: str,
+    *,
+    allow_ai: bool = True,
+    timeout: float | None = None,
+) -> str:
     cached = str(product.get("design") or "").strip()
     if cached:
         return cached
-    if config.gigachat_credentials:
-        design = await generate_design_block(
-            title or str(product.get("name") or ""),
-            config.gigachat_credentials,
-            scope=config.gigachat_scope,
-            model=config.gigachat_model,
-            verify_ssl=config.gigachat_verify_ssl,
-        )
+    if allow_ai and config.gigachat_credentials:
+        try:
+            design = await asyncio.wait_for(
+                generate_design_block(
+                    title or str(product.get("name") or ""),
+                    config.gigachat_credentials,
+                    scope=config.gigachat_scope,
+                    model=config.gigachat_model,
+                    verify_ssl=config.gigachat_verify_ssl,
+                ),
+                timeout=timeout or _gigachat_xml_timeout(),
+            )
+        except asyncio.TimeoutError:
+            design = None
         if design:
             return design
     return _fallback_design_text(title or str(product.get("name") or ""))
@@ -443,6 +487,8 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
     if yd is not None:
         asyncio.run(yd.ensure_dir(config.yandex_disk_upload_dir))
     sizes = choose_sizes(len(products))
+    ai_products_left = _gigachat_xml_product_limit(len(products))
+    ai_timeout = _gigachat_xml_timeout()
     ads: list[AvitoAd] = []
     for idx, product in enumerate(products, 1):
         name = product["name"]
@@ -452,8 +498,12 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
         brand = detect_brand(name, brands)
         base_extra = product_extra(f"{name} {title}", sizes[idx - 1])
         photos = [Path(p) for p in product.get("photos", [])]
-        color = asyncio.run(_detect_product_binary_color(product, title, photos, color_detector))
-        design_text = asyncio.run(_generate_product_design(product, title or name))
+        needs_ai = not product.get("color") or not str(product.get("design") or "").strip()
+        allow_ai = needs_ai and ai_products_left > 0
+        if allow_ai:
+            ai_products_left -= 1
+        color = asyncio.run(_detect_product_binary_color(product, title, photos, color_detector, allow_ai=allow_ai, timeout=ai_timeout))
+        design_text = asyncio.run(_generate_product_design(product, title or name, allow_ai=allow_ai, timeout=ai_timeout))
         text = description.render(title=name, color=color, price=price_fmt, design=design_text)
         product["color"] = color
         product["design"] = design_text
