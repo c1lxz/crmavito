@@ -94,4 +94,15 @@ describe("botv mini app UI", () => {
     expect(photoRouteSource).toContain("decodePhotoToken");
     expect(photoRouteSource).not.toContain("resolvePhoto");
   });
+
+
+  it("serves XML photos from extension URLs", () => {
+    const routeSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/work/[id]/photo/[token]/route.ts"), "utf8");
+    const cliSource = readFileSync(path.resolve(__dirname, "../botv/web/session_cli.py"), "utf8");
+
+    expect(cliSource).toContain("/photo/{quote(_photo_token(photo), safe='')}");
+    expect(cliSource).toContain("_public_photo_ext(photo)");
+    expect(routeSource).toContain('"cache-control": "public');
+    expect(routeSource).toContain('"content-length"');
+  });
 });

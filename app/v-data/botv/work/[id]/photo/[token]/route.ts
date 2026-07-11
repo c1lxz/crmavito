@@ -13,17 +13,16 @@ const contentType: Record<string, string> = {
 
 const botvTmpDir = path.join(process.cwd(), "botv", "tmp", "web_sessions");
 
-function decodePhotoToken(token: string) {
+function decodePhotoToken(rawToken: string) {
+  const token = rawToken.replace(/\.(jpe?g|png|webp)$/i, "");
   const normalized = token.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
   return Buffer.from(padded, "base64").toString("utf8");
 }
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string; token: string }> }) {
   try {
-    const { id } = await params;
-    const token = new URL(request.url).searchParams.get("token");
-    if (!token) return new NextResponse("not found", { status: 404 });
+    const { id, token } = await params;
     const filePath = path.resolve(decodePhotoToken(token));
     const sessionRoot = path.resolve(botvTmpDir, id);
     const ext = path.extname(filePath).toLowerCase();
@@ -35,6 +34,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       headers: {
         "content-type": contentType[ext],
         "cache-control": "public, max-age=31536000, immutable",
+        "content-length": String(body.length),
       },
     });
   } catch {

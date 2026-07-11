@@ -415,10 +415,17 @@ def _public_base_url() -> str:
     return "https://crmavito.duckdns.org"
 
 
+def _public_photo_ext(photo: Path) -> str:
+    ext = photo.suffix.lower().lstrip(".")
+    if ext in {"jpg", "jpeg", "png", "webp"}:
+        return ext
+    return "jpg"
+
+
 def _public_photo_urls(session_id: str, photos: list[Path]) -> list[str]:
     base = _public_base_url()
     return [
-        f"{base}/v-data/botv/work/{session_id}/photo?token={quote(_photo_token(photo), safe='')}"
+        f"{base}/v-data/botv/work/{session_id}/photo/{quote(_photo_token(photo), safe='')}.{_public_photo_ext(photo)}"
         for photo in photos
     ]
 
