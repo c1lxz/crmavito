@@ -139,10 +139,10 @@ def test_web_session_xml_uses_public_photo_urls_by_default(tmp_path):
     )
 
     assert "file://" not in xml["xml"]
-    assert "https://example.test/v-data/botv/work/" in xml["xml"]
-    assert f"/v-data/botv/work/{state['id']}/photo/" in xml["xml"]
+    assert f"https://example.test/v-static/botv/{state['id']}/" in xml["xml"]
+    assert "/v-data/botv/work/" not in xml["xml"]
     assert "/photo?token=" not in xml["xml"]
-    assert re.search(r"/photo/[A-Za-z0-9_-]+\.jpg", xml["xml"])
+    assert re.search(r"/v-static/botv/.+/[a-f0-9]{24}\.jpg", xml["xml"])
 
 
 def test_web_session_xml_limits_slow_gigachat_and_uses_fallback(tmp_path):

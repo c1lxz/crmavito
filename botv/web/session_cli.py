@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import hashlib
 import re
 import json
 import os
@@ -422,10 +423,24 @@ def _public_photo_ext(photo: Path) -> str:
     return "jpg"
 
 
+def _stage_public_photo(session_id: str, photo: Path) -> str:
+    token = hashlib.sha1(str(photo).encode("utf-8")).hexdigest()[:24]
+    ext = _public_photo_ext(photo)
+    public_dir = ROOT.parent / "public" / "v-static" / "botv" / session_id
+    public_dir.mkdir(parents=True, exist_ok=True)
+    target = public_dir / f"{token}.{ext}"
+    if not target.exists():
+        try:
+            os.link(photo, target)
+        except OSError:
+            shutil.copy2(photo, target)
+    return f"/v-static/botv/{session_id}/{target.name}"
+
+
 def _public_photo_urls(session_id: str, photos: list[Path]) -> list[str]:
     base = _public_base_url()
     return [
-        f"{base}/v-data/botv/work/{session_id}/photo/{quote(_photo_token(photo), safe='')}.{_public_photo_ext(photo)}"
+        f"{base}{_stage_public_photo(session_id, photo)}"
         for photo in photos
     ]
 

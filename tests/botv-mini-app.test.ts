@@ -96,13 +96,11 @@ describe("botv mini app UI", () => {
   });
 
 
-  it("serves XML photos from extension URLs", () => {
-    const routeSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/work/[id]/photo/[token]/route.ts"), "utf8");
+  it("serves XML photos from static public URLs", () => {
     const cliSource = readFileSync(path.resolve(__dirname, "../botv/web/session_cli.py"), "utf8");
 
-    expect(cliSource).toContain("/photo/{quote(_photo_token(photo), safe='')}");
-    expect(cliSource).toContain("_public_photo_ext(photo)");
-    expect(routeSource).toContain('"cache-control": "public');
-    expect(routeSource).toContain('"content-length"');
+    expect(cliSource).toContain("_stage_public_photo");
+    expect(cliSource).toContain("/v-static/botv/{session_id}/{target.name}");
+    expect(cliSource).toContain("os.link(photo, target)");
   });
 });
