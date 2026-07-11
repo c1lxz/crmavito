@@ -162,7 +162,7 @@ def test_brand_detect_found():
 def test_brand_detect_not_found():
     brands = ["GOSHA RUBCHINSKIY", "NIKE", "Без бренда"]
     result = detect_brand("Футболка Oversize Unknown Brand", brands)
-    assert result == "Без бренда"
+    assert result is None
 
 
 def test_brand_detect_longest_match():
@@ -170,10 +170,15 @@ def test_brand_detect_longest_match():
     assert detect_brand("Футболка Saint Michael Святой враг", brands) == "Saint Michael"
 
 
+def test_brand_detect_does_not_emit_without_official_match():
+    brands = ["NIKE", "Без бренда"]
+    assert detect_brand("Лонгслив Raf Simons Archive", brands) is None
+
+
 def test_brand_does_not_match_model_word():
     brands = ["Paul", "Frank", "Golden", "Без бренда"]
     title = "Футболка Paul Frank 'Golden Julius Arch' tee"
-    assert detect_brand(title, brands) == "Без бренда"
+    assert detect_brand(title, brands) is None
 
 
 # ---------------------------------------------------------------------------

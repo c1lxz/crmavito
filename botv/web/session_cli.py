@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 from config import config
 from services.ai_description import detect_product_color, generate_design_block, normalize_avito_color
 from services.archive import ArchiveError, extract_archive, scan_products
-from services.brand_detector import detect_brand
+from services.brand_detector import detect_brand, load_brands
 from services.color_detector import ColorDetector
 from services.description import DescriptionRenderer
 from services.product_rules import choose_sizes, load_locations, location_extras, product_extra
@@ -512,17 +512,11 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
     xml_gen = XmlGenerator(defaults_path=settings_dir / "avito_defaults.json", schema_path=settings_dir / "xml_schema.json")
     locations = load_locations(settings_dir / "locations.json")
     color_detector = ColorDetector(settings_dir / "color_rules.json")
-    brands = []
     brands_path = settings_dir / "brands_cache.json"
-    if brands_path.exists():
-        try:
-            raw = json.loads(brands_path.read_text(encoding="utf-8"))
-            brands = raw if isinstance(raw, list) else raw.get("brands", [])
-        except Exception:
-            brands = []
+    import asyncio
+    brands = asyncio.run(load_brands(brands_path))
     schema = json.loads((settings_dir / "xml_schema.json").read_text(encoding="utf-8"))
     id_prefix = schema.get("id_prefix", "SKU-")
-    import asyncio
     use_public_images = os.getenv("BOTV_WEB_PUBLIC_IMAGES", "1").strip().lower() not in {"0", "false", "no", "off"}
     use_local_images = os.getenv("BOTV_WEB_LOCAL_IMAGES") == "1"
     yd = None if (use_local_images or use_public_images) else YandexDiskClient(config.yandex_disk_token)

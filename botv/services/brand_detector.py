@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-_BRANDS_URL = "https://www.avito.ru/web/1/catalogs/content/feed/brendy_fashion.xml"
+_BRANDS_URL = "https://avito.ru/web/1/catalogs/content/feed/brendy_fashion.xml"
 _CACHE_TTL_SEC = 24 * 3600
 
 
@@ -23,6 +24,9 @@ async def load_brands(cache_path: Path) -> list[str]:
     При ошибке сети пробует загрузить из кэша.
     Если кэш устарел (>24ч) или отсутствует и сеть недоступна — возвращает [].
     """
+    if os.getenv("BOTV_BRANDS_OFFLINE") == "1":
+        return _load_from_cache(cache_path)
+
     # Пробуем скачать свежий список
     try:
         import aiohttp
@@ -98,11 +102,11 @@ def detect_brand(product_name: str, brands: list[str]) -> str | None:
     quoted_prefix = re.split(r"['\"«]", normalized, maxsplit=1)[0].strip()
     if quoted_prefix != normalized:
         exact = by_lower.get(quoted_prefix.casefold())
-        return exact or ("Без бренда" if "Без бренда" in brands else None)
+        return exact
 
     lower = normalized.casefold()
     for brand in sorted(brands, key=len, reverse=True):
         candidate = brand.casefold()
         if lower == candidate or lower.startswith(candidate + " "):
             return brand
-    return "Без бренда" if "Без бренда" in brands else None
+    return None

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import zipfile
 from pathlib import Path
@@ -177,3 +178,32 @@ def test_web_session_xml_limits_slow_gigachat_and_uses_fallback(tmp_path):
     assert "\u0414\u0438\u0437\u0430\u0439\u043d:&lt;br&gt;\u0413\u0440\u0430\u0444\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0434\u0438\u0437\u0430\u0439\u043d" in xml["xml"]
     assert "<Color>\u0411\u0435\u043b\u044b\u0439</Color>" in xml["xml"]
     assert "<Color>\u0427\u0451\u0440\u043d\u044b\u0439</Color>" in xml["xml"]
+
+
+def test_web_session_xml_skips_brand_when_not_in_avito_cache(tmp_path):
+    archive = tmp_path / "drop.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("Drop/Raf Simons Archive/one.jpg", b"jpg")
+
+    settings_dir = tmp_path / "settings"
+    shutil.copytree(Path(__file__).resolve().parents[1] / "settings", settings_dir)
+    cache = settings_dir / "brands_cache.json"
+    cache.write_text(json.dumps({"ts": 4102444800, "brands": ["NIKE", "Без бренда"]}, ensure_ascii=False), encoding="utf-8")
+    state = _run_cli("create", str(archive), "drop.zip")
+    _run_cli("update", state["id"], json.dumps({
+        "products": [{"index": 1, "adTitle": "Raf Simons Archive", "price": 1990}],
+    }, ensure_ascii=False))
+
+    xml = _run_cli(
+        "xml",
+        state["id"],
+        env={
+            "BOTV_WEB_LOCAL_IMAGES": None,
+            "BOTV_PUBLIC_IMAGE_BASE_URL": "http://images.example.test",
+            "SETTINGS_DIR": str(settings_dir),
+            "BOTV_BRANDS_OFFLINE": "1",
+        },
+    )
+
+    assert "<Brand>" not in xml["xml"]
+    assert "Без бренда" not in xml["xml"]
