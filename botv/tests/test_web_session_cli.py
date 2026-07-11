@@ -134,12 +134,12 @@ def test_web_session_xml_uses_public_photo_urls_by_default(tmp_path):
         state["id"],
         env={
             "BOTV_WEB_LOCAL_IMAGES": None,
-            "BOTV_PUBLIC_BASE_URL": "https://example.test",
+            "BOTV_PUBLIC_IMAGE_BASE_URL": "http://images.example.test",
         },
     )
 
     assert "file://" not in xml["xml"]
-    assert f"https://example.test/v-static/botv/{state['id']}/" in xml["xml"]
+    assert f"http://images.example.test/v-static/botv/{state['id']}/" in xml["xml"]
     assert "/v-data/botv/work/" not in xml["xml"]
     assert "/photo?token=" not in xml["xml"]
     assert re.search(r"/v-static/botv/.+/[a-f0-9]{24}\.jpg", xml["xml"])

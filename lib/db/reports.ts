@@ -330,10 +330,22 @@ export async function getExpenseCategoryTotals(range: DateRange) {
 }
 
 export async function getDynamicsChart(range: DateRange) {
-  const orders = await getReceivedOrders(range);
-  const byDay: Record<string, { revenue: number; profit: number }> = {};
+  const [receivedOrders, activeOrders] = await Promise.all([
+    getReceivedOrders(range),
+    getActiveOrders(range),
+  ]);
+  const byDay: Record<string, { revenue: number; profit: number; orders: number }> = {};
 
-  for (const o of orders) {
+  const ensureDay = (day: string) => {
+    if (!byDay[day]) byDay[day] = { revenue: 0, profit: 0, orders: 0 };
+    return byDay[day];
+  };
+
+  for (const order of activeOrders) {
+    ensureDay(formatDateInput(order.orderDate)).orders += 1;
+  }
+
+  for (const o of receivedOrders) {
     const fin = calcOrderFinancials({
       salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
       quantity: o.quantity,
@@ -343,9 +355,9 @@ export async function getDynamicsChart(range: DateRange) {
       otherCosts: toDecimalNumber(o.otherCosts),
     });
     const day = formatDateInput(o.receivedAt ?? o.orderDate);
-    if (!byDay[day]) byDay[day] = { revenue: 0, profit: 0 };
-    byDay[day].revenue += fin.revenue;
-    byDay[day].profit += fin.netProfit;
+    const bucket = ensureDay(day);
+    bucket.revenue += fin.revenue;
+    bucket.profit += fin.netProfit;
   }
 
   return Object.entries(byDay)

@@ -416,6 +416,13 @@ def _public_base_url() -> str:
     return "https://crmavito.duckdns.org"
 
 
+def _public_photo_base_url() -> str:
+    explicit = os.getenv("BOTV_PUBLIC_IMAGE_BASE_URL", "").strip().rstrip("/")
+    if explicit:
+        return explicit
+    return "http://crmavito.duckdns.org"
+
+
 def _public_photo_ext(photo: Path) -> str:
     ext = photo.suffix.lower().lstrip(".")
     if ext in {"jpg", "jpeg", "png", "webp"}:
@@ -438,7 +445,7 @@ def _stage_public_photo(session_id: str, photo: Path) -> str:
 
 
 def _public_photo_urls(session_id: str, photos: list[Path]) -> list[str]:
-    base = _public_base_url()
+    base = _public_photo_base_url()
     return [
         f"{base}{_stage_public_photo(session_id, photo)}"
         for photo in photos

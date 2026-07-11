@@ -43,7 +43,7 @@ export function ReportsClient() {
   const [products, setProducts] = useState<Array<{ productId: string; name: string; imageUrl: string | null; sold: number; revenue: number; profit: number }>>([]);
   const [counterparties, setCounterparties] = useState<Array<{ counterpartyId: string; name: string; purchased: number; revenue: number; profit: number }>>([]);
   const [returns, setReturns] = useState<Array<{ productId: string; name: string; returns: number; returnPercent: number }>>([]);
-  const [dynamics, setDynamics] = useState<Array<{ date: string; revenue: number; profit: number }>>([]);
+  const [dynamics, setDynamics] = useState<Array<{ date: string; revenue: number; profit: number; orders: number }>>([]);
   const [orderStatuses, setOrderStatuses] = useState<Record<string, number>>({});
   const [expenseCategories, setExpenseCategories] = useState<Record<string, number>>({});
   const [period, setPeriod] = useState<Period>("day");
