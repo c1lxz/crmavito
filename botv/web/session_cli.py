@@ -77,10 +77,11 @@ async def _detect_product_binary_color(
     timeout: float | None = None,
 ) -> str:
     cached = str(product.get("color") or "")
-    if cached:
+    source = str(product.get("color_source") or "")
+    if cached and source in {"manual", "ai"}:
         return _binary_color(cached)
     if allow_ai and config.gigachat_credentials:
-        for photo in photos[:1]:
+        for photo in photos[:3]:
             try:
                 color = await asyncio.wait_for(
                     detect_product_color(
@@ -95,8 +96,10 @@ async def _detect_product_binary_color(
             except asyncio.TimeoutError:
                 color = None
             if color:
+                product["color_source"] = "ai"
                 return _binary_color(color)
-    return _binary_color(color_detector.detect(f"{product.get('name', '')} {title}"))
+    product["color_source"] = source or "detector"
+    return _binary_color(cached or color_detector.detect(f"{product.get('name', '')} {title}"))
 
 
 async def _generate_product_design(
@@ -169,6 +172,7 @@ def _serialize_product(index: int, product: dict) -> dict:
         "photoCount": len(photos),
         "firstPhoto": _photo_token(first_photo) if first_photo else None,
         "photos": [_photo_token(photo) for photo in photos],
+        "color": _binary_color(product.get("color") or (details.get("color") if isinstance(details, dict) else None)),
         "description": product.get("description", ""),
         "details": details if isinstance(details, dict) else {},
     }
@@ -224,6 +228,8 @@ def _state_from_root(session_id: str, session_dir: Path, root: Path, source_name
     products = []
     for p in found:
         photos = [Path(photo) for photo in p["photos"]]
+        details = _product_details(p["name"], photos)
+        color = _binary_color(details.get("color"))
         products.append({
             "name": p["name"],
             "ad_title": "",
@@ -231,8 +237,10 @@ def _state_from_root(session_id: str, session_dir: Path, root: Path, source_name
             "photos": [str(photo) for photo in photos],
             "deleted": False,
             "use_original_title": False,
+            "color": color,
+            "color_source": "detector",
             "description": _description_for_preview(p["name"], p["name"], None),
-            "details": _product_details(p["name"], photos),
+            "details": {**details, "color": color},
         })
     progress.append(f"Найдено товаров: {len(products)}")
     now = int(time.time())
@@ -333,9 +341,14 @@ def update_session(session_id: str, payload: dict) -> dict:
         if "price" in item:
             value = item["price"]
             product["price"] = int(value) if value not in (None, "") else None
+        if "color" in item:
+            product["color"] = _binary_color(str(item.get("color") or ""))
+            product["color_source"] = "manual"
         title = (product.get("ad_title") or product["name"]).strip()
-        product["description"] = _description_for_preview(product["name"], title, product.get("price"))
-        product["details"] = _product_details(product["name"], [Path(p) for p in product.get("photos", [])], product.get("color"))
+        color = _binary_color(product.get("color"))
+        product["color"] = color
+        product["description"] = _description_for_preview(product["name"], title, product.get("price"), product.get("design", ""))
+        product["details"] = _product_details(product["name"], [Path(p) for p in product.get("photos", [])], color)
         if "photoOrder" in item and isinstance(item["photoOrder"], list):
             _reorder_photos(product, [str(token) for token in item["photoOrder"]])
         if "movePhoto" in item and isinstance(item["movePhoto"], dict):
@@ -498,7 +511,8 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
         brand = detect_brand(name, brands)
         base_extra = product_extra(f"{name} {title}", sizes[idx - 1])
         photos = [Path(p) for p in product.get("photos", [])]
-        needs_ai = not product.get("color") or not str(product.get("design") or "").strip()
+        needs_ai_color = not product.get("color") or product.get("color_source") != "manual"
+        needs_ai = needs_ai_color or not str(product.get("design") or "").strip()
         allow_ai = needs_ai and ai_products_left > 0
         if allow_ai:
             ai_products_left -= 1

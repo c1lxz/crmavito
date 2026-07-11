@@ -14,6 +14,7 @@ export interface BotvProduct {
   photoCount: number;
   firstPhoto: string | null;
   photos: string[];
+  color: "Белый" | "Чёрный";
   description: string;
   details: Record<string, string | number>;
 }

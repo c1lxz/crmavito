@@ -26,6 +26,10 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("firstPhoto");
     expect(clientSource).toContain("setPhonePromptOpen(true)");
     expect(clientSource).toContain("movePhoto");
+    expect(clientSource).toContain("PRODUCT_COLORS");
+    expect(clientSource).toContain("saveProductColor");
+    expect(clientSource).toContain("Чёрный");
+    expect(clientSource).toContain("Белый");
     expect(clientSource).toContain("PanelTop");
     expect(clientSource).toContain("Описание");
     expect(clientSource).toContain("fixed inset-0 z-50");
@@ -84,6 +88,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("function updateLocalProduct");
     expect(clientSource).toContain("void refreshHistory()");
     expect(clientSource).toContain("saveProductTitle(product.index, e.currentTarget.value)");
+    expect(clientSource).toContain("saveProductColor(product, color)");
     expect(clientSource).toContain("toggleOriginalTitle(product)");
     expect(clientSource).toContain('loading="lazy"');
     expect(photoRouteSource).toContain("decodePhotoToken");

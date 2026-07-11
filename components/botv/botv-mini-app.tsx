@@ -37,6 +37,10 @@ function photoUrl(sessionId: string, token: string | null) {
     : "";
 }
 
+type ProductColor = "Белый" | "Чёрный";
+
+const PRODUCT_COLORS: ProductColor[] = ["Чёрный", "Белый"];
+
 function formatDate(value: number | null | undefined) {
   if (!value) return "";
   return new Intl.DateTimeFormat("ru-RU", {
@@ -123,7 +127,7 @@ function ListingPreview({ product, sessionId }: { product: BotvProduct | null; s
         </div>
         <div className="grid gap-2 rounded-md border border-border/80 bg-muted/35 p-3 text-sm sm:grid-cols-2">
           <div><span className="text-muted-foreground">Категория: </span>{product.details.category || "Одежда"}</div>
-          <div><span className="text-muted-foreground">Цвет: </span>{product.details.color || "Не указан"}</div>
+          <div><span className="text-muted-foreground">Цвет: </span>{product.color || product.details.color || "Не указан"}</div>
           <div><span className="text-muted-foreground">Размер: </span>{product.details.size || "Без размера"}</div>
           <div><span className="text-muted-foreground">Состояние: </span>{product.details.condition || "Новое"}</div>
           <div><span className="text-muted-foreground">Тип: </span>{product.details.goodsType || "Мужская одежда"}</div>
@@ -356,6 +360,14 @@ export function BotvMiniApp() {
     await patch({ products: [{ index, price: value }] });
   }
 
+  async function saveProductColor(product: BotvProduct, color: ProductColor) {
+    updateLocalProduct(product.index, {
+      color,
+      details: { ...product.details, color },
+    });
+    await patch({ products: [{ index: product.index, color }] });
+  }
+
   function reorderTokens(tokens: string[], token: string, direction: "first" | "left" | "right") {
     const next = [...tokens];
     const index = next.indexOf(token);
@@ -485,6 +497,21 @@ export function BotvMiniApp() {
                       <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">#{product.index} {product.name}</p><p className="text-xs text-muted-foreground">{product.photoCount} фото · {formatRub(product.price)}</p></div>
                     </div>
                     <Input value={product.adTitle} disabled={product.useOriginalTitle || product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { adTitle: e.target.value })} onBlur={(e) => run(() => saveProductTitle(product.index, e.currentTarget.value))} />
+                    <div className="grid grid-cols-2 gap-1" onClick={(e) => e.stopPropagation()}>
+                      {PRODUCT_COLORS.map((color) => (
+                        <Button
+                          key={color}
+                          type="button"
+                          size="sm"
+                          variant={product.color === color ? "default" : "outline"}
+                          disabled={product.deleted}
+                          className="h-8"
+                          onClick={() => run(() => saveProductColor(product, color))}
+                        >
+                          {color}
+                        </Button>
+                      ))}
+                    </div>
                     <div className="flex gap-2">
                       <Input inputMode="numeric" placeholder="Цена" value={product.price ?? ""} disabled={product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { price: e.target.value ? Number(e.target.value) : null })} onBlur={(e) => run(() => saveProductPrice(product.index, e.currentTarget.value ? Number(e.currentTarget.value) : null))} />
                       <Button size="icon" variant={product.useOriginalTitle ? "default" : "outline"} onClick={(e) => { e.stopPropagation(); run(() => toggleOriginalTitle(product)); }}><Package className="h-4 w-4" /></Button>

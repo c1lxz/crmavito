@@ -47,12 +47,18 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert updated["products"][0]["adTitle"] == "Product Black"
     assert updated["products"][0]["price"] == 3290
 
+    color_updated = _run_cli("update", state["id"], json.dumps({
+        "products": [{"index": 1, "color": "Белый"}],
+    }, ensure_ascii=False))
+    assert color_updated["products"][0]["color"] == "Белый"
+    assert color_updated["products"][0]["details"]["color"] == "Белый"
+
     xml = _run_cli("xml", state["id"])
     assert xml["products"] == 1
     assert xml["ads"] == 3
     assert "Product Black" in xml["xml"]
     assert "Product White" not in xml["xml"]
-    assert "<Color>\u0427\u0451\u0440\u043d\u044b\u0439</Color>" in xml["xml"]
+    assert "<Color>\u0411\u0435\u043b\u044b\u0439</Color>" in xml["xml"]
     assert "\u0414\u0438\u0437\u0430\u0439\u043d:&lt;br&gt;\u0413\u0440\u0430\u0444\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0434\u0438\u0437\u0430\u0439\u043d" in xml["xml"]
     assert "<Delivery>" not in xml["xml"]
     assert "<TryOn>" not in xml["xml"]
@@ -168,4 +174,4 @@ def test_web_session_xml_limits_slow_gigachat_and_uses_fallback(tmp_path):
     assert xml["ads"] == 9
     assert "\u0414\u0438\u0437\u0430\u0439\u043d:&lt;br&gt;\u0413\u0440\u0430\u0444\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0434\u0438\u0437\u0430\u0439\u043d" in xml["xml"]
     assert "<Color>\u0411\u0435\u043b\u044b\u0439</Color>" in xml["xml"]
-    assert "<Color>\u0427\u0451\u0440\u043d\u044b\u0439</Color>" in xml["xml"]
+    assert "<Color>\u0411\u0435\u043b\u044b\u0439</Color>" in xml["xml"]
