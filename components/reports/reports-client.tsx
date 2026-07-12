@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateInput, formatRub, formatPercent, startOfMonth } from "@/lib/utils";
 import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_COLORS, ORDER_STATUS_LABELS } from "@/lib/constants";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { DynamicsChart, type Period } from "@/components/dashboard/DynamicsChart";
+import { DynamicsChart, OrdersDynamicsChart, type Period } from "@/components/dashboard/DynamicsChart";
 import { ExpensesDonut, type ExpenseItem } from "@/components/dashboard/ExpensesDonut";
 import { OrdersStatusDonut, type OrderStatusItem } from "@/components/dashboard/OrdersStatusDonut";
 import { TopProductsProfit } from "@/components/dashboard/TopProductsProfit";
@@ -192,7 +192,10 @@ export function ReportsClient() {
             )}
 
             {/* Dynamics */}
-            <DynamicsChart data={dynamics} period={period} onPeriodChange={setPeriod} />
+            <div className="grid gap-4">
+              <DynamicsChart data={dynamics} period={period} onPeriodChange={setPeriod} />
+              <OrdersDynamicsChart data={dynamics} period={period} onPeriodChange={setPeriod} />
+            </div>
 
             {/* Donuts */}
             <ExpensesDonut data={expenseDonutData} total={expenseTotal} />

@@ -12,8 +12,10 @@ describe("reports dynamics chart", () => {
     expect(reportsSource).toContain("getActiveOrders(range)");
     expect(reportsSource).toContain("ensureDay(formatDateInput(order.orderDate)).orders += 1");
     expect(clientSource).toContain("orders: number");
-    expect(chartSource).toContain("Заказы");
+    expect(chartSource).toContain("export function OrdersDynamicsChart");
+    expect(chartSource).toContain("Динамика заказов");
     expect(chartSource).toContain('dataKey="orders"');
     expect(chartSource).toContain("aggregateByPeriod");
+    expect(clientSource).toContain("OrdersDynamicsChart");
   });
 });

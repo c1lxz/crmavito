@@ -25,3 +25,7 @@ Thumbs.db
 # Runtime order photo uploads
 public/uploads/orders/*
 !public/uploads/orders/.gitkeep
+
+# Botv runtime files
+botv/venv/
+public/v-static/
