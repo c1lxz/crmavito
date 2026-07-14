@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Database, KeyRound, LogOut, Palette, Plus, Shield, ToggleLeft, ToggleRight, Trash2, User, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Database, KeyRound, LogOut, PackageCheck, Palette, Plus, Shield, ToggleLeft, ToggleRight, Trash2, User, Users } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -340,6 +340,18 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
               <span>Товары (синхронизация с Avito)</span>
               <ArrowLeft className="h-4 w-4 rotate-180 text-muted-foreground" />
             </Link>
+            {user.role === "ADMIN" && (
+              <Link
+                href="/settings/stocks"
+                className="flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-secondary/70 transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <PackageCheck className="h-4 w-4 text-muted-foreground" />
+                  Остатки Avito
+                </span>
+                <ArrowLeft className="h-4 w-4 rotate-180 text-muted-foreground" />
+              </Link>
+            )}
           </CardContent>
         </Card>
 

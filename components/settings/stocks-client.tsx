@@ -1,0 +1,361 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { ArrowLeft, Check, CheckSquare, ExternalLink, Package, RefreshCw, Save, Search, Square } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/lib/hooks/use-toast";
+import { formatRub, matchesSearch } from "@/lib/utils";
+
+type StockItem = {
+  itemId: string;
+  title: string;
+  price: number;
+  url: string | null;
+  status: string | null;
+  imageUrl: string | null;
+  quantity: number | null;
+  isUnlimited: boolean;
+  isOutOfStock: boolean;
+  isMultiple: boolean;
+};
+
+export function StocksClient() {
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [items, setItems] = useState<StockItem[]>([]);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [bulkQuantity, setBulkQuantity] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [bulkSaving, setBulkSaving] = useState(false);
+
+  const filtered = useMemo(
+    () => items.filter((item) => matchesSearch(`${item.title} ${item.itemId}`, search)),
+    [items, search],
+  );
+
+  const selectedCount = selected.size;
+  const canLoad = clientId.trim() && clientSecret.trim() && !loading;
+
+  async function loadItems() {
+    setLoading(true);
+    setSelected(new Set());
+    try {
+      const response = await fetch("/api/avito/stocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, clientSecret }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить объявления");
+      setItems(data.items ?? []);
+      setDrafts(
+        Object.fromEntries(
+          (data.items ?? []).map((item: StockItem) => [item.itemId, String(item.quantity ?? 0)]),
+        ),
+      );
+      toast({ title: "Объявления загружены", description: `Найдено: ${(data.items ?? []).length}` });
+    } catch (error) {
+      toast({
+        title: "Ошибка Avito",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveUpdates(updates: { itemId: string; quantity: number }[]) {
+    const response = await fetch("/api/avito/stocks/update", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId, clientSecret, updates }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? "Не удалось обновить остатки");
+    const successful = new Set(
+      (data.stocks ?? [])
+        .filter((stock: { item_id: string | number; success?: boolean }) => stock.success !== false)
+        .map((stock: { item_id: string | number }) => String(stock.item_id)),
+    );
+    return successful.size ? successful : new Set(updates.map((update) => update.itemId));
+  }
+
+  async function saveOne(itemId: string) {
+    const quantity = Number(drafts[itemId]);
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      toast({ title: "Остаток должен быть целым числом от 0", variant: "destructive" });
+      return;
+    }
+
+    setSavingId(itemId);
+    try {
+      const successful = await saveUpdates([{ itemId, quantity }]);
+      if (!successful.has(itemId)) throw new Error("Avito не подтвердил обновление");
+      setItems((current) =>
+        current.map((item) => (item.itemId === itemId ? { ...item, quantity } : item)),
+      );
+      toast({ title: "Остаток обновлён" });
+    } catch (error) {
+      toast({
+        title: "Ошибка Avito",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function saveBulk() {
+    const quantity = Number(bulkQuantity);
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      toast({ title: "Остаток должен быть целым числом от 0", variant: "destructive" });
+      return;
+    }
+    const updates = [...selected].map((itemId) => ({ itemId, quantity }));
+    if (updates.length === 0) return;
+
+    setBulkSaving(true);
+    try {
+      const successful = await saveUpdates(updates);
+      setItems((current) =>
+        current.map((item) => (successful.has(item.itemId) ? { ...item, quantity } : item)),
+      );
+      setDrafts((current) => ({
+        ...current,
+        ...Object.fromEntries([...successful].map((itemId) => [itemId, String(quantity)])),
+      }));
+      setSelected(new Set());
+      toast({ title: "Остатки обновлены", description: `Позиций: ${successful.size}` });
+    } catch (error) {
+      toast({
+        title: "Ошибка Avito",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  function toggleSelected(itemId: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }
+
+  function toggleVisible() {
+    setSelected((current) => {
+      const visibleIds = filtered.map((item) => item.itemId);
+      const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => current.has(id));
+      const next = new Set(current);
+      for (const id of visibleIds) {
+        if (allVisibleSelected) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }
+
+  return (
+    <div className="app-shell">
+      <div className="app-header">
+        <div className="mb-3 flex items-center gap-3">
+          <Link href="/settings" className="icon-tile h-9 w-9">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-lg font-semibold tracking-tight">Остатки Avito</h1>
+            <p className="section-caption">Объявления и количество на выбранном аккаунте</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={loadItems} disabled={!canLoad}>
+            <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "Загрузка" : "Загрузить"}
+          </Button>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="avito-client-id">Avito client_id</Label>
+            <Input
+              id="avito-client-id"
+              value={clientId}
+              onChange={(event) => setClientId(event.target.value)}
+              placeholder="client_id"
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="avito-client-secret">Avito client_secret</Label>
+            <Input
+              id="avito-client-secret"
+              type="password"
+              value={clientSecret}
+              onChange={(event) => setClientSecret(event.target.value)}
+              placeholder="client_secret"
+              autoComplete="off"
+            />
+          </div>
+        </div>
+      </div>
+
+      {items.length > 0 && (
+        <div className="border-b border-border/80 bg-card/45 px-4 py-3">
+          <div className="mb-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleVisible}
+              className="icon-tile h-9 w-9"
+              aria-label="Выбрать видимые"
+            >
+              {filtered.length > 0 && filtered.every((item) => selected.has(item.itemId)) ? (
+                <CheckSquare className="h-4 w-4" />
+              ) : (
+                <Square className="h-4 w-4" />
+              )}
+            </button>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Поиск объявления..."
+                className="pl-9"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              className="h-9 w-32"
+              placeholder="Остаток"
+              value={bulkQuantity}
+              onChange={(event) => setBulkQuantity(event.target.value)}
+              disabled={selectedCount === 0}
+            />
+            <Button
+              size="sm"
+              onClick={saveBulk}
+              disabled={selectedCount === 0 || bulkSaving}
+              className="min-w-32"
+            >
+              {bulkSaving ? "Сохранение" : `Для выбранных: ${selectedCount}`}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="app-content space-y-3">
+        {!loading && items.length === 0 && (
+          <div className="py-12 text-center text-muted-foreground">
+            <Package className="mx-auto mb-3 h-10 w-10 opacity-45" />
+            <p className="text-sm font-semibold">Введите ключи Avito и загрузите объявления</p>
+          </div>
+        )}
+
+        {filtered.map((item) => {
+          const isSelected = selected.has(item.itemId);
+          const draft = drafts[item.itemId] ?? String(item.quantity ?? 0);
+          const changed = Number(draft) !== (item.quantity ?? 0);
+
+          return (
+            <Card key={item.itemId} className="transition-colors hover:border-primary/25 hover:bg-accent/45">
+              <CardContent className="flex items-center gap-3 p-3">
+                <button
+                  type="button"
+                  onClick={() => toggleSelected(item.itemId)}
+                  className="text-muted-foreground transition-colors hover:text-primary"
+                  aria-label={isSelected ? "Снять выбор" : "Выбрать"}
+                >
+                  {isSelected ? <CheckSquare className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5" />}
+                </button>
+
+                <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-md bg-muted">
+                  {item.imageUrl ? (
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.title}
+                      width={56}
+                      height={56}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                      <Package className="h-5 w-5" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium leading-tight">{item.title}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground">ID {item.itemId}</span>
+                    <span className="text-xs font-semibold">{formatRub(item.price)}</span>
+                    {item.status && (
+                      <Badge variant={item.status === "active" ? "success" : "warning"}>{item.status}</Badge>
+                    )}
+                    {item.isUnlimited && <Badge variant="secondary">Без лимита</Badge>}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    className="h-9 w-24 text-right"
+                    value={draft}
+                    onChange={(event) =>
+                      setDrafts((current) => ({ ...current, [item.itemId]: event.target.value }))
+                    }
+                  />
+                  <Button
+                    size="icon"
+                    variant={changed ? "default" : "outline"}
+                    className="h-9 w-9"
+                    onClick={() => saveOne(item.itemId)}
+                    disabled={savingId === item.itemId || !changed}
+                    aria-label="Сохранить остаток"
+                  >
+                    {savingId === item.itemId ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : changed ? (
+                      <Save className="h-4 w-4" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                  </Button>
+                  {item.url && (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 text-muted-foreground hover:text-foreground"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
