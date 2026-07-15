@@ -23,10 +23,6 @@ Deployment:
 - The deploy script runs the server-side `/var/www/crmavito/deploy.sh`.
 - If code must reach the server through git, commit/push first or clearly report that deploy would not include local unpushed changes.
 
-Reporting:
-- Send Telegram reports with only the useful facts: changed files, tests/build result, deploy result, and any blocker.
-- If a risky command is needed, ask in Telegram first. Routine reads, edits, tests, builds, git status/diff, and deploy using the configured script are allowed.
-
 Token discipline:
 - Keep plans short.
 - Avoid loading large files unless needed.
