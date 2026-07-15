@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    middlewareClientMaxBodySize: "1536mb",
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.avito.ru" },
