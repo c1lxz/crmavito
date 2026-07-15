@@ -18,4 +18,15 @@ describe("reports dynamics chart", () => {
     expect(chartSource).toContain("aggregateByPeriod");
     expect(clientSource).toContain("OrdersDynamicsChart");
   });
+
+  it("includes an Avito profiles chart fed by reports API", () => {
+    const reportsSource = readFileSync(path.resolve(__dirname, "../lib/db/reports.ts"), "utf8");
+    const routeSource = readFileSync(path.resolve(__dirname, "../app/api/reports/route.ts"), "utf8");
+    const clientSource = readFileSync(path.resolve(__dirname, "../components/reports/reports-client.tsx"), "utf8");
+
+    expect(reportsSource).toContain("getAvitoProfileCounts");
+    expect(reportsSource).toContain("avitoProfileId");
+    expect(routeSource).toContain('"avito-profiles"');
+    expect(clientSource).toContain("Заказы по профилям Avito");
+  });
 });

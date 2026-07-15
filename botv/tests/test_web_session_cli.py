@@ -212,3 +212,35 @@ def test_web_session_xml_skips_brand_when_not_in_avito_cache(tmp_path):
 
     assert "<Brand>" not in xml["xml"]
     assert "Без бренда" not in xml["xml"]
+def test_web_session_phone_xml_keeps_brand_from_stale_cache(tmp_path):
+    archive = tmp_path / "drop.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("Drop/NIKE Air/one.jpg", b"jpg")
+
+    settings_dir = tmp_path / "settings"
+    shutil.copytree(Path(__file__).resolve().parents[1] / "settings", settings_dir)
+    cache = settings_dir / "brands_cache.json"
+    cache.write_text(json.dumps({"ts": 1, "brands": ["NIKE"]}, ensure_ascii=False), encoding="utf-8")
+
+    state = _run_cli("create", str(archive), "drop.zip")
+    _run_cli("update", state["id"], json.dumps({
+        "products": [{"index": 1, "adTitle": "NIKE Air", "price": 1990}],
+    }, ensure_ascii=False))
+
+    env = {
+        "BOTV_WEB_LOCAL_IMAGES": None,
+        "BOTV_PUBLIC_IMAGE_BASE_URL": "http://images.example.test",
+        "SETTINGS_DIR": str(settings_dir),
+        "BOTV_BRANDS_OFFLINE": "1",
+    }
+    xml = _run_cli("xml", state["id"], env=env)
+    assert "<Brand>NIKE</Brand>" in xml["xml"]
+
+    phone_xml = _run_cli("xml", state["id"], "--phone", "+7 999 111-22-33", env=env)
+    assert "<Brand>NIKE</Brand>" in phone_xml["xml"]
+    replaced_phone_xml = re.sub(
+        r"<ContactPhone>.*?</ContactPhone>",
+        "<ContactPhone>+79991112233</ContactPhone>",
+        xml["xml"],
+    )
+    assert phone_xml["xml"] == replaced_phone_xml

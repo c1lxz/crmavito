@@ -27,6 +27,13 @@ interface Counterparty {
   name: string;
 }
 
+interface AvitoProfile {
+  id: string;
+  name: string;
+  color: string | null;
+  isActive: boolean;
+}
+
 export interface OrderFormItem {
   productId: string;
   productSearch: string;
@@ -44,6 +51,7 @@ export interface OrderFormItem {
 export interface OrderFormInitialValue {
   id: string;
   counterpartyId: string;
+  avitoProfileId: string;
   purchaseComment: string;
   trackingNumber: string;
   carrier: string;
@@ -61,6 +69,7 @@ interface Props {
   onClose: () => void;
   products: OrderFormProduct[];
   counterparties: Counterparty[];
+  avitoProfiles: AvitoProfile[];
   initialValue?: OrderFormInitialValue;
   depositedReturns?: DepositedReturn[];
 }
@@ -89,6 +98,7 @@ const emptyItem = (): OrderFormItem => ({
 
 const blankOrderForm = () => ({
   counterpartyId: "",
+  avitoProfileId: "",
   purchaseComment: "",
   trackingNumber: "",
   carrier: "",
@@ -111,6 +121,7 @@ export function CreateOrderDialog({
   onClose,
   products,
   counterparties,
+  avitoProfiles,
   initialValue,
   depositedReturns = [],
 }: Props) {
@@ -118,6 +129,7 @@ export function CreateOrderDialog({
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(blankOrderForm);
   const [carrierTouched, setCarrierTouched] = useState(false);
+  const [initializedKey, setInitializedKey] = useState<string | null>(null);
   const productsById = useMemo(
     () => new Map(products.map((product) => [product.id, product])),
     [products]
@@ -125,11 +137,17 @@ export function CreateOrderDialog({
   const isEditing = Boolean(initialValue);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setInitializedKey(null);
+      return;
+    }
+    const nextKey = initialValue?.id ?? "new";
+    if (initializedKey === nextKey) return;
     setForm(
       initialValue
         ? {
             counterpartyId: initialValue.counterpartyId,
+            avitoProfileId: initialValue.avitoProfileId,
             purchaseComment: initialValue.purchaseComment,
             trackingNumber: initialValue.trackingNumber,
             carrier: initialValue.carrier,
@@ -144,7 +162,8 @@ export function CreateOrderDialog({
         : blankOrderForm()
     );
     setCarrierTouched(Boolean(initialValue?.carrier));
-  }, [initialValue, open]);
+    setInitializedKey(nextKey);
+  }, [initialValue, initializedKey, open]);
 
   function updateItem(index: number, patch: Partial<OrderFormItem>) {
     setForm((current) => ({
@@ -249,6 +268,7 @@ export function CreateOrderDialog({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             counterpartyId: form.counterpartyId,
+            avitoProfileId: form.avitoProfileId || null,
             purchaseComment: form.purchaseComment || undefined,
             trackingNumber: form.trackingNumber,
             carrier: form.carrier || undefined,
@@ -571,6 +591,30 @@ export function CreateOrderDialog({
                 >
                   Справочник контрагентов <ExternalLink className="h-3 w-3" />
                 </Link>
+              </div>
+              <div className="space-y-1">
+                <Label>Профиль Avito</Label>
+                <Select
+                  value={form.avitoProfileId || "NONE"}
+                  onValueChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      avitoProfileId: value === "NONE" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger><SelectValue placeholder="Выберите профиль" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">Не указан</SelectItem>
+                    {avitoProfiles
+                      .filter((profile) => profile.isActive || profile.id === form.avitoProfileId)
+                      .map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label>Трек-номер / штрихкод</Label>

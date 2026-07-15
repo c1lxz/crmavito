@@ -31,6 +31,8 @@ const ORDER_STATUS_HEX: Record<string, string> = {
   CANCELLED: "#64748b",
 };
 
+const AVITO_PROFILE_COLORS = ["#6366f1", "#22c55e", "#eab308", "#f97316", "#7c3aed", "#06b6d4", "#ef4444"];
+
 const EXPENSE_ORDER: string[] = [
   "PURCHASE", "LOGISTICS", "ADVERTISING", "AVITO_COMMISSION", "PACKAGING", "SALARY", "OTHER",
 ];
@@ -45,6 +47,7 @@ export function ReportsClient() {
   const [returns, setReturns] = useState<Array<{ productId: string; name: string; returns: number; returnPercent: number }>>([]);
   const [dynamics, setDynamics] = useState<Array<{ date: string; revenue: number; profit: number; orders: number }>>([]);
   const [orderStatuses, setOrderStatuses] = useState<Record<string, number>>({});
+  const [avitoProfiles, setAvitoProfiles] = useState<Array<{ id: string; label: string; count: number }>>([]);
   const [expenseCategories, setExpenseCategories] = useState<Record<string, number>>({});
   const [period, setPeriod] = useState<Period>("day");
   const [loading, setLoading] = useState(false);
@@ -69,7 +72,7 @@ export function ReportsClient() {
         }
         return body as T;
       };
-      const [kpiRes, pnlRes, prodRes, cpRes, returnsRes, dynRes, statusRes, expCatRes] = await Promise.all([
+      const [kpiRes, pnlRes, prodRes, cpRes, returnsRes, dynRes, statusRes, avitoProfilesRes, expCatRes] = await Promise.all([
         fetchReport<{ current: KpiData; prev: KpiData }>("kpi"),
         fetchReport<Record<string, number>>("pnl"),
         fetchReport<typeof products>("products"),
@@ -77,6 +80,7 @@ export function ReportsClient() {
         fetchReport<typeof returns>("returns"),
         fetchReport<typeof dynamics>("dynamics"),
         fetchReport<Record<string, number>>("order-statuses"),
+        fetchReport<Array<{ id: string; label: string; count: number }>>("avito-profiles"),
         fetchReport<Record<string, number>>("expense-categories"),
       ]);
       if (requestId !== requestIdRef.current) return;
@@ -87,6 +91,7 @@ export function ReportsClient() {
       setReturns(returnsRes);
       setDynamics(dynRes);
       setOrderStatuses(statusRes);
+      setAvitoProfiles(avitoProfilesRes);
       setExpenseCategories(expCatRes);
     } catch (loadError) {
       if (requestId === requestIdRef.current) {
@@ -142,6 +147,13 @@ export function ReportsClient() {
     color: ORDER_STATUS_HEX[status] ?? "#888",
   }));
   const orderTotal = orderStatusData.reduce((s, d) => s + d.count, 0);
+  const avitoProfileData: OrderStatusItem[] = avitoProfiles.map((profile, index) => ({
+    status: profile.id,
+    label: profile.label,
+    count: profile.count,
+    color: AVITO_PROFILE_COLORS[index % AVITO_PROFILE_COLORS.length],
+  }));
+  const avitoProfileTotal = avitoProfileData.reduce((s, d) => s + d.count, 0);
 
   return (
     <div className="app-shell">
@@ -200,6 +212,7 @@ export function ReportsClient() {
             {/* Donuts */}
             <ExpensesDonut data={expenseDonutData} total={expenseTotal} />
             <OrdersStatusDonut data={orderStatusData} total={orderTotal} />
+            <OrdersStatusDonut title="Заказы по профилям Avito" data={avitoProfileData} total={avitoProfileTotal} />
 
             {/* Top products */}
             <TopProductsProfit products={products.slice(0, 5)} />

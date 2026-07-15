@@ -33,6 +33,29 @@ export type AvitoProbeResult = {
   notes: string[];
 };
 
+export type AvitoAnalyzedListing = {
+  id: string | null;
+  url: string;
+  title: string | null;
+  views: number | null;
+  publishedAt: string | null;
+  ageDays: number | null;
+  status: number;
+  ok: boolean;
+  note: string | null;
+};
+
+export type AvitoMarketAnalysisResult = AvitoProbeResult & {
+  listings: AvitoAnalyzedListing[];
+  summary: {
+    checked: number;
+    withViews: number;
+    totalViews: number;
+    averageViews: number | null;
+    maxViews: number | null;
+  };
+};
+
 type ProbeOptions = {
   fetchFn?: typeof fetch;
   timeoutMs?: number;
@@ -89,6 +112,46 @@ export async function probeAvitoPublicPage(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function analyzeAvitoMarket(
+  input: AvitoProbeInput,
+  options: ProbeOptions & { maxListings?: number; delayMs?: number } = {},
+): Promise<AvitoMarketAnalysisResult> {
+  const fetchFn = options.fetchFn ?? fetch;
+  const probe = await probeAvitoPublicPage(input, options);
+  const maxListings = Math.min(Math.max(options.maxListings ?? 12, 1), 20);
+  const delayMs = Math.max(options.delayMs ?? 350, 0);
+  const listings: AvitoAnalyzedListing[] = [];
+
+  for (const preview of probe.listingPreviews.slice(0, maxListings)) {
+    if (delayMs && listings.length > 0) await wait(delayMs);
+    listings.push(await fetchListingDetails(preview, fetchFn, options.timeoutMs ?? 15000));
+  }
+
+  const recentListings = listings.filter((item) => item.ageDays == null || item.ageDays <= probe.periodDays);
+  const views = recentListings.flatMap((item) => (item.views == null ? [] : [item.views]));
+  const totalViews = views.reduce((sum, value) => sum + value, 0);
+  const notes = [...probe.notes];
+  if (listings.length > 0) {
+    notes.push(`Checked listings: ${listings.length}. Listings with visible views: ${views.length}.`);
+  }
+  if (listings.length > 0 && views.length === 0) {
+    notes.push("Avito did not expose listing view counters in the available public HTML.");
+  }
+
+  return {
+    ...probe,
+    notes,
+    listings: recentListings.sort((a, b) => (b.views ?? -1) - (a.views ?? -1)),
+    summary: {
+      checked: listings.length,
+      withViews: views.length,
+      totalViews,
+      averageViews: views.length ? Math.round(totalViews / views.length) : null,
+      maxViews: views.length ? Math.max(...views) : null,
+    },
+  };
 }
 
 export function parseAvitoHtml(
@@ -190,6 +253,94 @@ function extractViewCandidates(html: string): string[] {
   }
 
   return candidates;
+}
+
+async function fetchListingDetails(
+  preview: AvitoListingPreview,
+  fetchFn: typeof fetch,
+  timeoutMs: number,
+): Promise<AvitoAnalyzedListing> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchFn(preview.url, {
+      headers: {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "ru-RU,ru;q=0.9,en;q=0.7",
+        "cache-control": "no-cache",
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+      },
+      redirect: "follow",
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    const html = await response.text();
+    const publishedAt = extractPublishedAt(html);
+    return {
+      id: preview.id,
+      url: response.url || preview.url,
+      title: extractTitle(html),
+      views: extractViews(html),
+      publishedAt,
+      ageDays: publishedAt ? daysSince(publishedAt) : null,
+      status: response.status,
+      ok: response.ok,
+      note: response.ok ? null : `HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      id: preview.id,
+      url: preview.url,
+      title: null,
+      views: null,
+      publishedAt: null,
+      ageDays: null,
+      status: 0,
+      ok: false,
+      note: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extractViews(html: string): number | null {
+  const text = stripTags(html).replace(/\s+/g, " ");
+  const match = text.match(/(\d[\d\s\u00a0]{0,12})\s+(?:\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440(?:\u043e\u0432|\u0430)?|views?)/i);
+  if (!match) return null;
+  const value = Number(match[1].replace(/[^\d]/g, ""));
+  return Number.isFinite(value) ? value : null;
+}
+
+function extractPublishedAt(html: string): string | null {
+  const iso = html.match(/(?:datePublished|published_time|uploadDate)[^>]{0,120}?(\d{4}-\d{2}-\d{2})/i)?.[1];
+  if (iso) return iso;
+  const text = stripTags(html).replace(/\s+/g, " ").toLowerCase();
+  const now = new Date();
+  if (/\u0441\u0435\u0433\u043e\u0434\u043d\u044f/.test(text)) return now.toISOString().slice(0, 10);
+  if (/\u0432\u0447\u0435\u0440\u0430/.test(text)) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - 1);
+    return date.toISOString().slice(0, 10);
+  }
+  const days = text.match(/(\d{1,2})\s+\u0434(?:\u0435\u043d\u044c|\u043d\u044f|\u043d\u0435\u0439)\s+\u043d\u0430\u0437\u0430\u0434/);
+  if (days) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - Number(days[1]));
+    return date.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+function daysSince(dateText: string): number | null {
+  const start = new Date(`${dateText}T00:00:00Z`).getTime();
+  if (!Number.isFinite(start)) return null;
+  return Math.max(0, Math.floor((Date.now() - start) / 86400000));
 }
 
 function stripTags(html: string): string {

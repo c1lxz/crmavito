@@ -8,7 +8,7 @@ import type { OrderStatus } from "@prisma/client";
 async function getOrders() {
   const orders = await prisma.order.findMany({
     where: { isDeleted: false },
-    include: { product: true, counterparty: true },
+    include: { product: true, counterparty: true, avitoProfile: true },
     orderBy: { createdAt: "desc" },
   });
   return orders.map((o) => ({
@@ -37,6 +37,14 @@ async function getOrders() {
       comment: o.counterparty.comment,
       createdAt: o.counterparty.createdAt.toISOString(),
     },
+    avitoProfile: o.avitoProfile
+      ? {
+          id: o.avitoProfile.id,
+          name: o.avitoProfile.name,
+          color: o.avitoProfile.color,
+          isActive: o.avitoProfile.isActive,
+        }
+      : null,
     ...calcOrderFinancials({
       salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
       quantity: o.quantity,
@@ -64,6 +72,13 @@ async function getCounterparties() {
 async function getProducts() {
   const products = await prisma.product.findMany({ orderBy: { name: "asc" } });
   return products.map((p) => ({ id: p.id, name: p.name, salePrice: parseFloat(p.salePrice.toString()), imageUrl: p.imageUrl }));
+}
+
+async function getAvitoProfiles() {
+  return prisma.avitoProfile.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" },
+  });
 }
 
 async function getDepositedReturns() {
@@ -96,11 +111,12 @@ export default async function OrdersPage({
   }>;
 }) {
   const query = await searchParams;
-  const [orders, counterparties, products, depositedReturns] = await Promise.all([
+  const [orders, counterparties, products, depositedReturns, avitoProfiles] = await Promise.all([
     getOrders(),
     getCounterparties(),
     getProducts(),
     getDepositedReturns(),
+    getAvitoProfiles(),
   ]);
 
   const receivedOrders = orders.filter((o) => o.status === "RECEIVED" as OrderStatus);
@@ -112,6 +128,7 @@ export default async function OrdersPage({
         initialOrders={orders}
         counterparties={counterparties}
         products={products}
+        avitoProfiles={avitoProfiles}
         depositedReturns={depositedReturns}
         totalRevenue={totals.revenue}
         totalProfit={totals.netProfit}

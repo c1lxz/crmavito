@@ -11,13 +11,14 @@ export interface OrderStatusItem {
 }
 
 interface Props {
+  title?: string;
   data: OrderStatusItem[];
   total: number;
 }
 
 const EMPTY_DATA = [{ status: "empty", label: "", count: 1, color: "#e5e7eb" }];
 
-export function OrdersStatusDonut({ data, total }: Props) {
+export function OrdersStatusDonut({ title = "Заказы по статусам", data, total }: Props) {
   const fmtPct = (v: number) =>
     v.toLocaleString("ru-RU", { maximumFractionDigits: 1 }) + "%";
 
@@ -27,7 +28,7 @@ export function OrdersStatusDonut({ data, total }: Props) {
   return (
     <Card>
       <CardContent className="p-4">
-        <h3 className="text-sm font-semibold mb-4">Заказы по статусам</h3>
+        <h3 className="text-sm font-semibold mb-4">{title}</h3>
 
         <div className="relative w-40 h-40 mx-auto mb-4">
           <ResponsiveContainer width="100%" height="100%">

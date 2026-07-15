@@ -7,8 +7,9 @@ export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const users = session.user.role === "ADMIN"
-    ? await prisma.user.findMany({
+  const [users, avitoProfiles] = session.user.role === "ADMIN"
+    ? await Promise.all([
+      prisma.user.findMany({
         select: {
           id: true,
           name: true,
@@ -20,8 +21,12 @@ export default async function SettingsPage() {
           isActive: true,
         },
         orderBy: { createdAt: "asc" },
-      })
-    : [];
+      }),
+      prisma.avitoProfile.findMany({
+        orderBy: [{ isActive: "desc" }, { name: "asc" }],
+      }),
+    ])
+    : [[], []];
 
   return (
     <SettingsClient
@@ -32,6 +37,12 @@ export default async function SettingsPage() {
         role: session.user.role ?? "MANAGER",
       }}
       users={users}
+      avitoProfiles={avitoProfiles.map((profile) => ({
+        id: profile.id,
+        name: profile.name,
+        color: profile.color,
+        isActive: profile.isActive,
+      }))}
     />
   );
 }

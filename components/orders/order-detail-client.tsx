@@ -46,6 +46,7 @@ interface OrderDetail {
   orderNumber: string;
   productId: string;
   counterpartyId: string;
+  avitoProfileId: string | null;
   productNameSnapshot: string;
   variant: string | null;
   size: string | null;
@@ -67,6 +68,7 @@ interface OrderDetail {
   updatedAt: string;
   product: { name: string; imageUrl: string | null };
   counterparty: { name: string; contactInfo: string | null };
+  avitoProfile: { id: string; name: string; color: string | null; isActive: boolean } | null;
   items: OrderItem[];
   auditLogs: AuditLog[];
 }
@@ -96,10 +98,11 @@ interface Props {
   financials: CalculatedFinancials;
   products: OrderFormProduct[];
   counterparties: { id: string; name: string }[];
+  avitoProfiles: { id: string; name: string; color: string | null; isActive: boolean }[];
   returnHref: string;
 }
 
-export function OrderDetailClient({ order, financials, products, counterparties, returnHref }: Props) {
+export function OrderDetailClient({ order, financials, products, counterparties, avitoProfiles, returnHref }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showBarcode, setShowBarcode] = useState(false);
@@ -141,6 +144,7 @@ export function OrderDetailClient({ order, financials, products, counterparties,
   const editInitialValue: OrderFormInitialValue = {
     id: order.id,
     counterpartyId: order.counterpartyId,
+    avitoProfileId: order.avitoProfileId ?? "",
     purchaseComment: order.purchaseComment ?? "",
     trackingNumber: order.trackingNumber,
     carrier: order.carrier ?? "",
@@ -371,6 +375,7 @@ export function OrderDetailClient({ order, financials, products, counterparties,
         onClose={() => setShowEdit(false)}
         products={products}
         counterparties={counterparties}
+        avitoProfiles={avitoProfiles}
         initialValue={editInitialValue}
       />
 

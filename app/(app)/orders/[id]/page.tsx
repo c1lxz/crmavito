@@ -16,12 +16,13 @@ export default async function OrderDetailPage({
   const query = await searchParams;
   const returnQuery = sanitizeOrderFilterQuery(query.returnTo ?? "");
   const returnHref = returnQuery ? `/orders?${returnQuery}` : "/orders";
-  const [order, products, counterparties] = await Promise.all([
+  const [order, products, counterparties, avitoProfiles] = await Promise.all([
     prisma.order.findUnique({
       where: { id, isDeleted: false },
       include: {
         product: true,
         counterparty: true,
+        avitoProfile: true,
         items: {
           include: {
             product: true,
@@ -35,6 +36,7 @@ export default async function OrderDetailPage({
     }),
     prisma.product.findMany({ orderBy: { name: "asc" } }),
     prisma.counterparty.findMany({ orderBy: { name: "asc" } }),
+    prisma.avitoProfile.findMany({ orderBy: [{ isActive: "desc" }, { name: "asc" }] }),
   ]);
 
   if (!order) notFound();
@@ -57,6 +59,14 @@ export default async function OrderDetailPage({
         logisticsCost: toDecimalNumber(order.logisticsCost),
         commissionCost: toDecimalNumber(order.commissionCost),
         otherCosts: toDecimalNumber(order.otherCosts),
+        avitoProfile: order.avitoProfile
+          ? {
+              id: order.avitoProfile.id,
+              name: order.avitoProfile.name,
+              color: order.avitoProfile.color,
+              isActive: order.avitoProfile.isActive,
+            }
+          : null,
         orderDate: order.orderDate.toISOString(),
         shippingDate: order.shippingDate?.toISOString() ?? null,
         receivedAt: order.receivedAt?.toISOString() ?? null,
@@ -90,6 +100,12 @@ export default async function OrderDetailPage({
       counterparties={counterparties.map((counterparty) => ({
         id: counterparty.id,
         name: counterparty.name,
+      }))}
+      avitoProfiles={avitoProfiles.map((profile) => ({
+        id: profile.id,
+        name: profile.name,
+        color: profile.color,
+        isActive: profile.isActive,
       }))}
       returnHref={returnHref}
     />

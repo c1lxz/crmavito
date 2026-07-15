@@ -329,6 +329,28 @@ export async function getExpenseCategoryTotals(range: DateRange) {
   return result;
 }
 
+export async function getAvitoProfileCounts(range: DateRange) {
+  const dateRange = getDatabaseDateRange(range);
+  const orders = await prisma.order.groupBy({
+    by: ["avitoProfileId"],
+    where: {
+      isDeleted: false,
+      status: { not: "CANCELLED" },
+      orderDate: { gte: dateRange.from, lte: dateRange.to },
+    },
+    _count: { _all: true },
+  });
+  const profiles = await prisma.avitoProfile.findMany({
+    orderBy: { name: "asc" },
+  });
+  const names = new Map(profiles.map((profile) => [profile.id, profile.name]));
+  return orders.map((item) => ({
+    id: item.avitoProfileId ?? "NO_PROFILE",
+    label: item.avitoProfileId ? names.get(item.avitoProfileId) ?? "Удалённый профиль" : "Не указан",
+    count: item._count._all,
+  }));
+}
+
 export async function getDynamicsChart(range: DateRange) {
   const [receivedOrders, activeOrders] = await Promise.all([
     getReceivedOrders(range),

@@ -134,8 +134,14 @@ export async function POST(req: NextRequest) {
   const counterparty = await prisma.counterparty.findUnique({
     where: { id: data.counterpartyId },
   });
+  const avitoProfile = data.avitoProfileId
+    ? await prisma.avitoProfile.findUnique({ where: { id: data.avitoProfileId } })
+    : null;
   if (!counterparty) {
     return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
+  }
+  if (data.avitoProfileId && (!avitoProfile || !avitoProfile.isActive)) {
+    return NextResponse.json({ error: "Avito profile not found" }, { status: 404 });
   }
 
   const firstItem = normalizedItems[0];
@@ -162,6 +168,7 @@ export async function POST(req: NextRequest) {
             quantity: totals.quantity,
             salePriceAtOrder: totals.salePriceAtOrder,
             counterpartyId: data.counterpartyId,
+            avitoProfileId: data.avitoProfileId ?? null,
             purchasePricePerUnit: totals.purchasePricePerUnit,
             purchaseComment: data.purchaseComment,
             trackingNumber: data.trackingNumber,

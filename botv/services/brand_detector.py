@@ -72,10 +72,9 @@ def _load_from_cache(cache_path: Path) -> list[str]:
     try:
         data = json.loads(cache_path.read_text(encoding="utf-8"))
         ts = data.get("ts", 0)
-        if time.time() - ts > _CACHE_TTL_SEC:
-            log.warning("brand_detector: cache is stale (>24h), returning empty list")
-            return []
         brands = data.get("brands", [])
+        if time.time() - ts > _CACHE_TTL_SEC:
+            log.warning("brand_detector: cache is stale (>24h), using it as fallback")
         log.info("brand_detector: loaded %d brands from cache", len(brands))
         return brands
     except Exception as exc:

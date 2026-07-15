@@ -35,12 +35,14 @@ interface Order {
   otherCosts: number;
   product: { imageUrl: string | null };
   counterparty: { id: string; name: string };
+  avitoProfile: { id: string; name: string; color: string | null; isActive: boolean } | null;
 }
 
 interface Props {
   initialOrders: Order[];
   counterparties: { id: string; name: string }[];
   products: { id: string; name: string; salePrice: number | string; imageUrl?: string | null }[];
+  avitoProfiles: { id: string; name: string; color: string | null; isActive: boolean }[];
   depositedReturns: Array<{
     id: string;
     productId: string;
@@ -73,6 +75,7 @@ export function OrdersClient({
   initialOrders,
   counterparties,
   products,
+  avitoProfiles,
   depositedReturns,
   totalRevenue,
   totalProfit,
@@ -110,6 +113,13 @@ export function OrdersClient({
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
+
+  useEffect(() => {
+    if (!initialOpen) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("new");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [initialOpen]);
 
   useEffect(() => {
     if (focusSearch) searchInputRef.current?.focus();
@@ -581,6 +591,9 @@ export function OrdersClient({
                     </div>
                     <p className="font-medium text-sm mt-0.5 truncate">{order.productNameSnapshot}</p>
                     {order.variant && <p className="text-xs text-muted-foreground">Цвет: {order.variant}</p>}
+                    {order.avitoProfile && (
+                      <p className="text-xs text-muted-foreground">Avito: {order.avitoProfile.name}</p>
+                    )}
                     <div className="flex items-center justify-between mt-1">
                       <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
                         <span className="truncate">Трек: {order.trackingNumber}</span>
@@ -652,6 +665,7 @@ export function OrdersClient({
         open={showCreate}
         onClose={() => setShowCreate(false)}
         counterparties={counterparties}
+        avitoProfiles={avitoProfiles}
         products={products.map((p) => ({ ...p, salePrice: typeof p.salePrice === 'string' ? parseFloat(p.salePrice) : p.salePrice }))}
         depositedReturns={depositedReturns}
       />

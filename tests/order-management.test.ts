@@ -32,6 +32,7 @@ describe("multiple order items", () => {
   it("accepts several products and several photos", () => {
     const result = createOrderSchema.safeParse({
       counterpartyId: "33333333-3333-4333-8333-333333333333",
+      avitoProfileId: "44444444-4444-4444-8444-444444444444",
       trackingNumber: "TRACK-1",
       orderDate: "2026-07-01",
       items: [
@@ -104,5 +105,10 @@ describe("order management UI/API", () => {
     expect(formSource).toContain("Добавить товар");
     expect(formSource).toContain('multiple');
     expect(formSource).toContain("/api/uploads");
+  });
+  it("supports assigning an Avito profile to an order", () => {
+    expect(formSource).toContain("avitoProfileId");
+    expect(formSource).toContain("Профиль Avito");
+    expect(orderRouteSource).toContain("avitoProfileId");
   });
 });

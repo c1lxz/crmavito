@@ -13,6 +13,7 @@ export const orderItemInputSchema = z.object({
 
 export const orderFieldsSchema = z.object({
   counterpartyId: z.string().uuid(),
+  avitoProfileId: z.string().uuid().nullable().optional(),
   purchaseComment: z.string().trim().optional(),
   trackingNumber: z.string().trim().min(1),
   carrier: z.string().trim().optional(),

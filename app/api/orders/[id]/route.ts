@@ -16,6 +16,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     include: {
       product: true,
       counterparty: true,
+      avitoProfile: true,
       items: { include: { product: true }, orderBy: { position: "asc" } },
       returns: true,
       auditLogs: {
@@ -105,6 +106,14 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   ) {
     return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
   }
+  if (data.avitoProfileId) {
+    const avitoProfile = await prisma.avitoProfile.findUnique({
+      where: { id: data.avitoProfileId },
+    });
+    if (!avitoProfile || !avitoProfile.isActive) {
+      return NextResponse.json({ error: "Avito profile not found" }, { status: 404 });
+    }
+  }
 
   const productsById = new Map(products.map((product) => [product.id, product]));
   const updateData: Record<string, unknown> = {};
@@ -120,6 +129,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   };
 
   setField("counterpartyId", data.counterpartyId, order.counterpartyId);
+  setField("avitoProfileId", data.avitoProfileId, order.avitoProfileId);
   setField("purchaseComment", data.purchaseComment, order.purchaseComment);
   setField("trackingNumber", data.trackingNumber, order.trackingNumber);
   if (data.trackingNumber !== undefined || data.carrier !== undefined) {

@@ -34,6 +34,24 @@ type ProbeResult = {
     likelyJsRequired: boolean;
   };
   notes: string[];
+  listings: Array<{
+    id: string | null;
+    url: string;
+    title: string | null;
+    views: number | null;
+    publishedAt: string | null;
+    ageDays: number | null;
+    status: number;
+    ok: boolean;
+    note: string | null;
+  }>;
+  summary: {
+    checked: number;
+    withViews: number;
+    totalViews: number;
+    averageViews: number | null;
+    maxViews: number | null;
+  };
 };
 
 export function MarketAnalysisClient() {
@@ -55,7 +73,7 @@ export function MarketAnalysisClient() {
       setResult(data);
       toast({
         title: "Проверка завершена",
-        description: `Найдено ссылок в HTML: ${data.listingPreviews?.length ?? 0}`,
+        description: `Проверено карточек: ${data.summary?.checked ?? 0}`,
       });
     } catch (error) {
       toast({
@@ -154,14 +172,30 @@ export function MarketAnalysisClient() {
             <div className="grid gap-3 sm:grid-cols-2">
               <MetricCard
                 icon={<CheckCircle2 className="h-4 w-4" />}
-                label="Объявления в HTML"
-                value={String(result.listingPreviews.length)}
-                muted={result.listingPreviews.length === 0}
+                label="Проверено карточек"
+                value={String(result.summary.checked)}
+                muted={result.summary.checked === 0}
               />
               <MetricCard
                 icon={<FileJson className="h-4 w-4" />}
-                label="JSON на странице"
-                value={result.signals.hasNextData ? "__NEXT_DATA__" : `${result.signals.jsonScriptCount} script`}
+                label="Просмотры найдены"
+                value={result.summary.withViews ? `${result.summary.totalViews} всего` : "нет"}
+                muted={result.summary.withViews === 0}
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <MetricCard
+                icon={<BarChart3 className="h-4 w-4" />}
+                label="Средние просмотры"
+                value={result.summary.averageViews == null ? "нет данных" : String(result.summary.averageViews)}
+                muted={result.summary.averageViews == null}
+              />
+              <MetricCard
+                icon={<BarChart3 className="h-4 w-4" />}
+                label="Максимум просмотров"
+                value={result.summary.maxViews == null ? "нет данных" : String(result.summary.maxViews)}
+                muted={result.summary.maxViews == null}
               />
             </div>
 
@@ -181,6 +215,35 @@ export function MarketAnalysisClient() {
                     >
                       <span className="min-w-0 truncate">{item.id ? `ID ${item.id}` : item.url}</span>
                       <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </a>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {result.listings.length > 0 && (
+              <Card>
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm">Проверенные объявления</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 p-4 pt-0">
+                  {result.listings.map((item) => (
+                    <a
+                      key={item.url}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm hover:bg-secondary/70"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{item.title ?? item.id ?? item.url}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {item.publishedAt ?? "дата не найдена"} · {item.note ?? `HTTP ${item.status}`}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">
+                        {item.views == null ? "—" : item.views}
+                      </span>
                     </a>
                   ))}
                 </CardContent>

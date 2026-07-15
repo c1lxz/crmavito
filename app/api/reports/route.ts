@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getKpiForRange, getPnL, getProductsReport, getCounterpartiesReport, getReturnsReport, getDynamicsChart, getOrderStatusCounts, getExpenseCategoryTotals } from "@/lib/db/reports";
+import { getKpiForRange, getPnL, getProductsReport, getCounterpartiesReport, getReturnsReport, getDynamicsChart, getOrderStatusCounts, getExpenseCategoryTotals, getAvitoProfileCounts } from "@/lib/db/reports";
 import { subDays } from "@/lib/utils";
 import { parseReportRange } from "@/lib/reports/range";
 
@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(await getOrderStatusCounts(range));
     case "expense-categories":
       return NextResponse.json(await getExpenseCategoryTotals(range));
+    case "avito-profiles":
+      return NextResponse.json(await getAvitoProfileCounts(range));
     default:
       return NextResponse.json({ error: "Unknown report type" }, { status: 400 });
   }

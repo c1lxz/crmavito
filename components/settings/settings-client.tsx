@@ -29,9 +29,17 @@ interface IssuedCredentials {
   delivery: { sent: boolean; error: string | null };
 }
 
+interface AvitoProfile {
+  id: string;
+  name: string;
+  color: string | null;
+  isActive: boolean;
+}
+
 interface Props {
   user: { id: string; name: string; email: string; role: string };
   users: UserItem[];
+  avitoProfiles: AvitoProfile[];
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -39,11 +47,15 @@ const ROLE_LABELS: Record<string, string> = {
   MANAGER: "Менеджер",
 };
 
-export function SettingsClient({ user, users: initialUsers }: Props) {
+export function SettingsClient({ user, users: initialUsers, avitoProfiles: initialAvitoProfiles }: Props) {
   const [users, setUsers] = useState<UserItem[]>(initialUsers);
+  const [avitoProfiles, setAvitoProfiles] = useState<AvitoProfile[]>(initialAvitoProfiles);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showAvitoProfileDialog, setShowAvitoProfileDialog] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", telegramId: "", role: "MANAGER" });
+  const [avitoProfileName, setAvitoProfileName] = useState("");
   const [addLoading, setAddLoading] = useState(false);
+  const [avitoProfileLoading, setAvitoProfileLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [issuedCredentials, setIssuedCredentials] = useState<IssuedCredentials | null>(null);
@@ -52,6 +64,48 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
   useEffect(() => {
     setUsers(initialUsers);
   }, [initialUsers]);
+
+  useEffect(() => {
+    setAvitoProfiles(initialAvitoProfiles);
+  }, [initialAvitoProfiles]);
+
+  async function handleAddAvitoProfile(e: React.FormEvent) {
+    e.preventDefault();
+    if (!avitoProfileName.trim()) return;
+    setAvitoProfileLoading(true);
+    try {
+      const res = await fetch("/api/avito-profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: avitoProfileName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Ошибка");
+      setAvitoProfiles((items) => [...items, data]);
+      setAvitoProfileName("");
+      setShowAvitoProfileDialog(false);
+      toast({ title: "Профиль Avito создан" });
+    } catch (error) {
+      toast({ title: "Ошибка", description: String(error), variant: "destructive" });
+    } finally {
+      setAvitoProfileLoading(false);
+    }
+  }
+
+  async function toggleAvitoProfile(profile: AvitoProfile) {
+    try {
+      const response = await fetch(`/api/avito-profiles/${profile.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !profile.isActive }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Ошибка");
+      setAvitoProfiles((items) => items.map((item) => (item.id === profile.id ? data : item)));
+    } catch (error) {
+      toast({ title: "Ошибка обновления", description: String(error), variant: "destructive" });
+    }
+  }
 
   async function handleAddUser(e: React.FormEvent) {
     e.preventDefault();
@@ -318,6 +372,45 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
           </Card>
         )}
 
+        {user.role === "ADMIN" && (
+          <Card>
+            <CardHeader className="p-4 pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" /> Профили Avito
+                </CardTitle>
+                <Button size="sm" variant="outline" onClick={() => setShowAvitoProfileDialog(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Добавить
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 space-y-2">
+              {avitoProfiles.map((profile) => (
+                <div key={profile.id} className={`flex items-center gap-3 rounded-md p-2 hover:bg-secondary/70 ${!profile.isActive ? "opacity-50" : ""}`}>
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-secondary text-xs font-bold">
+                    {profile.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{profile.name}</p>
+                    <p className="text-xs text-muted-foreground">{profile.isActive ? "Активен" : "Отключен"}</p>
+                  </div>
+                  <button
+                    onClick={() => toggleAvitoProfile(profile)}
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={profile.isActive ? "Отключить профиль" : "Включить профиль"}
+                  >
+                    {profile.isActive ? <ToggleRight className="h-5 w-5 text-primary" /> : <ToggleLeft className="h-5 w-5" />}
+                  </button>
+                </div>
+              ))}
+              {avitoProfiles.length === 0 && (
+                <p className="py-2 text-center text-sm text-muted-foreground">Профилей Avito пока нет</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* References / dictionaries */}
         <Card>
           <CardHeader className="p-4 pb-2">
@@ -406,6 +499,33 @@ export function SettingsClient({ user, users: initialUsers }: Props) {
               {deleteLoading ? "Удаление..." : "Удалить"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAvitoProfileDialog} onOpenChange={(open) => !open && setShowAvitoProfileDialog(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Новый профиль Avito</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAddAvitoProfile} className="space-y-4">
+            <div className="space-y-1">
+              <Label>Название</Label>
+              <Input
+                placeholder="Название профиля"
+                value={avitoProfileName}
+                onChange={(event) => setAvitoProfileName(event.target.value)}
+                required
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAvitoProfileDialog(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" className="flex-1" disabled={avitoProfileLoading || !avitoProfileName.trim()}>
+                {avitoProfileLoading ? "Создание..." : "Создать"}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 
