@@ -3,12 +3,16 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
 
 def _run_cli(*args: str, env: dict[str, str | None] | None = None) -> dict:
     root = Path(__file__).resolve().parents[1]
+    python_bin = root / "venv" / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python")
+    if not python_bin.exists():
+        python_bin = Path(sys.executable)
     cli_env = {**os.environ, "BOTV_WEB_LOCAL_IMAGES": "1", "GIGACHAT_CREDENTIALS": ""}
     for key, value in (env or {}).items():
         if value is None:
@@ -16,9 +20,10 @@ def _run_cli(*args: str, env: dict[str, str | None] | None = None) -> dict:
         else:
             cli_env[key] = value
     result = subprocess.run(
-        [str(root / "venv" / "bin" / "python"), str(root / "web" / "session_cli.py"), *args],
+        [str(python_bin), str(root / "web" / "session_cli.py"), *args],
         cwd=root,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         check=True,
         env=cli_env,

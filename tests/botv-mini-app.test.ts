@@ -58,11 +58,10 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Можно продолжить работу без созданного XML");
   });
 
-  it("hides saved progress after five seconds", () => {
-    expect(clientSource).toContain("hideSavedProgress");
-    expect(clientSource).toContain("Изменения сохранены");
-    expect(clientSource).toContain("setTimeout(() => setHideSavedProgress(true), 5000)");
-    expect(clientSource).toContain("visibleProgress.map");
+  it("does not render saved-progress messages that shift the toolbar", () => {
+    expect(clientSource).not.toContain("hideSavedProgress");
+    expect(clientSource).not.toContain("setHideSavedProgress");
+    expect(clientSource).not.toContain("visibleProgress.map");
   });
 
   it("keeps Python CLI UTF-8 output intact", () => {
@@ -90,6 +89,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("void refreshHistory()");
     expect(clientSource).toContain("saveProductTitle(product.index, e.currentTarget.value)");
     expect(clientSource).toContain("saveProductColor(product, color)");
+    expect(clientSource).toContain("manualColorOverrides");
     expect(clientSource).toContain("toggleOriginalTitle(product)");
     expect(clientSource).toContain('loading="lazy"');
     expect(photoRouteSource).toContain("decodePhotoToken");

@@ -13,6 +13,11 @@ import time
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -534,12 +539,12 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
         brand = detect_brand(name, brands)
         base_extra = product_extra(f"{name} {title}", sizes[idx - 1])
         photos = [Path(p) for p in product.get("photos", [])]
-        needs_ai_color = not product.get("color") or product.get("color_source") != "manual"
-        needs_ai = needs_ai_color or not str(product.get("design") or "").strip()
+        needs_ai = not str(product.get("design") or "").strip()
         allow_ai = needs_ai and ai_products_left > 0
         if allow_ai:
             ai_products_left -= 1
-        color = asyncio.run(_detect_product_binary_color(product, title, photos, color_detector, allow_ai=allow_ai, timeout=ai_timeout))
+        color = _binary_color(product.get("color") or color_detector.detect(f"{name} {title}"))
+        product["color_source"] = product.get("color_source") or "detector"
         design_text = asyncio.run(_generate_product_design(product, title or name, allow_ai=allow_ai, timeout=ai_timeout))
         text = description.render(title=name, color=color, price=price_fmt, design=design_text)
         product["color"] = color

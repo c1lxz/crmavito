@@ -157,7 +157,7 @@ export function BotvMiniApp() {
   const [replacementXmlCount, setReplacementXmlCount] = useState(0);
   const [history, setHistory] = useState<BotvSessionHistoryItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
-  const [hideSavedProgress, setHideSavedProgress] = useState(false);
+  const manualColorOverrides = useRef(new Map<string, ProductColor>());
 
   const products = session?.products ?? [];
   const filtered = useMemo(() => {
@@ -168,20 +168,9 @@ export function BotvMiniApp() {
   }, [products, query]);
   const selectedIds = Array.from(selected);
   const allVisibleSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.index));
-  const visibleProgress = (session?.progress ?? [])
-    .slice(-6)
-    .filter((item) => !(hideSavedProgress && item === "Изменения сохранены"));
-
   useEffect(() => {
     runInitialLoad();
   }, []);
-
-  useEffect(() => {
-    if (!session?.progress.includes("Изменения сохранены")) return;
-    setHideSavedProgress(false);
-    const timer = window.setTimeout(() => setHideSavedProgress(true), 5000);
-    return () => window.clearTimeout(timer);
-  }, [session?.updatedAt, session?.progress]);
 
   async function runInitialLoad() {
     await refreshHistory();
@@ -203,8 +192,18 @@ export function BotvMiniApp() {
   }
 
   function rememberSession(data: BotvSession) {
-    setSession(data);
+    setSession(applyManualColorOverrides(data));
     window.localStorage.setItem("botv:lastSessionId", data.id);
+  }
+
+  function applyManualColorOverrides(data: BotvSession): BotvSession {
+    return {
+      ...data,
+      products: data.products.map((product) => {
+        const color = manualColorOverrides.current.get(`${data.id}:${product.index}`);
+        return color ? { ...product, color, details: { ...product.details, color } } : product;
+      }),
+    };
   }
 
   function updateLocalProduct(index: number, update: Partial<BotvProduct>) {
@@ -361,6 +360,7 @@ export function BotvMiniApp() {
   }
 
   async function saveProductColor(product: BotvProduct, color: ProductColor) {
+    if (session) manualColorOverrides.current.set(`${session.id}:${product.index}`, color);
     updateLocalProduct(product.index, {
       color,
       details: { ...product.details, color },
@@ -480,7 +480,6 @@ export function BotvMiniApp() {
                 <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
                 <Button size="sm" disabled={status === "generating"} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
               </div>
-              <div className="grid gap-1 text-xs text-muted-foreground lg:grid-cols-2">{visibleProgress.map((item, i) => <div key={i}>• {item}</div>)}</div>
             </CardContent></Card>
           )}
 
