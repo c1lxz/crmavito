@@ -57,11 +57,19 @@ async function runCli(args: string[]) {
 }
 
 export async function createSessionFromFile(file: File): Promise<BotvSession> {
-  await mkdir(uploadDir, { recursive: true });
-  const safeName = file.name.replace(/[^a-zA-Z0-9а-яА-ЯёЁ._-]+/g, "_");
-  const target = path.join(uploadDir, `${Date.now()}_${randomUUID()}_${safeName}`);
+  const target = await reserveUploadTarget(file.name);
   await writeFile(target, Buffer.from(await file.arrayBuffer()));
-  return JSON.parse(await runCli(["create", target, file.name])) as BotvSession;
+  return createSessionFromUploadedPath(target, file.name);
+}
+
+export async function reserveUploadTarget(sourceName: string): Promise<string> {
+  await mkdir(uploadDir, { recursive: true });
+  const safeName = sourceName.replace(/[^a-zA-Z0-9._-]+/g, "_") || "archive.zip";
+  return path.join(uploadDir, `${Date.now()}_${randomUUID()}_${safeName}`);
+}
+
+export async function createSessionFromUploadedPath(filePath: string, sourceName: string): Promise<BotvSession> {
+  return JSON.parse(await runCli(["create", filePath, sourceName])) as BotvSession;
 }
 
 export async function createSessionFromLink(link: string): Promise<BotvSession> {

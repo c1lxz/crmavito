@@ -12,7 +12,8 @@ describe("botv mini app UI", () => {
     expect(pageSource).toContain("BotvMiniApp");
     expect(clientSource).toContain("/v-data/botv/work");
     expect(clientSource).toContain("Ссылка на Яндекс.Диск");
-    expect(apiSource).toContain("createSessionFromFile");
+    expect(apiSource).toContain("createSessionFromUploadedPath");
+    expect(apiSource).toContain("Readable.fromWeb");
     expect(apiSource).toContain("createSessionFromLink");
     expect(apiSource).toContain("listSessions");
     expect(aliasSource).toContain("@/app/api/botv/session/route");
