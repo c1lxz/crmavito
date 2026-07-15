@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("reports dynamics chart", () => {
-  it("includes order counts alongside revenue and profit", () => {
+  it("keeps only the orders dynamics chart in reports", () => {
     const reportsSource = readFileSync(path.resolve(__dirname, "../lib/db/reports.ts"), "utf8");
     const chartSource = readFileSync(path.resolve(__dirname, "../components/dashboard/DynamicsChart.tsx"), "utf8");
     const clientSource = readFileSync(path.resolve(__dirname, "../components/reports/reports-client.tsx"), "utf8");
@@ -17,6 +17,7 @@ describe("reports dynamics chart", () => {
     expect(chartSource).toContain('dataKey="orders"');
     expect(chartSource).toContain("aggregateByPeriod");
     expect(clientSource).toContain("OrdersDynamicsChart");
+    expect(clientSource).not.toContain("<DynamicsChart");
   });
 
   it("includes an Avito profiles chart fed by reports API", () => {
