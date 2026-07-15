@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 import { buildAvitoSearchUrl, parseAvitoHtml } from "@/lib/avito/market-analysis";
 
 describe("Avito public market probe", () => {
-  it("builds a public search url from query and city slug", () => {
-    expect(buildAvitoSearchUrl("футболки", "moskva")).toBe(
-      "https://www.avito.ru/moskva?q=%D1%84%D1%83%D1%82%D0%B1%D0%BE%D0%BB%D0%BA%D0%B8",
+  it("builds a public search url from category without city input", () => {
+    expect(buildAvitoSearchUrl("футболки")).toBe(
+      "https://www.avito.ru/rossiya?q=%D1%84%D1%83%D1%82%D0%B1%D0%BE%D0%BB%D0%BA%D0%B8&s=104",
     );
   });
 
-  it("extracts ad id, views and listing links from public html", () => {
+  it("extracts listing links from public search html", () => {
     const result = parseAvitoHtml(
       `
         <html>
           <head>
-            <title>Футболка Nike - Авито</title>
+            <title>Футболки - Авито</title>
             <script id="__NEXT_DATA__" type="application/json">{}</script>
           </head>
           <body>
@@ -23,17 +23,19 @@ describe("Avito public market probe", () => {
         </html>
       `,
       {
-        requestedUrl: "https://www.avito.ru/moskva/odezhda/futbolka_nike_1234567890",
-        finalUrl: "https://www.avito.ru/moskva/odezhda/futbolka_nike_1234567890",
+        requestedUrl: "https://www.avito.ru/rossiya?q=футболки&s=104",
+        finalUrl: "https://www.avito.ru/rossiya?q=футболки&s=104",
         status: 200,
         ok: true,
         contentType: "text/html",
+        category: "футболки",
+        periodDays: 3,
       },
     );
 
-    expect(result.pageType).toBe("ad");
-    expect(result.itemId).toBe("1234567890");
-    expect(result.views).toBe(1248);
+    expect(result.pageType).toBe("search");
+    expect(result.itemId).toBeNull();
+    expect(result.views).toBeNull();
     expect(result.signals.hasNextData).toBe(true);
     expect(result.listingPreviews[0]).toEqual({
       id: "1234567890",

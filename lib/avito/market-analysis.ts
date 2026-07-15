@@ -1,6 +1,7 @@
-export type AvitoProbeInput =
-  | { mode: "url"; url: string }
-  | { mode: "search"; query: string; city?: string };
+export type AvitoProbeInput = {
+  category: string;
+  periodDays: number;
+};
 
 export type AvitoListingPreview = {
   id: string | null;
@@ -15,10 +16,12 @@ export type AvitoProbeResult = {
   contentType: string;
   bytes: number;
   fetchedAt: string;
+  category: string;
+  periodDays: number;
   pageTitle: string | null;
-  pageType: "ad" | "search" | "unknown";
-  itemId: string | null;
-  views: number | null;
+  pageType: "search" | "unknown";
+  itemId: null;
+  views: null;
   viewCandidates: string[];
   listingPreviews: AvitoListingPreview[];
   signals: {
@@ -36,31 +39,18 @@ type ProbeOptions = {
 };
 
 const DEFAULT_CITY_SLUG = "rossiya";
+const DEFAULT_PERIOD_DAYS = 3;
 
-export function buildAvitoSearchUrl(query: string, city = DEFAULT_CITY_SLUG): string {
-  const citySlug = normalizeCitySlug(city);
-  const url = new URL(`https://www.avito.ru/${citySlug}`);
-  url.searchParams.set("q", query.trim());
+export function buildAvitoSearchUrl(category: string): string {
+  const url = new URL(`https://www.avito.ru/${DEFAULT_CITY_SLUG}`);
+  url.searchParams.set("q", category.trim());
+  url.searchParams.set("s", "104");
   return url.toString();
 }
 
 export function normalizeAvitoProbeInput(input: AvitoProbeInput): string {
-  if (input.mode === "search") {
-    if (!input.query.trim()) throw new Error("Введите поисковый запрос.");
-    return buildAvitoSearchUrl(input.query, input.city);
-  }
-
-  const raw = input.url.trim();
-  if (!raw) throw new Error("Введите ссылку Авито.");
-  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  const url = new URL(withProtocol);
-  if (!isAvitoHost(url.hostname)) {
-    throw new Error("Можно проверять только ссылки avito.ru.");
-  }
-  if (!["http:", "https:"].includes(url.protocol)) {
-    throw new Error("Ссылка должна начинаться с http:// или https://.");
-  }
-  return url.toString();
+  if (!input.category.trim()) throw new Error("Введите категорию.");
+  return buildAvitoSearchUrl(input.category);
 }
 
 export async function probeAvitoPublicPage(
@@ -93,6 +83,8 @@ export async function probeAvitoPublicPage(
       status: response.status,
       ok: response.ok,
       contentType,
+      category: input.category.trim(),
+      periodDays: normalizePeriodDays(input.periodDays),
     });
   } finally {
     clearTimeout(timeout);
@@ -101,41 +93,41 @@ export async function probeAvitoPublicPage(
 
 export function parseAvitoHtml(
   html: string,
-  meta: Pick<AvitoProbeResult, "requestedUrl" | "finalUrl" | "status" | "ok" | "contentType">,
+  meta: Pick<AvitoProbeResult, "requestedUrl" | "finalUrl" | "status" | "ok" | "contentType"> &
+    Partial<Pick<AvitoProbeResult, "category" | "periodDays">>,
 ): AvitoProbeResult {
   const pageTitle = extractTitle(html);
-  const itemId = extractItemId(meta.finalUrl, html);
   const listingPreviews = extractListingPreviews(html, meta.finalUrl);
   const viewCandidates = extractViewCandidates(html);
-  const views = viewCandidates.length > 0 ? parseHumanNumber(viewCandidates[0]) : extractNumericViews(html);
   const hasNextData = /id=["']__NEXT_DATA__["']/.test(html);
   const jsonScriptCount = (html.match(/<script[^>]+type=["']application\/(?:ld\+)?json["']/gi) ?? []).length;
   const likelyCaptcha = /captcha|verify|доступ ограничен|подтвердите/i.test(html);
-  const likelyJsRequired = listingPreviews.length === 0 && !itemId && /enable javascript|включите javascript/i.test(html);
-  const pageType = itemId ? "ad" : listingPreviews.length > 0 ? "search" : "unknown";
+  const likelyJsRequired = listingPreviews.length === 0 && /enable javascript|включите javascript/i.test(html);
   const notes: string[] = [];
 
-  if (views === null) {
-    notes.push("Счетчик просмотров не найден в публичном HTML. Возможно, Авито не показывает его чужим объявлениям или отдает через закрытый JS/API.");
-  }
   if (likelyCaptcha) {
-    notes.push("Похоже, Авито вернул проверку/ограничение доступа. Для стабильного сбора понадобится аккуратный rate limit или браузерный сборщик.");
+    notes.push("Авито вернул проверку доступа. Для стабильного сбора нужен аккуратный rate limit или браузерный сборщик.");
   }
   if (listingPreviews.length > 0) {
-    notes.push(`В HTML найдены ссылки на объявления: ${listingPreviews.length}. Это можно использовать как первый слой мониторинга выдачи.`);
+    notes.push(`В публичном HTML найдено объявлений: ${listingPreviews.length}.`);
   }
   if (hasNextData || jsonScriptCount > 0) {
-    notes.push("На странице есть JSON-данные. Следующий шаг - изучить их структуру и брать поля оттуда, если Авито не меняет формат.");
+    notes.push("На странице есть JSON-данные, их можно использовать как следующий слой сбора, если структура будет стабильной.");
+  }
+  if (notes.length === 0) {
+    notes.push("Страница прочитана, но объявления в публичном HTML не найдены.");
   }
 
   return {
     ...meta,
     bytes: Buffer.byteLength(html, "utf8"),
     fetchedAt: new Date().toISOString(),
+    category: meta.category ?? "",
+    periodDays: normalizePeriodDays(meta.periodDays ?? DEFAULT_PERIOD_DAYS),
     pageTitle,
-    pageType,
-    itemId,
-    views,
+    pageType: listingPreviews.length > 0 ? "search" : "unknown",
+    itemId: null,
+    views: null,
     viewCandidates,
     listingPreviews,
     signals: {
@@ -148,14 +140,8 @@ export function parseAvitoHtml(
   };
 }
 
-function normalizeCitySlug(city?: string): string {
-  const value = (city || DEFAULT_CITY_SLUG).trim().toLowerCase();
-  if (!value) return DEFAULT_CITY_SLUG;
-  return value
-    .replace(/^https?:\/\/(?:www\.)?avito\.ru\//, "")
-    .replace(/[?#].*$/, "")
-    .replace(/^\/+|\/+$/g, "")
-    .replace(/[^a-z0-9_-]/g, "") || DEFAULT_CITY_SLUG;
+function normalizePeriodDays(value: number): number {
+  return Math.min(30, Math.max(1, Math.round(Number.isFinite(value) ? value : DEFAULT_PERIOD_DAYS)));
 }
 
 function isAvitoHost(hostname: string): boolean {
@@ -167,16 +153,6 @@ function extractTitle(html: string): string | null {
   const og = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
   const title = og?.[1] ?? html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
   return title ? decodeHtml(title).trim().replace(/\s+/g, " ") : null;
-}
-
-function extractItemId(url: string, html: string): string | null {
-  const fromUrl = url.match(/_(\d{6,})(?:[/?#]|$)/)?.[1];
-  if (fromUrl) return fromUrl;
-  return (
-    html.match(/["']itemId["']\s*:\s*["']?(\d{6,})["']?/i)?.[1] ??
-    html.match(/["']item_id["']\s*:\s*["']?(\d{6,})["']?/i)?.[1] ??
-    null
-  );
 }
 
 function extractListingPreviews(html: string, finalUrl: string): AvitoListingPreview[] {
@@ -214,17 +190,6 @@ function extractViewCandidates(html: string): string[] {
   }
 
   return candidates;
-}
-
-function extractNumericViews(html: string): number | null {
-  const match =
-    html.match(/["']views(?:Count)?["']\s*:\s*(\d+)/i) ??
-    html.match(/["']totalViews["']\s*:\s*(\d+)/i);
-  return match ? Number(match[1]) : null;
-}
-
-function parseHumanNumber(value: string): number {
-  return Number(value.match(/\d[\d\s\u00a0]*/)?.[0].replace(/[\s\u00a0]/g, "") ?? 0);
 }
 
 function stripTags(html: string): string {

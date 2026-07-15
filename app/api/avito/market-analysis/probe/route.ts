@@ -5,17 +5,10 @@ import { probeAvitoPublicPage } from "@/lib/avito/market-analysis";
 
 export const maxDuration = 30;
 
-const probeSchema = z.discriminatedUnion("mode", [
-  z.object({
-    mode: z.literal("url"),
-    url: z.string().min(1),
-  }),
-  z.object({
-    mode: z.literal("search"),
-    query: z.string().min(1),
-    city: z.string().optional(),
-  }),
-]);
+const probeSchema = z.object({
+  category: z.string().min(1),
+  periodDays: z.coerce.number().int().min(1).max(30).default(3),
+});
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -26,7 +19,7 @@ export async function POST(request: Request) {
 
   const parsed = probeSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Укажите ссылку Авито или поисковый запрос." }, { status: 400 });
+    return NextResponse.json({ error: "Укажите категорию и период." }, { status: 400 });
   }
 
   try {
