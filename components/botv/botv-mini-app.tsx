@@ -37,7 +37,9 @@ function formatRub(value: number | null) {
 }
 
 const BOTV_API_BASE = "/v-data/botv/work";
-const UPLOAD_RATE_LIMIT_BYTES_PER_SECOND = 1024 * 1024;
+const UPLOAD_CHUNK_BYTES = 256 * 1024;
+const UPLOAD_CHUNK_DELAY_MS = 500;
+const UPLOAD_CHUNK_RETRIES = 5;
 
 function photoUrl(sessionId: string, token: string | null, options?: { thumb?: boolean; size?: number }) {
   if (!token) return "";
@@ -282,59 +284,56 @@ export function BotvMiniApp() {
   }
 
   async function uploadArchiveWithProgress(file: File) {
-    if (typeof ReadableStream === "undefined" || typeof file.stream !== "function") {
-      throw new Error("Браузер не поддерживает стабильную загрузку больших архивов. Обнови страницу или открой сервис в Chrome.");
+    const uploadId = typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const totalChunks = Math.max(1, Math.ceil(file.size / UPLOAD_CHUNK_BYTES));
+
+    for (let index = 0; index < totalChunks; index += 1) {
+      const start = index * UPLOAD_CHUNK_BYTES;
+      const end = Math.min(file.size, start + UPLOAD_CHUNK_BYTES);
+      await sendUploadChunk(uploadId, file.name, index, totalChunks, file.slice(start, end));
+      const loaded = end;
+      const percent = file.size > 0 ? Math.min(99, Math.round((loaded / file.size) * 100)) : 0;
+      setUploadProgress({ fileName: file.name, loaded, total: file.size, percent, phase: "uploading" });
+      if (index < totalChunks - 1) await wait(UPLOAD_CHUNK_DELAY_MS);
     }
 
-    const boundary = `----crmavito-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const body = createThrottledMultipartBody(file, boundary);
-    const res = await fetch(BOTV_API_BASE, {
-      method: "POST",
-      headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
-      body,
-      duplex: "half",
-    } as RequestInit & { duplex: "half" });
+    setUploadProgress({ fileName: file.name, loaded: file.size, total: file.size, percent: 100, phase: "processing" });
+    const res = await finalizeChunkUpload(uploadId, file.name, totalChunks);
     return { ok: res.ok, status: res.status, text: await res.text() };
   }
 
-  function createThrottledMultipartBody(file: File, boundary: string) {
-    const encoder = new TextEncoder();
-    const safeName = file.name.replace(/["\r\n]/g, "_");
-    const prefix = encoder.encode(
-      `--${boundary}\r\nContent-Disposition: form-data; name="archive"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`,
-    );
-    const suffix = encoder.encode(`\r\n--${boundary}--\r\n`);
-    const reader = file.stream().getReader();
-    const startedAt = performance.now();
-    let loaded = 0;
-
-    return new ReadableStream<Uint8Array>({
-      async start(controller) {
-        try {
-          controller.enqueue(prefix);
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            loaded += value.byteLength;
-            controller.enqueue(value);
-            const percent = file.size > 0 ? Math.min(99, Math.round((loaded / file.size) * 100)) : 0;
-            setUploadProgress({ fileName: file.name, loaded, total: file.size, percent, phase: "uploading" });
-
-            const expectedMs = (loaded / UPLOAD_RATE_LIMIT_BYTES_PER_SECOND) * 1000;
-            const delayMs = expectedMs - (performance.now() - startedAt);
-            if (delayMs > 0) await wait(Math.min(delayMs, 1000));
-          }
-          setUploadProgress({ fileName: file.name, loaded: file.size, total: file.size, percent: 100, phase: "processing" });
-          controller.enqueue(suffix);
-          controller.close();
-        } catch (error) {
-          controller.error(error);
+  async function sendUploadChunk(uploadId: string, fileName: string, index: number, totalChunks: number, chunk: Blob) {
+    for (let attempt = 0; attempt < UPLOAD_CHUNK_RETRIES; attempt += 1) {
+      try {
+        const form = new FormData();
+        form.append("action", "chunk");
+        form.append("uploadId", uploadId);
+        form.append("fileName", fileName);
+        form.append("index", String(index));
+        form.append("totalChunks", String(totalChunks));
+        form.append("chunk", chunk, `${index}.part`);
+        const res = await fetch(`${BOTV_API_BASE}/chunk`, { method: "POST", body: form });
+        if (res.ok) return;
+        if (attempt === UPLOAD_CHUNK_RETRIES - 1) {
+          const data = await readJsonResponse(res, "Не удалось загрузить часть архива");
+          throw new Error(data.error ?? "Не удалось загрузить часть архива");
         }
-      },
-      cancel() {
-        void reader.cancel();
-      },
-    });
+      } catch (error) {
+        if (attempt === UPLOAD_CHUNK_RETRIES - 1) throw error;
+      }
+      await wait(800 * (attempt + 1));
+    }
+  }
+
+  function finalizeChunkUpload(uploadId: string, fileName: string, totalChunks: number) {
+    const form = new FormData();
+    form.append("action", "finalize");
+    form.append("uploadId", uploadId);
+    form.append("fileName", fileName);
+    form.append("totalChunks", String(totalChunks));
+    return apiFetch(`${BOTV_API_BASE}/chunk`, { method: "POST", body: form }, 5);
   }
 
   function parseJsonText(text: string, fallback: string, ok: boolean) {

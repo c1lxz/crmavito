@@ -20,14 +20,19 @@ describe("botv mini app UI", () => {
   });
 
   it("shows archive upload progress before server processing", () => {
+    const chunkRouteSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/chunk/route.ts"), "utf8");
+
     expect(clientSource).toContain("UploadProgress");
-    expect(clientSource).toContain("UPLOAD_RATE_LIMIT_BYTES_PER_SECOND");
-    expect(clientSource).toContain("createThrottledMultipartBody");
-    expect(clientSource).toContain("new ReadableStream");
-    expect(clientSource).toContain('duplex: "half"');
+    expect(clientSource).toContain("UPLOAD_CHUNK_BYTES");
+    expect(clientSource).toContain("UPLOAD_CHUNK_DELAY_MS");
+    expect(clientSource).toContain("UPLOAD_CHUNK_RETRIES");
+    expect(clientSource).toContain("sendUploadChunk");
+    expect(clientSource).toContain("finalizeChunkUpload");
     expect(clientSource).toContain("Файл загружен, сервер распаковывает");
     expect(clientSource).toContain("formatBytes(uploadProgress.loaded)");
     expect(clientSource).toContain("uploadProgress.percent");
+    expect(chunkRouteSource).toContain("action === \"chunk\"");
+    expect(chunkRouteSource).toContain("action === \"finalize\"");
   });
 
   it("supports the requested listing workflow", () => {
