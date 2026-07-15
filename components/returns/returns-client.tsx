@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Check, CheckSquare, Loader2, Package, Plus, RotateCcw, Search, Square, Warehouse, X } from "lucide-react";
+import { Check, CheckSquare, ChevronRight, Loader2, Package, Plus, RotateCcw, Search, Square, Warehouse, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -369,14 +369,9 @@ export function ReturnsClient({ initialData }: Props) {
             </Button>
           </div>
         )}
-        {filtered.map((ret) => (
-          <Card
-            key={ret.id}
-            className={`transition-colors ${
-              selectedIds.has(ret.id) ? "border-primary bg-accent/70 ring-1 ring-primary/20" : ""
-            }`}
-          >
-            <CardContent className="p-3 space-y-2">
+        {filtered.map((ret) => {
+          const mainContent = (
+            <div className="space-y-2">
               <div className="flex items-start gap-3">
                 {selectionMode && (
                   <button
@@ -414,6 +409,9 @@ export function ReturnsClient({ initialData }: Props) {
                   {ret.variant && <p className="text-xs text-muted-foreground">Цвет: {ret.variant}</p>}
                   {ret.size && <p className="text-xs text-muted-foreground">Размер: {ret.size}</p>}
                 </div>
+                {ret.order && !selectionMode && (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
+                )}
               </div>
               <div className="grid grid-cols-2 gap-x-4 text-xs text-muted-foreground">
                 <div>Трек: <span className="text-foreground">{ret.trackingNumber}</span></div>
@@ -427,38 +425,52 @@ export function ReturnsClient({ initialData }: Props) {
                   </div>
                 ) : null}
               </div>
-              <div className="flex gap-2 pt-1">
-                <Select
-                  value={ret.status}
-                  onValueChange={(value) =>
-                    updateStatus(
-                      ret.id,
-                      value as ReturnStatus,
-                      value === "RETURNED" ? formatDateInput() : undefined,
-                    )
-                  }
-                  disabled={updatingId === ret.id || selectionMode}
-                >
-                  <SelectTrigger className="h-9 min-w-0 flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_TABS.filter((tab) => tab.value !== "ALL").map((tab) => (
-                      <SelectItem key={tab.value} value={tab.value}>
-                        {tab.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {ret.order && (
-                  <Button size="sm" variant="outline" className="shrink-0" asChild>
-                    <Link href={`/orders/${ret.order.id}`}>Карточка</Link>
-                  </Button>
+            </div>
+          );
+
+          return (
+            <Card
+              key={ret.id}
+              className={`transition-colors ${
+                selectedIds.has(ret.id) ? "border-primary bg-accent/70 ring-1 ring-primary/20" : ""
+              } ${ret.order && !selectionMode ? "hover:border-primary/25 hover:bg-accent/45" : ""}`}
+            >
+              <CardContent className="p-3 space-y-2">
+                {ret.order && !selectionMode ? (
+                  <Link href={`/orders/${ret.order.id}`} className="block">
+                    {mainContent}
+                  </Link>
+                ) : (
+                  mainContent
                 )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                <div className="flex gap-2 pt-1">
+                  <Select
+                    value={ret.status}
+                    onValueChange={(value) =>
+                      updateStatus(
+                        ret.id,
+                        value as ReturnStatus,
+                        value === "RETURNED" ? formatDateInput() : undefined,
+                      )
+                    }
+                    disabled={updatingId === ret.id || selectionMode}
+                  >
+                    <SelectTrigger className="h-9 min-w-0 flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_TABS.filter((tab) => tab.value !== "ALL").map((tab) => (
+                        <SelectItem key={tab.value} value={tab.value}>
+                          {tab.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
         {filtered.length === 0 && (
           <div className="text-center text-muted-foreground py-12">
             <RotateCcw className="h-10 w-10 mx-auto mb-3 opacity-45" />
