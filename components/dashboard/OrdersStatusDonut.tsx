@@ -14,11 +14,19 @@ interface Props {
   title?: string;
   data: OrderStatusItem[];
   total: number;
+  centerValue?: string;
+  centerLabel?: string;
 }
 
 const EMPTY_DATA = [{ status: "empty", label: "", count: 1, color: "#e5e7eb" }];
 
-export function OrdersStatusDonut({ title = "Заказы по статусам", data, total }: Props) {
+export function OrdersStatusDonut({
+  title = "Заказы по статусам",
+  data,
+  total,
+  centerValue,
+  centerLabel = "Всего",
+}: Props) {
   const fmtPct = (v: number) =>
     v.toLocaleString("ru-RU", { maximumFractionDigits: 1 }) + "%";
 
@@ -63,8 +71,8 @@ export function OrdersStatusDonut({ title = "Заказы по статусам"
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-xl font-bold leading-tight">{total}</span>
-            <span className="text-[10px] text-muted-foreground mt-0.5">Всего</span>
+            <span className="text-xl font-bold leading-tight">{centerValue ?? total}</span>
+            <span className="text-[10px] text-muted-foreground mt-0.5">{centerLabel}</span>
           </div>
         </div>
 

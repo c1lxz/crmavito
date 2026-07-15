@@ -53,7 +53,6 @@ async function getReceivedOrders(range: DateRange, city?: string) {
 }
 
 export async function getKpiForRange(range: DateRange, city?: string) {
-  const dateRange = getDatabaseDateRange(range);
   const orders = await getActiveOrders(range, city);
   const financials = orders.map((o) =>
     calcOrderFinancials({
@@ -75,20 +74,13 @@ export async function getKpiForRange(range: DateRange, city?: string) {
       order: { isDeleted: false, status: { not: "CANCELLED" } },
     },
   });
-  const allOrdersInPeriod = await prisma.order.count({
-    where: {
-      isDeleted: false,
-      status: { not: "CANCELLED" },
-      orderDate: { gte: dateRange.from, lte: dateRange.to },
-    },
-  });
 
   return {
     ...totals,
     ordersCount: orders.length,
     avgCheck: Math.round(avgCheck * 100) / 100,
     returnsCount: returns,
-    returnsPercent: allOrdersInPeriod > 0 ? (returns / allOrdersInPeriod) * 100 : 0,
+    returnsPercent: orders.length > 0 ? (returns / orders.length) * 100 : 0,
   };
 }
 

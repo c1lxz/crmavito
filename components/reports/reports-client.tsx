@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateInput, formatRub, formatPercent, startOfMonth } from "@/lib/utils";
-import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_COLORS, ORDER_STATUS_LABELS } from "@/lib/constants";
+import { EXPENSE_CATEGORY_LABELS, EXPENSE_CATEGORY_COLORS } from "@/lib/constants";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { DynamicsChart, OrdersDynamicsChart, type Period } from "@/components/dashboard/DynamicsChart";
 import { ExpensesDonut, type ExpenseItem } from "@/components/dashboard/ExpensesDonut";
@@ -21,15 +21,6 @@ interface KpiData {
   revenue: number; costOfGoods: number; grossProfit: number; marginPercent: number; netProfit: number;
   ordersCount: number; avgCheck: number; returnsCount: number; returnsPercent: number;
 }
-
-const ORDER_STATUS_HEX: Record<string, string> = {
-  ACCEPTED: "#6366f1",
-  SHIPPED: "#eab308",
-  RECEIVED: "#22c55e",
-  RETURNING: "#f97316",
-  RETURNED: "#ef4444",
-  CANCELLED: "#64748b",
-};
 
 const AVITO_PROFILE_COLORS = ["#6366f1", "#22c55e", "#eab308", "#f97316", "#7c3aed", "#06b6d4", "#ef4444"];
 
@@ -46,7 +37,6 @@ export function ReportsClient() {
   const [counterparties, setCounterparties] = useState<Array<{ counterpartyId: string; name: string; purchased: number; revenue: number; profit: number }>>([]);
   const [returns, setReturns] = useState<Array<{ productId: string; name: string; returns: number; returnPercent: number }>>([]);
   const [dynamics, setDynamics] = useState<Array<{ date: string; revenue: number; profit: number; orders: number }>>([]);
-  const [orderStatuses, setOrderStatuses] = useState<Record<string, number>>({});
   const [avitoProfiles, setAvitoProfiles] = useState<Array<{ id: string; label: string; count: number }>>([]);
   const [expenseCategories, setExpenseCategories] = useState<Record<string, number>>({});
   const [period, setPeriod] = useState<Period>("day");
@@ -72,14 +62,13 @@ export function ReportsClient() {
         }
         return body as T;
       };
-      const [kpiRes, pnlRes, prodRes, cpRes, returnsRes, dynRes, statusRes, avitoProfilesRes, expCatRes] = await Promise.all([
+      const [kpiRes, pnlRes, prodRes, cpRes, returnsRes, dynRes, avitoProfilesRes, expCatRes] = await Promise.all([
         fetchReport<{ current: KpiData; prev: KpiData }>("kpi"),
         fetchReport<Record<string, number>>("pnl"),
         fetchReport<typeof products>("products"),
         fetchReport<typeof counterparties>("counterparties"),
         fetchReport<typeof returns>("returns"),
         fetchReport<typeof dynamics>("dynamics"),
-        fetchReport<Record<string, number>>("order-statuses"),
         fetchReport<Array<{ id: string; label: string; count: number }>>("avito-profiles"),
         fetchReport<Record<string, number>>("expense-categories"),
       ]);
@@ -90,7 +79,6 @@ export function ReportsClient() {
       setCounterparties(cpRes);
       setReturns(returnsRes);
       setDynamics(dynRes);
-      setOrderStatuses(statusRes);
       setAvitoProfiles(avitoProfilesRes);
       setExpenseCategories(expCatRes);
     } catch (loadError) {
@@ -140,13 +128,24 @@ export function ReportsClient() {
   }));
   const expenseTotal = expenseDonutData.reduce((s, d) => s + d.amount, 0);
 
-  const orderStatusData: OrderStatusItem[] = Object.entries(ORDER_STATUS_LABELS).map(([status, label]) => ({
-    status,
-    label,
-    count: orderStatuses[status] ?? 0,
-    color: ORDER_STATUS_HEX[status] ?? "#888",
-  }));
-  const orderTotal = orderStatusData.reduce((s, d) => s + d.count, 0);
+  const ordersReturnsData: OrderStatusItem[] = kpi
+    ? [
+        {
+          status: "orders",
+          label: "Заказы",
+          count: kpi.current.ordersCount,
+          color: "#6366f1",
+        },
+        {
+          status: "returns",
+          label: "Возвраты",
+          count: kpi.current.returnsCount,
+          color: "#ef4444",
+        },
+      ]
+    : [];
+  const ordersReturnsTotal = ordersReturnsData.reduce((s, d) => s + d.count, 0);
+  const returnsRatio = kpi?.current.returnsPercent ?? 0;
   const avitoProfileData: OrderStatusItem[] = avitoProfiles.map((profile, index) => ({
     status: profile.id,
     label: profile.label,
@@ -211,7 +210,13 @@ export function ReportsClient() {
 
             {/* Donuts */}
             <ExpensesDonut data={expenseDonutData} total={expenseTotal} />
-            <OrdersStatusDonut data={orderStatusData} total={orderTotal} />
+            <OrdersStatusDonut
+              title="Заказы / возвраты"
+              data={ordersReturnsData}
+              total={ordersReturnsTotal}
+              centerValue={formatPercent(returnsRatio)}
+              centerLabel="Возвраты"
+            />
             <OrdersStatusDonut title="Заказы по профилям Avito" data={avitoProfileData} total={avitoProfileTotal} />
 
             {/* Top products */}

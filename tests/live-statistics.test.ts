@@ -77,6 +77,31 @@ describe("live statistics calculations", () => {
     expect(result.marginPercent).toBe(60);
   });
 
+  it("calculates return ratio from the same active orders used in KPI", async () => {
+    mocks.prisma.return.count.mockResolvedValue(2);
+    mocks.prisma.order.findMany.mockResolvedValue(
+      Array.from({ length: 10 }, () => ({
+        status: "ACCEPTED",
+        salePriceAtOrder: 1000,
+        quantity: 1,
+        purchasePricePerUnit: 500,
+        logisticsCost: 0,
+        commissionCost: 0,
+        otherCosts: 0,
+        items: [],
+        product: {},
+        counterparty: {},
+      })),
+    );
+
+    const result = await getKpiForRange(range);
+
+    expect(result.ordersCount).toBe(10);
+    expect(result.returnsCount).toBe(2);
+    expect(result.returnsPercent).toBe(20);
+    expect(mocks.prisma.order.count).not.toHaveBeenCalled();
+  });
+
   it("filters deleted and cancelled orders from status statistics", async () => {
     mocks.prisma.order.groupBy.mockResolvedValue([
       { status: "ACCEPTED", _count: { _all: 7 } },
