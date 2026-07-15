@@ -84,6 +84,7 @@ describe("botv mini app UI", () => {
 
   it("keeps edits fast and avoids per-photo Python hops", () => {
     const photoRouteSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/[id]/photo/route.ts"), "utf8");
+    const photoResponseSource = readFileSync(path.resolve(__dirname, "../lib/botv/photo-response.ts"), "utf8");
 
     expect(clientSource).toContain("function updateLocalProduct");
     expect(clientSource).toContain("void refreshHistory()");
@@ -92,7 +93,13 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("manualColorOverrides");
     expect(clientSource).toContain("toggleOriginalTitle(product)");
     expect(clientSource).toContain('loading="lazy"');
-    expect(photoRouteSource).toContain("decodePhotoToken");
+    expect(clientSource).toContain('params.set("thumb", "1")');
+    expect(clientSource).toContain("size: 160");
+    expect(photoRouteSource).toContain("serveBotvPhoto");
+    expect(photoResponseSource).toContain("decodePhotoToken");
+    expect(photoResponseSource).toContain("sharp(filePath)");
+    expect(photoResponseSource).toContain(".thumbs");
+    expect(photoResponseSource).toContain("resize");
     expect(photoRouteSource).not.toContain("resolvePhoto");
   });
 

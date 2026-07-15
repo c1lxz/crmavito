@@ -31,10 +31,12 @@ function formatRub(value: number | null) {
 
 const BOTV_API_BASE = "/v-data/botv/work";
 
-function photoUrl(sessionId: string, token: string | null) {
-  return token
-    ? `${BOTV_API_BASE}/${sessionId}/photo?token=${encodeURIComponent(token)}`
-    : "";
+function photoUrl(sessionId: string, token: string | null, options?: { thumb?: boolean; size?: number }) {
+  if (!token) return "";
+  const params = new URLSearchParams({ token });
+  if (options?.thumb) params.set("thumb", "1");
+  if (options?.size) params.set("size", String(options.size));
+  return `${BOTV_API_BASE}/${sessionId}/photo?${params.toString()}`;
 }
 
 type ProductColor = "Белый" | "Чёрный";
@@ -104,9 +106,10 @@ function ListingPreview({ product, sessionId }: { product: BotvProduct | null; s
             product.photos.map((token) => (
               <img
                 key={token}
-                src={photoUrl(sessionId, token)}
+                src={photoUrl(sessionId, token, { thumb: true, size: 960 })}
                 className="h-72 w-full min-w-full snap-center rounded-md object-cover sm:h-96"
                 alt=""
+                loading="lazy"
                 decoding="async"
               />
             ))
@@ -489,7 +492,7 @@ export function BotvMiniApp() {
                 <CardContent className="flex gap-3 p-3">
                   <button className="mt-4 h-5 w-5 rounded border border-input text-xs" onClick={(e) => { e.stopPropagation(); toggle(product.index); }}>{selected.has(product.index) ? "✓" : ""}</button>
                   <button className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted" onClick={(e) => { e.stopPropagation(); openPreview(product); }}>
-                    {product.firstPhoto && session ? <img src={photoUrl(session.id, product.firstPhoto)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" /> : <div className="flex h-full w-full items-center justify-center text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>}
+                    {product.firstPhoto && session ? <img src={photoUrl(session.id, product.firstPhoto, { thumb: true, size: 160 })} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" /> : <div className="flex h-full w-full items-center justify-center text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>}
                   </button>
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex gap-2">
@@ -520,7 +523,7 @@ export function BotvMiniApp() {
                       <div className="flex gap-1 overflow-x-auto pb-1" onClick={(e) => e.stopPropagation()}>
                         {product.photos.slice(0, 8).map((token, photoIndex) => (
                           <div key={token} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
-                            {session && <img src={photoUrl(session.id, token)} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />}
+                            {session && <img src={photoUrl(session.id, token, { thumb: true, size: 128 })} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />}
                             <span className="absolute left-1 top-1 rounded bg-background/85 px-1 text-[10px] font-semibold">{photoIndex + 1}</span>
                             <div className="absolute inset-x-0 bottom-0 flex justify-center gap-0.5 bg-background/80 p-0.5">
                               <button title="Сделать первой" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "first"))}><PanelTop className="h-3 w-3" /></button>
