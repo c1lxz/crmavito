@@ -25,35 +25,21 @@ type StockItem = {
   isMultiple: boolean;
 };
 
-type AvitoCredentialHistoryItem = {
+type AvitoCredentialProfile = {
+  id: string;
+  name: string;
+  accountId: string | null;
   clientId: string;
   clientSecret: string;
-  profileId: string;
-  profileName: string;
-  updatedAt: number;
+  isActive: boolean;
 };
-
-const STOCKS_HISTORY_KEY = "crmavito:avito-stocks-credentials";
-
-function readCredentialHistory(): AvitoCredentialHistoryItem[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const data = JSON.parse(window.localStorage.getItem(STOCKS_HISTORY_KEY) ?? "[]");
-    return Array.isArray(data) ? data.slice(0, 8) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeCredentialHistory(items: AvitoCredentialHistoryItem[]) {
-  window.localStorage.setItem(STOCKS_HISTORY_KEY, JSON.stringify(items.slice(0, 8)));
-}
 
 export function StocksClient() {
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
-  const [credentialHistory, setCredentialHistory] = useState<AvitoCredentialHistoryItem[]>([]);
-  const [historyOpen, setHistoryOpen] = useState(true);
+  const [credentialProfiles, setCredentialProfiles] = useState<AvitoCredentialProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [profilesOpen, setProfilesOpen] = useState(true);
   const [items, setItems] = useState<StockItem[]>([]);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -69,37 +55,43 @@ export function StocksClient() {
   );
 
   const selectedCount = selected.size;
-  const canLoad = clientId.trim() && clientSecret.trim() && !loading;
+  const canLoad = (selectedProfileId || (clientId.trim() && clientSecret.trim())) && !loading;
 
   useEffect(() => {
-    const history = readCredentialHistory();
-    setCredentialHistory(history);
-    const last = history[0];
-    if (last) {
-      setClientId(last.clientId);
-      setClientSecret(last.clientSecret);
-    }
+    void refreshCredentialProfiles();
   }, []);
 
-  function rememberCredentials(profile?: { id?: string; name?: string }) {
-    const item: AvitoCredentialHistoryItem = {
-      clientId: clientId.trim(),
-      clientSecret: clientSecret.trim(),
-      profileId: profile?.id || clientId.trim(),
-      profileName: profile?.name || `Avito ${clientId.trim()}`,
-      updatedAt: Date.now(),
-    };
-    const next = [
-      item,
-      ...credentialHistory.filter((saved) => saved.clientId !== item.clientId),
-    ].slice(0, 8);
-    setCredentialHistory(next);
-    writeCredentialHistory(next);
+  async function refreshCredentialProfiles(preferredId?: string) {
+    const response = await fetch("/api/avito-profiles/credentials", { cache: "no-store" });
+    if (!response.ok) return;
+    const data = await response.json();
+    const profiles: AvitoCredentialProfile[] = Array.isArray(data.profiles) ? data.profiles : [];
+    setCredentialProfiles(profiles);
+
+    const selected =
+      profiles.find((profile) => profile.id === (preferredId || selectedProfileId)) ??
+      profiles[0];
+    if (selected) applyProfile(selected);
   }
 
-  function applyHistory(item: AvitoCredentialHistoryItem) {
-    setClientId(item.clientId);
-    setClientSecret(item.clientSecret);
+  function rememberCredentials(profile?: AvitoCredentialProfile) {
+    if (!profile) return;
+    setSelectedProfileId(profile.id);
+    setClientId(profile.clientId);
+    setClientSecret(profile.clientSecret);
+    void refreshCredentialProfiles(profile.id);
+  }
+
+  function applyProfile(profile: AvitoCredentialProfile) {
+    setSelectedProfileId(profile.id);
+    setClientId(profile.clientId);
+    setClientSecret(profile.clientSecret);
+  }
+
+  function startManualCredentials() {
+    setSelectedProfileId("");
+    setClientId("");
+    setClientSecret("");
   }
 
   async function loadItems() {
@@ -109,10 +101,10 @@ export function StocksClient() {
       const response = await fetch("/api/avito/stocks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, clientSecret }),
+        body: JSON.stringify({ profileId: selectedProfileId || undefined, clientId, clientSecret }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить объявления");
+      if (!response.ok) throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РѕР±СЉСЏРІР»РµРЅРёСЏ");
       setItems(data.items ?? []);
       rememberCredentials(data.profile);
       setDrafts(
@@ -120,10 +112,10 @@ export function StocksClient() {
           (data.items ?? []).map((item: StockItem) => [item.itemId, String(item.quantity ?? 0)]),
         ),
       );
-      toast({ title: "Объявления загружены", description: `Найдено: ${(data.items ?? []).length}` });
+      toast({ title: "РћР±СЉСЏРІР»РµРЅРёСЏ Р·Р°РіСЂСѓР¶РµРЅС‹", description: `РќР°Р№РґРµРЅРѕ: ${(data.items ?? []).length}` });
     } catch (error) {
       toast({
-        title: "Ошибка Avito",
+        title: "РћС€РёР±РєР° Avito",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
@@ -136,10 +128,10 @@ export function StocksClient() {
     const response = await fetch("/api/avito/stocks/update", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId, clientSecret, updates }),
+      body: JSON.stringify({ profileId: selectedProfileId || undefined, clientId, clientSecret, updates }),
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? "Не удалось обновить остатки");
+    if (!response.ok) throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ РѕСЃС‚Р°С‚РєРё");
     const successful = new Set(
       (data.stocks ?? [])
         .filter((stock: { item_id: string | number; success?: boolean }) => stock.success !== false)
@@ -151,21 +143,21 @@ export function StocksClient() {
   async function saveOne(itemId: string) {
     const quantity = Number(drafts[itemId]);
     if (!Number.isInteger(quantity) || quantity < 0) {
-      toast({ title: "Остаток должен быть целым числом от 0", variant: "destructive" });
+      toast({ title: "РћСЃС‚Р°С‚РѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С†РµР»С‹Рј С‡РёСЃР»РѕРј РѕС‚ 0", variant: "destructive" });
       return;
     }
 
     setSavingId(itemId);
     try {
       const successful = await saveUpdates([{ itemId, quantity }]);
-      if (!successful.has(itemId)) throw new Error("Avito не подтвердил обновление");
+      if (!successful.has(itemId)) throw new Error("Avito РЅРµ РїРѕРґС‚РІРµСЂРґРёР» РѕР±РЅРѕРІР»РµРЅРёРµ");
       setItems((current) =>
         current.map((item) => (item.itemId === itemId ? { ...item, quantity } : item)),
       );
-      toast({ title: "Остаток обновлён" });
+      toast({ title: "РћСЃС‚Р°С‚РѕРє РѕР±РЅРѕРІР»С‘РЅ" });
     } catch (error) {
       toast({
-        title: "Ошибка Avito",
+        title: "РћС€РёР±РєР° Avito",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
@@ -177,7 +169,7 @@ export function StocksClient() {
   async function saveBulk() {
     const quantity = Number(bulkQuantity);
     if (!Number.isInteger(quantity) || quantity < 0) {
-      toast({ title: "Остаток должен быть целым числом от 0", variant: "destructive" });
+      toast({ title: "РћСЃС‚Р°С‚РѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С†РµР»С‹Рј С‡РёСЃР»РѕРј РѕС‚ 0", variant: "destructive" });
       return;
     }
     const updates = [...selected].map((itemId) => ({ itemId, quantity }));
@@ -194,10 +186,10 @@ export function StocksClient() {
         ...Object.fromEntries([...successful].map((itemId) => [itemId, String(quantity)])),
       }));
       setSelected(new Set());
-      toast({ title: "Остатки обновлены", description: `Позиций: ${successful.size}` });
+      toast({ title: "РћСЃС‚Р°С‚РєРё РѕР±РЅРѕРІР»РµРЅС‹", description: `РџРѕР·РёС†РёР№: ${successful.size}` });
     } catch (error) {
       toast({
-        title: "Ошибка Avito",
+        title: "РћС€РёР±РєР° Avito",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
@@ -236,20 +228,50 @@ export function StocksClient() {
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="flex-1">
-            <h1 className="text-lg font-semibold tracking-tight">Остатки Avito</h1>
-            <p className="section-caption">Объявления и количество на выбранном аккаунте</p>
+            <h1 className="text-lg font-semibold tracking-tight">РћСЃС‚Р°С‚РєРё Avito</h1>
+            <p className="section-caption">РћР±СЉСЏРІР»РµРЅРёСЏ Рё РєРѕР»РёС‡РµСЃС‚РІРѕ РЅР° РІС‹Р±СЂР°РЅРЅРѕРј Р°РєРєР°СѓРЅС‚Рµ</p>
           </div>
           <Button size="sm" variant="outline" onClick={loadItems} disabled={!canLoad}>
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            {loading ? "Загрузка" : "Загрузить"}
+            {loading ? "Р—Р°РіСЂСѓР·РєР°" : "Р—Р°РіСЂСѓР·РёС‚СЊ"}
           </Button>
-          {credentialHistory.length > 0 && (
-            <Button size="sm" variant="outline" onClick={() => setHistoryOpen((value) => !value)}>
+          {credentialProfiles.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setProfilesOpen((value) => !value)}>
               <History className="h-4 w-4" />
-              История
+              Profiles
             </Button>
           )}
         </div>
+
+        {profilesOpen && credentialProfiles.length > 0 && (
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {credentialProfiles.map((profile) => (
+              <button
+                key={profile.id}
+                type="button"
+                onClick={() => applyProfile(profile)}
+                className={`rounded-md border p-3 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${
+                  selectedProfileId === profile.id ? "border-primary/40 bg-accent" : "border-border"
+                }`}
+              >
+                <p className="truncate text-sm font-semibold">{profile.name}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {profile.accountId || profile.clientId}
+                </p>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={startManualCredentials}
+              className={`rounded-md border border-dashed p-3 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${
+                !selectedProfileId ? "border-primary/40 bg-accent" : "border-border"
+              }`}
+            >
+              <p className="truncate text-sm font-semibold">New profile</p>
+              <p className="mt-1 truncate text-xs text-muted-foreground">Enter client_id and client_secret</p>
+            </button>
+          </div>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
@@ -274,25 +296,6 @@ export function StocksClient() {
             />
           </div>
         </div>
-        {historyOpen && credentialHistory.length > 0 && (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {credentialHistory.map((item) => (
-              <button
-                key={item.clientId}
-                type="button"
-                onClick={() => applyHistory(item)}
-                className={`rounded-md border p-3 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${
-                  clientId === item.clientId ? "border-primary/40 bg-accent" : "border-border"
-                }`}
-              >
-                <p className="truncate text-sm font-semibold">{item.profileName}</p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {item.profileId} · {new Date(item.updatedAt).toLocaleDateString("ru-RU")}
-                </p>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {items.length > 0 && (
@@ -302,7 +305,7 @@ export function StocksClient() {
               type="button"
               onClick={toggleVisible}
               className="icon-tile h-9 w-9"
-              aria-label="Выбрать видимые"
+              aria-label="Р’С‹Р±СЂР°С‚СЊ РІРёРґРёРјС‹Рµ"
             >
               {filtered.length > 0 && filtered.every((item) => selected.has(item.itemId)) ? (
                 <CheckSquare className="h-4 w-4" />
@@ -313,7 +316,7 @@ export function StocksClient() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Поиск объявления..."
+                placeholder="РџРѕРёСЃРє РѕР±СЉСЏРІР»РµРЅРёСЏ..."
                 className="pl-9"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -326,7 +329,7 @@ export function StocksClient() {
               min={0}
               step={1}
               className="h-9 w-32"
-              placeholder="Остаток"
+              placeholder="РћСЃС‚Р°С‚РѕРє"
               value={bulkQuantity}
               onChange={(event) => setBulkQuantity(event.target.value)}
               disabled={selectedCount === 0}
@@ -337,7 +340,7 @@ export function StocksClient() {
               disabled={selectedCount === 0 || bulkSaving}
               className="min-w-32"
             >
-              {bulkSaving ? "Сохранение" : `Для выбранных: ${selectedCount}`}
+              {bulkSaving ? "РЎРѕС…СЂР°РЅРµРЅРёРµ" : `Р”Р»СЏ РІС‹Р±СЂР°РЅРЅС‹С…: ${selectedCount}`}
             </Button>
           </div>
         </div>
@@ -347,7 +350,7 @@ export function StocksClient() {
         {!loading && items.length === 0 && (
           <div className="py-12 text-center text-muted-foreground">
             <Package className="mx-auto mb-3 h-10 w-10 opacity-45" />
-            <p className="text-sm font-semibold">Введите ключи Avito и загрузите объявления</p>
+            <p className="text-sm font-semibold">Р’РІРµРґРёС‚Рµ РєР»СЋС‡Рё Avito Рё Р·Р°РіСЂСѓР·РёС‚Рµ РѕР±СЉСЏРІР»РµРЅРёСЏ</p>
           </div>
         )}
 
@@ -363,7 +366,7 @@ export function StocksClient() {
                   type="button"
                   onClick={() => toggleSelected(item.itemId)}
                   className="text-muted-foreground transition-colors hover:text-primary"
-                  aria-label={isSelected ? "Снять выбор" : "Выбрать"}
+                  aria-label={isSelected ? "РЎРЅСЏС‚СЊ РІС‹Р±РѕСЂ" : "Р’С‹Р±СЂР°С‚СЊ"}
                 >
                   {isSelected ? <CheckSquare className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5" />}
                 </button>
@@ -392,7 +395,7 @@ export function StocksClient() {
                     {item.status && (
                       <Badge variant={item.status === "active" ? "success" : "warning"}>{item.status}</Badge>
                     )}
-                    {item.isUnlimited && <Badge variant="secondary">Без лимита</Badge>}
+                    {item.isUnlimited && <Badge variant="secondary">Р‘РµР· Р»РёРјРёС‚Р°</Badge>}
                   </div>
                 </div>
 
@@ -413,7 +416,7 @@ export function StocksClient() {
                     className="h-9 w-9"
                     onClick={() => saveOne(item.itemId)}
                     disabled={savingId === item.itemId || !changed}
-                    aria-label="Сохранить остаток"
+                    aria-label="РЎРѕС…СЂР°РЅРёС‚СЊ РѕСЃС‚Р°С‚РѕРє"
                   >
                     {savingId === item.itemId ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />

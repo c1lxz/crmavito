@@ -4,13 +4,15 @@ import { auth } from "@/lib/auth";
 import { buildXml } from "@/lib/botv/session";
 import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
 import { publishAvitoXml } from "@/lib/avito/publish";
+import { getAvitoCredentials, saveAvitoProfileCredentials } from "@/lib/avito/profile-store";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const publishSchema = z.object({
-  clientId: z.string().trim().min(1),
-  clientSecret: z.string().trim().min(1),
+  profileId: z.string().trim().optional(),
+  clientId: z.string().trim().optional(),
+  clientSecret: z.string().trim().optional(),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -26,20 +28,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const { id } = await params;
-  const credentials = {
-    clientId: parsed.data.clientId,
-    clientSecret: parsed.data.clientSecret,
-  };
+  let credentials;
+  try {
+    credentials = await getAvitoCredentials(parsed.data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 400 },
+    );
+  }
 
   try {
     const [xmlResult, profile] = await Promise.all([
       buildXml(id),
       fetchAvitoAccountProfile(credentials),
     ]);
+    const savedProfile = await saveAvitoProfileCredentials(credentials, profile);
     const publish = await publishAvitoXml(credentials, xmlResult.xml, xmlResult.filename);
     return NextResponse.json({
       success: true,
-      profile,
+      profile: savedProfile,
       ads: xmlResult.ads,
       products: xmlResult.products,
       publish,

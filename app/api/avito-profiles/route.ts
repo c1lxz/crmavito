@@ -14,6 +14,15 @@ export async function GET() {
 
   const profiles = await prisma.avitoProfile.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      accountId: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   });
   return NextResponse.json(profiles);
 }

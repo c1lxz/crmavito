@@ -3,12 +3,14 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { fetchAvitoStockItems } from "@/lib/avito/stocks";
 import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
+import { getAvitoCredentials, saveAvitoProfileCredentials } from "@/lib/avito/profile-store";
 
 export const maxDuration = 300;
 
 const credentialsSchema = z.object({
-  clientId: z.string().min(1),
-  clientSecret: z.string().min(1),
+  profileId: z.string().trim().optional(),
+  clientId: z.string().trim().optional(),
+  clientSecret: z.string().trim().optional(),
 });
 
 async function requireAdminResponse() {
@@ -29,16 +31,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Укажите client_id и client_secret Avito." }, { status: 400 });
   }
 
+  let credentials;
   try {
-    const credentials = {
-      clientId: parsed.data.clientId.trim(),
-      clientSecret: parsed.data.clientSecret.trim(),
-    };
+    credentials = await getAvitoCredentials(parsed.data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 400 },
+    );
+  }
+
+  try {
     const [items, profile] = await Promise.all([
       fetchAvitoStockItems(credentials),
       fetchAvitoAccountProfile(credentials),
     ]);
-    return NextResponse.json({ items, profile });
+    const savedProfile = await saveAvitoProfileCredentials(credentials, profile);
+    return NextResponse.json({ items, profile: savedProfile });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },

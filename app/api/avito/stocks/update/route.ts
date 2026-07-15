@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { updateAvitoStocks } from "@/lib/avito/stocks";
+import { getAvitoCredentials } from "@/lib/avito/profile-store";
 
 export const maxDuration = 300;
 
 const updateSchema = z.object({
-  clientId: z.string().min(1),
-  clientSecret: z.string().min(1),
+  profileId: z.string().trim().optional(),
+  clientId: z.string().trim().optional(),
+  clientSecret: z.string().trim().optional(),
   updates: z
     .array(
       z.object({
@@ -37,14 +39,18 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Проверьте ключи Avito и остатки." }, { status: 400 });
   }
 
+  let credentials;
   try {
-    const result = await updateAvitoStocks(
-      {
-        clientId: parsed.data.clientId.trim(),
-        clientSecret: parsed.data.clientSecret.trim(),
-      },
-      parsed.data.updates,
+    credentials = await getAvitoCredentials(parsed.data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 400 },
     );
+  }
+
+  try {
+    const result = await updateAvitoStocks(credentials, parsed.data.updates);
     return NextResponse.json({ stocks: result });
   } catch (error) {
     return NextResponse.json(

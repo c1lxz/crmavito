@@ -146,15 +146,20 @@ model Order {
 }
 
 model AvitoProfile {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  color     String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  name         String   @unique
+  color        String?
+  accountId    String?
+  clientId     String?
+  clientSecret String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   orders Order[]
 
+  @@index([accountId])
+  @@index([clientId])
   @@map("avito_profiles")
 }
 
