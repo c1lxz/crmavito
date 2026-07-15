@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fetchAvitoStockItems, updateAvitoStocks } from "@/lib/avito/stocks";
+import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
 
 const credentials = { clientId: "client", clientSecret: "secret" };
 
@@ -87,5 +88,25 @@ describe("Avito stock management", () => {
     expect(calls.find((call) => call.url.includes("/stock-management/1/stocks"))?.init?.body).toBe(
       JSON.stringify({ stocks: [{ item_id: 101, quantity: 5 }] }),
     );
+  });
+
+  it("loads the current Avito account profile for credential history", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/core/v1/accounts/self")) {
+        return Response.json({ id: 42, name: "Основной профиль" });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchAvitoAccountProfile(credentials, {
+        fetchFn,
+        sleepFn: async () => undefined,
+      }),
+    ).resolves.toEqual({ id: "42", name: "Основной профиль" });
   });
 });

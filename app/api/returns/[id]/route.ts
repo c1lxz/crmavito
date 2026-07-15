@@ -27,11 +27,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!ret) return NextResponse.json({ error: "Не найден" }, { status: 404 });
 
   const { status: newStatus, returnDate } = parsed.data;
-  if (ret.status !== "RETURNING" || newStatus === "RETURNING") {
-    return NextResponse.json(
-      { error: "Завершённый возврат нельзя изменить повторно" },
-      { status: 409 },
-    );
+  if (ret.status === newStatus) {
+    return NextResponse.json({ success: true, skipped: true });
   }
 
   await prisma.$transaction(async (tx) => {

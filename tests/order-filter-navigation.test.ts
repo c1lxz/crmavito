@@ -10,6 +10,7 @@ describe("order filter navigation", () => {
       q: "трек 123",
       status: "RETURNING",
       counterpartyId: "counterparty-1",
+      avitoProfileId: "profile-1",
       dateFrom: "2026-07-01",
       dateTo: "2026-07-05",
     });
@@ -19,6 +20,7 @@ describe("order filter navigation", () => {
         q: "трек 123",
         status: "RETURNING",
         counterpartyId: "counterparty-1",
+        avitoProfileId: "profile-1",
         dateFrom: "2026-07-01",
         dateTo: "2026-07-05",
       }),

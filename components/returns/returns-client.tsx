@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Loader2, Package, Plus, RotateCcw, Search, Warehouse } from "lucide-react";
+import { Check, CheckSquare, Loader2, Package, Plus, RotateCcw, Search, Square, Warehouse, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,7 +29,7 @@ interface ReturnItem {
   variant: string | null;
   size: string | null;
   createdAt: string;
-  order: { productNameSnapshot: string; variant: string | null; orderNumber: string } | null;
+  order: { id: string; productNameSnapshot: string; variant: string | null; orderNumber: string } | null;
   product: { imageUrl: string | null };
   usedByOrderItems: Array<{ order: { orderNumber: string } }>;
 }
@@ -55,6 +56,10 @@ export function ReturnsClient({ initialData }: Props) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkStatus, setBulkStatus] = useState<ReturnStatus | "">("");
+  const [bulkUpdating, setBulkUpdating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
@@ -89,6 +94,36 @@ export function ReturnsClient({ initialData }: Props) {
     });
   }, [data.returns, search, statusFilter]);
 
+  const filteredIds = useMemo(() => filtered.map((item) => item.id), [filtered]);
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+
+  function toggleSelectionMode() {
+    if (selectionMode) {
+      setSelectedIds(new Set());
+      setBulkStatus("");
+    }
+    setSelectionMode(!selectionMode);
+  }
+
+  function toggleReturn(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleFiltered() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allFilteredSelected) filteredIds.forEach((id) => next.delete(id));
+      else filteredIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
   async function updateStatus(id: string, status: ReturnStatus, returnDate?: string) {
     setUpdatingId(id);
     try {
@@ -115,6 +150,42 @@ export function ReturnsClient({ initialData }: Props) {
       });
     } finally {
       setUpdatingId(null);
+    }
+  }
+
+  async function updateSelectedStatuses() {
+    if (!bulkStatus || selectedIds.size === 0) return;
+    setBulkUpdating(true);
+    try {
+      const response = await fetch("/api/returns/bulk-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          returnIds: [...selectedIds],
+          status: bulkStatus,
+          returnDate: bulkStatus === "RETURNED" ? formatDateInput() : undefined,
+        }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Не удалось обновить возвраты");
+      }
+      toast({
+        title: "Статусы обновлены",
+        description: `${body.updatedCount ?? 0} из ${selectedIds.size}`,
+      });
+      setSelectedIds(new Set());
+      setBulkStatus("");
+      setSelectionMode(false);
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Ошибка",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setBulkUpdating(false);
     }
   }
 
@@ -211,10 +282,23 @@ export function ReturnsClient({ initialData }: Props) {
             <h1 className="text-xl font-semibold tracking-tight">Возвраты</h1>
             <p className="section-caption">Товары в обратной логистике</p>
           </div>
-          <Button size="sm" variant="outline" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4" />
-            Оформить возврат
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={selectionMode ? "secondary" : "outline"}
+              onClick={toggleSelectionMode}
+              aria-pressed={selectionMode}
+            >
+              {selectionMode ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+              {selectionMode ? "Отмена" : "Выбрать"}
+            </Button>
+            {!selectionMode && (
+              <Button size="sm" variant="outline" onClick={() => setShowCreate(true)}>
+                <Plus className="h-4 w-4" />
+                Оформить возврат
+              </Button>
+            )}
+          </div>
         </div>
         <div className="space-y-2">
           <div className="relative">
@@ -241,15 +325,73 @@ export function ReturnsClient({ initialData }: Props) {
               </button>
             ))}
           </div>
+          {selectionMode && (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2">
+              <p className="text-xs font-semibold">
+                Выбрано: <span className="tabular-nums text-primary">{selectedIds.size}</span>
+              </p>
+              <button
+                type="button"
+                onClick={toggleFiltered}
+                disabled={filteredIds.length === 0}
+                className="text-xs font-semibold text-primary hover:underline disabled:pointer-events-none disabled:opacity-50"
+              >
+                {allFilteredSelected ? "Снять найденные" : `Выбрать найденные (${filteredIds.length})`}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* List */}
       <div className="app-content space-y-3">
+        {selectionMode && selectedIds.size > 0 && (
+          <div className="sticky top-[calc(var(--app-top-pad)+12rem)] z-20 flex gap-2 rounded-lg border border-primary/25 bg-card p-2 shadow-lg shadow-foreground/10">
+            <Select
+              value={bulkStatus}
+              onValueChange={(value) => setBulkStatus(value as ReturnStatus)}
+              disabled={bulkUpdating}
+            >
+              <SelectTrigger className="min-w-0 flex-1">
+                <SelectValue placeholder="Новый статус" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_TABS.filter((tab) => tab.value !== "ALL").map((tab) => (
+                  <SelectItem key={tab.value} value={tab.value}>
+                    {tab.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={updateSelectedStatuses} disabled={!bulkStatus || bulkUpdating}>
+              {bulkUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Применить
+            </Button>
+          </div>
+        )}
         {filtered.map((ret) => (
-          <Card key={ret.id}>
+          <Card
+            key={ret.id}
+            className={`transition-colors ${
+              selectedIds.has(ret.id) ? "border-primary bg-accent/70 ring-1 ring-primary/20" : ""
+            }`}
+          >
             <CardContent className="p-3 space-y-2">
               <div className="flex items-start gap-3">
+                {selectionMode && (
+                  <button
+                    type="button"
+                    onClick={() => toggleReturn(ret.id)}
+                    className="mt-2 text-muted-foreground transition-colors hover:text-primary"
+                    aria-label={selectedIds.has(ret.id) ? "Снять выбор" : "Выбрать"}
+                  >
+                    {selectedIds.has(ret.id) ? (
+                      <CheckSquare className="h-5 w-5 text-primary" />
+                    ) : (
+                      <Square className="h-5 w-5" />
+                    )}
+                  </button>
+                )}
                 <div className="w-10 h-10 rounded-md bg-muted overflow-hidden flex-shrink-0">
                   {ret.product.imageUrl ? (
                     <Image src={ret.product.imageUrl} alt="" width={40} height={40} className="object-cover w-full h-full" />
@@ -285,29 +427,35 @@ export function ReturnsClient({ initialData }: Props) {
                   </div>
                 ) : null}
               </div>
-              {/* Actions */}
-              {ret.status === "RETURNING" && (
-                <div className="flex gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 text-xs"
-                    disabled={updatingId === ret.id}
-                    onClick={() => updateStatus(ret.id, "RETURNED", formatDateInput())}
-                  >
-                    Товар получен
+              <div className="flex gap-2 pt-1">
+                <Select
+                  value={ret.status}
+                  onValueChange={(value) =>
+                    updateStatus(
+                      ret.id,
+                      value as ReturnStatus,
+                      value === "RETURNED" ? formatDateInput() : undefined,
+                    )
+                  }
+                  disabled={updatingId === ret.id || selectionMode}
+                >
+                  <SelectTrigger className="h-9 min-w-0 flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_TABS.filter((tab) => tab.value !== "ALL").map((tab) => (
+                      <SelectItem key={tab.value} value={tab.value}>
+                        {tab.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {ret.order && (
+                  <Button size="sm" variant="outline" className="shrink-0" asChild>
+                    <Link href={`/orders/${ret.order.id}`}>Карточка</Link>
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="flex-1 text-xs text-muted-foreground"
-                    disabled={updatingId === ret.id}
-                    onClick={() => updateStatus(ret.id, "CANCELLED")}
-                  >
-                    Отменить возврат
-                  </Button>
-                </div>
-              )}
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}

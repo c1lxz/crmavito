@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
   const statusParam = searchParams.get("status");
   const tracking = searchParams.get("tracking");
   const counterpartyId = searchParams.get("counterpartyId");
+  const avitoProfileId = searchParams.get("avitoProfileId");
   const productId = searchParams.get("productId");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
   }
   if (tracking) where.trackingNumber = { contains: tracking, mode: "insensitive" };
   if (counterpartyId) where.counterpartyId = counterpartyId;
+  if (avitoProfileId) where.avitoProfileId = avitoProfileId;
   if (productId) {
     where.OR = [{ productId }, { items: { some: { productId } } }];
   }

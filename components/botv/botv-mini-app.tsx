@@ -13,6 +13,7 @@ import {
   Package,
   PanelTop,
   Search,
+  Send,
   Trash2,
   UploadCloud,
   X,
@@ -30,6 +31,30 @@ type UploadProgress = {
   percent: number;
   phase: "uploading" | "processing";
 };
+
+type AvitoCredentialHistoryItem = {
+  clientId: string;
+  clientSecret: string;
+  profileId: string;
+  profileName: string;
+  updatedAt: number;
+};
+
+const XML_PUBLISH_HISTORY_KEY = "crmavito:botv-publish-credentials";
+
+function readPublishHistory(): AvitoCredentialHistoryItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const data = JSON.parse(window.localStorage.getItem(XML_PUBLISH_HISTORY_KEY) ?? "[]");
+    return Array.isArray(data) ? data.slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePublishHistory(items: AvitoCredentialHistoryItem[]) {
+  window.localStorage.setItem(XML_PUBLISH_HISTORY_KEY, JSON.stringify(items.slice(0, 8)));
+}
 
 function formatRub(value: number | null) {
   if (value == null) return "Цена не задана";
@@ -182,6 +207,11 @@ export function BotvMiniApp() {
   const [replacementXmlCount, setReplacementXmlCount] = useState(0);
   const [history, setHistory] = useState<BotvSessionHistoryItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [publishClientId, setPublishClientId] = useState("");
+  const [publishClientSecret, setPublishClientSecret] = useState("");
+  const [publishHistory, setPublishHistory] = useState<AvitoCredentialHistoryItem[]>([]);
+  const [publishHistoryOpen, setPublishHistoryOpen] = useState(true);
+  const [publishing, setPublishing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const manualColorOverrides = useRef(new Map<string, ProductColor>());
 
@@ -200,6 +230,12 @@ export function BotvMiniApp() {
 
   async function runInitialLoad() {
     await refreshHistory();
+    const savedPublishHistory = readPublishHistory();
+    setPublishHistory(savedPublishHistory);
+    if (savedPublishHistory[0]) {
+      setPublishClientId(savedPublishHistory[0].clientId);
+      setPublishClientSecret(savedPublishHistory[0].clientSecret);
+    }
     const savedId = window.localStorage.getItem("botv:lastSessionId");
     if (!savedId) return;
     try {
@@ -406,6 +442,49 @@ export function BotvMiniApp() {
     }
   }
 
+  function rememberPublishCredentials(profile?: { id?: string; name?: string }) {
+    const item: AvitoCredentialHistoryItem = {
+      clientId: publishClientId.trim(),
+      clientSecret: publishClientSecret.trim(),
+      profileId: profile?.id || publishClientId.trim(),
+      profileName: profile?.name || `Avito ${publishClientId.trim()}`,
+      updatedAt: Date.now(),
+    };
+    const next = [
+      item,
+      ...publishHistory.filter((saved) => saved.clientId !== item.clientId),
+    ].slice(0, 8);
+    setPublishHistory(next);
+    writePublishHistory(next);
+  }
+
+  function applyPublishHistory(item: AvitoCredentialHistoryItem) {
+    setPublishClientId(item.clientId);
+    setPublishClientSecret(item.clientSecret);
+  }
+
+  async function publishXml() {
+    if (!session) return;
+    setPublishing(true);
+    setError("");
+    try {
+      const res = await apiFetch(`/api/botv/session/${session.id}/publish`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientId: publishClientId,
+          clientSecret: publishClientSecret,
+        }),
+      });
+      const data = await readJsonResponse(res, "Не удалось опубликовать XML");
+      if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать XML");
+      rememberPublishCredentials(data.profile);
+      setError("");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   function toggle(index: number) {
     setSelected((current) => {
       const next = new Set(current);
@@ -588,7 +667,55 @@ export function BotvMiniApp() {
                 <Button size="sm" variant="outline" disabled={!selected.size || !bulkPrice} onClick={() => run(() => patch({ ids: selectedIds, bulkPrice }))}>Одна цена</Button>
                 <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
                 <Button size="sm" disabled={status === "generating"} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
+                <Input
+                  className="h-8 w-44"
+                  placeholder="Avito client_id"
+                  value={publishClientId}
+                  onChange={(event) => setPublishClientId(event.target.value)}
+                  autoComplete="off"
+                />
+                <Input
+                  className="h-8 w-48"
+                  type="password"
+                  placeholder="Avito client_secret"
+                  value={publishClientSecret}
+                  onChange={(event) => setPublishClientSecret(event.target.value)}
+                  autoComplete="off"
+                />
+                <Button
+                  size="sm"
+                  disabled={!publishClientId.trim() || !publishClientSecret.trim() || publishing}
+                  onClick={() => run(publishXml)}
+                >
+                  {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Публикация
+                </Button>
+                {publishHistory.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => setPublishHistoryOpen((value) => !value)}>
+                    <History className="h-4 w-4" />
+                    Профили
+                  </Button>
+                )}
               </div>
+              {publishHistoryOpen && publishHistory.length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {publishHistory.map((item) => (
+                    <button
+                      key={item.clientId}
+                      type="button"
+                      onClick={() => applyPublishHistory(item)}
+                      className={`rounded-md border p-2 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${
+                        publishClientId === item.clientId ? "border-primary/40 bg-accent" : "border-border"
+                      }`}
+                    >
+                      <p className="truncate text-xs font-semibold">{item.profileName}</p>
+                      <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                        {item.profileId} · {new Date(item.updatedAt).toLocaleDateString("ru-RU")}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </CardContent></Card>
           )}
 

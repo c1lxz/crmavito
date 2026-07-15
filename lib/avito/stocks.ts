@@ -51,17 +51,17 @@ function getPrice(value: AvitoListItem["price"]): number {
   return 0;
 }
 
-function extractErrorText(value: unknown): string {
+export function extractAvitoErrorText(value: unknown): string {
   if (!value) return "";
   if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.map(extractErrorText).filter(Boolean).join("; ");
+  if (Array.isArray(value)) return value.map(extractAvitoErrorText).filter(Boolean).join("; ");
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
     return (
-      extractErrorText(record.message) ||
-      extractErrorText(record.error) ||
-      extractErrorText(record.errors) ||
-      extractErrorText(record.result) ||
+      extractAvitoErrorText(record.message) ||
+      extractAvitoErrorText(record.error) ||
+      extractAvitoErrorText(record.errors) ||
+      extractAvitoErrorText(record.result) ||
       JSON.stringify(value)
     );
   }
@@ -100,7 +100,7 @@ export async function getAvitoStockToken(
 
   const data = (await readJsonResponse(response)) as { access_token?: string };
   if (!response.ok || !data.access_token) {
-    throw new Error(`Авторизация Avito не прошла: ${extractErrorText(data).slice(0, 300)}`);
+    throw new Error(`Авторизация Avito не прошла: ${extractAvitoErrorText(data).slice(0, 300)}`);
   }
 
   return data.access_token;
@@ -133,7 +133,7 @@ export async function fetchAvitoStocksInfo(
 
     const data = (await readJsonResponse(response)) as { stocks?: StockInfo[] };
     if (!response.ok) {
-      throw new Error(`Получение остатков Avito не прошло: ${extractErrorText(data).slice(0, 300)}`);
+      throw new Error(`Получение остатков Avito не прошло: ${extractAvitoErrorText(data).slice(0, 300)}`);
     }
 
     for (const stock of data.stocks ?? []) {
@@ -199,7 +199,7 @@ export async function updateAvitoStocks(
 
   const data = (await readJsonResponse(response)) as { stocks?: StockUpdateResult[] };
   if (!response.ok) {
-    throw new Error(`Обновление остатков Avito не прошло: ${extractErrorText(data).slice(0, 300)}`);
+    throw new Error(`Обновление остатков Avito не прошло: ${extractAvitoErrorText(data).slice(0, 300)}`);
   }
 
   return data.stocks ?? [];

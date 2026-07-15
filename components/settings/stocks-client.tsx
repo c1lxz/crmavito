@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowLeft, Check, CheckSquare, ExternalLink, Package, RefreshCw, Save, Search, Square } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Check, CheckSquare, ExternalLink, History, Package, RefreshCw, Save, Search, Square } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -25,9 +25,35 @@ type StockItem = {
   isMultiple: boolean;
 };
 
+type AvitoCredentialHistoryItem = {
+  clientId: string;
+  clientSecret: string;
+  profileId: string;
+  profileName: string;
+  updatedAt: number;
+};
+
+const STOCKS_HISTORY_KEY = "crmavito:avito-stocks-credentials";
+
+function readCredentialHistory(): AvitoCredentialHistoryItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const data = JSON.parse(window.localStorage.getItem(STOCKS_HISTORY_KEY) ?? "[]");
+    return Array.isArray(data) ? data.slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCredentialHistory(items: AvitoCredentialHistoryItem[]) {
+  window.localStorage.setItem(STOCKS_HISTORY_KEY, JSON.stringify(items.slice(0, 8)));
+}
+
 export function StocksClient() {
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
+  const [credentialHistory, setCredentialHistory] = useState<AvitoCredentialHistoryItem[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(true);
   const [items, setItems] = useState<StockItem[]>([]);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -45,6 +71,37 @@ export function StocksClient() {
   const selectedCount = selected.size;
   const canLoad = clientId.trim() && clientSecret.trim() && !loading;
 
+  useEffect(() => {
+    const history = readCredentialHistory();
+    setCredentialHistory(history);
+    const last = history[0];
+    if (last) {
+      setClientId(last.clientId);
+      setClientSecret(last.clientSecret);
+    }
+  }, []);
+
+  function rememberCredentials(profile?: { id?: string; name?: string }) {
+    const item: AvitoCredentialHistoryItem = {
+      clientId: clientId.trim(),
+      clientSecret: clientSecret.trim(),
+      profileId: profile?.id || clientId.trim(),
+      profileName: profile?.name || `Avito ${clientId.trim()}`,
+      updatedAt: Date.now(),
+    };
+    const next = [
+      item,
+      ...credentialHistory.filter((saved) => saved.clientId !== item.clientId),
+    ].slice(0, 8);
+    setCredentialHistory(next);
+    writeCredentialHistory(next);
+  }
+
+  function applyHistory(item: AvitoCredentialHistoryItem) {
+    setClientId(item.clientId);
+    setClientSecret(item.clientSecret);
+  }
+
   async function loadItems() {
     setLoading(true);
     setSelected(new Set());
@@ -57,6 +114,7 @@ export function StocksClient() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить объявления");
       setItems(data.items ?? []);
+      rememberCredentials(data.profile);
       setDrafts(
         Object.fromEntries(
           (data.items ?? []).map((item: StockItem) => [item.itemId, String(item.quantity ?? 0)]),
@@ -185,6 +243,12 @@ export function StocksClient() {
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {loading ? "Загрузка" : "Загрузить"}
           </Button>
+          {credentialHistory.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setHistoryOpen((value) => !value)}>
+              <History className="h-4 w-4" />
+              История
+            </Button>
+          )}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -210,6 +274,25 @@ export function StocksClient() {
             />
           </div>
         </div>
+        {historyOpen && credentialHistory.length > 0 && (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {credentialHistory.map((item) => (
+              <button
+                key={item.clientId}
+                type="button"
+                onClick={() => applyHistory(item)}
+                className={`rounded-md border p-3 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${
+                  clientId === item.clientId ? "border-primary/40 bg-accent" : "border-border"
+                }`}
+              >
+                <p className="truncate text-sm font-semibold">{item.profileName}</p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {item.profileId} · {new Date(item.updatedAt).toLocaleDateString("ru-RU")}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {items.length > 0 && (

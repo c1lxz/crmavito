@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { fetchAvitoStockItems } from "@/lib/avito/stocks";
+import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
 
 export const maxDuration = 300;
 
@@ -29,11 +30,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const items = await fetchAvitoStockItems({
+    const credentials = {
       clientId: parsed.data.clientId.trim(),
       clientSecret: parsed.data.clientSecret.trim(),
-    });
-    return NextResponse.json({ items });
+    };
+    const [items, profile] = await Promise.all([
+      fetchAvitoStockItems(credentials),
+      fetchAvitoAccountProfile(credentials),
+    ]);
+    return NextResponse.json({ items, profile });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },

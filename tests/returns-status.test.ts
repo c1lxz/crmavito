@@ -126,7 +126,7 @@ describe("return status updates", () => {
     });
   });
 
-  it("rejects repeated changes to a completed return", async () => {
+  it("allows correcting a completed return status", async () => {
     mocks.prisma.return.findUnique.mockResolvedValue({
       id: "return-1",
       orderId: "order-1",
@@ -143,8 +143,11 @@ describe("return status updates", () => {
       { params: Promise.resolve({ id: "return-1" }) }
     );
 
-    expect(response.status).toBe(409);
-    expect(mocks.tx.return.update).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mocks.tx.return.update).toHaveBeenCalledWith({
+      where: { id: "return-1" },
+      data: { status: "CANCELLED", returnDate: null },
+    });
   });
 
   it("keeps an open return in sync when the order is marked returned", async () => {

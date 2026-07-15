@@ -58,6 +58,7 @@ interface Props {
   initialSearch?: string;
   initialStatusFilter?: string;
   initialCounterpartyFilter?: string;
+  initialAvitoProfileFilter?: string;
   initialDateFrom?: string;
   initialDateTo?: string;
 }
@@ -84,6 +85,7 @@ export function OrdersClient({
   initialSearch = "",
   initialStatusFilter = "ALL",
   initialCounterpartyFilter = "ALL",
+  initialAvitoProfileFilter = "ALL",
   initialDateFrom = "",
   initialDateTo = "",
 }: Props) {
@@ -97,6 +99,11 @@ export function OrdersClient({
   const [counterpartyFilter, setCounterpartyFilter] = useState(
     counterparties.some((counterparty) => counterparty.id === initialCounterpartyFilter)
       ? initialCounterpartyFilter
+      : "ALL",
+  );
+  const [avitoProfileFilter, setAvitoProfileFilter] = useState(
+    avitoProfiles.some((profile) => profile.id === initialAvitoProfileFilter)
+      ? initialAvitoProfileFilter
       : "ALL",
   );
   const [dateFrom, setDateFrom] = useState(initialDateFrom);
@@ -131,6 +138,9 @@ export function OrdersClient({
       if (counterpartyFilter !== "ALL" && o.counterparty.id !== counterpartyFilter) {
         return false;
       }
+      if (avitoProfileFilter !== "ALL" && o.avitoProfile?.id !== avitoProfileFilter) {
+        return false;
+      }
       const orderDay = new Date(o.orderDate).toISOString().slice(0, 10);
       if (dateFrom && orderDay < dateFrom) return false;
       if (dateTo && orderDay > dateTo) return false;
@@ -144,7 +154,7 @@ export function OrdersClient({
       }
       return true;
     });
-  }, [counterpartyFilter, dateFrom, dateTo, orders, search, statusFilter]);
+  }, [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, orders, search, statusFilter]);
 
   const statuses: Array<{ value: string; label: string }> = [
     { value: "ALL", label: "Все статусы" },
@@ -158,10 +168,11 @@ export function OrdersClient({
         q: search,
         status: statusFilter,
         counterpartyId: counterpartyFilter,
+        avitoProfileId: avitoProfileFilter,
         dateFrom,
         dateTo,
       }),
-    [counterpartyFilter, dateFrom, dateTo, search, statusFilter],
+    [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, search, statusFilter],
   );
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
@@ -411,6 +422,22 @@ export function OrdersClient({
                 {counterparties.map((counterparty) => (
                   <SelectItem key={counterparty.id} value={counterparty.id}>
                     {counterparty.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="block space-y-1 text-xs font-medium text-muted-foreground">
+            Профиль Avito
+            <Select value={avitoProfileFilter} onValueChange={setAvitoProfileFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Все профили Avito" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Все профили Avito</SelectItem>
+                {avitoProfiles.map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>
+                    {profile.name}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -106,6 +106,7 @@ export default async function OrdersPage({
     q?: string;
     status?: string;
     counterpartyId?: string;
+    avitoProfileId?: string;
     dateFrom?: string;
     dateTo?: string;
   }>;
@@ -137,6 +138,7 @@ export default async function OrdersPage({
         initialSearch={query.q}
         initialStatusFilter={query.status}
         initialCounterpartyFilter={query.counterpartyId}
+        initialAvitoProfileFilter={query.avitoProfileId}
         initialDateFrom={query.dateFrom}
         initialDateTo={query.dateTo}
       />

@@ -74,6 +74,18 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Можно продолжить работу без созданного XML");
   });
 
+  it("adds Avito publication controls with saved profile history", () => {
+    const publishRouteSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/[id]/publish/route.ts"), "utf8");
+
+    expect(clientSource).toContain("Публикация");
+    expect(clientSource).toContain("publishXml");
+    expect(clientSource).toContain("crmavito:botv-publish-credentials");
+    expect(clientSource).toContain("profileName");
+    expect(publishRouteSource).toContain("publishAvitoXml");
+    expect(publishRouteSource).toContain("fetchAvitoAccountProfile");
+    expect(publishRouteSource).toContain("buildXml(id)");
+  });
+
   it("does not render saved-progress messages that shift the toolbar", () => {
     expect(clientSource).not.toContain("hideSavedProgress");
     expect(clientSource).not.toContain("setHideSavedProgress");
