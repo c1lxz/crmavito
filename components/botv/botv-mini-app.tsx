@@ -23,6 +23,13 @@ import { Input } from "@/components/ui/input";
 import type { BotvProduct, BotvSession, BotvSessionHistoryItem } from "@/lib/botv/session";
 
 type Status = "idle" | "uploading" | "ready" | "saving" | "generating";
+type UploadProgress = {
+  fileName: string;
+  loaded: number;
+  total: number;
+  percent: number;
+  phase: "uploading" | "processing";
+};
 
 function formatRub(value: number | null) {
   if (value == null) return "Цена не задана";
@@ -55,6 +62,18 @@ function formatDate(value: number | null | undefined) {
 
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 MB";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = value;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
 async function apiFetch(input: RequestInfo | URL, init?: RequestInit, retries = 3) {
@@ -160,6 +179,7 @@ export function BotvMiniApp() {
   const [replacementXmlCount, setReplacementXmlCount] = useState(0);
   const [history, setHistory] = useState<BotvSessionHistoryItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const manualColorOverrides = useRef(new Map<string, ProductColor>());
 
   const products = session?.products ?? [];
@@ -252,12 +272,48 @@ export function BotvMiniApp() {
     setSelected(new Set());
     const form = new FormData();
     form.append("archive", file);
-    const res = await apiFetch(BOTV_API_BASE, { method: "POST", body: form });
-    const data = await readJsonResponse(res, "Не удалось загрузить архив");
+    setUploadProgress({ fileName: file.name, loaded: 0, total: file.size, percent: 0, phase: "uploading" });
+    const res = await uploadArchiveWithProgress(form, file);
+    const data = parseJsonText(res.text, "Не удалось загрузить архив", res.ok);
     if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить архив");
     rememberSession(data);
     await refreshHistory();
+    setUploadProgress(null);
     setStatus("ready");
+  }
+
+  function uploadArchiveWithProgress(form: FormData, file: File) {
+    return new Promise<{ ok: boolean; status: number; text: string }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", BOTV_API_BASE);
+      xhr.responseType = "text";
+
+      xhr.upload.onprogress = (event) => {
+        const total = event.lengthComputable ? event.total : file.size;
+        const loaded = event.lengthComputable ? event.loaded : Math.min(file.size, event.loaded || 0);
+        const percent = total > 0 ? Math.min(99, Math.round((loaded / total) * 100)) : 0;
+        setUploadProgress({ fileName: file.name, loaded, total, percent, phase: "uploading" });
+      };
+      xhr.upload.onload = () => {
+        setUploadProgress({ fileName: file.name, loaded: file.size, total: file.size, percent: 100, phase: "processing" });
+      };
+      xhr.onload = () => {
+        resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: xhr.responseText ?? "" });
+      };
+      xhr.onerror = () => reject(new Error("Сервер временно не ответил. Попробуй ещё раз."));
+      xhr.onabort = () => reject(new Error("Загрузка архива отменена"));
+      xhr.send(form);
+    });
+  }
+
+  function parseJsonText(text: string, fallback: string, ok: boolean) {
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      if (!ok) throw new Error(fallback);
+      return {};
+    }
   }
 
   async function patch(payload: unknown) {
@@ -315,6 +371,7 @@ export function BotvMiniApp() {
       await action();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setUploadProgress(null);
       setStatus(session ? "ready" : "idle");
     }
   }
@@ -399,7 +456,7 @@ export function BotvMiniApp() {
               <History className="h-4 w-4" />
               История
             </Button>
-            <input ref={fileRef} type="file" accept=".zip,.rar,.7z" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) run(() => upload(f)); }} />
+            <input ref={fileRef} type="file" accept=".zip,.rar,.7z" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) run(() => upload(f)); }} />
           </div>
           <div className="grid gap-2 lg:grid-cols-[minmax(320px,1fr)_minmax(260px,420px)]">
             <div className="flex gap-2">
@@ -411,6 +468,25 @@ export function BotvMiniApp() {
               <Input placeholder="Поиск по товарам" className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
           </div>
+          {uploadProgress && (
+            <div className="mt-3 rounded-md border border-border/80 bg-card/70 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-foreground">{uploadProgress.fileName}</p>
+                  <p className="text-muted-foreground">
+                    {uploadProgress.phase === "uploading" ? "Загружается" : "Файл загружен, сервер распаковывает"} · {formatBytes(uploadProgress.loaded)} / {formatBytes(uploadProgress.total)}
+                  </p>
+                </div>
+                <span className="shrink-0 font-semibold text-foreground">{uploadProgress.percent}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-200"
+                  style={{ width: `${uploadProgress.percent}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

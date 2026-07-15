@@ -19,6 +19,15 @@ describe("botv mini app UI", () => {
     expect(aliasSource).toContain("@/app/api/botv/session/route");
   });
 
+  it("shows archive upload progress before server processing", () => {
+    expect(clientSource).toContain("UploadProgress");
+    expect(clientSource).toContain("new XMLHttpRequest()");
+    expect(clientSource).toContain("xhr.upload.onprogress");
+    expect(clientSource).toContain("Файл загружен, сервер распаковывает");
+    expect(clientSource).toContain("formatBytes(uploadProgress.loaded)");
+    expect(clientSource).toContain("uploadProgress.percent");
+  });
+
   it("supports the requested listing workflow", () => {
     expect(clientSource).toContain("Название из папки");
     expect(clientSource).toContain("Одна цена");
