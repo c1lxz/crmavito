@@ -31,6 +31,14 @@ describe("unified Telegram and browser user access", () => {
     expect(settings).toContain("Реквизиты отправлены сотруднику в Telegram");
   });
 
+  it("links to the XML listing export service from settings references", () => {
+    const settings = source("components/settings/settings-client.tsx");
+    expect(settings).toContain("Справочники");
+    expect(settings).toContain('href="/v"');
+    expect(settings).toContain("Выгрузка объявлений XML");
+    expect(settings).toContain("FileArchive");
+  });
+
   it("includes a one-time provisioning script for existing users", () => {
     const script = source("scripts/provision-user-credentials.js");
     expect(script).toContain("randomBytes");
