@@ -74,13 +74,22 @@ export async function getKpiForRange(range: DateRange, city?: string) {
       order: { isDeleted: false, status: { not: "CANCELLED" } },
     },
   });
+  const receivedOrdersCount = await prisma.order.count({
+    where: {
+      status: "RECEIVED",
+      isDeleted: false,
+      receivedAt: { gte: range.from, lte: range.to },
+      ...(city ? { destinationCity: city } : {}),
+    },
+  });
 
   return {
     ...totals,
     ordersCount: orders.length,
+    receivedOrdersCount,
     avgCheck: Math.round(avgCheck * 100) / 100,
     returnsCount: returns,
-    returnsPercent: orders.length > 0 ? (returns / orders.length) * 100 : 0,
+    returnsPercent: receivedOrdersCount > 0 ? (returns / receivedOrdersCount) * 100 : 0,
   };
 }
 

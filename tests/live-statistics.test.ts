@@ -70,6 +70,7 @@ describe("live statistics calculations", () => {
     );
     expect(result).toMatchObject({
       ordersCount: 1,
+      receivedOrdersCount: 0,
       revenue: 2500,
       avgCheck: 2500,
       netProfit: 1400,
@@ -77,8 +78,9 @@ describe("live statistics calculations", () => {
     expect(result.marginPercent).toBe(60);
   });
 
-  it("calculates return ratio from the same active orders used in KPI", async () => {
+  it("calculates return ratio from received orders only", async () => {
     mocks.prisma.return.count.mockResolvedValue(2);
+    mocks.prisma.order.count.mockResolvedValue(4);
     mocks.prisma.order.findMany.mockResolvedValue(
       Array.from({ length: 10 }, () => ({
         status: "ACCEPTED",
@@ -97,9 +99,16 @@ describe("live statistics calculations", () => {
     const result = await getKpiForRange(range);
 
     expect(result.ordersCount).toBe(10);
+    expect(result.receivedOrdersCount).toBe(4);
     expect(result.returnsCount).toBe(2);
-    expect(result.returnsPercent).toBe(20);
-    expect(mocks.prisma.order.count).not.toHaveBeenCalled();
+    expect(result.returnsPercent).toBe(50);
+    expect(mocks.prisma.order.count).toHaveBeenCalledWith({
+      where: {
+        status: "RECEIVED",
+        isDeleted: false,
+        receivedAt: { gte: range.from, lte: range.to },
+      },
+    });
   });
 
   it("filters deleted and cancelled orders from status statistics", async () => {

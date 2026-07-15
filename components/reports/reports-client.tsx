@@ -19,7 +19,7 @@ import {
 
 interface KpiData {
   revenue: number; costOfGoods: number; grossProfit: number; marginPercent: number; netProfit: number;
-  ordersCount: number; avgCheck: number; returnsCount: number; returnsPercent: number;
+  ordersCount: number; receivedOrdersCount: number; avgCheck: number; returnsCount: number; returnsPercent: number;
 }
 
 const AVITO_PROFILE_COLORS = ["#6366f1", "#22c55e", "#eab308", "#f97316", "#7c3aed", "#06b6d4", "#ef4444"];
@@ -133,7 +133,7 @@ export function ReportsClient() {
         {
           status: "orders",
           label: "Заказы",
-          count: kpi.current.ordersCount,
+          count: kpi.current.receivedOrdersCount,
           color: "#6366f1",
         },
         {

@@ -9,6 +9,7 @@ describe("orders to returns donut", () => {
 
     expect(clientSource).toContain('title="Заказы / возвраты"');
     expect(clientSource).toContain('label: "Заказы"');
+    expect(clientSource).toContain("count: kpi.current.receivedOrdersCount");
     expect(clientSource).toContain('label: "Возвраты"');
     expect(clientSource).toContain("centerValue={formatPercent(returnsRatio)}");
     expect(clientSource).toContain('centerLabel="Возвраты"');
