@@ -43,7 +43,7 @@ async function serveOriginal(filePath: string, ext: string) {
   });
 }
 
-async function serveThumbnail(filePath: string, sessionRoot: string, size: number) {
+async function serveThumbnail(filePath: string, sessionRoot: string, size: number, ext: string) {
   const fileStat = await stat(filePath);
   const cacheDir = path.join(sessionRoot, ".thumbs");
   const cacheKey = createHash("sha1")
@@ -55,11 +55,15 @@ async function serveThumbnail(filePath: string, sessionRoot: string, size: numbe
     await stat(cachePath);
   } catch {
     await mkdir(cacheDir, { recursive: true });
-    await sharp(filePath)
-      .rotate()
-      .resize({ width: size, height: size, fit: "cover", withoutEnlargement: true })
-      .webp({ quality: 72, effort: 3 })
-      .toFile(cachePath);
+    try {
+      await sharp(filePath)
+        .rotate()
+        .resize({ width: size, height: size, fit: "cover", withoutEnlargement: true })
+        .webp({ quality: 72, effort: 3 })
+        .toFile(cachePath);
+    } catch {
+      return serveOriginal(filePath, ext);
+    }
   }
 
   const body = await readFile(cachePath);
@@ -84,9 +88,9 @@ export async function serveBotvPhoto(request: Request, id: string, rawToken: str
 
     const size = thumbnailSize(request);
     if (size) {
-      return serveThumbnail(filePath, sessionRoot, size);
+      return await serveThumbnail(filePath, sessionRoot, size, ext);
     }
-    return serveOriginal(filePath, ext);
+    return await serveOriginal(filePath, ext);
   } catch {
     return new NextResponse("not found", { status: 404 });
   }

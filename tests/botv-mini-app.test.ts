@@ -100,6 +100,8 @@ describe("botv mini app UI", () => {
     expect(photoResponseSource).toContain("sharp(filePath)");
     expect(photoResponseSource).toContain(".thumbs");
     expect(photoResponseSource).toContain("resize");
+    expect(photoResponseSource).toContain("return serveOriginal(filePath, ext)");
+    expect(photoResponseSource).toContain("return await serveThumbnail");
     expect(photoRouteSource).not.toContain("resolvePhoto");
   });
 
