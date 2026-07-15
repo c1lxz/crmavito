@@ -37,6 +37,7 @@ function formatRub(value: number | null) {
 }
 
 const BOTV_API_BASE = "/v-data/botv/work";
+const UPLOAD_RATE_LIMIT_BYTES_PER_SECOND = 1024 * 1024;
 
 function photoUrl(sessionId: string, token: string | null, options?: { thumb?: boolean; size?: number }) {
   if (!token) return "";
@@ -270,10 +271,8 @@ export function BotvMiniApp() {
     setStatus("uploading");
     setError("");
     setSelected(new Set());
-    const form = new FormData();
-    form.append("archive", file);
     setUploadProgress({ fileName: file.name, loaded: 0, total: file.size, percent: 0, phase: "uploading" });
-    const res = await uploadArchiveWithProgress(form, file);
+    const res = await uploadArchiveWithProgress(file);
     const data = parseJsonText(res.text, "Не удалось загрузить архив", res.ok);
     if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить архив");
     rememberSession(data);
@@ -282,27 +281,59 @@ export function BotvMiniApp() {
     setStatus("ready");
   }
 
-  function uploadArchiveWithProgress(form: FormData, file: File) {
-    return new Promise<{ ok: boolean; status: number; text: string }>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", BOTV_API_BASE);
-      xhr.responseType = "text";
+  async function uploadArchiveWithProgress(file: File) {
+    if (typeof ReadableStream === "undefined" || typeof file.stream !== "function") {
+      throw new Error("Браузер не поддерживает стабильную загрузку больших архивов. Обнови страницу или открой сервис в Chrome.");
+    }
 
-      xhr.upload.onprogress = (event) => {
-        const total = event.lengthComputable ? event.total : file.size;
-        const loaded = event.lengthComputable ? event.loaded : Math.min(file.size, event.loaded || 0);
-        const percent = total > 0 ? Math.min(99, Math.round((loaded / total) * 100)) : 0;
-        setUploadProgress({ fileName: file.name, loaded, total, percent, phase: "uploading" });
-      };
-      xhr.upload.onload = () => {
-        setUploadProgress({ fileName: file.name, loaded: file.size, total: file.size, percent: 100, phase: "processing" });
-      };
-      xhr.onload = () => {
-        resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, text: xhr.responseText ?? "" });
-      };
-      xhr.onerror = () => reject(new Error("Сервер временно не ответил. Попробуй ещё раз."));
-      xhr.onabort = () => reject(new Error("Загрузка архива отменена"));
-      xhr.send(form);
+    const boundary = `----crmavito-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const body = createThrottledMultipartBody(file, boundary);
+    const res = await fetch(BOTV_API_BASE, {
+      method: "POST",
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+    return { ok: res.ok, status: res.status, text: await res.text() };
+  }
+
+  function createThrottledMultipartBody(file: File, boundary: string) {
+    const encoder = new TextEncoder();
+    const safeName = file.name.replace(/["\r\n]/g, "_");
+    const prefix = encoder.encode(
+      `--${boundary}\r\nContent-Disposition: form-data; name="archive"; filename="${safeName}"\r\nContent-Type: application/octet-stream\r\n\r\n`,
+    );
+    const suffix = encoder.encode(`\r\n--${boundary}--\r\n`);
+    const reader = file.stream().getReader();
+    const startedAt = performance.now();
+    let loaded = 0;
+
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          controller.enqueue(prefix);
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            loaded += value.byteLength;
+            controller.enqueue(value);
+            const percent = file.size > 0 ? Math.min(99, Math.round((loaded / file.size) * 100)) : 0;
+            setUploadProgress({ fileName: file.name, loaded, total: file.size, percent, phase: "uploading" });
+
+            const expectedMs = (loaded / UPLOAD_RATE_LIMIT_BYTES_PER_SECOND) * 1000;
+            const delayMs = expectedMs - (performance.now() - startedAt);
+            if (delayMs > 0) await wait(Math.min(delayMs, 1000));
+          }
+          setUploadProgress({ fileName: file.name, loaded: file.size, total: file.size, percent: 100, phase: "processing" });
+          controller.enqueue(suffix);
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
+      },
+      cancel() {
+        void reader.cancel();
+      },
     });
   }
 
