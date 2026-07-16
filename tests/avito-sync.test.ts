@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchAllAvitoItems, fetchWithRetry } from "@/lib/avito/sync";
+import { fetchAllAvitoItems, fetchWithRetry, syncAvitoProducts } from "@/lib/avito/sync";
 
 describe("Avito synchronization transport", () => {
   it("retries transient HTTP and network failures", async () => {
@@ -19,6 +19,26 @@ describe("Avito synchronization transport", () => {
     expect(response.status).toBe(200);
     expect(fetchFn).toHaveBeenCalledTimes(3);
     expect(sleepFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("honors Retry-After on Avito rate limits", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("limited", {
+        status: 429,
+        headers: { "retry-after": "2" },
+      }))
+      .mockResolvedValueOnce(new Response("ok", { status: 200 })) as unknown as typeof fetch;
+    const sleepFn = vi.fn(async () => undefined);
+
+    const response = await fetchWithRetry("https://example.test", {}, {
+      fetchFn,
+      sleepFn,
+      attempts: 2,
+    });
+
+    expect(response.status).toBe(200);
+    expect(sleepFn).toHaveBeenCalledWith(2000);
   });
 
   it("continues after a short page and stops only on an empty page", async () => {
@@ -44,6 +64,25 @@ describe("Avito synchronization transport", () => {
     expect(fetchFn).toHaveBeenCalledTimes(3);
   });
 
+  it("paces listing pages to avoid Avito rate limits", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      const page = new URL(String(url)).searchParams.get("page");
+      return Response.json({
+        resources: page === "1" ? [{ id: 1, title: "One" }] : [],
+      });
+    }) as unknown as typeof fetch;
+    const sleepFn = vi.fn(async () => undefined);
+
+    await fetchAllAvitoItems("token", {
+      fetchFn,
+      sleepFn,
+      pageDelayMs: 123,
+      maxPages: 3,
+    });
+
+    expect(sleepFn).toHaveBeenCalledWith(123);
+  });
+
   it("deduplicates repeated items across pages", async () => {
     const fetchFn = vi.fn(async (url: string | URL | Request) => {
       const page = new URL(String(url)).searchParams.get("page");
@@ -65,5 +104,49 @@ describe("Avito synchronization transport", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0].title).toBe("Fresh");
+  });
+
+  it("fills missing images from item detail API during sync", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ access_token: "token" }))
+      .mockResolvedValueOnce(Response.json({
+        resources: [
+          { id: 1, title: "No list image", price: 100 },
+          { id: 2, title: "Has list image", images: [{ url: "https://10.avito.st/image/list.jpg" }] },
+        ],
+      }))
+      .mockResolvedValueOnce(Response.json({ resources: [] }))
+      .mockResolvedValueOnce(Response.json({ images: [{ url: "https://20.avito.st/image/detail.jpg" }] }));
+    const fetchFn = fetchMock as unknown as typeof fetch;
+    const sleepFn = vi.fn(async () => undefined);
+    const upsert = vi.fn(async () => ({}));
+    const prisma = {
+      product: {
+        findMany: vi.fn(async () => []),
+        upsert,
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+    } as unknown as Parameters<typeof syncAvitoProducts>[0];
+
+    const result = await syncAvitoProducts(
+      prisma,
+      { clientId: "client", clientSecret: "secret" },
+      { fetchFn, sleepFn },
+    );
+
+    expect(result.imagesFound).toBe(2);
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        avitoItemId: "1",
+        imageUrl: "https://20.avito.st/image/detail.jpg",
+      }),
+    }));
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        avitoItemId: "2",
+        imageUrl: "https://10.avito.st/image/list.jpg",
+      }),
+    }));
   });
 });

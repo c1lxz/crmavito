@@ -1,4 +1,5 @@
 type TokenCache = { token: string; expiresAt: number } | null;
+type FetchFn = typeof fetch;
 
 let tokenCache: TokenCache = null;
 let accountIdCache: string | null = null;
@@ -56,10 +57,10 @@ async function getAvitoToken(): Promise<AvitoResult<string>> {
   }
 }
 
-async function getAccountId(token: string): Promise<string | null> {
+async function getAccountId(token: string, fetchFn: FetchFn = fetch): Promise<string | null> {
   if (accountIdCache) return accountIdCache;
   try {
-    const r = await fetch("https://api.avito.ru/core/v1/accounts/self", {
+    const r = await fetchFn("https://api.avito.ru/core/v1/accounts/self", {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
@@ -114,12 +115,12 @@ export function findFirstImageUrl(value: unknown, depth = 0): string | null {
   return null;
 }
 
-async function tryEndpoint(url: string, token: string): Promise<{
+async function tryEndpoint(url: string, token: string, fetchFn: FetchFn = fetch): Promise<{
   found?: string;
   reason: string;
 }> {
   try {
-    const r = await fetch(url, {
+    const r = await fetchFn(url, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
       signal: AbortSignal.timeout(10000),
@@ -146,11 +147,12 @@ async function tryEndpoint(url: string, token: string): Promise<{
   }
 }
 
-export async function fetchAvitoItemImage(
-  avitoItemId: string
+export async function fetchAvitoItemImageWithToken(
+  avitoItemId: string,
+  token: string,
+  options: { fetchFn?: FetchFn } = {},
 ): Promise<AvitoResult<string>> {
-  const token = await getAvitoToken();
-  if (!token.ok) return token;
+  const fetchFn = options.fetchFn ?? fetch;
 
   let lastReason = "Avito не вернул фото";
 
@@ -159,23 +161,31 @@ export async function fetchAvitoItemImage(
     `https://api.avito.ru/core/v1/items/${avitoItemId}/`,
     `https://api.avito.ru/core/v1/items/${avitoItemId}`,
   ]) {
-    const res = await tryEndpoint(url, token.value);
+    const res = await tryEndpoint(url, token, fetchFn);
     if (res.found) return { ok: true, value: res.found };
     lastReason = res.reason;
   }
 
   // Шаг 2: получаем account_id и пробуем /core/v1/accounts/{id}/items/{itemId}
-  const accountId = await getAccountId(token.value);
+  const accountId = await getAccountId(token, fetchFn);
   if (accountId) {
     for (const url of [
       `https://api.avito.ru/core/v1/accounts/${accountId}/items/${avitoItemId}/`,
       `https://api.avito.ru/core/v1/accounts/${accountId}/items/${avitoItemId}`,
     ]) {
-      const res = await tryEndpoint(url, token.value);
+      const res = await tryEndpoint(url, token, fetchFn);
       if (res.found) return { ok: true, value: res.found };
       lastReason = res.reason;
     }
   }
 
   return { ok: false, reason: lastReason };
+}
+
+export async function fetchAvitoItemImage(
+  avitoItemId: string
+): Promise<AvitoResult<string>> {
+  const token = await getAvitoToken();
+  if (!token.ok) return token;
+  return fetchAvitoItemImageWithToken(avitoItemId, token.value);
 }

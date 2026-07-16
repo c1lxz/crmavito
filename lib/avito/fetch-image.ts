@@ -2,6 +2,9 @@ import { fetchAvitoItemImage, isLikelyImageUrl, type AvitoResult } from "./api";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+const HTML_BLOCK_COOLDOWN_MS = 10 * 60 * 1000;
+const htmlBlockedUntilByUrl = new Map<string, { status: number; until: number }>();
+
 function decodeHtmlValue(value: string): string {
   return value
     .replace(/\\u002F/gi, "/")
@@ -72,6 +75,16 @@ export function pickAvitoImage(html: string): string | null {
 }
 
 async function scrapeListingHtml(listingUrl: string): Promise<AvitoResult<string>> {
+  const blocked = htmlBlockedUntilByUrl.get(listingUrl);
+  if (blocked && blocked.until > Date.now()) {
+    const waitSeconds = Math.ceil((blocked.until - Date.now()) / 1000);
+    return {
+      ok: false,
+      reason: `HTML scrape blocked by Avito HTTP ${blocked.status}; wait ${waitSeconds}s`,
+    };
+  }
+  if (blocked) htmlBlockedUntilByUrl.delete(listingUrl);
+
   try {
     const r = await fetch(listingUrl, {
       headers: {
@@ -84,6 +97,12 @@ async function scrapeListingHtml(listingUrl: string): Promise<AvitoResult<string
     });
     if (!r.ok) {
       console.warn(`[avito] listing fetch ${listingUrl} HTTP ${r.status}`);
+      if (r.status === 429 || r.status === 439) {
+        htmlBlockedUntilByUrl.set(listingUrl, {
+          status: r.status,
+          until: Date.now() + HTML_BLOCK_COOLDOWN_MS,
+        });
+      }
       return { ok: false, reason: `HTML scrape HTTP ${r.status}` };
     }
     const html = await r.text();

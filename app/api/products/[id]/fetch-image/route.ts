@@ -5,6 +5,10 @@ import { downloadImageAsBuffer, resolveProductImage } from "@/lib/avito/fetch-im
 
 export const maxDuration = 30;
 
+function shouldRetryResolve(reason: string): boolean {
+  return !/(HTTP 429|HTTP 439|blocked by Avito)/i.test(reason);
+}
+
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -30,7 +34,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     avitoItemId: product.avitoItemId,
     avitoListingUrl: product.avitoListingUrl,
   });
-  for (let attempt = 1; !result.ok && attempt < 3; attempt++) {
+  for (let attempt = 1; !result.ok && shouldRetryResolve(result.reason) && attempt < 3; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, attempt * 350));
     result = await resolveProductImage({
       avitoItemId: product.avitoItemId,

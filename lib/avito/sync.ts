@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { findFirstImageUrl } from "./api";
+import { fetchAvitoItemImageWithToken, findFirstImageUrl } from "./api";
 
 export type AvitoListItem = {
   id: number | string;
@@ -26,14 +26,24 @@ type SleepFn = (ms: number) => Promise<void>;
 
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 const defaultSleep: SleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const DEFAULT_PAGE_DELAY_MS = 900;
+const DEFAULT_IMAGE_DETAIL_LIMIT = 40;
+
+function getEnvNumber(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
 
 function retryDelay(response: Response | null, attempt: number): number {
   const retryAfter = response?.headers.get("retry-after");
   if (retryAfter) {
     const seconds = Number(retryAfter);
-    if (Number.isFinite(seconds)) return Math.min(seconds * 1000, 10_000);
+    if (Number.isFinite(seconds)) return Math.min(seconds * 1000, 60_000);
+    const retryAt = Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) return Math.min(Math.max(retryAt - Date.now(), 0), 60_000);
   }
-  return Math.min(500 * 2 ** attempt, 5_000);
+  if (response?.status === 429) return Math.min(5_000 * 2 ** attempt, 60_000);
+  return Math.min(750 * 2 ** attempt, 10_000);
 }
 
 export async function fetchWithRetry(
@@ -45,7 +55,7 @@ export async function fetchWithRetry(
     sleepFn?: SleepFn;
   } = {},
 ): Promise<Response> {
-  const attempts = options.attempts ?? 4;
+  const attempts = options.attempts ?? 5;
   const fetchFn = options.fetchFn ?? fetch;
   const sleepFn = options.sleepFn ?? defaultSleep;
   let lastError: unknown;
@@ -74,12 +84,14 @@ export async function fetchAllAvitoItems(
     sleepFn?: SleepFn;
     perPage?: number;
     maxPages?: number;
+    pageDelayMs?: number;
   } = {},
 ): Promise<{ items: AvitoListItem[]; statusCounts: Record<string, number> }> {
   const fetchFn = options.fetchFn ?? fetch;
   const sleepFn = options.sleepFn ?? defaultSleep;
   const perPage = options.perPage ?? 100;
   const maxPages = options.maxPages ?? 100;
+  const pageDelayMs = options.pageDelayMs ?? getEnvNumber("AVITO_SYNC_PAGE_DELAY_MS", DEFAULT_PAGE_DELAY_MS);
   const itemsById = new Map<string, AvitoListItem>();
   const statusCounts: Record<string, number> = {};
   let reachedEnd = false;
@@ -98,6 +110,11 @@ export async function fetchAllAvitoItems(
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
+      if (response.status === 429) {
+        throw new Error(
+          `Avito limited request rate on page ${page}. Wait a few minutes and start sync again. ${body.slice(0, 200)}`,
+        );
+      }
       throw new Error(
         `Получение объявлений Avito, страница ${page} (${response.status}): ${body.slice(0, 200)}`,
       );
@@ -123,6 +140,7 @@ export async function fetchAllAvitoItems(
 
     // A short page is not necessarily the end: Avito can return a partial page
     // during transient load. The following empty page is the reliable boundary.
+    if (page < maxPages && pageDelayMs > 0) await sleepFn(pageDelayMs);
   }
 
   if (!reachedEnd) {
@@ -200,12 +218,41 @@ export async function syncAvitoProducts(
   const existingProducts = ids.length
     ? await prisma.product.findMany({
         where: { avitoItemId: { in: ids } },
-        select: { avitoItemId: true },
+        select: { avitoItemId: true, imageUrl: true },
       })
     : [];
   const existingIds = new Set(
     existingProducts.map((product) => product.avitoItemId).filter(Boolean),
   );
+  const existingImagesById = new Map(
+    existingProducts
+      .filter((product) => product.avitoItemId && product.imageUrl)
+      .map((product) => [product.avitoItemId as string, product.imageUrl as string]),
+  );
+  const imageUrlsById = new Map<string, string>();
+  const imageDetailLimit = getEnvNumber("AVITO_SYNC_IMAGE_DETAIL_LIMIT", DEFAULT_IMAGE_DETAIL_LIMIT);
+  let imageDetailAttempts = 0;
+
+  for (const item of items) {
+    const avitoItemId = String(item.id);
+    const listImageUrl = findFirstImageUrl(item);
+    if (listImageUrl) {
+      imageUrlsById.set(avitoItemId, listImageUrl);
+      continue;
+    }
+
+    const existingImageUrl = existingImagesById.get(avitoItemId);
+    if (existingImageUrl) {
+      imageUrlsById.set(avitoItemId, existingImageUrl);
+      continue;
+    }
+
+    if (imageDetailAttempts >= imageDetailLimit) continue;
+    imageDetailAttempts++;
+    const detailImage = await fetchAvitoItemImageWithToken(avitoItemId, tokenData.access_token, { fetchFn });
+    if (detailImage.ok) imageUrlsById.set(avitoItemId, detailImage.value);
+    if (imageDetailAttempts < imageDetailLimit) await sleepFn(500);
+  }
 
   let updated = 0;
   let created = 0;
@@ -218,7 +265,7 @@ export async function syncAvitoProducts(
     await Promise.all(
       batch.map(async (item) => {
         const avitoItemId = String(item.id);
-        const imageUrl = findFirstImageUrl(item);
+        const imageUrl = imageUrlsById.get(avitoItemId) ?? null;
         const data = {
           name: item.title ?? item.name ?? `Avito ${avitoItemId}`,
           salePrice: getPrice(item.price),
