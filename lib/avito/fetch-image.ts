@@ -14,7 +14,25 @@ let cachedProxyAgent: ProxyAgent | null = null;
 function getAvitoHtmlProxyUrl(): string | null {
   const raw = (process.env.AVITO_IMAGE_PROXY_URL || process.env.AVITO_MARKET_PROXY_URL)?.trim();
   if (!raw) return null;
-  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const schemeMatch = raw.match(/^(https?):\/\/(.+)$/i);
+  if (schemeMatch) {
+    const [, scheme, rest] = schemeMatch;
+    const at = rest.lastIndexOf("@");
+    if (at === -1) return raw;
+
+    const auth = rest.slice(0, at);
+    const hostPort = rest.slice(at + 1);
+    const authSeparator = auth.indexOf(":");
+    const portSeparator = hostPort.lastIndexOf(":");
+    if (authSeparator === -1 || portSeparator === -1) return raw;
+
+    const username = auth.slice(0, authSeparator);
+    const password = auth.slice(authSeparator + 1);
+    const host = hostPort.slice(0, portSeparator);
+    const port = hostPort.slice(portSeparator + 1);
+    return `${scheme.toLowerCase()}://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}`;
+  }
 
   const parts = raw.split(":");
   if (parts.length !== 4) return raw;
@@ -149,8 +167,9 @@ export async function fetchAvitoListingImage(listingUrl: string): Promise<AvitoR
     return { ok: false, reason: "В HTML страницы нет фото (вероятно captcha)" };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn("[avito] listing fetch error", message);
-    return { ok: false, reason: `HTML scrape error: ${message.slice(0, 60)}` };
+    const cause = error instanceof Error && error.cause instanceof Error ? `: ${error.cause.message}` : "";
+    console.warn("[avito] listing fetch error", `${message}${cause}`);
+    return { ok: false, reason: `HTML scrape error: ${`${message}${cause}`.slice(0, 80)}` };
   }
 }
 

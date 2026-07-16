@@ -236,6 +236,7 @@ export async function syncAvitoProducts(
   const htmlImageLimit = getEnvNumber("AVITO_SYNC_HTML_IMAGE_LIMIT", DEFAULT_HTML_IMAGE_LIMIT);
   const imageDetailLimit = getEnvNumber("AVITO_SYNC_IMAGE_DETAIL_LIMIT", DEFAULT_IMAGE_DETAIL_LIMIT);
   let htmlImageAttempts = 0;
+  let htmlNetworkFailures = 0;
   let htmlBlocked = false;
   let imageDetailAttempts = 0;
 
@@ -257,11 +258,16 @@ export async function syncAvitoProducts(
       htmlImageAttempts++;
       const htmlImage = await fetchAvitoListingImage(item.url);
       if (htmlImage.ok) {
+        htmlNetworkFailures = 0;
         imageUrlsById.set(avitoItemId, htmlImage.value);
         if (htmlImageAttempts < htmlImageLimit) await sleepFn(800);
         continue;
       }
       if (/HTTP 429|HTTP 439|blocked by Avito/i.test(htmlImage.reason)) htmlBlocked = true;
+      if (/HTML scrape error/i.test(htmlImage.reason)) {
+        htmlNetworkFailures++;
+        if (htmlNetworkFailures >= 5) htmlBlocked = true;
+      }
       if (htmlImageAttempts < htmlImageLimit && !htmlBlocked) await sleepFn(800);
     }
 
