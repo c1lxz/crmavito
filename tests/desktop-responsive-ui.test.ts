@@ -45,6 +45,8 @@ describe("desktop responsive UI", () => {
     expect(middlewareSource).toContain('requestHeaders.set("x-ui-mode", mode)');
     expect(middlewareSource).toContain('req.headers.get("x-forwarded-proto")');
     expect(middlewareSource).toContain('req.headers.get("x-forwarded-host")');
+    expect(middlewareSource).toContain(".replace(/:3000$/,");
+    expect(middlewareSource).toContain('"crmavito.duckdns.org"');
     expect(middlewareSource).not.toContain('rewriteUrl.hostname = "localhost"');
     expect(middlewareSource).not.toContain('rewriteUrl.port = "3000"');
     expect(middlewareSource).toContain("crmavito-ui-mode");

@@ -17,7 +17,10 @@ export function middleware(req: NextRequest) {
 
     const rewriteUrl = req.nextUrl.clone();
     const forwardedProto = req.headers.get("x-forwarded-proto") || "https";
-    const forwardedHost = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const rawHost = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
+    const forwardedHost = rawHost
+      .replace(/:3000$/, "")
+      .replace(/^localhost$/, "crmavito.duckdns.org");
     rewriteUrl.protocol = `${forwardedProto}:`;
     if (forwardedHost) {
       rewriteUrl.host = forwardedHost;
