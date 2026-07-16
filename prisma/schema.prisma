@@ -96,6 +96,7 @@ model Task {
   completedBy User? @relation("TaskCompletedBy", fields: [completedByUserId], references: [id])
   assignees TaskAssignee[]
   notification TaskNotification?
+  notificationCleanups TaskNotificationCleanup[]
 
   @@index([status, dueAt])
   @@index([assigneeUserId])
@@ -142,6 +143,20 @@ model TaskNotification {
 
   @@index([status, nextAttemptAt])
   @@map("task_notifications")
+}
+
+model TaskNotificationCleanup {
+  id                String   @id @default(uuid())
+  taskId            String
+  telegramChatId    String
+  telegramMessageId Int
+  createdAt         DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, telegramChatId, telegramMessageId])
+  @@index([taskId])
+  @@map("task_notification_cleanups")
 }
 
 model Product {

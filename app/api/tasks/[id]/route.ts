@@ -7,6 +7,7 @@ import {
   completeTaskNotification,
   ensureTaskNotification,
   notifyAdminsTaskCompleted,
+  queueTaskNotificationReplacement,
 } from "@/lib/telegram/task-notification-queue";
 import { serializeTask } from "@/lib/tasks/serialize";
 
@@ -91,7 +92,7 @@ export async function PATCH(
 
   const shouldRefreshNotification = !completing && existing.status === "OPEN" && adminEdit;
   if (shouldRefreshNotification) {
-    await completeTaskNotification(id);
+    await queueTaskNotificationReplacement(id);
   }
 
   const task = await prisma.task.update({

@@ -42,6 +42,60 @@ export async function ensureTaskNotification(taskId: string): Promise<void> {
   });
 }
 
+export async function queueTaskNotificationReplacement(taskId: string): Promise<void> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { id: true, status: true, scheduledAt: true, assigneeUserId: true },
+  });
+  if (!task || task.status === "COMPLETED") return;
+
+  const assignments = await prisma.taskAssignee.findMany({
+    where: { taskId },
+    select: { telegramChatId: true, telegramMessageId: true },
+  });
+  const cleanupRows = assignments
+    .filter((assignment) => assignment.telegramChatId && assignment.telegramMessageId)
+    .map((assignment) => ({
+      taskId,
+      telegramChatId: assignment.telegramChatId!,
+      telegramMessageId: assignment.telegramMessageId!,
+    }));
+
+  if (cleanupRows.length > 0) {
+    await prisma.taskNotificationCleanup.createMany({
+      data: cleanupRows,
+      skipDuplicates: true,
+    });
+  }
+
+  await prisma.taskAssignee.updateMany({
+    where: { taskId },
+    data: {
+      notificationStatus: "PENDING",
+      attempts: 0,
+      lastError: null,
+      notifiedAt: null,
+      telegramChatId: null,
+      telegramMessageId: null,
+    },
+  });
+
+  await prisma.taskNotification.upsert({
+    where: { taskId },
+    create: {
+      taskId,
+      nextAttemptAt: task.scheduledAt ?? new Date(),
+    },
+    update: {
+      status: "PENDING",
+      attempts: 0,
+      nextAttemptAt: task.scheduledAt ?? new Date(),
+      processingStartedAt: null,
+      lastError: null,
+    },
+  });
+}
+
 async function claimTaskNotification(notificationId: string) {
   const now = new Date();
   const claimed = await prisma.taskNotification.updateMany({
@@ -138,6 +192,8 @@ export async function processTaskNotification(notificationId: string): Promise<b
       throw new Error(errors.join("; "));
     }
 
+    await deleteQueuedTaskNotificationMessages(notification.taskId);
+
     await prisma.taskNotification.update({
       where: { id: notification.id },
       data: {
@@ -168,6 +224,30 @@ export async function processTaskNotification(notificationId: string): Promise<b
   }
 }
 
+async function deleteQueuedTaskNotificationMessages(taskId: string): Promise<void> {
+  const cleanupRows = await prisma.taskNotificationCleanup.findMany({
+    where: { taskId },
+    select: { id: true, telegramChatId: true, telegramMessageId: true },
+  });
+
+  for (const cleanup of cleanupRows) {
+    await deleteTaskNotificationMessage(
+      cleanup.telegramChatId,
+      cleanup.telegramMessageId
+    ).catch((error) => {
+      console.error(
+        `[telegram-queue] task ${taskId} old notification delete failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    });
+  }
+
+  if (cleanupRows.length > 0) {
+    await prisma.taskNotificationCleanup.deleteMany({ where: { taskId } });
+  }
+}
+
 export async function completeTaskNotification(taskId: string): Promise<void> {
   const assignments = await prisma.taskAssignee.findMany({
     where: { taskId },
@@ -192,6 +272,8 @@ export async function completeTaskNotification(taskId: string): Promise<void> {
     where: { taskId },
     data: { notificationStatus: "COMPLETED", lastError: null },
   });
+
+  await prisma.taskNotificationCleanup.deleteMany({ where: { taskId } });
 
   await prisma.taskNotification.updateMany({
     where: { taskId },
