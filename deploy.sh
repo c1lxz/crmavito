@@ -12,6 +12,8 @@ if [ -n "$DATABASE_URL_FROM_ENV" ] && command -v psql >/dev/null 2>&1; then
 fi
 # Ограничиваем RAM Node чтобы не уронить VPS OOM-киллером
 NODE_OPTIONS="--max-old-space-size=1024" npm run build
+test -f .next/BUILD_ID
+test -f .next/server/middleware-manifest.json
 pm2 stop crm 2>/dev/null || true
 sleep 4
 fuser -k 3000/tcp 2>/dev/null || true
