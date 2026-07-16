@@ -68,6 +68,18 @@ export function extractAvitoErrorText(value: unknown): string {
   return String(value);
 }
 
+function formatAvitoAuthError(value: unknown): string {
+  const text = extractAvitoErrorText(value).slice(0, 300);
+  if (text.includes("unauthorized_client")) {
+    return [
+      "unauthorized_client.",
+      "Avito не разрешил этим client_id/client_secret получать API-токен.",
+      "Проверьте, что ключи взяты именно из нужного профиля Avito, на аккаунте подключен доступ к API/интеграциям и приложение допущено к client_credentials.",
+    ].join(" ");
+  }
+  return text || "Avito не вернул access_token";
+}
+
 async function readJsonResponse(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return {};
@@ -100,7 +112,7 @@ export async function getAvitoStockToken(
 
   const data = (await readJsonResponse(response)) as { access_token?: string };
   if (!response.ok || !data.access_token) {
-    throw new Error(`Авторизация Avito не прошла: ${extractAvitoErrorText(data).slice(0, 300)}`);
+    throw new Error(`Авторизация Avito не прошла: ${formatAvitoAuthError(data)}`);
   }
 
   return data.access_token;

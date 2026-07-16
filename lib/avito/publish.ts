@@ -14,19 +14,23 @@ function getPublishEndpoint() {
   return process.env.AVITO_XML_PUBLISH_URL?.trim() || "";
 }
 
-export async function publishAvitoXml(
-  credentials: AvitoCredentials,
-  xml: string,
-  filename: string,
-  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
-): Promise<AvitoXmlPublishResult> {
+export function getAvitoXmlPublishEndpoint(): string {
   const endpoint = getPublishEndpoint();
   if (!endpoint) {
     throw new Error(
       "Не настроен AVITO_XML_PUBLISH_URL. Укажите API-адрес публикации XML для автозагрузки Avito на сервере.",
     );
   }
+  return endpoint;
+}
 
+export async function publishAvitoXml(
+  credentials: AvitoCredentials,
+  xml: string,
+  filename: string,
+  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+): Promise<AvitoXmlPublishResult> {
+  const endpoint = getAvitoXmlPublishEndpoint();
   const token = await getAvitoStockToken(credentials, options);
   const form = new FormData();
   form.append("file", new Blob([xml], { type: "application/xml" }), filename);

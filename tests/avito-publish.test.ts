@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { publishAvitoXml } from "@/lib/avito/publish";
+import { getAvitoXmlPublishEndpoint, publishAvitoXml } from "@/lib/avito/publish";
 
 const credentials = { clientId: "client", clientSecret: "secret" };
 
@@ -17,6 +17,12 @@ describe("Avito XML publication", () => {
         sleepFn: async () => undefined,
       }),
     ).rejects.toThrow("AVITO_XML_PUBLISH_URL");
+  });
+
+  it("checks the publication endpoint before Avito OAuth", async () => {
+    vi.stubEnv("AVITO_XML_PUBLISH_URL", "");
+
+    expect(() => getAvitoXmlPublishEndpoint()).toThrow("AVITO_XML_PUBLISH_URL");
   });
 
   it("posts generated XML as multipart form data", async () => {

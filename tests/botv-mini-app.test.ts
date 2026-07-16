@@ -100,6 +100,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("selectedPublishProfileId");
     expect(clientSource).not.toContain("crmavito:botv-publish-credentials");
     expect(clientSource).not.toContain("profileName");
+    expect(publishRouteSource).toContain("getAvitoXmlPublishEndpoint");
     expect(publishRouteSource).toContain("publishAvitoXml");
     expect(publishRouteSource).toContain("fetchAvitoAccountProfile");
     expect(publishRouteSource).toContain("saveAvitoProfileCredentials");

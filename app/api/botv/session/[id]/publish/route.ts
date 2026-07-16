@@ -3,7 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { buildXml } from "@/lib/botv/session";
 import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
-import { publishAvitoXml } from "@/lib/avito/publish";
+import { getAvitoXmlPublishEndpoint, publishAvitoXml } from "@/lib/avito/publish";
 import { getAvitoCredentials, saveAvitoProfileCredentials } from "@/lib/avito/profile-store";
 
 export const runtime = "nodejs";
@@ -39,6 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
+    getAvitoXmlPublishEndpoint();
     const [xmlResult, profile] = await Promise.all([
       buildXml(id),
       fetchAvitoAccountProfile(credentials),

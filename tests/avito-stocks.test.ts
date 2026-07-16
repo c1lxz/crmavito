@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchAvitoStockItems, updateAvitoStocks } from "@/lib/avito/stocks";
+import { fetchAvitoStockItems, getAvitoStockToken, updateAvitoStocks } from "@/lib/avito/stocks";
 import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
 
 const credentials = { clientId: "client", clientSecret: "secret" };
@@ -88,6 +88,22 @@ describe("Avito stock management", () => {
     expect(calls.find((call) => call.url.includes("/stock-management/1/stocks"))?.init?.body).toBe(
       JSON.stringify({ stocks: [{ item_id: 101, quantity: 5 }] }),
     );
+  });
+
+  it("explains unauthorized_client token failures", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes("/token")) {
+        return Response.json({ error: "unauthorized_client" }, { status: 401 });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      getAvitoStockToken(credentials, {
+        fetchFn,
+        sleepFn: async () => undefined,
+      }),
+    ).rejects.toThrow("Avito не разрешил этим client_id/client_secret получать API-токен");
   });
 
   it("loads the current Avito account profile for credential history", async () => {
