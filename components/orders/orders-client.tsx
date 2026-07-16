@@ -352,7 +352,7 @@ export function OrdersClient({
   return (
     <div className="app-shell">
       <div className="app-header">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Заказы</h1>
             <p className="section-caption">Всего {filtered.length} из {orders.length}</p>
@@ -375,7 +375,7 @@ export function OrdersClient({
             )}
           </div>
         </div>
-        <div className="px-4 pb-3 space-y-2">
+        <div className="space-y-2 lg:space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -386,7 +386,7 @@ export function OrdersClient({
               className="pl-9"
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar lg:flex-wrap lg:overflow-visible">
             {statuses.map((s) => (
               <button
                 key={s.value}
@@ -401,7 +401,7 @@ export function OrdersClient({
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <label className="space-y-1 text-xs font-medium text-muted-foreground">
               С даты
               <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
@@ -411,7 +411,7 @@ export function OrdersClient({
               <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
             </label>
           </div>
-          <label className="block space-y-1 text-xs font-medium text-muted-foreground">
+          <label className="block space-y-1 text-xs font-medium text-muted-foreground lg:inline-block lg:w-[calc(50%-0.25rem)]">
             Контрагент
             <Select value={counterpartyFilter} onValueChange={setCounterpartyFilter}>
               <SelectTrigger>
@@ -427,7 +427,7 @@ export function OrdersClient({
               </SelectContent>
             </Select>
           </label>
-          <label className="block space-y-1 text-xs font-medium text-muted-foreground">
+          <label className="block space-y-1 text-xs font-medium text-muted-foreground lg:inline-block lg:w-[calc(50%-0.25rem)] lg:pl-2">
             Профиль Avito
             <Select value={avitoProfileFilter} onValueChange={setAvitoProfileFilter}>
               <SelectTrigger>
@@ -555,7 +555,7 @@ export function OrdersClient({
             </Button>
           </div>
         )}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2 lg:max-w-3xl">
           <Card>
             <CardContent className="p-3">
               <p className="text-[11px] font-semibold text-muted-foreground">Выручка</p>
@@ -576,6 +576,143 @@ export function OrdersClient({
           </Card>
         </div>
 
+        <div className="hidden overflow-hidden rounded-lg border border-border bg-card lg:block">
+          <table className="w-full table-fixed text-sm">
+            <thead className="border-b border-border bg-muted/55 text-left text-xs font-semibold text-muted-foreground">
+              <tr>
+                {selectionMode && <th className="w-12 px-4 py-3">Выбор</th>}
+                <th className="w-28 px-4 py-3">Заказ</th>
+                <th className="px-4 py-3">Товар</th>
+                <th className="w-44 px-4 py-3">Трек</th>
+                <th className="w-40 px-4 py-3">Статус</th>
+                <th className="w-36 px-4 py-3 text-right">Сумма</th>
+                <th className="w-32 px-4 py-3 text-right">Прибыль</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.map((order) => {
+                const selected = selectedIds.has(order.id);
+                const row = (
+                  <>
+                    {selectionMode && (
+                      <td className="px-4 py-3">
+                        <span
+                          aria-hidden="true"
+                          className={`flex h-5 w-5 items-center justify-center rounded border ${
+                            selected
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input bg-background text-transparent"
+                          }`}
+                        >
+                          <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                        </span>
+                      </td>
+                    )}
+                    <td className="px-4 py-3 align-top">
+                      <p className="font-semibold">№{order.orderNumber}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{formatDate(order.orderDate)}</p>
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
+                          {order.product.imageUrl ? (
+                            <Image
+                              src={order.product.imageUrl}
+                              alt={order.productNameSnapshot}
+                              width={40}
+                              height={40}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                              <Package className="h-4 w-4" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{order.productNameSnapshot}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {order.variant ? `${order.variant} · ` : ""}
+                            {order.quantity} шт.
+                            {order.avitoProfile ? ` · ${order.avitoProfile.name}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="truncate font-mono text-xs">{order.trackingNumber}</span>
+                        {!selectionMode && (
+                          <button
+                            type="button"
+                            className="rounded p-1 text-primary hover:bg-primary/10"
+                            aria-label={`Скопировать трек-номер ${order.trackingNumber}`}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void copyTrackingNumbers([order.trackingNumber]);
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
+                        {ORDER_STATUS_LABELS[order.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right align-top font-semibold tabular-nums">
+                      {formatRub(order.salePriceAtOrder * order.quantity)}
+                    </td>
+                    <td className="px-4 py-3 text-right align-top font-semibold tabular-nums money-positive">
+                      +{formatRub(order.netProfit)}
+                    </td>
+                  </>
+                );
+
+                return (
+                  <tr
+                    key={order.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={selectionMode ? selected : undefined}
+                    onClick={() => {
+                      if (selectionMode) toggleOrder(order.id);
+                      else {
+                        router.push(
+                          `/orders/${order.id}${
+                            returnQuery ? `?returnTo=${encodeURIComponent(returnQuery)}` : ""
+                          }`,
+                        );
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      if (selectionMode) toggleOrder(order.id);
+                      else {
+                        router.push(
+                          `/orders/${order.id}${
+                            returnQuery ? `?returnTo=${encodeURIComponent(returnQuery)}` : ""
+                          }`,
+                        );
+                      }
+                    }}
+                    className={`cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
+                      selected ? "bg-accent/70" : "hover:bg-accent/45"
+                    }`}
+                  >
+                    {row}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="space-y-3 lg:hidden">
         {filtered.map((order) => {
           const selected = selectedIds.has(order.id);
           const content = (
@@ -678,6 +815,7 @@ export function OrdersClient({
             </Link>
           );
         })}
+        </div>
         {filtered.length === 0 && (
           <div className="text-center text-muted-foreground py-16 flex flex-col items-center gap-3">
             <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center">

@@ -173,6 +173,26 @@
   }
 }
 
+@media (min-width: 1024px) {
+  :root {
+    --app-top-pad: 0px;
+  }
+
+  @layer components {
+    .app-shell {
+      background-image: none;
+    }
+
+    .app-header {
+      @apply px-8 py-5;
+    }
+
+    .app-content {
+      @apply px-8 py-6 pb-8;
+    }
+  }
+}
+
 /* Mobile-first scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

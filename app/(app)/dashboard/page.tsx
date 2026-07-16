@@ -168,7 +168,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="app-content space-y-5">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {kpiCards.map((card, i) => (
             <Card key={card.label} className={i === 1 ? "border-primary/25 bg-accent/65" : undefined}>
               <CardContent className="p-3">
@@ -182,7 +182,7 @@ export default async function DashboardPage() {
 
         <div>
           <h2 className="section-title mb-3">Быстрые действия</h2>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-2 lg:max-w-2xl">
             {quickActions.map(({ label, icon: Icon, href }) => (
               <Link key={href} href={href} className="group flex flex-col items-center gap-2 rounded-md p-2 text-center transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:bg-accent">
                 <div className="flex h-9 w-9 items-center justify-center rounded-md bg-secondary/80 text-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
@@ -194,6 +194,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
         <div>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="section-title">Последние заказы</h2>
@@ -266,6 +267,7 @@ export default async function DashboardPage() {
               )}
             </CardContent>
           </Card>
+        </div>
         </div>
 
         <div>

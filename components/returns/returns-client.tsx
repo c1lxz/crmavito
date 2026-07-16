@@ -295,7 +295,7 @@ export function ReturnsClient({ initialData }: Props) {
             {!selectionMode && (
               <Button size="sm" variant="outline" onClick={() => setShowCreate(true)}>
                 <Plus className="h-4 w-4" />
-                Оформить возврат
+                <span className="hidden sm:inline">Оформить возврат</span>
               </Button>
             )}
           </div>
@@ -310,7 +310,7 @@ export function ReturnsClient({ initialData }: Props) {
               className="pl-9"
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar lg:flex-wrap lg:overflow-visible">
             {STATUS_TABS.map((tab) => (
               <button
                 key={tab.value}
@@ -369,6 +369,116 @@ export function ReturnsClient({ initialData }: Props) {
             </Button>
           </div>
         )}
+        <div className="hidden overflow-hidden rounded-lg border border-border bg-card lg:block">
+          <table className="w-full table-fixed text-sm">
+            <thead className="border-b border-border bg-muted/55 text-left text-xs font-semibold text-muted-foreground">
+              <tr>
+                {selectionMode && <th className="w-12 px-4 py-3">Выбор</th>}
+                <th className="w-28 px-4 py-3">Заказ</th>
+                <th className="px-4 py-3">Товар</th>
+                <th className="w-40 px-4 py-3">Трек</th>
+                <th className="w-36 px-4 py-3">Даты</th>
+                <th className="w-44 px-4 py-3">Статус</th>
+                <th className="w-24 px-4 py-3 text-right">Переход</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.map((ret) => {
+                const selected = selectedIds.has(ret.id);
+                return (
+                  <tr
+                    key={ret.id}
+                    role={ret.order || selectionMode ? "button" : undefined}
+                    tabIndex={ret.order || selectionMode ? 0 : undefined}
+                    aria-pressed={selectionMode ? selected : undefined}
+                    onClick={() => {
+                      if (selectionMode) toggleReturn(ret.id);
+                      else if (ret.order) router.push(`/orders/${ret.order.id}`);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      if (selectionMode) toggleReturn(ret.id);
+                      else if (ret.order) router.push(`/orders/${ret.order.id}`);
+                    }}
+                    className={`transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
+                      selected ? "bg-accent/70" : ret.order || selectionMode ? "cursor-pointer hover:bg-accent/45" : ""
+                    }`}
+                  >
+                    {selectionMode && (
+                      <td className="px-4 py-3 align-top">
+                        {selected ? (
+                          <CheckSquare className="h-5 w-5 text-primary" />
+                        ) : (
+                          <Square className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </td>
+                    )}
+                    <td className="px-4 py-3 align-top">
+                      <p className="font-semibold">
+                        {ret.order ? `№${ret.order.orderNumber}` : "Ручной"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{formatDate(ret.createdAt)}</p>
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
+                          {ret.product.imageUrl ? (
+                            <Image src={ret.product.imageUrl} alt="" width={40} height={40} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                              <Package className="h-4 w-4" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{ret.productNameSnapshot}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {[ret.variant, ret.size].filter(Boolean).join(" · ") || ret.reason}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 align-top font-mono text-xs">{ret.trackingNumber}</td>
+                    <td className="px-4 py-3 align-top text-xs text-muted-foreground">
+                      {ret.shippingDate && <p>Отпр.: {formatDate(ret.shippingDate)}</p>}
+                      {ret.returnDate && <p>Возвр.: {formatDate(ret.returnDate)}</p>}
+                    </td>
+                    <td className="px-4 py-3 align-top" onClick={(event) => event.stopPropagation()}>
+                      <Select
+                        value={ret.status}
+                        onValueChange={(value) =>
+                          updateStatus(
+                            ret.id,
+                            value as ReturnStatus,
+                            value === "RETURNED" ? formatDateInput() : undefined,
+                          )
+                        }
+                        disabled={updatingId === ret.id || selectionMode}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STATUS_TABS.filter((tab) => tab.value !== "ALL").map((tab) => (
+                            <SelectItem key={tab.value} value={tab.value}>
+                              {tab.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-4 py-3 text-right align-top">
+                      {ret.order && !selectionMode ? <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" /> : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="space-y-3 lg:hidden">
         {filtered.map((ret) => {
           const mainContent = (
             <div className="space-y-2">
@@ -471,6 +581,7 @@ export function ReturnsClient({ initialData }: Props) {
             </Card>
           );
         })}
+        </div>
         {filtered.length === 0 && (
           <div className="text-center text-muted-foreground py-12">
             <RotateCcw className="h-10 w-10 mx-auto mb-3 opacity-45" />
@@ -480,7 +591,7 @@ export function ReturnsClient({ initialData }: Props) {
       </div>
 
       {/* Summary */}
-      <div className="px-4 py-3 border-t">
+      <div className="px-4 py-3 border-t lg:px-8">
         <div className="flex gap-4 text-sm text-muted-foreground">
           <span>Всего: <strong className="text-foreground">{data.returns.length}</strong></span>
           <span>На возврате: <strong className="text-orange-600">{data.totalReturning}</strong></span>

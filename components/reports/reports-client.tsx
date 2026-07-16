@@ -166,7 +166,7 @@ export function ReportsClient() {
             {loading ? "..." : "Обновить"}
           </Button>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center lg:max-w-md">
           <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="text-sm" />
           <span className="text-muted-foreground">—</span>
           <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="text-sm" />
@@ -192,7 +192,7 @@ export function ReportsClient() {
           <TabsContent value="dashboard" className="space-y-4">
             {/* MetricCards */}
             {kpi && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
                 <MetricCard label="Сумма заказов" value={kpi.current.revenue} prevValue={kpi.prev.revenue} />
                 <MetricCard label="Прибыль заказов" value={kpi.current.netProfit} prevValue={kpi.prev.netProfit} />
                 <MetricCard label="Заказов" value={kpi.current.ordersCount} prevValue={kpi.prev.ordersCount} format={(v) => String(v)} />
@@ -206,6 +206,7 @@ export function ReportsClient() {
             <OrdersDynamicsChart data={dynamics} period={period} onPeriodChange={setPeriod} />
 
             {/* Donuts */}
+            <div className="grid gap-4 lg:grid-cols-3">
             <ExpensesDonut data={expenseDonutData} total={expenseTotal} />
             <OrdersStatusDonut
               title="Заказы / возвраты"
@@ -216,6 +217,7 @@ export function ReportsClient() {
               showSlicePercentLabels
             />
             <OrdersStatusDonut title="Заказы по профилям Avito" data={avitoProfileData} total={avitoProfileTotal} />
+            </div>
 
             {/* Top products */}
             <TopProductsProfit products={products.slice(0, 5)} />

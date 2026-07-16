@@ -36,7 +36,7 @@ export function BottomNav() {
   const activeHref = activeIndex >= 0 ? items[activeIndex].href : undefined;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 mx-auto max-w-xl pointer-events-none">
+    <div className="fixed bottom-0 left-0 right-0 z-40 mx-auto max-w-xl pointer-events-none lg:hidden">
       <Dock fullWidth className="pointer-events-auto" items={items} activeHref={activeHref} />
     </div>
   );
