@@ -220,6 +220,14 @@ export function StocksClient() {
     });
   }
 
+  function selectFiltered() {
+    setSelected(new Set(filtered.map((item) => item.itemId)));
+  }
+
+  function selectAllItems() {
+    setSelected(new Set(items.map((item) => item.itemId)));
+  }
+
   return (
     <div className="app-shell">
       <div className="app-header">
@@ -341,6 +349,22 @@ export function StocksClient() {
               className="min-w-32"
             >
               {bulkSaving ? "Сохранение" : `Для выбранных: ${selectedCount}`}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={selectFiltered}
+              disabled={filtered.length === 0 || bulkSaving}
+            >
+              Все найденные: {filtered.length}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={selectAllItems}
+              disabled={items.length === 0 || bulkSaving}
+            >
+              Все: {items.length}
             </Button>
           </div>
         </div>

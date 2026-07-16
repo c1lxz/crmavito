@@ -90,6 +90,38 @@ describe("Avito stock management", () => {
     );
   });
 
+  it("splits large stock updates into Avito-sized batches", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      if (String(url).includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (String(url).includes("/stock-management/1/stocks")) {
+        const body = JSON.parse(String(init?.body)) as { stocks: { item_id: number }[] };
+        return Response.json({ stocks: body.stocks.map((stock) => ({ item_id: stock.item_id, success: true })) });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    const updates = Array.from({ length: 450 }, (_, index) => ({
+      itemId: String(index + 1),
+      quantity: 8,
+    }));
+
+    const result = await updateAvitoStocks(credentials, updates, {
+      fetchFn,
+      sleepFn: async () => undefined,
+    });
+
+    const stockCalls = calls.filter((call) => call.url.includes("/stock-management/1/stocks"));
+    expect(stockCalls).toHaveLength(3);
+    expect(JSON.parse(String(stockCalls[0].init?.body)).stocks).toHaveLength(200);
+    expect(JSON.parse(String(stockCalls[1].init?.body)).stocks).toHaveLength(200);
+    expect(JSON.parse(String(stockCalls[2].init?.body)).stocks).toHaveLength(50);
+    expect(result).toHaveLength(450);
+  });
+
   it("explains unauthorized_client token failures", async () => {
     const fetchFn = vi.fn(async (url: string | URL | Request) => {
       if (String(url).includes("/token")) {

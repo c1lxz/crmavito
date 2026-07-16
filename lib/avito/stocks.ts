@@ -189,30 +189,39 @@ export async function updateAvitoStocks(
   options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
 ): Promise<StockUpdateResult[]> {
   const token = await getAvitoStockToken(credentials, options);
-  const response = await fetchWithRetry(
-    "https://api.avito.ru/stock-management/1/stocks",
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        stocks: updates.map((update) => ({
-          item_id: Number(update.itemId),
-          quantity: update.quantity,
-        })),
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(30_000),
-    },
-    options,
-  );
+  const chunkSize = 200;
+  const result: StockUpdateResult[] = [];
 
-  const data = (await readJsonResponse(response)) as { stocks?: StockUpdateResult[] };
-  if (!response.ok) {
-    throw new Error(`Обновление остатков Avito не прошло: ${extractAvitoErrorText(data).slice(0, 300)}`);
+  for (let i = 0; i < updates.length; i += chunkSize) {
+    const chunk = updates.slice(i, i + chunkSize);
+    const response = await fetchWithRetry(
+      "https://api.avito.ru/stock-management/1/stocks",
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          stocks: chunk.map((update) => ({
+            item_id: Number(update.itemId),
+            quantity: update.quantity,
+          })),
+        }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(30_000),
+      },
+      options,
+    );
+
+    const data = (await readJsonResponse(response)) as { stocks?: StockUpdateResult[] };
+    if (!response.ok) {
+      throw new Error(`Обновление остатков Avito не прошло: ${extractAvitoErrorText(data).slice(0, 300)}`);
+    }
+
+    result.push(...(data.stocks ?? []));
+    if (i + chunkSize < updates.length) await (options.sleepFn ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))))(100);
   }
 
-  return data.stocks ?? [];
+  return result;
 }

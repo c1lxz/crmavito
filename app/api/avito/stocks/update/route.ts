@@ -18,7 +18,7 @@ const updateSchema = z.object({
       }),
     )
     .min(1)
-    .max(200),
+    .max(2000),
 });
 
 async function requireAdminResponse() {

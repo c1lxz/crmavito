@@ -38,6 +38,8 @@ describe("Avito credential profiles", () => {
     expect(stocksClientSource).toContain("credentialProfiles");
     expect(stocksClientSource).toContain("selectedProfileId");
     expect(stocksClientSource).toContain("profileId: selectedProfileId || undefined");
+    expect(stocksClientSource).toContain("selectAllItems");
+    expect(stocksClientSource).toContain("Все найденные");
     expect(stocksClientSource).not.toContain("crmavito:avito-stocks-credentials");
     expect(stocksClientSource).not.toContain("localStorage");
   });
