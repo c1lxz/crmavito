@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 import { generateOrderNumber } from "@/lib/db/orders";
 import { createAuditLog } from "@/lib/db/audit";
 import { detectCarrier } from "@/lib/tracking";
+import { processOrderNotificationByOrderId } from "@/lib/telegram/order-notification-queue";
 import { createOrderSchema, getLegacyOrderTotals } from "@/lib/orders/schema";
 import { parseDatabaseDateInput } from "@/lib/utils";
 
@@ -195,6 +196,7 @@ export async function POST(req: NextRequest) {
                 position,
               })),
             },
+            notification: { create: {} },
           },
         });
         await createAuditLog(
@@ -224,6 +226,8 @@ export async function POST(req: NextRequest) {
       { status: 409 }
     );
   }
+
+  await processOrderNotificationByOrderId(order.id);
 
   return NextResponse.json(order, { status: 201 });
 }

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -10,8 +10,20 @@ const fetcherSource = readFileSync(
   path.resolve(__dirname, "../lib/avito/fetch-image.ts"),
   "utf8"
 );
+const notifySource = readFileSync(
+  path.resolve(__dirname, "../lib/telegram/notify.ts"),
+  "utf8"
+);
 const ordersRouteSource = readFileSync(
   path.resolve(__dirname, "../app/api/orders/route.ts"),
+  "utf8"
+);
+const queueSource = readFileSync(
+  path.resolve(__dirname, "../lib/telegram/order-notification-queue.ts"),
+  "utf8"
+);
+const workerSource = readFileSync(
+  path.resolve(__dirname, "../scripts/telegram-notify-worker.js"),
   "utf8"
 );
 const packageSource = readFileSync(
@@ -59,30 +71,24 @@ describe("resolveProductImage (smoke)", () => {
   });
 });
 
-describe("Telegram group notifications are disabled", () => {
-  it("does not create or send order notifications to a Telegram group", () => {
-    expect(ordersRouteSource).not.toContain("notification: { create: {} }");
-    expect(ordersRouteSource).not.toContain("processOrderNotificationByOrderId");
-    expect(existsSync(path.resolve(__dirname, "../lib/telegram/notify.ts"))).toBe(
-      false
-    );
-    expect(
-      existsSync(
-        path.resolve(__dirname, "../lib/telegram/order-notification-queue.ts")
-      )
-    ).toBe(false);
-    expect(
-      existsSync(path.resolve(__dirname, "../scripts/telegram-notify-worker.js"))
-    ).toBe(false);
-    expect(
-      existsSync(
-        path.resolve(
-          __dirname,
-          "../app/api/internal/telegram-notifications/route.ts"
-        )
-      )
-    ).toBe(false);
-    expect(packageSource).not.toContain("telegram:notify-worker");
-    expect(deploySource).not.toContain("telegram-notify");
+describe("Telegram group notifications", () => {
+  it("creates a durable order notification and attempts immediate delivery", () => {
+    expect(ordersRouteSource).toContain("notification: { create: {} }");
+    expect(ordersRouteSource).toContain("processOrderNotificationByOrderId(order.id)");
+  });
+
+  it("sends order photos and barcode to the configured Telegram group", () => {
+    expect(notifySource).toContain("TELEGRAM_GROUP_CHAT_ID");
+    expect(notifySource).toContain("sendOrderToGroup");
+    expect(notifySource).toContain("sendMediaGroup");
+    expect(notifySource).toContain("generateBarcodePng");
+  });
+
+  it("retries failed notifications through the production worker", () => {
+    expect(queueSource).toContain('status: "RETRY"');
+    expect(queueSource).toContain("processPendingOrderNotifications");
+    expect(workerSource).toContain("/api/internal/telegram-notifications");
+    expect(packageSource).toContain("telegram:notify-worker");
+    expect(deploySource).toContain("telegram-notify");
   });
 });

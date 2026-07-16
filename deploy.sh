@@ -17,6 +17,7 @@ sleep 4
 fuser -k 3000/tcp 2>/dev/null || true
 sleep 1
 pm2 start crm --update-env 2>/dev/null || pm2 start npm --name crm -- start
+pm2 restart telegram-notify --update-env 2>/dev/null || pm2 start npm --name telegram-notify -- run telegram:notify-worker
 AVITO_SYNC_DISABLED_FROM_ENV="$(node -e "require('dotenv/config'); process.stdout.write(process.env.AVITO_SYNC_DISABLED || '')")"
 if [ "$AVITO_SYNC_DISABLED_FROM_ENV" = "true" ] || [ "$AVITO_SYNC_DISABLED_FROM_ENV" = "1" ]; then
   pm2 delete avito-sync 2>/dev/null || true
