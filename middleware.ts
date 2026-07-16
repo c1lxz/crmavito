@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+function publicUrl(req: NextRequest, pathname: string, search = "") {
+  const protocol = req.headers.get("x-forwarded-proto") || "https";
+  const rawHost = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "")
+    .split(",")[0]
+    .trim();
+  const host = (rawHost || "crmavito.duckdns.org")
+    .replace(/:\d+$/, "")
+    .replace(/^localhost$/, "crmavito.duckdns.org");
+
+  return new URL(`${pathname}${search}`, `${protocol}://${host}`);
+}
+
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
@@ -12,25 +24,8 @@ export function middleware(req: NextRequest) {
   if (modeMatch) {
     const mode = modeMatch[1] === "pc" ? "pc" : "m";
     const targetPath = modeMatch[2] || "/dashboard";
-    const requestHeaders = new Headers(req.headers);
-    requestHeaders.set("x-ui-mode", mode);
 
-    const rewriteUrl = req.nextUrl.clone();
-    const forwardedProto = req.headers.get("x-forwarded-proto") || "https";
-    const rawHost = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
-    const forwardedHost = rawHost
-      .replace(/:3000$/, "")
-      .replace(/^localhost$/, "crmavito.duckdns.org");
-    rewriteUrl.protocol = `${forwardedProto}:`;
-    if (forwardedHost) {
-      rewriteUrl.host = forwardedHost;
-    }
-    rewriteUrl.pathname = targetPath;
-    rewriteUrl.search = search;
-
-    const response = NextResponse.rewrite(rewriteUrl, {
-      request: { headers: requestHeaders },
-    });
+    const response = NextResponse.redirect(publicUrl(req, targetPath, search));
     response.cookies.set("crmavito-ui-mode", mode, {
       path: "/",
       sameSite: "lax",
@@ -47,14 +42,10 @@ export function middleware(req: NextRequest) {
     !pathname.startsWith("/v") &&
     !pathname.startsWith("/v-data")
   ) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = `/${rememberedMode}${pathname}`;
-    return NextResponse.redirect(redirectUrl);
+    return NextResponse.redirect(publicUrl(req, `/${rememberedMode}${pathname}`, search));
   }
 
-  const requestHeaders = new Headers(req.headers);
-  requestHeaders.set("x-ui-mode", "m");
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  return NextResponse.next();
 }
 
 export const config = {

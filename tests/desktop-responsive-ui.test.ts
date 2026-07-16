@@ -42,15 +42,16 @@ const middlewareSource = readFileSync(
 describe("desktop responsive UI", () => {
   it("splits explicit /pc and /m modes instead of relying on viewport width", () => {
     expect(middlewareSource).toContain('pathname.match(/^\\/(pc|m)');
-    expect(middlewareSource).toContain('requestHeaders.set("x-ui-mode", mode)');
+    expect(middlewareSource).toContain("NextResponse.redirect(publicUrl");
     expect(middlewareSource).toContain('req.headers.get("x-forwarded-proto")');
     expect(middlewareSource).toContain('req.headers.get("x-forwarded-host")');
-    expect(middlewareSource).toContain(".replace(/:3000$/,");
+    expect(middlewareSource).toContain(".replace(/:\\d+$/,");
     expect(middlewareSource).toContain('"crmavito.duckdns.org"');
+    expect(middlewareSource).not.toContain("NextResponse.rewrite");
     expect(middlewareSource).not.toContain('rewriteUrl.hostname = "localhost"');
     expect(middlewareSource).not.toContain('rewriteUrl.port = "3000"');
     expect(middlewareSource).toContain("crmavito-ui-mode");
-    expect(appLayoutSource).toContain('headerList.get("x-ui-mode") === "pc"');
+    expect(appLayoutSource).toContain('cookieStore.get("crmavito-ui-mode")?.value === "pc"');
     expect(appLayoutSource).toContain("pc-shell");
     expect(appLayoutSource).toContain("mobile-shell");
     expect(appLayoutSource).toContain("ml-64");

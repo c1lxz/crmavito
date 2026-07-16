@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { AutoRefresh } from "@/components/layout/auto-refresh";
 import { BottomNav } from "@/components/layout/bottom-nav";
@@ -9,8 +9,8 @@ import { Toaster } from "@/components/ui/toaster";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const headerList = await headers();
-  const mode = headerList.get("x-ui-mode") === "pc" ? "pc" : "m";
+  const cookieStore = await cookies();
+  const mode = cookieStore.get("crmavito-ui-mode")?.value === "pc" ? "pc" : "m";
   const isPc = mode === "pc";
 
   return (
