@@ -8,6 +8,16 @@ import {
 
 const PROCESSING_TIMEOUT_MS = 5 * 60_000;
 const MAX_RETRY_DELAY_MS = 10 * 60_000;
+const MAX_NOTIFICATION_ATTEMPTS = 8;
+
+function isPermanentTelegramError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("chat not found") ||
+    normalized.includes("bot was blocked") ||
+    normalized.includes("user is deactivated")
+  );
+}
 
 export function getTaskNotificationRetryDelay(attempt: number): number {
   return Math.min(15_000 * 2 ** Math.max(0, attempt - 1), MAX_RETRY_DELAY_MS);
@@ -207,15 +217,19 @@ export async function processTaskNotification(notificationId: string): Promise<b
   } catch (error) {
     const attempts = notification.attempts + 1;
     const message = error instanceof Error ? error.message : String(error);
+    const permanentFailure =
+      isPermanentTelegramError(message) || attempts >= MAX_NOTIFICATION_ATTEMPTS;
     console.error(
       `[telegram-queue] task ${notification.taskId}, attempt ${attempts}: ${message}`
     );
     await prisma.taskNotification.update({
       where: { id: notification.id },
       data: {
-        status: "RETRY",
+        status: permanentFailure ? "FAILED" : "RETRY",
         attempts,
-        nextAttemptAt: new Date(Date.now() + getTaskNotificationRetryDelay(attempts)),
+        nextAttemptAt: permanentFailure
+          ? notification.nextAttemptAt
+          : new Date(Date.now() + getTaskNotificationRetryDelay(attempts)),
         lastError: message.slice(0, 1000),
         processingStartedAt: null,
       },
