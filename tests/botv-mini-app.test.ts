@@ -8,10 +8,26 @@ const apiSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/
 const aliasSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/work/route.ts"), "utf8");
 
 describe("botv mini app UI", () => {
+  it("does not contain mojibake or replacement characters", () => {
+    const mojibakeMarkers = [
+      "\uFFFD",
+      "\u0420\u045F",
+      "\u0420\u040E",
+      "\u0421\u0453",
+      "\u0421\u201A",
+      "\u0432\u201A\u00BD",
+      "\u0412\u00B7",
+    ];
+
+    for (const marker of mojibakeMarkers) {
+      expect(clientSource).not.toContain(marker);
+    }
+  });
+
   it("mounts on /v and uploads archives through botv API", () => {
     expect(pageSource).toContain("BotvMiniApp");
     expect(clientSource).toContain("/v-data/botv/work");
-    expect(clientSource).toContain("РЎСЃС‹Р»РєР° РЅР° РЇРЅРґРµРєСЃ.Р”РёСЃРє");
+    expect(clientSource).toContain("Ссылка на Яндекс.Диск");
     expect(apiSource).toContain("createSessionFromUploadedPath");
     expect(apiSource).toContain("Readable.fromWeb");
     expect(apiSource).toContain("createSessionFromLink");
@@ -28,7 +44,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("UPLOAD_CHUNK_RETRIES");
     expect(clientSource).toContain("sendUploadChunk");
     expect(clientSource).toContain("finalizeChunkUpload");
-    expect(clientSource).toContain("Р¤Р°Р№Р» Р·Р°РіСЂСѓР¶РµРЅ, СЃРµСЂРІРµСЂ СЂР°СЃРїР°РєРѕРІС‹РІР°РµС‚");
+    expect(clientSource).toContain("Файл загружен, сервер распаковывает");
     expect(clientSource).toContain("formatBytes(uploadProgress.loaded)");
     expect(clientSource).toContain("uploadProgress.percent");
     expect(chunkRouteSource).toContain("action === \"chunk\"");
@@ -36,10 +52,10 @@ describe("botv mini app UI", () => {
   });
 
   it("supports the requested listing workflow", () => {
-    expect(clientSource).toContain("РќР°Р·РІР°РЅРёРµ РёР· РїР°РїРєРё");
-    expect(clientSource).toContain("РћРґРЅР° С†РµРЅР°");
+    expect(clientSource).toContain("Название из папки");
+    expect(clientSource).toContain("Одна цена");
     expect(clientSource).toContain("deleteSelected");
-    expect(clientSource).toContain("РљР°Рє РЅР° Avito");
+    expect(clientSource).toContain("Как на Avito");
     expect(clientSource).toContain("firstPhoto");
     expect(clientSource).toContain("setPhonePromptOpen(true)");
     expect(clientSource).toContain("movePhoto");
@@ -48,7 +64,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Чёрный");
     expect(clientSource).toContain("Белый");
     expect(clientSource).toContain("PanelTop");
-    expect(clientSource).toContain("РћРїРёСЃР°РЅРёРµ");
+    expect(clientSource).toContain("Описание");
     expect(clientSource).toContain("fixed inset-0 z-50");
     expect(clientSource).toContain("cursor-pointer");
     expect(clientSource).not.toContain("<Eye");
@@ -56,8 +72,8 @@ describe("botv mini app UI", () => {
 
   it("requests duplicate XML with a replacement phone", () => {
     expect(clientSource).toContain("JSON.stringify({ phone })");
-    expect(clientSource).toContain("РЎРѕР·РґР°С‚СЊ XML СЃ РґСЂСѓРіРёРј С‚РµР»РµС„РѕРЅРѕРј?");
-    expect(clientSource).toContain("РЎРєР°С‡Р°С‚СЊ РµС‰С‘");
+    expect(clientSource).toContain("Создать XML с другим телефоном?");
+    expect(clientSource).toContain("Скачать ещё");
   });
 
   it("can download many replacement-phone XML files from one prompt", () => {
@@ -68,16 +84,16 @@ describe("botv mini app UI", () => {
   });
 
   it("shows saved unfinished sessions", () => {
-    expect(clientSource).toContain("РСЃС‚РѕСЂРёСЏ СЃРѕС…СЂР°РЅРµРЅРёР№");
+    expect(clientSource).toContain("История сохранений");
     expect(clientSource).toContain("`${BOTV_API_BASE}?limit=12`");
     expect(clientSource).toContain("botv:lastSessionId");
-    expect(clientSource).toContain("РњРѕР¶РЅРѕ РїСЂРѕРґРѕР»Р¶РёС‚СЊ СЂР°Р±РѕС‚Сѓ Р±РµР· СЃРѕР·РґР°РЅРЅРѕРіРѕ XML");
+    expect(clientSource).toContain("Можно продолжить работу без созданного XML");
   });
 
   it("adds Avito publication controls with saved server profiles", () => {
     const publishRouteSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/[id]/publish/route.ts"), "utf8");
 
-    expect(clientSource).toContain("РџСѓР±Р»РёРєР°С†РёСЏ");
+    expect(clientSource).toContain("Публикация");
     expect(clientSource).toContain("publishXml");
     expect(clientSource).toContain("/api/avito-profiles/credentials");
     expect(clientSource).toContain("publishProfiles");
@@ -107,7 +123,7 @@ describe("botv mini app UI", () => {
 
   it("retries transient API fetch failures", () => {
     expect(clientSource).toContain("async function apiFetch");
-    expect(clientSource).toContain("РЎРµСЂРІРµСЂ РІСЂРµРјРµРЅРЅРѕ РЅРµ РѕС‚РІРµС‚РёР»");
+    expect(clientSource).toContain("Сервер временно не ответил");
     expect(clientSource).toContain("await wait(500 * (attempt + 1))");
     expect(clientSource).toContain("readJsonResponse");
     expect(clientSource).not.toContain("Failed to fetch");

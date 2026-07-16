@@ -42,8 +42,8 @@ type AvitoCredentialProfile = {
 };
 
 function formatRub(value: number | null) {
-  if (value == null) return "Р¦РµРЅР° РЅРµ Р·Р°РґР°РЅР°";
-  return new Intl.NumberFormat("ru-RU").format(value) + " в‚Ѕ";
+  if (value == null) return "Цена не задана";
+  return new Intl.NumberFormat("ru-RU").format(value) + " ₽";
 }
 
 const BOTV_API_BASE = "/v-data/botv/work";
@@ -99,7 +99,7 @@ async function apiFetch(input: RequestInfo | URL, init?: RequestInit, retries = 
       }
     }
   }
-  throw new Error("РЎРµСЂРІРµСЂ РІСЂРµРјРµРЅРЅРѕ РЅРµ РѕС‚РІРµС‚РёР». РџРѕРїСЂРѕР±СѓР№ РµС‰С‘ СЂР°Р·.");
+  throw new Error("Сервер временно не ответил. Попробуй ещё раз.");
 }
 
 async function readJsonResponse(res: Response, fallback: string) {
@@ -119,8 +119,8 @@ function ListingPreview({ product, sessionId }: { product: BotvProduct | null; s
       <Card>
         <CardContent className="flex min-h-[360px] flex-col items-center justify-center p-6 text-center text-muted-foreground">
           <ImageIcon className="mb-3 h-9 w-9 opacity-50" />
-          <p className="text-sm font-semibold text-foreground">РџСЂРµРґРїСЂРѕСЃРјРѕС‚СЂ</p>
-          <p className="mt-1 text-xs">РќР°Р¶РјРё РЅР° РєР°СЂС‚РѕС‡РєСѓ РѕР±СЉСЏРІР»РµРЅРёСЏ, С‡С‚РѕР±С‹ СѓРІРёРґРµС‚СЊ РІРёРґ Avito.</p>
+          <p className="text-sm font-semibold text-foreground">Предпросмотр</p>
+          <p className="mt-1 text-xs">Нажми на карточку объявления, чтобы увидеть вид Avito.</p>
         </CardContent>
       </Card>
     );
@@ -130,7 +130,7 @@ function ListingPreview({ product, sessionId }: { product: BotvProduct | null; s
     <Card className="max-h-[calc(100vh-2rem)] overflow-y-auto">
       <CardContent className="space-y-4 p-4 sm:p-5">
         <div>
-          <p className="text-xs font-medium uppercase text-muted-foreground">РљР°Рє РЅР° Avito</p>
+          <p className="text-xs font-medium uppercase text-muted-foreground">Как на Avito</p>
           <h2 className="mt-1 text-xl font-semibold leading-tight">{product.adTitle}</h2>
         </div>
         <div className="flex snap-x gap-2 overflow-x-auto pb-1">
@@ -155,22 +155,22 @@ function ListingPreview({ product, sessionId }: { product: BotvProduct | null; s
           <p className="text-2xl font-bold tracking-tight">{formatRub(product.price)}</p>
           <p className="text-sm text-muted-foreground">{product.name}</p>
           <div className="flex gap-2 text-xs text-muted-foreground">
-            <span>{product.photoCount} С„РѕС‚Рѕ</span>
-            {product.useOriginalTitle && <span>РќР°Р·РІР°РЅРёРµ РёР· РїР°РїРєРё</span>}
-            {product.deleted && <span className="text-destructive">РЈРґР°Р»РµРЅРѕ РёР· XML</span>}
+            <span>{product.photoCount} фото</span>
+            {product.useOriginalTitle && <span>Название из папки</span>}
+            {product.deleted && <span className="text-destructive">Удалено из XML</span>}
           </div>
         </div>
         <div className="grid gap-2 rounded-md border border-border/80 bg-muted/35 p-3 text-sm sm:grid-cols-2">
-          <div><span className="text-muted-foreground">РљР°С‚РµРіРѕСЂРёСЏ: </span>{product.details.category || "РћРґРµР¶РґР°"}</div>
-          <div><span className="text-muted-foreground">Р¦РІРµС‚: </span>{product.color || product.details.color || "РќРµ СѓРєР°Р·Р°РЅ"}</div>
-          <div><span className="text-muted-foreground">Р Р°Р·РјРµСЂ: </span>{product.details.size || "Р‘РµР· СЂР°Р·РјРµСЂР°"}</div>
-          <div><span className="text-muted-foreground">РЎРѕСЃС‚РѕСЏРЅРёРµ: </span>{product.details.condition || "РќРѕРІРѕРµ"}</div>
-          <div><span className="text-muted-foreground">РўРёРї: </span>{product.details.goodsType || "РњСѓР¶СЃРєР°СЏ РѕРґРµР¶РґР°"}</div>
-          <div><span className="text-muted-foreground">РђРґСЂРµСЃ: </span>{product.details.location || "РњРѕСЃРєРІР°"}</div>
+          <div><span className="text-muted-foreground">Категория: </span>{product.details.category || "Одежда"}</div>
+          <div><span className="text-muted-foreground">Цвет: </span>{product.color || product.details.color || "Не указан"}</div>
+          <div><span className="text-muted-foreground">Размер: </span>{product.details.size || "Без размера"}</div>
+          <div><span className="text-muted-foreground">Состояние: </span>{product.details.condition || "Новое"}</div>
+          <div><span className="text-muted-foreground">Тип: </span>{product.details.goodsType || "Мужская одежда"}</div>
+          <div><span className="text-muted-foreground">Адрес: </span>{product.details.location || "Москва"}</div>
         </div>
         <div>
-          <p className="mb-2 text-sm font-semibold">РћРїРёСЃР°РЅРёРµ</p>
-          <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground">{product.description || "РћРїРёСЃР°РЅРёРµ Р±СѓРґРµС‚ СЃС„РѕСЂРјРёСЂРѕРІР°РЅРѕ РїСЂРё СЃРѕР·РґР°РЅРёРё XML."}</p>
+          <p className="mb-2 text-sm font-semibold">Описание</p>
+          <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground">{product.description || "Описание будет сформировано при создании XML."}</p>
         </div>
       </CardContent>
     </Card>
@@ -230,7 +230,7 @@ export function BotvMiniApp() {
   async function refreshHistory() {
     const res = await apiFetch(`${BOTV_API_BASE}?limit=12`);
     if (!res.ok) return;
-    const data = await readJsonResponse(res, "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РёСЃС‚РѕСЂРёСЋ");
+    const data = await readJsonResponse(res, "Не удалось загрузить историю");
     setHistory(Array.isArray(data.sessions) ? data.sessions : []);
   }
 
@@ -263,8 +263,8 @@ export function BotvMiniApp() {
     setStatus("uploading");
     setError("");
     const res = await apiFetch(`${BOTV_API_BASE}/${id}`);
-    const data = await readJsonResponse(res, "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РєСЂС‹С‚СЊ СЃРѕС…СЂР°РЅРµРЅРёРµ");
-    if (!res.ok) throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РєСЂС‹С‚СЊ СЃРѕС…СЂР°РЅРµРЅРёРµ");
+    const data = await readJsonResponse(res, "Не удалось открыть сохранение");
+    if (!res.ok) throw new Error(data.error ?? "Не удалось открыть сохранение");
     rememberSession(data);
     setSelected(new Set());
     setPreview(null);
@@ -279,8 +279,8 @@ export function BotvMiniApp() {
     const form = new FormData();
     form.append("link", diskLink.trim());
     const res = await apiFetch(BOTV_API_BASE, { method: "POST", body: form });
-    const data = await readJsonResponse(res, "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃСЃС‹Р»РєСѓ");
-    if (!res.ok) throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃСЃС‹Р»РєСѓ");
+    const data = await readJsonResponse(res, "Не удалось загрузить ссылку");
+    if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить ссылку");
     rememberSession(data);
     await refreshHistory();
     setStatus("ready");
@@ -292,8 +292,8 @@ export function BotvMiniApp() {
     setSelected(new Set());
     setUploadProgress({ fileName: file.name, loaded: 0, total: file.size, percent: 0, phase: "uploading" });
     const res = await uploadArchiveWithProgress(file);
-    const data = parseJsonText(res.text, "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р°СЂС…РёРІ", res.ok);
-    if (!res.ok) throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р°СЂС…РёРІ");
+    const data = parseJsonText(res.text, "Не удалось загрузить архив", res.ok);
+    if (!res.ok) throw new Error(data.error ?? "Не удалось загрузить архив");
     rememberSession(data);
     await refreshHistory();
     setUploadProgress(null);
@@ -334,8 +334,8 @@ export function BotvMiniApp() {
         const res = await fetch(`${BOTV_API_BASE}/chunk`, { method: "POST", body: form });
         if (res.ok) return;
         if (attempt === UPLOAD_CHUNK_RETRIES - 1) {
-          const data = await readJsonResponse(res, "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ С‡Р°СЃС‚СЊ Р°СЂС…РёРІР°");
-          throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ С‡Р°СЃС‚СЊ Р°СЂС…РёРІР°");
+          const data = await readJsonResponse(res, "Не удалось загрузить часть архива");
+          throw new Error(data.error ?? "Не удалось загрузить часть архива");
         }
       } catch (error) {
         if (attempt === UPLOAD_CHUNK_RETRIES - 1) throw error;
@@ -371,8 +371,8 @@ export function BotvMiniApp() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await readJsonResponse(res, "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ");
-    if (!res.ok) throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ");
+    const data = await readJsonResponse(res, "Не удалось сохранить");
+    if (!res.ok) throw new Error(data.error ?? "Не удалось сохранить");
     rememberSession(data);
     void refreshHistory();
     setStatus("ready");
@@ -388,8 +388,8 @@ export function BotvMiniApp() {
       body: phone ? JSON.stringify({ phone }) : undefined,
     });
     if (!res.ok) {
-      const data = await readJsonResponse(res, "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР±СЂР°С‚СЊ XML");
-      throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР±СЂР°С‚СЊ XML");
+      const data = await readJsonResponse(res, "Не удалось собрать XML");
+      throw new Error(data.error ?? "Не удалось собрать XML");
     }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -426,7 +426,7 @@ export function BotvMiniApp() {
   async function refreshPublishProfiles(preferredId?: string) {
     const response = await apiFetch("/api/avito-profiles/credentials");
     if (!response.ok) return;
-    const data = await readJsonResponse(response, "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РїСЂРѕС„РёР»Рё Avito");
+    const data = await readJsonResponse(response, "Не удалось загрузить профили Avito");
     const profiles: AvitoCredentialProfile[] = Array.isArray(data.profiles) ? data.profiles : [];
     setPublishProfiles(profiles);
 
@@ -470,8 +470,8 @@ export function BotvMiniApp() {
           clientSecret: publishClientSecret,
         }),
       });
-      const data = await readJsonResponse(res, "РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСѓР±Р»РёРєРѕРІР°С‚СЊ XML");
-      if (!res.ok) throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСѓР±Р»РёРєРѕРІР°С‚СЊ XML");
+      const data = await readJsonResponse(res, "Не удалось опубликовать XML");
+      if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать XML");
       rememberPublishCredentials(data.profile);
       setError("");
     } finally {
@@ -548,27 +548,27 @@ export function BotvMiniApp() {
           <div className="mb-3 flex items-center gap-3">
             <div className="icon-tile h-9 w-9"><FileArchive className="h-4 w-4" /></div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold tracking-tight lg:text-xl">Р’С‹РіСЂСѓР·РєР° РѕР±СЉСЏРІР»РµРЅРёР№</h1>
-              <p className="section-caption">РђСЂС…РёРІ, РЅР°Р·РІР°РЅРёСЏ, С†РµРЅС‹ Рё XML РґР»СЏ Avito</p>
+              <h1 className="text-lg font-semibold tracking-tight lg:text-xl">Выгрузка объявлений</h1>
+              <p className="section-caption">Архив, названия, цены и XML для Avito</p>
             </div>
             <Button size="sm" onClick={() => fileRef.current?.click()} disabled={status === "uploading"}>
               {status === "uploading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-              РђСЂС…РёРІ
+              Архив
             </Button>
             <Button size="sm" variant="outline" onClick={() => setHistoryOpen((value) => !value)}>
               <History className="h-4 w-4" />
-              РСЃС‚РѕСЂРёСЏ
+              История
             </Button>
             <input ref={fileRef} type="file" accept=".zip,.rar,.7z" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) run(() => upload(f)); }} />
           </div>
           <div className="grid gap-2 lg:grid-cols-[minmax(320px,1fr)_minmax(260px,420px)]">
             <div className="flex gap-2">
-              <Input placeholder="РЎСЃС‹Р»РєР° РЅР° РЇРЅРґРµРєСЃ.Р”РёСЃРє" value={diskLink} onChange={(e) => setDiskLink(e.target.value)} />
-              <Button variant="outline" onClick={() => run(uploadLink)} disabled={status === "uploading" || !diskLink.trim()}>Р—Р°РіСЂСѓР·РёС‚СЊ</Button>
+              <Input placeholder="Ссылка на Яндекс.Диск" value={diskLink} onChange={(e) => setDiskLink(e.target.value)} />
+              <Button variant="outline" onClick={() => run(uploadLink)} disabled={status === "uploading" || !diskLink.trim()}>Загрузить</Button>
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="РџРѕРёСЃРє РїРѕ С‚РѕРІР°СЂР°Рј" className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <Input placeholder="Поиск по товарам" className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
           </div>
           {uploadProgress && (
@@ -577,7 +577,7 @@ export function BotvMiniApp() {
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-foreground">{uploadProgress.fileName}</p>
                   <p className="text-muted-foreground">
-                    {uploadProgress.phase === "uploading" ? "Р—Р°РіСЂСѓР¶Р°РµС‚СЃСЏ" : "Р¤Р°Р№Р» Р·Р°РіСЂСѓР¶РµРЅ, СЃРµСЂРІРµСЂ СЂР°СЃРїР°РєРѕРІС‹РІР°РµС‚"} В· {formatBytes(uploadProgress.loaded)} / {formatBytes(uploadProgress.total)}
+                    {uploadProgress.phase === "uploading" ? "Загружается" : "Файл загружен, сервер распаковывает"} · {formatBytes(uploadProgress.loaded)} / {formatBytes(uploadProgress.total)}
                   </p>
                 </div>
                 <span className="shrink-0 font-semibold text-foreground">{uploadProgress.percent}%</span>
@@ -596,10 +596,10 @@ export function BotvMiniApp() {
       {session && (
         <div className="border-b border-border/80 bg-card/45 px-4 py-3 text-sm lg:px-8">
           <div className="mx-auto flex max-w-[1600px] gap-5 overflow-x-auto">
-            <span className="text-muted-foreground">Р’СЃРµРіРѕ: <b className="text-foreground">{session.summary.total}</b></span>
-            <span className="text-muted-foreground">Р“РѕС‚РѕРІРѕ: <b className="text-foreground">{session.summary.ready}</b></span>
-            <span className="text-muted-foreground">РЈРґР°Р»РµРЅРѕ: <b className="text-foreground">{session.summary.deleted}</b></span>
-            <span className="text-muted-foreground">Р¤РѕС‚Рѕ: <b className="text-foreground">{session.summary.photos}</b></span>
+            <span className="text-muted-foreground">Всего: <b className="text-foreground">{session.summary.total}</b></span>
+            <span className="text-muted-foreground">Готово: <b className="text-foreground">{session.summary.ready}</b></span>
+            <span className="text-muted-foreground">Удалено: <b className="text-foreground">{session.summary.deleted}</b></span>
+            <span className="text-muted-foreground">Фото: <b className="text-foreground">{session.summary.photos}</b></span>
           </div>
         </div>
       )}
@@ -611,10 +611,10 @@ export function BotvMiniApp() {
               <CardContent className="space-y-3 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold">РСЃС‚РѕСЂРёСЏ СЃРѕС…СЂР°РЅРµРЅРёР№</p>
-                    <p className="text-xs text-muted-foreground">РњРѕР¶РЅРѕ РїСЂРѕРґРѕР»Р¶РёС‚СЊ СЂР°Р±РѕС‚Сѓ Р±РµР· СЃРѕР·РґР°РЅРЅРѕРіРѕ XML.</p>
+                    <p className="text-sm font-semibold">История сохранений</p>
+                    <p className="text-xs text-muted-foreground">Можно продолжить работу без созданного XML.</p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => run(refreshHistory)}>РћР±РЅРѕРІРёС‚СЊ</Button>
+                  <Button size="sm" variant="outline" onClick={() => run(refreshHistory)}>Обновить</Button>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                   {history.map((item) => (
@@ -625,15 +625,15 @@ export function BotvMiniApp() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold">{item.sourceName || "РЎРѕС…СЂР°РЅРµРЅРёРµ"}</p>
-                          <p className="text-xs text-muted-foreground">РР·РјРµРЅРµРЅРѕ: {formatDate(item.updatedAt)}</p>
+                          <p className="truncate text-sm font-semibold">{item.sourceName || "Сохранение"}</p>
+                          <p className="text-xs text-muted-foreground">Изменено: {formatDate(item.updatedAt)}</p>
                         </div>
                         <span className="rounded bg-secondary px-2 py-1 text-xs font-semibold">{item.summary.ready}/{item.summary.active}</span>
                       </div>
                       <div className="mt-2 flex gap-3 text-xs text-muted-foreground">
-                        <span>Р’СЃРµРіРѕ {item.summary.total}</span>
-                        <span>РЈРґР°Р»РµРЅРѕ {item.summary.deleted}</span>
-                        <span>Р¤РѕС‚Рѕ {item.summary.photos}</span>
+                        <span>Всего {item.summary.total}</span>
+                        <span>Удалено {item.summary.deleted}</span>
+                        <span>Фото {item.summary.photos}</span>
                       </div>
                     </button>
                   ))}
@@ -645,8 +645,8 @@ export function BotvMiniApp() {
           {!session && (
             <Card><CardContent className="p-6 text-center lg:p-10">
               <UploadCloud className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-              <p className="text-sm font-semibold">Р—Р°РіСЂСѓР·Рё Р°СЂС…РёРІ .zip, .rar РёР»Рё .7z</p>
-              <p className="mt-1 text-xs text-muted-foreground">РџРѕСЃР»Рµ СЂР°СЃРїР°РєРѕРІРєРё Р·РґРµСЃСЊ РїРѕСЏРІСЏС‚СЃСЏ РєР°СЂС‚РѕС‡РєРё С‚РѕРІР°СЂРѕРІ СЃ РїРµСЂРІС‹Рј С„РѕС‚Рѕ.</p>
+              <p className="text-sm font-semibold">Загрузи архив .zip, .rar или .7z</p>
+              <p className="mt-1 text-xs text-muted-foreground">После распаковки здесь появятся карточки товаров с первым фото.</p>
             </CardContent></Card>
           )}
 
@@ -655,11 +655,11 @@ export function BotvMiniApp() {
           {session && (
             <Card className="sticky top-[132px] z-20 lg:top-[142px]"><CardContent className="space-y-3 p-3">
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => setSelected(allVisibleSelected ? new Set() : new Set(filtered.map((p) => p.index)))}>{allVisibleSelected ? "РЎРЅСЏС‚СЊ РІС‹Р±РѕСЂ" : "Р’С‹Р±СЂР°С‚СЊ РІРёРґРёРјС‹Рµ"}</Button>
-                <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, bulkOriginalTitle: true }))}><Check className="h-4 w-4" /> РќР°Р·РІР°РЅРёРµ РёР· РїР°РїРєРё</Button>
-                <Input className="h-8 w-28" placeholder="Р¦РµРЅР°" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} />
-                <Button size="sm" variant="outline" disabled={!selected.size || !bulkPrice} onClick={() => run(() => patch({ ids: selectedIds, bulkPrice }))}>РћРґРЅР° С†РµРЅР°</Button>
-                <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> РЈРґР°Р»РёС‚СЊ</Button>
+                <Button size="sm" variant="outline" onClick={() => setSelected(allVisibleSelected ? new Set() : new Set(filtered.map((p) => p.index)))}>{allVisibleSelected ? "Снять выбор" : "Выбрать видимые"}</Button>
+                <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, bulkOriginalTitle: true }))}><Check className="h-4 w-4" /> Название из папки</Button>
+                <Input className="h-8 w-28" placeholder="Цена" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} />
+                <Button size="sm" variant="outline" disabled={!selected.size || !bulkPrice} onClick={() => run(() => patch({ ids: selectedIds, bulkPrice }))}>Одна цена</Button>
+                <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
                 <Button size="sm" disabled={status === "generating"} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
                 <Input
                   className="h-8 w-44"
@@ -682,12 +682,12 @@ export function BotvMiniApp() {
                   onClick={() => run(publishXml)}
                 >
                   {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  РџСѓР±Р»РёРєР°С†РёСЏ
+                  Публикация
                 </Button>
                 {publishProfiles.length > 0 && (
                   <Button size="sm" variant="outline" onClick={() => setPublishProfilesOpen((value) => !value)}>
                     <History className="h-4 w-4" />
-                    РџСЂРѕС„РёР»Рё
+                    Профили
                   </Button>
                 )}
               </div>
@@ -727,13 +727,13 @@ export function BotvMiniApp() {
             {filtered.map((product) => (
               <Card key={product.id} className={product.deleted ? "opacity-45" : "cursor-pointer transition-colors hover:border-primary/25 hover:bg-accent/45"} onClick={() => openPreview(product)}>
                 <CardContent className="flex gap-3 p-3">
-                  <button className="mt-4 h-5 w-5 rounded border border-input text-xs" onClick={(e) => { e.stopPropagation(); toggle(product.index); }}>{selected.has(product.index) ? "вњ“" : ""}</button>
+                  <button className="mt-4 h-5 w-5 rounded border border-input text-xs" onClick={(e) => { e.stopPropagation(); toggle(product.index); }}>{selected.has(product.index) ? "✓" : ""}</button>
                   <button className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted" onClick={(e) => { e.stopPropagation(); openPreview(product); }}>
                     {product.firstPhoto && session ? <img src={photoUrl(session.id, product.firstPhoto, { thumb: true, size: 160 })} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" /> : <div className="flex h-full w-full items-center justify-center text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>}
                   </button>
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex gap-2">
-                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">#{product.index} {product.name}</p><p className="text-xs text-muted-foreground">{product.photoCount} С„РѕС‚Рѕ В· {formatRub(product.price)}</p></div>
+                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">#{product.index} {product.name}</p><p className="text-xs text-muted-foreground">{product.photoCount} фото · {formatRub(product.price)}</p></div>
                     </div>
                     <Input value={product.adTitle} disabled={product.useOriginalTitle || product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { adTitle: e.target.value })} onBlur={(e) => run(() => saveProductTitle(product.index, e.currentTarget.value))} />
                     <div className="grid grid-cols-2 gap-1" onClick={(e) => e.stopPropagation()}>
@@ -752,7 +752,7 @@ export function BotvMiniApp() {
                       ))}
                     </div>
                     <div className="flex gap-2">
-                      <Input inputMode="numeric" placeholder="Р¦РµРЅР°" value={product.price ?? ""} disabled={product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { price: e.target.value ? Number(e.target.value) : null })} onBlur={(e) => run(() => saveProductPrice(product.index, e.currentTarget.value ? Number(e.currentTarget.value) : null))} />
+                      <Input inputMode="numeric" placeholder="Цена" value={product.price ?? ""} disabled={product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { price: e.target.value ? Number(e.target.value) : null })} onBlur={(e) => run(() => saveProductPrice(product.index, e.currentTarget.value ? Number(e.currentTarget.value) : null))} />
                       <Button size="icon" variant={product.useOriginalTitle ? "default" : "outline"} onClick={(e) => { e.stopPropagation(); run(() => toggleOriginalTitle(product)); }}><Package className="h-4 w-4" /></Button>
                       <Button size="icon" variant="outline" onClick={(e) => { e.stopPropagation(); run(() => toggleDeleted(product)); }}>{product.deleted ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}</Button>
                     </div>
@@ -763,9 +763,9 @@ export function BotvMiniApp() {
                             {session && <img src={photoUrl(session.id, token, { thumb: true, size: 128 })} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />}
                             <span className="absolute left-1 top-1 rounded bg-background/85 px-1 text-[10px] font-semibold">{photoIndex + 1}</span>
                             <div className="absolute inset-x-0 bottom-0 flex justify-center gap-0.5 bg-background/80 p-0.5">
-                              <button title="РЎРґРµР»Р°С‚СЊ РїРµСЂРІРѕР№" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "first"))}><PanelTop className="h-3 w-3" /></button>
-                              <button title="РЎРґРІРёРЅСѓС‚СЊ РІР»РµРІРѕ" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "left"))}><ArrowLeft className="h-3 w-3" /></button>
-                              <button title="РЎРґРІРёРЅСѓС‚СЊ РІРїСЂР°РІРѕ" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "right"))}><ArrowRight className="h-3 w-3" /></button>
+                              <button title="Сделать первой" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "first"))}><PanelTop className="h-3 w-3" /></button>
+                              <button title="Сдвинуть влево" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "left"))}><ArrowLeft className="h-3 w-3" /></button>
+                              <button title="Сдвинуть вправо" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "right"))}><ArrowRight className="h-3 w-3" /></button>
                             </div>
                           </div>
                         ))}
@@ -783,7 +783,7 @@ export function BotvMiniApp() {
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/85 p-3 pt-6 backdrop-blur-sm sm:p-6" onClick={() => setPreview(null)}>
           <div className="w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 flex justify-end">
-              <Button size="sm" variant="outline" onClick={() => setPreview(null)}><X className="h-4 w-4" /> Р—Р°РєСЂС‹С‚СЊ</Button>
+              <Button size="sm" variant="outline" onClick={() => setPreview(null)}><X className="h-4 w-4" /> Закрыть</Button>
             </div>
             <ListingPreview product={preview} sessionId={session.id} />
           </div>
@@ -795,18 +795,18 @@ export function BotvMiniApp() {
           <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <CardContent className="space-y-4 p-5">
               <div>
-                <p className="text-base font-semibold">РЎРѕР·РґР°С‚СЊ XML СЃ РґСЂСѓРіРёРј С‚РµР»РµС„РѕРЅРѕРј?</p>
-                <p className="mt-1 text-sm text-muted-foreground">РњРѕР¶РЅРѕ СЃРєР°С‡Р°С‚СЊ РЅРµСЃРєРѕР»СЊРєРѕ XML РїРѕРґСЂСЏРґ: РЅРѕРјРµСЂ Р·Р°РјРµРЅРёС‚СЃСЏ РІРѕ РІСЃРµС… РѕР±СЉСЏРІР»РµРЅРёСЏС…, РѕРєРЅРѕ РѕСЃС‚Р°РЅРµС‚СЃСЏ РѕС‚РєСЂС‹С‚С‹Рј.</p>
+                <p className="text-base font-semibold">Создать XML с другим телефоном?</p>
+                <p className="mt-1 text-sm text-muted-foreground">Можно скачать несколько XML подряд: номер заменится во всех объявлениях, окно останется открытым.</p>
                 {replacementXmlCount > 0 && (
-                  <p className="mt-2 text-xs font-medium text-primary">Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹С… XML СЃРєР°С‡Р°РЅРѕ: {replacementXmlCount}</p>
+                  <p className="mt-2 text-xs font-medium text-primary">Дополнительных XML скачано: {replacementXmlCount}</p>
                 )}
               </div>
               <Input placeholder="+7 999 000 00 00" value={replacementPhone} onChange={(e) => setReplacementPhone(e.target.value)} />
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setPhonePromptOpen(false)}>Р“РѕС‚РѕРІРѕ</Button>
+                <Button variant="outline" onClick={() => setPhonePromptOpen(false)}>Готово</Button>
                 <Button disabled={!replacementPhone.trim() || status === "generating"} onClick={() => run(downloadReplacementXml)}>
                   {status === "generating" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  РЎРєР°С‡Р°С‚СЊ РµС‰С‘
+                  Скачать ещё
                 </Button>
               </div>
             </CardContent>
