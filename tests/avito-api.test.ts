@@ -56,18 +56,19 @@ describe("Avito API fetcher (smoke)", () => {
 });
 
 describe("resolveProductImage (smoke)", () => {
-  it("tries API first, then HTML scrape", () => {
+  it("tries HTML scrape before API fallback", () => {
+    expect(fetcherSource).toContain("fetchAvitoListingImage");
     expect(fetcherSource).toContain("fetchAvitoItemImage");
-    expect(fetcherSource).toContain("scrapeListingHtml");
-    const apiIdx = fetcherSource.indexOf("fetchAvitoItemImage");
-    const htmlIdx = fetcherSource.indexOf("scrapeListingHtml(p.avitoListingUrl)");
+    const htmlIdx = fetcherSource.indexOf("fetchAvitoListingImage(p.avitoListingUrl)");
+    const apiIdx = fetcherSource.indexOf("fetchAvitoItemImage(p.avitoItemId)");
     expect(apiIdx).toBeGreaterThan(-1);
-    expect(htmlIdx).toBeGreaterThan(apiIdx);
+    expect(htmlIdx).toBeGreaterThan(-1);
+    expect(apiIdx).toBeGreaterThan(htmlIdx);
   });
 
   it("exports downloadImageAsBuffer for reuse", () => {
     expect(fetcherSource).toContain("export async function downloadImageAsBuffer");
-    expect(fetcherSource).toContain("Buffer.from(ab)");
+    expect(fetcherSource).toContain("Buffer.from(arrayBuffer)");
   });
 });
 

@@ -299,6 +299,10 @@ describe("resolveProductImage — единая точка входа", () => {
 
   it("если API упал, но HTML работает — берёт из HTML", async () => {
     mockFetchSequence([
+      {
+        status: 200,
+        body: `<html><meta property="og:image" content="https://04.avito.st/page.jpg"></html>`,
+      },
       // 1. Token
       { status: 200, body: { access_token: "abc", expires_in: 3600 } },
       // 2-3. Короткие API endpoint падают 404

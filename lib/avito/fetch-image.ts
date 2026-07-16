@@ -1,10 +1,39 @@
-import { fetchAvitoItemImage, isLikelyImageUrl, type AvitoResult } from "./api";
 import { findBotvImageByTitle } from "@/lib/botv/avito-image-cache";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { ProxyAgent } from "undici";
+import { fetchAvitoItemImage, isLikelyImageUrl, type AvitoResult } from "./api";
+
+type ProxyFetchInit = RequestInit & { dispatcher?: ProxyAgent };
 
 const HTML_BLOCK_COOLDOWN_MS = 10 * 60 * 1000;
 const htmlBlockedUntilByUrl = new Map<string, { status: number; until: number }>();
+let cachedProxyUrl: string | null = null;
+let cachedProxyAgent: ProxyAgent | null = null;
+
+function getAvitoHtmlProxyUrl(): string | null {
+  const raw = (process.env.AVITO_IMAGE_PROXY_URL || process.env.AVITO_MARKET_PROXY_URL)?.trim();
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const parts = raw.split(":");
+  if (parts.length !== 4) return raw;
+
+  const [host, port, username, password] = parts;
+  return `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}`;
+}
+
+function withAvitoHtmlProxy(init: RequestInit): RequestInit {
+  const proxyUrl = getAvitoHtmlProxyUrl();
+  if (!proxyUrl) return init;
+
+  if (cachedProxyUrl !== proxyUrl) {
+    cachedProxyUrl = proxyUrl;
+    cachedProxyAgent = new ProxyAgent(proxyUrl);
+  }
+
+  return { ...init, dispatcher: cachedProxyAgent ?? undefined } as ProxyFetchInit;
+}
 
 function decodeHtmlValue(value: string): string {
   return value
@@ -40,7 +69,7 @@ export function pickAvitoImage(html: string): string | null {
   }
 
   const ogTags = html.matchAll(
-    /<meta\s[^>]*property=["']og:image(?::secure_url|:url)?["'][^>]*>/gi
+    /<meta\s[^>]*property=["']og:image(?::secure_url|:url)?["'][^>]*>/gi,
   );
   for (const tag of ogTags) {
     add(tag[0].match(/content=["']([^"']+)["']/i)?.[1]);
@@ -75,7 +104,7 @@ export function pickAvitoImage(html: string): string | null {
   return null;
 }
 
-async function scrapeListingHtml(listingUrl: string): Promise<AvitoResult<string>> {
+export async function fetchAvitoListingImage(listingUrl: string): Promise<AvitoResult<string>> {
   const blocked = htmlBlockedUntilByUrl.get(listingUrl);
   if (blocked && blocked.until > Date.now()) {
     const waitSeconds = Math.ceil((blocked.until - Date.now()) / 1000);
@@ -87,33 +116,41 @@ async function scrapeListingHtml(listingUrl: string): Promise<AvitoResult<string
   if (blocked) htmlBlockedUntilByUrl.delete(listingUrl);
 
   try {
-    const r = await fetch(listingUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "ru-RU,ru;q=0.9",
-        Accept: "text/html",
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!r.ok) {
-      console.warn(`[avito] listing fetch ${listingUrl} HTTP ${r.status}`);
-      if (r.status === 429 || r.status === 439) {
+    const response = await fetch(
+      listingUrl,
+      withAvitoHtmlProxy({
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+          "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Cache-Control": "no-cache",
+        },
+        redirect: "follow",
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      }),
+    );
+
+    if (!response.ok) {
+      console.warn(`[avito] listing fetch ${listingUrl} HTTP ${response.status}`);
+      if (response.status === 429 || response.status === 439) {
         htmlBlockedUntilByUrl.set(listingUrl, {
-          status: r.status,
+          status: response.status,
           until: Date.now() + HTML_BLOCK_COOLDOWN_MS,
         });
       }
-      return { ok: false, reason: `HTML scrape HTTP ${r.status}` };
+      return { ok: false, reason: `HTML scrape HTTP ${response.status}` };
     }
-    const html = await r.text();
-    const img = pickAvitoImage(html);
-    if (img) return { ok: true, value: img };
+
+    const html = await response.text();
+    const image = pickAvitoImage(html);
+    if (image) return { ok: true, value: image };
     return { ok: false, reason: "В HTML страницы нет фото (вероятно captcha)" };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.warn("[avito] listing fetch error", msg);
-    return { ok: false, reason: `HTML scrape error: ${msg.slice(0, 60)}` };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("[avito] listing fetch error", message);
+    return { ok: false, reason: `HTML scrape error: ${message.slice(0, 60)}` };
   }
 }
 
@@ -123,15 +160,17 @@ export interface ProductImageSource {
   avitoListingUrl?: string | null;
 }
 
-export async function resolveProductImage(
-  p: ProductImageSource
-): Promise<AvitoResult<string>> {
+export async function resolveProductImage(p: ProductImageSource): Promise<AvitoResult<string>> {
   const reasons: string[] = [];
-  if (p.name) {
-    const fromBotv = await findBotvImageByTitle(p.name);
-    if (fromBotv) return { ok: true, value: fromBotv };
-    reasons.push("BOTV: нет фото в XML");
+
+  if (p.avitoListingUrl) {
+    const fromHtml = await fetchAvitoListingImage(p.avitoListingUrl);
+    if (fromHtml.ok) return fromHtml;
+    reasons.push(`HTML: ${fromHtml.reason}`);
+  } else {
+    reasons.push("HTML: нет avitoListingUrl");
   }
+
   if (p.avitoItemId) {
     const fromApi = await fetchAvitoItemImage(p.avitoItemId);
     if (fromApi.ok) return fromApi;
@@ -139,13 +178,13 @@ export async function resolveProductImage(
   } else {
     reasons.push("API: нет avitoItemId");
   }
-  if (p.avitoListingUrl) {
-    const fromHtml = await scrapeListingHtml(p.avitoListingUrl);
-    if (fromHtml.ok) return fromHtml;
-    reasons.push(`HTML: ${fromHtml.reason}`);
-  } else {
-    reasons.push("HTML: нет avitoListingUrl");
+
+  if (p.name) {
+    const fromBotv = await findBotvImageByTitle(p.name);
+    if (fromBotv) return { ok: true, value: fromBotv };
+    reasons.push("BOTV: нет фото в XML");
   }
+
   return { ok: false, reason: reasons.join(" | ") };
 }
 
@@ -157,23 +196,24 @@ export async function downloadImageAsBuffer(url: string): Promise<Buffer | null>
       if (!filePath.startsWith(`${publicRoot}${path.sep}`)) return null;
       return await readFile(filePath);
     }
-    const r = await fetch(url, {
+
+    const response = await fetch(url, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         Referer: "https://www.avito.ru/",
         Accept: "image/avif,image/webp,image/png,image/jpeg,*/*",
       },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(15_000),
     });
-    if (!r.ok) {
-      console.warn(`[avito] image download ${url} HTTP ${r.status}`);
+    if (!response.ok) {
+      console.warn(`[avito] image download ${url} HTTP ${response.status}`);
       return null;
     }
-    const ab = await r.arrayBuffer();
-    return Buffer.from(ab);
-  } catch (e) {
-    console.warn("[avito] image download error", e);
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    console.warn("[avito] image download error", error);
     return null;
   }
 }
