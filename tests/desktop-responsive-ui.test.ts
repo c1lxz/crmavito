@@ -42,7 +42,8 @@ const middlewareSource = readFileSync(
 describe("desktop responsive UI", () => {
   it("splits explicit /pc and /m modes instead of relying on viewport width", () => {
     expect(middlewareSource).toContain('pathname.match(/^\\/(pc|m)');
-    expect(middlewareSource).toContain("NextResponse.redirect(new URL(appPath");
+    expect(middlewareSource).toContain('process.env.NEXTAUTH_URL || "https://crmavito.duckdns.org"');
+    expect(middlewareSource).toContain("NextResponse.redirect(appPath");
     expect(middlewareSource).not.toContain('req.headers.get("x-forwarded-proto")');
     expect(middlewareSource).not.toContain('req.headers.get("x-forwarded-host")');
     expect(middlewareSource).not.toContain(".replace(/:\\d+$/,");
