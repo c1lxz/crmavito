@@ -31,12 +31,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   let result = await resolveProductImage({
+    name: product.name,
     avitoItemId: product.avitoItemId,
     avitoListingUrl: product.avitoListingUrl,
   });
   for (let attempt = 1; !result.ok && shouldRetryResolve(result.reason) && attempt < 3; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, attempt * 350));
     result = await resolveProductImage({
+      name: product.name,
       avitoItemId: product.avitoItemId,
       avitoListingUrl: product.avitoListingUrl,
     });

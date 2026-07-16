@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { fetchAllAvitoItems, fetchWithRetry, syncAvitoProducts } from "@/lib/avito/sync";
+import { __resetBotvImageCacheForTests } from "@/lib/botv/avito-image-cache";
 
 describe("Avito synchronization transport", () => {
   it("retries transient HTTP and network failures", async () => {
@@ -107,6 +111,8 @@ describe("Avito synchronization transport", () => {
   });
 
   it("fills missing images from item detail API during sync", async () => {
+    const previousLimit = process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT;
+    process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT = "1";
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(Response.json({ access_token: "token" }))
@@ -129,24 +135,79 @@ describe("Avito synchronization transport", () => {
       },
     } as unknown as Parameters<typeof syncAvitoProducts>[0];
 
-    const result = await syncAvitoProducts(
-      prisma,
-      { clientId: "client", clientSecret: "secret" },
-      { fetchFn, sleepFn },
-    );
+    try {
+      const result = await syncAvitoProducts(
+        prisma,
+        { clientId: "client", clientSecret: "secret" },
+        { fetchFn, sleepFn },
+      );
 
-    expect(result.imagesFound).toBe(2);
-    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
-      create: expect.objectContaining({
-        avitoItemId: "1",
-        imageUrl: "https://20.avito.st/image/detail.jpg",
-      }),
-    }));
-    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
-      create: expect.objectContaining({
-        avitoItemId: "2",
-        imageUrl: "https://10.avito.st/image/list.jpg",
-      }),
-    }));
+      expect(result.imagesFound).toBe(2);
+      expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({
+          avitoItemId: "1",
+          imageUrl: "https://20.avito.st/image/detail.jpg",
+        }),
+      }));
+      expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({
+          avitoItemId: "2",
+          imageUrl: "https://10.avito.st/image/list.jpg",
+        }),
+      }));
+    } finally {
+      if (previousLimit === undefined) delete process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT;
+      else process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT = previousLimit;
+    }
+  });
+
+  it("fills missing images from BotV autoload XML before calling Avito detail API", async () => {
+    const previousRoot = process.env.BOTV_WEB_SESSIONS_DIR;
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "crmavito-botv-"));
+    const sessionDir = path.join(tempRoot, "session");
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(
+      path.join(sessionDir, "avito.xml"),
+      `<?xml version="1.0" encoding="UTF-8"?><Ads><Ad><Title>XML Product</Title><Images><Image url="http://crm.test/photo.jpeg"/></Images></Ad></Ads>`,
+      "utf8",
+    );
+    process.env.BOTV_WEB_SESSIONS_DIR = tempRoot;
+    __resetBotvImageCacheForTests();
+
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ access_token: "token" }))
+      .mockResolvedValueOnce(Response.json({ resources: [{ id: 7, title: "XML Product", price: 100 }] }))
+      .mockResolvedValueOnce(Response.json({ resources: [] })) as unknown as typeof fetch;
+    const upsert = vi.fn(async () => ({}));
+    const prisma = {
+      product: {
+        findMany: vi.fn(async () => []),
+        upsert,
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+    } as unknown as Parameters<typeof syncAvitoProducts>[0];
+
+    try {
+      const result = await syncAvitoProducts(
+        prisma,
+        { clientId: "client", clientSecret: "secret" },
+        { fetchFn, sleepFn: async () => undefined },
+      );
+
+      expect(result.imagesFound).toBe(1);
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+      expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({
+          avitoItemId: "7",
+          imageUrl: "http://crm.test/photo.jpeg",
+        }),
+      }));
+    } finally {
+      if (previousRoot === undefined) delete process.env.BOTV_WEB_SESSIONS_DIR;
+      else process.env.BOTV_WEB_SESSIONS_DIR = previousRoot;
+      __resetBotvImageCacheForTests();
+      await rm(tempRoot, { recursive: true, force: true });
+    }
   });
 });

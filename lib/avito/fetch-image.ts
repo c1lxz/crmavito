@@ -1,4 +1,5 @@
 import { fetchAvitoItemImage, isLikelyImageUrl, type AvitoResult } from "./api";
+import { findBotvImageByTitle } from "@/lib/botv/avito-image-cache";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -117,6 +118,7 @@ async function scrapeListingHtml(listingUrl: string): Promise<AvitoResult<string
 }
 
 export interface ProductImageSource {
+  name?: string | null;
   avitoItemId?: string | null;
   avitoListingUrl?: string | null;
 }
@@ -125,6 +127,11 @@ export async function resolveProductImage(
   p: ProductImageSource
 ): Promise<AvitoResult<string>> {
   const reasons: string[] = [];
+  if (p.name) {
+    const fromBotv = await findBotvImageByTitle(p.name);
+    if (fromBotv) return { ok: true, value: fromBotv };
+    reasons.push("BOTV: нет фото в XML");
+  }
   if (p.avitoItemId) {
     const fromApi = await fetchAvitoItemImage(p.avitoItemId);
     if (fromApi.ok) return fromApi;

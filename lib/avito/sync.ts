@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { fetchAvitoItemImageWithToken, findFirstImageUrl } from "./api";
+import { findBotvImageByTitle } from "@/lib/botv/avito-image-cache";
 
 export type AvitoListItem = {
   id: number | string;
@@ -27,7 +28,7 @@ type SleepFn = (ms: number) => Promise<void>;
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 const defaultSleep: SleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const DEFAULT_PAGE_DELAY_MS = 900;
-const DEFAULT_IMAGE_DETAIL_LIMIT = 40;
+const DEFAULT_IMAGE_DETAIL_LIMIT = 0;
 
 function getEnvNumber(name: string, fallback: number): number {
   const value = Number(process.env[name]);
@@ -244,6 +245,12 @@ export async function syncAvitoProducts(
     const existingImageUrl = existingImagesById.get(avitoItemId);
     if (existingImageUrl) {
       imageUrlsById.set(avitoItemId, existingImageUrl);
+      continue;
+    }
+
+    const botvImageUrl = await findBotvImageByTitle(item.title ?? item.name);
+    if (botvImageUrl) {
+      imageUrlsById.set(avitoItemId, botvImageUrl);
       continue;
     }
 
