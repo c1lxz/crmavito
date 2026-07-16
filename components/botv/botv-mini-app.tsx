@@ -49,6 +49,20 @@ type PublishResult = {
   uploadStatus?: number;
 };
 
+type AutoloadUpload = {
+  upload_id?: number | string;
+  status?: string;
+  started_at?: string;
+  feed_urls?: { name?: string; url?: string }[];
+  stats?: { count?: number; title?: string };
+};
+
+type AutoloadStatus = {
+  current?: AutoloadUpload | null;
+  lastSuccessful?: AutoloadUpload | null;
+  uploads?: AutoloadUpload[];
+};
+
 function formatRub(value: number | null) {
   if (value == null) return "Цена не задана";
   return new Intl.NumberFormat("ru-RU").format(value) + " ₽";
@@ -95,6 +109,29 @@ function formatBytes(value: number) {
     unit += 1;
   }
   return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function formatUploadDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function uploadLine(upload: AutoloadUpload | null | undefined) {
+  if (!upload) return "Нет данных";
+  const parts = [
+    upload.upload_id ? `#${upload.upload_id}` : null,
+    upload.status ? `статус: ${upload.status}` : null,
+    upload.started_at ? `старт: ${formatUploadDate(upload.started_at)}` : null,
+    typeof upload.stats?.count === "number" ? `${upload.stats.count} объявлений` : null,
+  ].filter(Boolean);
+  return parts.join(" · ") || "Есть загрузка";
 }
 
 async function apiFetch(input: RequestInfo | URL, init?: RequestInit, retries = 3) {
@@ -208,6 +245,8 @@ export function BotvMiniApp() {
   const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
+  const [publishStatusLoading, setPublishStatusLoading] = useState(false);
+  const [autoloadStatus, setAutoloadStatus] = useState<AutoloadStatus | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const manualColorOverrides = useRef(new Map<string, ProductColor>());
 
@@ -248,6 +287,7 @@ export function BotvMiniApp() {
     setSession(applyManualColorOverrides(data));
     window.localStorage.setItem("botv:lastSessionId", data.id);
     setPublishResult(null);
+    setAutoloadStatus(null);
   }
 
   function applyManualColorOverrides(data: BotvSession): BotvSession {
@@ -493,6 +533,27 @@ export function BotvMiniApp() {
     }
   }
 
+  async function checkAutoloadStatus() {
+    setPublishStatusLoading(true);
+    setError("");
+    try {
+      const res = await apiFetch("/api/avito/autoload/status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          profileId: selectedPublishProfileId || undefined,
+          clientId: publishClientId,
+          clientSecret: publishClientSecret,
+        }),
+      });
+      const data = await readJsonResponse(res, "Не удалось получить статус автозагрузки");
+      if (!res.ok) throw new Error(data.error ?? "Не удалось получить статус автозагрузки");
+      setAutoloadStatus(data.status ?? null);
+    } finally {
+      setPublishStatusLoading(false);
+    }
+  }
+
   function toggle(index: number) {
     setSelected((current) => {
       const next = new Set(current);
@@ -693,6 +754,23 @@ export function BotvMiniApp() {
               </div>
             </div>
           )}
+          {autoloadStatus && (
+            <div className="rounded-md border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-950 dark:text-sky-100">
+              <p className="font-semibold">Статус автозагрузки Avito</p>
+              <div className="mt-2 grid gap-1 text-xs">
+                <p><span className="font-medium">Текущая:</span> {uploadLine(autoloadStatus.current)}</p>
+                <p><span className="font-medium">Последняя успешная:</span> {uploadLine(autoloadStatus.lastSuccessful)}</p>
+              </div>
+              {autoloadStatus.uploads && autoloadStatus.uploads.length > 0 && (
+                <div className="mt-2 space-y-1 text-xs">
+                  <p className="font-medium">Последние запуски</p>
+                  {autoloadStatus.uploads.slice(0, 5).map((upload, index) => (
+                    <p key={`${upload.upload_id ?? index}`}>{uploadLine(upload)}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {session && (
             <Card className="sticky top-[132px] z-20 lg:top-[142px]"><CardContent className="space-y-3 p-3">
@@ -733,6 +811,15 @@ export function BotvMiniApp() {
                 >
                   {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   Публикация
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!publishClientId.trim() || !publishClientSecret.trim() || publishStatusLoading}
+                  onClick={() => run(checkAutoloadStatus)}
+                >
+                  {publishStatusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
+                  Статус
                 </Button>
                 {publishProfiles.length > 0 && (
                   <Button size="sm" variant="outline" onClick={() => setPublishProfilesOpen((value) => !value)}>

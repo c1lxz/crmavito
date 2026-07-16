@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { publishAvitoXml } from "@/lib/avito/publish";
+import { fetchAvitoAutoloadStatus, publishAvitoXml } from "@/lib/avito/publish";
 
 const credentials = { clientId: "client", clientSecret: "secret" };
 
@@ -106,5 +106,35 @@ describe("Avito XML publication", () => {
 
     const profileCall = calls.find((call) => call.url.includes("/autoload/v2/profile") && call.init?.method === "POST");
     expect(JSON.parse(String(profileCall?.init?.body)).report_email).toBe("reports@example.test");
+  });
+
+  it("loads current and recent autoload uploads", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/autoload/v4/uploads/current")) {
+        return Response.json({ upload_id: 1, status: "processing" });
+      }
+      if (href.includes("/autoload/v4/uploads/last_successful")) {
+        return Response.json({ upload_id: 0, status: "success" });
+      }
+      if (href.includes("/autoload/v4/uploads?")) {
+        return Response.json({ uploads: [{ upload_id: 1 }, { upload_id: 0 }] });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchAvitoAutoloadStatus(credentials, {
+        fetchFn,
+        sleepFn: async () => undefined,
+      }),
+    ).resolves.toEqual({
+      current: { upload_id: 1, status: "processing" },
+      lastSuccessful: { upload_id: 0, status: "success" },
+      uploads: [{ upload_id: 1 }, { upload_id: 0 }],
+    });
   });
 });

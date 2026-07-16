@@ -6,6 +6,7 @@ const clientSource = readFileSync(path.resolve(__dirname, "../components/botv/bo
 const pageSource = readFileSync(path.resolve(__dirname, "../app/v/page.tsx"), "utf8");
 const apiSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/route.ts"), "utf8");
 const aliasSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/work/route.ts"), "utf8");
+const autoloadStatusRouteSource = readFileSync(path.resolve(__dirname, "../app/api/avito/autoload/status/route.ts"), "utf8");
 
 describe("botv mini app UI", () => {
   it("does not contain mojibake or replacement characters", () => {
@@ -105,6 +106,11 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("setPublishResult(data.publish ?? {})");
     expect(clientSource).toContain("Публикация Avito запущена");
     expect(clientSource).toContain("Итог публикации появится в отчётах Автозагрузки Avito");
+    expect(clientSource).toContain("checkAutoloadStatus");
+    expect(clientSource).toContain("/api/avito/autoload/status");
+    expect(clientSource).toContain("Статус автозагрузки Avito");
+    expect(clientSource).toContain("Последние запуски");
+    expect(autoloadStatusRouteSource).toContain("fetchAvitoAutoloadStatus");
     expect(clientSource).toContain("Email отчётов Avito *");
     expect(clientSource).toContain("reportEmail: publishReportEmail || undefined");
     expect(clientSource).toContain("!publishReportEmail.trim()");

@@ -37,6 +37,12 @@ export type AvitoXmlPublishResult = {
   upload: unknown;
 };
 
+export type AvitoAutoloadStatus = {
+  current: unknown | null;
+  lastSuccessful: unknown | null;
+  uploads: unknown[];
+};
+
 async function readJsonResponse(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return {};
@@ -142,6 +148,45 @@ async function startAutoloadUpload(
     throw new Error(`Запуск автозагрузки Avito не прошёл: ${extractAvitoErrorText(data).slice(0, 500)}`);
   }
   return { status: response.status, data };
+}
+
+async function getOptionalAutoloadData(
+  token: string,
+  path: string,
+  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+): Promise<unknown | null> {
+  const response = await fetchWithRetry(
+    `https://api.avito.ru${path}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
+    },
+    options,
+  );
+  const data = await readJsonResponse(response);
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Получение статуса автозагрузки Avito не прошло: ${extractAvitoErrorText(data).slice(0, 500)}`);
+  }
+  return data;
+}
+
+export async function fetchAvitoAutoloadStatus(
+  credentials: AvitoCredentials,
+  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+): Promise<AvitoAutoloadStatus> {
+  const token = await getAvitoStockToken(credentials, options);
+  const [current, lastSuccessful, uploadsData] = await Promise.all([
+    getOptionalAutoloadData(token, "/autoload/v4/uploads/current", options),
+    getOptionalAutoloadData(token, "/autoload/v4/uploads/last_successful", options),
+    getOptionalAutoloadData(token, "/autoload/v4/uploads?perPage=5&page=1", options),
+  ]);
+  const uploads = uploadsData && typeof uploadsData === "object" && Array.isArray((uploadsData as { uploads?: unknown[] }).uploads)
+    ? (uploadsData as { uploads: unknown[] }).uploads
+    : [];
+
+  return { current, lastSuccessful, uploads };
 }
 
 export async function publishAvitoXml(
