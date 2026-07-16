@@ -16,6 +16,10 @@ describe("reports dynamics chart", () => {
     expect(chartSource).toContain("Динамика заказов");
     expect(chartSource).toContain('dataKey="orders"');
     expect(chartSource).toContain("aggregateByPeriod");
+    expect(chartSource).toContain("getAverageOrders");
+    expect(chartSource).toContain("Сред. в день");
+    expect(chartSource).toContain("Сред. в неделю");
+    expect(chartSource).toContain("Сред. в месяц");
     expect(clientSource).toContain("OrdersDynamicsChart");
     expect(clientSource).not.toContain("<DynamicsChart");
   });

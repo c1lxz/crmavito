@@ -134,7 +134,7 @@ export function ReportsClient() {
           status: "orders",
           label: "Заказы",
           count: kpi.current.receivedOrdersCount,
-          color: "#6366f1",
+          color: "#22c55e",
         },
         {
           status: "returns",
@@ -213,6 +213,7 @@ export function ReportsClient() {
               total={ordersReturnsTotal}
               centerValue={formatPercent(returnsRatio)}
               centerLabel="Возвраты"
+              showSlicePercentLabels
             />
             <OrdersStatusDonut title="Заказы по профилям Avito" data={avitoProfileData} total={avitoProfileTotal} />
 

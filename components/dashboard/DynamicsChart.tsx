@@ -55,6 +55,25 @@ function aggregateByPeriod(data: DynamicsPoint[], period: Period): DynamicsPoint
   return Object.values(buckets).sort((a, b) => a.date.localeCompare(b.date));
 }
 
+function formatAverage(value: number) {
+  return value.toLocaleString("ru-RU", {
+    maximumFractionDigits: value >= 10 ? 1 : 2,
+  });
+}
+
+function getAverageOrders(data: DynamicsPoint[]) {
+  const total = data.reduce((sum, point) => sum + point.orders, 0);
+  const byDay = aggregateByPeriod(data, "day");
+  const byWeek = aggregateByPeriod(data, "week");
+  const byMonth = aggregateByPeriod(data, "month");
+
+  return {
+    day: byDay.length ? total / byDay.length : 0,
+    week: byWeek.length ? total / byWeek.length : 0,
+    month: byMonth.length ? total / byMonth.length : 0,
+  };
+}
+
 function fmtYTick(v: number) {
   if (v === 0) return "0";
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)} млн`;
@@ -172,6 +191,7 @@ export function DynamicsChart({ data, period, onPeriodChange }: BaseProps) {
 
 export function OrdersDynamicsChart({ data, period, onPeriodChange }: BaseProps) {
   const chartData = useMemo(() => aggregateByPeriod(data, period), [data, period]);
+  const averages = useMemo(() => getAverageOrders(data), [data]);
   const tickInterval = chartData.length > 6 ? Math.max(0, Math.ceil(chartData.length / 5) - 1) : 0;
 
   return (
@@ -184,6 +204,19 @@ export function OrdersDynamicsChart({ data, period, onPeriodChange }: BaseProps)
             <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#E08B2D" }} />
             Заказы
           </span>
+        </div>
+
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          {[
+            ["Сред. в день", averages.day],
+            ["Сред. в неделю", averages.week],
+            ["Сред. в месяц", averages.month],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md border border-border/70 bg-muted/25 px-2.5 py-2">
+              <p className="truncate text-[10px] text-muted-foreground">{label}</p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums">{formatAverage(Number(value))}</p>
+            </div>
+          ))}
         </div>
 
         {chartData.length === 0 ? (

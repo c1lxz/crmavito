@@ -16,9 +16,52 @@ interface Props {
   total: number;
   centerValue?: string;
   centerLabel?: string;
+  showSlicePercentLabels?: boolean;
 }
 
 const EMPTY_DATA = [{ status: "empty", label: "", count: 1, color: "#e5e7eb" }];
+
+type PercentLabelProps = {
+  cx?: number | string;
+  cy?: number | string;
+  midAngle?: number;
+  outerRadius?: number | string;
+  percent?: number;
+  fill?: string;
+};
+
+function fmtPct(v: number) {
+  return v.toLocaleString("ru-RU", { maximumFractionDigits: 1 }) + "%";
+}
+
+function toNumber(value: number | string | undefined, fallback = 0) {
+  return typeof value === "number" ? value : Number(value) || fallback;
+}
+
+function renderPercentLabel(props: PercentLabelProps) {
+  const percent = props.percent ?? 0;
+  if (percent <= 0) return null;
+
+  const cx = toNumber(props.cx);
+  const cy = toNumber(props.cy);
+  const radius = toNumber(props.outerRadius) + 10;
+  const angle = -((props.midAngle ?? 0) * Math.PI) / 180;
+  const x = cx + radius * Math.cos(angle);
+  const y = cy + radius * Math.sin(angle);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill={props.fill ?? "currentColor"}
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+      className="text-[11px] font-semibold"
+    >
+      {fmtPct(percent * 100)}
+    </text>
+  );
+}
 
 export function OrdersStatusDonut({
   title = "Заказы по статусам",
@@ -26,10 +69,8 @@ export function OrdersStatusDonut({
   total,
   centerValue,
   centerLabel = "Всего",
+  showSlicePercentLabels = false,
 }: Props) {
-  const fmtPct = (v: number) =>
-    v.toLocaleString("ru-RU", { maximumFractionDigits: 1 }) + "%";
-
   const filled = data.filter((d) => d.count > 0);
   const chartData = filled.length > 0 ? filled : EMPTY_DATA;
 
@@ -48,11 +89,13 @@ export function OrdersStatusDonut({
                 cx="50%"
                 cy="50%"
                 innerRadius="60%"
-                outerRadius="88%"
+                outerRadius={showSlicePercentLabels ? "74%" : "88%"}
                 paddingAngle={filled.length > 1 ? 3 : 0}
                 strokeWidth={0}
                 startAngle={90}
                 endAngle={-270}
+                label={showSlicePercentLabels ? renderPercentLabel : false}
+                labelLine={false}
               >
                 {chartData.map((entry, i) => (
                   <Cell key={i} fill={entry.color} />
@@ -87,7 +130,9 @@ export function OrdersStatusDonut({
                 />
                 <span className="text-xs text-muted-foreground flex-1">{item.label}</span>
                 <span className="text-xs font-medium">{item.count}</span>
-                <span className="text-xs text-muted-foreground">({fmtPct(pct)})</span>
+                {!showSlicePercentLabels && (
+                  <span className="text-xs text-muted-foreground">({fmtPct(pct)})</span>
+                )}
               </div>
             );
           })}
