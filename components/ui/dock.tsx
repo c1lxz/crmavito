@@ -20,6 +20,12 @@ interface DockProps {
 
 const Dock = React.forwardRef<HTMLDivElement, DockProps>(
   ({ items, className, fullWidth = false, activeHref }, ref) => {
+    const [pendingHref, setPendingHref] = React.useState<string | undefined>();
+
+    React.useEffect(() => {
+      setPendingHref(undefined);
+    }, [activeHref]);
+
     return (
       <div ref={ref} className={cn("w-full flex items-center justify-center", className)}>
         <div
@@ -35,7 +41,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
             )}
           >
             {items.map(({ icon: Icon, label, href }) => {
-              const isActive = activeHref === href;
+              const isActive = (pendingHref ?? activeHref) === href;
               return (
                 <Link
                   key={href}
@@ -43,9 +49,10 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
                   prefetch
                   aria-label={label}
                   aria-current={isActive ? "page" : undefined}
+                  onPointerDown={() => setPendingHref(href)}
                   className={cn(
                     "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1.5",
-                    "transition-colors active:bg-secondary",
+                    "touch-manipulation transition-colors active:bg-secondary",
                     isActive
                       ? "text-primary"
                       : "text-muted-foreground"

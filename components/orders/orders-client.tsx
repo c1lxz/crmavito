@@ -115,7 +115,9 @@ export function OrdersClient({
   const [bulkCounterpartyId, setBulkCounterpartyId] = useState("");
   const [bulkPurchasePrice, setBulkPurchasePrice] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [filtersHidden, setFiltersHidden] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const lastScrollYRef = useRef(0);
 
   useEffect(() => {
     setOrders(initialOrders);
@@ -131,6 +133,26 @@ export function OrdersClient({
   useEffect(() => {
     if (focusSearch) searchInputRef.current?.focus();
   }, [focusSearch]);
+
+  useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      const delta = currentY - lastScrollYRef.current;
+      lastScrollYRef.current = currentY;
+
+      if (currentY < 24) {
+        setFiltersHidden(false);
+        return;
+      }
+      if (delta > 8) setFiltersHidden(true);
+      if (delta < -8) setFiltersHidden(false);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {
@@ -375,7 +397,13 @@ export function OrdersClient({
             )}
           </div>
         </div>
-        <div className="space-y-2">
+        <div
+          className={`orders-filter-panel space-y-2 transition-[max-height,opacity,transform,margin] duration-200 ease-out ${
+            filtersHidden
+              ? "max-h-0 -translate-y-2 overflow-hidden opacity-0"
+              : "max-h-[32rem] translate-y-0 opacity-100"
+          }`}
+        >
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input

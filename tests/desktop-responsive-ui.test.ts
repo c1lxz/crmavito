@@ -65,6 +65,9 @@ describe("desktop responsive UI", () => {
     expect(globalsSource).toContain("--app-top-pad: 0px");
     expect(globalsSource).toContain("@apply px-8 py-5");
     expect(globalsSource).toContain(".mobile-shell .pc-only");
+    expect(globalsSource).toContain(".mobile-shell main");
+    expect(globalsSource).toContain("overflow-x: hidden");
+    expect(globalsSource).toContain(".dashboard-finance-grid");
     expect(globalsSource).not.toContain("@media (min-width: 1024px)");
   });
 
@@ -82,6 +85,9 @@ describe("desktop responsive UI", () => {
   it("uses dense desktop layouts for the main operational screens", () => {
     expect(ordersSource).toContain("pc-only hidden overflow-hidden rounded-lg border border-border bg-card");
     expect(ordersSource).toContain("mobile-only space-y-3");
+    expect(ordersSource).toContain("filtersHidden");
+    expect(ordersSource).toContain("orders-filter-panel");
+    expect(ordersSource).toContain('window.addEventListener("scroll"');
     expect(ordersSource).toContain("<table className=\"w-full table-fixed text-sm\">");
     expect(ordersSource).toContain("router.push(");
     expect(returnsSource).toContain("pc-only hidden overflow-hidden rounded-lg border border-border bg-card");

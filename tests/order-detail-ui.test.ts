@@ -120,6 +120,9 @@ describe("BottomNav / Dock — UI structure (smoke)", () => {
 
   it("док использует Link с prefetch, а не router.push", () => {
     expect(dockSource).toContain("prefetch");
+    expect(dockSource).toContain("pendingHref");
+    expect(dockSource).toContain("onPointerDown");
+    expect(dockSource).toContain("touch-manipulation");
     expect(bottomNavSource).not.toContain("router.push");
   });
 

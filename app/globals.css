@@ -203,9 +203,27 @@
     display: none;
   }
 
+  .mobile-shell,
+  .mobile-shell .app-shell,
+  .mobile-shell main {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .mobile-shell .dashboard-finance-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .pc-shell .pc-chip-wrap {
     flex-wrap: wrap;
     overflow: visible;
+  }
+
+  .pc-shell .orders-filter-panel {
+    max-height: none !important;
+    opacity: 1 !important;
+    overflow: visible !important;
+    transform: none !important;
   }
 
   .pc-shell .pc-orders-date-grid {
@@ -274,6 +292,10 @@
 
   .pc-shell .pc-dashboard-main {
     grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
+  }
+
+  .pc-shell .dashboard-finance-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .pc-shell .expense-month-chart {

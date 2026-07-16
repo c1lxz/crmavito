@@ -272,16 +272,16 @@ export default async function DashboardPage() {
 
         <div>
           <h2 className="section-title mb-3">Финансы за месяц</h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="dashboard-finance-grid grid gap-3">
             {[
               { label: "Выручка", value: data.monthRevenue },
               { label: "Расходы", value: data.monthExpenses },
               { label: "Прибыль", value: data.monthNetProfit },
             ].map((item, i) => (
               <Card key={item.label} className={i === 2 ? "border-primary/25" : undefined}>
-                <CardContent className="p-3.5">
+                <CardContent className="min-w-0 p-3.5">
                   <p className="text-[11px] font-semibold text-muted-foreground">{item.label}</p>
-                  <p className="mt-1.5 text-lg font-semibold leading-none tabular-nums tracking-tight">{formatRub(item.value)}</p>
+                  <p className="mt-1.5 min-w-0 break-words text-lg font-semibold leading-tight tabular-nums tracking-tight">{formatRub(item.value)}</p>
                 </CardContent>
               </Card>
             ))}
