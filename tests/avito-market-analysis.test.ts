@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeAvitoMarket, buildAvitoSearchUrl, parseAvitoHtml } from "@/lib/avito/market-analysis";
+import { analyzeAvitoMarket, buildAvitoSearchUrl, formatAvitoMarketError, parseAvitoHtml } from "@/lib/avito/market-analysis";
 
 describe("Avito public market probe", () => {
   it("builds a public search url from category without city input", () => {
@@ -78,5 +78,14 @@ describe("Avito public market probe", () => {
       maxViews: 1248,
     });
     expect(result.listings[0].title).toBe("Белая футболка");
+  });
+
+  it("explains proxy-level fetch failures", () => {
+    const error = new TypeError("fetch failed", {
+      cause: new Error("Request was cancelled."),
+    });
+
+    expect(formatAvitoMarketError(error)).toContain("Прокси не смог открыть Avito");
+    expect(formatAvitoMarketError(error)).toContain("другой HTTP(S)-прокси");
   });
 });

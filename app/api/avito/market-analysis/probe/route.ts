@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { analyzeAvitoMarket } from "@/lib/avito/market-analysis";
+import { analyzeAvitoMarket, formatAvitoMarketError } from "@/lib/avito/market-analysis";
 
 export const maxDuration = 30;
 
@@ -26,7 +26,6 @@ export async function POST(request: Request) {
     const result = await analyzeAvitoMarket(parsed.data);
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: formatAvitoMarketError(error) }, { status: 502 });
   }
 }

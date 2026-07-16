@@ -171,6 +171,25 @@ export async function analyzeAvitoMarket(
   };
 }
 
+export function formatAvitoMarketError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const cause = error instanceof Error && "cause" in error ? error.cause : null;
+  const causeMessage =
+    cause && typeof cause === "object" && "message" in cause && typeof cause.message === "string"
+      ? cause.message
+      : "";
+
+  if (/fetch failed/i.test(message) || /request was cancelled/i.test(causeMessage)) {
+    return [
+      "Прокси не смог открыть Avito: соединение было отклонено до ответа сайта.",
+      "Этот прокси отвечает на простые проверки, но не пропускает запросы к avito.ru.",
+      "Нужен другой HTTP(S)-прокси с доступом к Avito.",
+    ].join(" ");
+  }
+
+  return message;
+}
+
 export function parseAvitoHtml(
   html: string,
   meta: Pick<AvitoProbeResult, "requestedUrl" | "finalUrl" | "status" | "ok" | "contentType"> &
