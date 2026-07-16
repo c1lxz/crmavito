@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,6 +12,7 @@ import {
   ImageIcon,
   Loader2,
   Package,
+  PackageCheck,
   PanelTop,
   Search,
   Send,
@@ -561,6 +563,12 @@ export function BotvMiniApp() {
             <Button size="sm" variant="outline" onClick={() => setHistoryOpen((value) => !value)}>
               <History className="h-4 w-4" />
               История
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/settings/stocks">
+                <PackageCheck className="h-4 w-4" />
+                Остатки
+              </Link>
             </Button>
             <input ref={fileRef} type="file" accept=".zip,.rar,.7z" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) run(() => upload(f)); }} />
           </div>
