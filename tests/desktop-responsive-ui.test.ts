@@ -42,11 +42,10 @@ const middlewareSource = readFileSync(
 describe("desktop responsive UI", () => {
   it("splits explicit /pc and /m modes instead of relying on viewport width", () => {
     expect(middlewareSource).toContain('pathname.match(/^\\/(pc|m)');
-    expect(middlewareSource).toContain("NextResponse.redirect(publicUrl");
-    expect(middlewareSource).toContain('req.headers.get("x-forwarded-proto")');
-    expect(middlewareSource).toContain('req.headers.get("x-forwarded-host")');
-    expect(middlewareSource).toContain(".replace(/:\\d+$/,");
-    expect(middlewareSource).toContain('"crmavito.duckdns.org"');
+    expect(middlewareSource).toContain("NextResponse.redirect(new URL(appPath");
+    expect(middlewareSource).not.toContain('req.headers.get("x-forwarded-proto")');
+    expect(middlewareSource).not.toContain('req.headers.get("x-forwarded-host")');
+    expect(middlewareSource).not.toContain(".replace(/:\\d+$/,");
     expect(middlewareSource).not.toContain("NextResponse.rewrite");
     expect(middlewareSource).not.toContain('rewriteUrl.hostname = "localhost"');
     expect(middlewareSource).not.toContain('rewriteUrl.port = "3000"');

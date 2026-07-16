@@ -1,16 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-function publicUrl(req: NextRequest, pathname: string, search = "") {
-  const protocol = req.headers.get("x-forwarded-proto") || "https";
-  const rawHost = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "")
-    .split(",")[0]
-    .trim();
-  const host = (rawHost || "crmavito.duckdns.org")
-    .replace(/:\d+$/, "")
-    .replace(/^localhost$/, "crmavito.duckdns.org");
-
-  return new URL(`${pathname}${search}`, `${protocol}://${host}`);
+function appPath(pathname: string, search = "") {
+  return `${pathname}${search}`;
 }
 
 export function middleware(req: NextRequest) {
@@ -25,7 +17,7 @@ export function middleware(req: NextRequest) {
     const mode = modeMatch[1] === "pc" ? "pc" : "m";
     const targetPath = modeMatch[2] || "/dashboard";
 
-    const response = NextResponse.redirect(publicUrl(req, targetPath, search));
+    const response = NextResponse.redirect(new URL(appPath(targetPath, search), req.url));
     response.cookies.set("crmavito-ui-mode", mode, {
       path: "/",
       sameSite: "lax",
