@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { processPendingOrderNotifications } from "@/lib/telegram/order-notification-queue";
+import { processPendingTaskNotifications } from "@/lib/telegram/task-notification-queue";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sent = await processPendingOrderNotifications();
-  return NextResponse.json({ sent });
+  const [ordersSent, tasksSent] = await Promise.all([
+    processPendingOrderNotifications(),
+    processPendingTaskNotifications(),
+  ]);
+  return NextResponse.json({ sent: ordersSent + tasksSent, ordersSent, tasksSent });
 }

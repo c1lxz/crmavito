@@ -75,6 +75,104 @@ async function tgFetch(token: string, method: string, form: FormData): Promise<u
   return json;
 }
 
+async function tgJsonFetch<T>(
+  token: string,
+  method: string,
+  body: Record<string, unknown>
+): Promise<T> {
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const json = (await response.json().catch(() => ({}))) as {
+    ok?: boolean;
+    description?: string;
+    result?: T;
+  };
+  if (!response.ok || !json.ok) {
+    console.error(
+      `[telegram] ${method} failed: HTTP ${response.status} - ${json.description ?? "unknown"}`
+    );
+    throw new Error(json.description ?? `HTTP ${response.status}`);
+  }
+  return json.result as T;
+}
+
+export interface TaskNotificationPayload {
+  title: string;
+  description: string | null;
+  dueAt: Date;
+  scheduledAt: Date | null;
+  assigneeTelegramId: string;
+  assigneeName: string;
+  createdByName: string;
+}
+
+function formatTaskDate(date: Date): string {
+  return date.toLocaleString("ru-RU", {
+    timeZone: "Europe/Moscow",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function buildTaskMessage(task: TaskNotificationPayload): string {
+  return [
+    "CRM STROK SHOP",
+    "",
+    `Новая задача: ${task.title}`,
+    task.description ? `Описание: ${task.description}` : null,
+    `Ответственный: ${task.assigneeName}`,
+    `Срок: ${formatTaskDate(task.dueAt)}`,
+    task.scheduledAt ? `Запланирована: ${formatTaskDate(task.scheduledAt)}` : null,
+    `Создал: ${task.createdByName}`,
+    "",
+    "Сообщение удалится после выполнения задачи в CRM.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export async function sendTaskNotification(task: TaskNotificationPayload): Promise<{
+  chatId: string;
+  messageId: number;
+}> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("TELEGRAM_BOT_TOKEN not set");
+
+  const result = await tgJsonFetch<{ message_id: number; chat: { id: number | string } }>(
+    token,
+    "sendMessage",
+    {
+      chat_id: task.assigneeTelegramId,
+      text: buildTaskMessage(task),
+      disable_web_page_preview: true,
+    }
+  );
+
+  return {
+    chatId: String(result.chat.id),
+    messageId: result.message_id,
+  };
+}
+
+export async function deleteTaskNotificationMessage(
+  chatId: string,
+  messageId: number
+): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("TELEGRAM_BOT_TOKEN not set");
+  await tgJsonFetch<boolean>(token, "deleteMessage", {
+    chat_id: chatId,
+    message_id: messageId,
+  });
+}
+
 async function downloadRequiredImage(url: string): Promise<Buffer> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const image = await downloadImageAsBuffer(url);

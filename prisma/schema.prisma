@@ -48,6 +48,11 @@ enum AuditEntityType {
   USER
 }
 
+enum TaskStatus {
+  OPEN
+  COMPLETED
+}
+
 model User {
   id           String    @id @default(uuid())
   name         String
@@ -64,8 +69,56 @@ model User {
   orders     Order[]
   expenses   Expense[]
   auditLogs  AuditLog[]
+  createdTasks   Task[] @relation("TaskCreatedBy")
+  assignedTasks  Task[] @relation("TaskAssignedTo")
+  completedTasks Task[] @relation("TaskCompletedBy")
 
   @@map("users")
+}
+
+model Task {
+  id              String     @id @default(uuid())
+  title           String
+  description     String?
+  status          TaskStatus @default(OPEN)
+  scheduledAt     DateTime?
+  dueAt           DateTime
+  assigneeUserId  String
+  createdByUserId String
+  completedByUserId String?
+  completedAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  assignee    User  @relation("TaskAssignedTo", fields: [assigneeUserId], references: [id])
+  createdBy   User  @relation("TaskCreatedBy", fields: [createdByUserId], references: [id])
+  completedBy User? @relation("TaskCompletedBy", fields: [completedByUserId], references: [id])
+  notification TaskNotification?
+
+  @@index([status, dueAt])
+  @@index([assigneeUserId])
+  @@index([scheduledAt])
+  @@map("tasks")
+}
+
+model TaskNotification {
+  id                  String   @id @default(uuid())
+  taskId              String   @unique
+  status              String   @default("PENDING")
+  attempts            Int      @default(0)
+  nextAttemptAt       DateTime @default(now())
+  processingStartedAt DateTime?
+  lastError           String?
+  sentAt              DateTime?
+  telegramChatId      String?
+  telegramMessageId   Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@map("task_notifications")
 }
 
 model Product {
