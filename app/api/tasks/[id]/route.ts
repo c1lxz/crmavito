@@ -6,11 +6,16 @@ import { prisma } from "@/lib/db/prisma";
 import {
   completeTaskNotification,
   ensureTaskNotification,
+  notifyAdminsTaskCompleted,
 } from "@/lib/telegram/task-notification-queue";
 import { serializeTask } from "@/lib/tasks/serialize";
 
 const taskInclude = {
   assignee: { select: { id: true, name: true, telegramId: true } },
+  assignees: {
+    include: { user: { select: { id: true, name: true, telegramId: true } } },
+    orderBy: { createdAt: "asc" },
+  },
   createdBy: { select: { id: true, name: true } },
   completedBy: { select: { id: true, name: true } },
   notification: {
@@ -26,7 +31,7 @@ const taskInclude = {
 const updateSchema = z.object({
   title: z.string().trim().min(2).optional(),
   description: z.string().trim().nullable().optional(),
-  assigneeUserId: z.string().uuid().optional(),
+  assigneeUserIds: z.array(z.string().uuid()).min(1).optional(),
   dueAt: z.string().datetime().optional(),
   scheduledAt: z.string().datetime().nullable().optional(),
   status: z.nativeEnum(TaskStatus).optional(),
@@ -43,18 +48,51 @@ export async function PATCH(
   const parsed = updateSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  if (parsed.data.assigneeUserId) {
-    const assignee = await prisma.user.findFirst({
-      where: { id: parsed.data.assigneeUserId, isActive: true },
-      select: { id: true },
-    });
-    if (!assignee) {
-      return NextResponse.json({ error: "Ответственный не найден" }, { status: 404 });
-    }
+  const existing = await prisma.task.findUnique({
+    where: { id },
+    include: { assignees: { include: { user: { select: { id: true } } } } },
+  });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const adminEdit =
+    parsed.data.title !== undefined ||
+    parsed.data.description !== undefined ||
+    parsed.data.assigneeUserIds !== undefined ||
+    parsed.data.dueAt !== undefined ||
+    parsed.data.scheduledAt !== undefined;
+  if (adminEdit && session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const completing = parsed.data.status === "COMPLETED";
   const reopening = parsed.data.status === "OPEN";
+  if (reopening && session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (completing && session.user.role !== "ADMIN") {
+    const assigned =
+      existing.assigneeUserId === session.user.id ||
+      existing.assignees.some((assignee) => assignee.user.id === session.user.id);
+    if (!assigned) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const assigneeUserIds = parsed.data.assigneeUserIds
+    ? [...new Set(parsed.data.assigneeUserIds)]
+    : undefined;
+  if (assigneeUserIds) {
+    const assignees = await prisma.user.findMany({
+      where: { id: { in: assigneeUserIds }, isActive: true },
+      select: { id: true },
+    });
+    if (assignees.length !== assigneeUserIds.length) {
+      return NextResponse.json({ error: "Ответственный не найден" }, { status: 404 });
+    }
+  }
+
+  const shouldRefreshNotification = !completing && existing.status === "OPEN" && adminEdit;
+  if (shouldRefreshNotification) {
+    await completeTaskNotification(id);
+  }
 
   const task = await prisma.task.update({
     where: { id },
@@ -63,8 +101,14 @@ export async function PATCH(
       ...(parsed.data.description !== undefined
         ? { description: parsed.data.description || null }
         : {}),
-      ...(parsed.data.assigneeUserId !== undefined
-        ? { assigneeUserId: parsed.data.assigneeUserId }
+      ...(assigneeUserIds !== undefined
+        ? {
+            assigneeUserId: assigneeUserIds[0],
+            assignees: {
+              deleteMany: {},
+              create: assigneeUserIds.map((userId) => ({ userId })),
+            },
+          }
         : {}),
       ...(parsed.data.dueAt !== undefined ? { dueAt: new Date(parsed.data.dueAt) } : {}),
       ...(parsed.data.scheduledAt !== undefined
@@ -85,7 +129,8 @@ export async function PATCH(
 
   if (completing) {
     await completeTaskNotification(task.id);
-  } else if (reopening || parsed.data.assigneeUserId || parsed.data.scheduledAt) {
+    await notifyAdminsTaskCompleted(task.id);
+  } else if (reopening || shouldRefreshNotification) {
     await ensureTaskNotification(task.id);
   }
 
@@ -94,4 +139,21 @@ export async function PATCH(
     include: taskInclude,
   });
   return NextResponse.json(serializeTask(fresh));
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (session.user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id } = await params;
+  const existing = await prisma.task.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await completeTaskNotification(id);
+  await prisma.task.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
 }

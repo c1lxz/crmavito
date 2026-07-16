@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { prisma } from "@/lib/db/prisma";
+import { auth } from "@/lib/auth";
 import { TasksClient } from "@/components/tasks/tasks-client";
 import { serializeTask } from "@/lib/tasks/serialize";
 
@@ -7,6 +8,10 @@ export const dynamic = "force-dynamic";
 
 const taskInclude = {
   assignee: { select: { id: true, name: true, telegramId: true } },
+  assignees: {
+    include: { user: { select: { id: true, name: true, telegramId: true } } },
+    orderBy: { createdAt: "asc" },
+  },
   createdBy: { select: { id: true, name: true } },
   completedBy: { select: { id: true, name: true } },
   notification: {
@@ -36,11 +41,15 @@ async function getUsers() {
 }
 
 export default async function TasksPage() {
-  const [tasks, users] = await Promise.all([getTasks(), getUsers()]);
+  const [session, tasks, users] = await Promise.all([auth(), getTasks(), getUsers()]);
 
   return (
     <Suspense fallback={<div className="p-4 text-center">Загрузка...</div>}>
-      <TasksClient initialTasks={tasks} users={users} />
+      <TasksClient
+        initialTasks={tasks}
+        users={users}
+        isAdmin={session?.user?.role === "ADMIN"}
+      />
     </Suspense>
   );
 }

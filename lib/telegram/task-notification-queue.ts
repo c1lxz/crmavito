@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db/prisma";
 import {
+  answerTelegramCallback,
   deleteTaskNotificationMessage,
+  sendTaskCompletedToAdmin,
   sendTaskNotification,
 } from "@/lib/telegram/notify";
 
@@ -14,9 +16,16 @@ export function getTaskNotificationRetryDelay(attempt: number): number {
 export async function ensureTaskNotification(taskId: string): Promise<void> {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { id: true, status: true, scheduledAt: true },
+    select: { id: true, status: true, scheduledAt: true, assigneeUserId: true },
   });
   if (!task || task.status === "COMPLETED") return;
+
+  const assignmentCount = await prisma.taskAssignee.count({ where: { taskId } });
+  if (assignmentCount === 0) {
+    await prisma.taskAssignee.create({
+      data: { taskId, userId: task.assigneeUserId },
+    });
+  }
 
   await prisma.taskNotification.upsert({
     where: { taskId },
@@ -52,8 +61,11 @@ async function claimTaskNotification(notificationId: string) {
     include: {
       task: {
         include: {
-          assignee: { select: { name: true, telegramId: true } },
           createdBy: { select: { name: true } },
+          assignees: {
+            include: { user: { select: { id: true, name: true, telegramId: true } } },
+            orderBy: { createdAt: "asc" },
+          },
         },
       },
     },
@@ -73,32 +85,69 @@ export async function processTaskNotification(notificationId: string): Promise<b
   }
 
   try {
-    if (!notification.task.assignee.telegramId) {
-      throw new Error("У ответственного не указан Telegram ID");
+    let sentCount = 0;
+    const errors: string[] = [];
+    const assignments =
+      notification.task.assignees.length > 0
+        ? notification.task.assignees
+        : await prisma.taskAssignee.create({
+            data: {
+              taskId: notification.taskId,
+              userId: notification.task.assigneeUserId,
+            },
+            include: { user: { select: { id: true, name: true, telegramId: true } } },
+          }).then((assignment) => [assignment]);
+
+    for (const assignment of assignments) {
+      if (assignment.notificationStatus === "SENT") continue;
+      if (!assignment.user.telegramId) {
+        await prisma.taskAssignee.update({
+          where: { id: assignment.id },
+          data: {
+            notificationStatus: "RETRY",
+            attempts: assignment.attempts + 1,
+            lastError: "У ответственного не указан Telegram ID",
+          },
+        });
+        errors.push(`У ${assignment.user.name} не указан Telegram ID`);
+        continue;
+      }
+
+      const sent = await sendTaskNotification({
+        taskId: notification.taskId,
+        title: notification.task.title,
+        description: notification.task.description,
+        dueAt: notification.task.dueAt,
+        assigneeTelegramId: assignment.user.telegramId,
+      });
+
+      await prisma.taskAssignee.update({
+        where: { id: assignment.id },
+        data: {
+          notificationStatus: "SENT",
+          notifiedAt: new Date(),
+          telegramChatId: sent.chatId,
+          telegramMessageId: sent.messageId,
+          lastError: null,
+        },
+      });
+      sentCount++;
     }
 
-    const sent = await sendTaskNotification({
-      title: notification.task.title,
-      description: notification.task.description,
-      dueAt: notification.task.dueAt,
-      scheduledAt: notification.task.scheduledAt,
-      assigneeTelegramId: notification.task.assignee.telegramId,
-      assigneeName: notification.task.assignee.name,
-      createdByName: notification.task.createdBy.name,
-    });
+    if (errors.length > 0) {
+      throw new Error(errors.join("; "));
+    }
 
     await prisma.taskNotification.update({
       where: { id: notification.id },
       data: {
         status: "SENT",
         sentAt: new Date(),
-        telegramChatId: sent.chatId,
-        telegramMessageId: sent.messageId,
         lastError: null,
         processingStartedAt: null,
       },
     });
-    return true;
+    return sentCount > 0;
   } catch (error) {
     const attempts = notification.attempts + 1;
     const message = error instanceof Error ? error.message : String(error);
@@ -120,13 +169,16 @@ export async function processTaskNotification(notificationId: string): Promise<b
 }
 
 export async function completeTaskNotification(taskId: string): Promise<void> {
-  const notification = await prisma.taskNotification.findUnique({ where: { taskId } });
-  if (!notification) return;
+  const assignments = await prisma.taskAssignee.findMany({
+    where: { taskId },
+    select: { id: true, telegramChatId: true, telegramMessageId: true },
+  });
 
-  if (notification.telegramChatId && notification.telegramMessageId) {
+  for (const assignment of assignments) {
+    if (!assignment.telegramChatId || !assignment.telegramMessageId) continue;
     await deleteTaskNotificationMessage(
-      notification.telegramChatId,
-      notification.telegramMessageId
+      assignment.telegramChatId,
+      assignment.telegramMessageId
     ).catch((error) => {
       console.error(
         `[telegram-queue] task ${taskId} delete failed: ${
@@ -136,14 +188,107 @@ export async function completeTaskNotification(taskId: string): Promise<void> {
     });
   }
 
-  await prisma.taskNotification.update({
-    where: { id: notification.id },
+  await prisma.taskAssignee.updateMany({
+    where: { taskId },
+    data: { notificationStatus: "COMPLETED", lastError: null },
+  });
+
+  await prisma.taskNotification.updateMany({
+    where: { taskId },
     data: {
       status: "COMPLETED",
       processingStartedAt: null,
       lastError: null,
     },
   });
+}
+
+export async function notifyAdminsTaskCompleted(taskId: string): Promise<void> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: {
+      assignee: { select: { name: true } },
+      assignees: { include: { user: { select: { name: true } } }, orderBy: { createdAt: "asc" } },
+      completedBy: { select: { name: true } },
+    },
+  });
+  if (!task?.completedAt) return;
+
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN", isActive: true, telegramId: { not: null } },
+    select: { telegramId: true },
+  });
+  const assigneeNames = task.assignees.length > 0
+    ? task.assignees.map((assignee) => assignee.user.name)
+    : [task.assignee.name];
+
+  await Promise.all(
+    admins.map((admin) =>
+      admin.telegramId
+        ? sendTaskCompletedToAdmin({
+            adminTelegramId: admin.telegramId,
+            title: task.title,
+            description: task.description,
+            dueAt: task.dueAt,
+            completedAt: task.completedAt!,
+            assigneeNames,
+            completedByName: task.completedBy?.name ?? null,
+          }).catch((error) => {
+            console.error(
+              `[telegram-queue] task ${taskId} admin notify failed: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+          })
+        : Promise.resolve(),
+    ),
+  );
+}
+
+export async function completeTaskFromTelegram(options: {
+  taskId: string;
+  telegramId: string;
+  callbackQueryId?: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const task = await prisma.task.findUnique({
+    where: { id: options.taskId },
+    include: {
+      assignees: {
+        include: { user: { select: { id: true, telegramId: true } } },
+      },
+    },
+  });
+
+  if (!task) return { ok: false, message: "Задача не найдена" };
+  if (task.status === "COMPLETED") return { ok: true, message: "Задача уже выполнена" };
+
+  const assignment = task.assignees.find(
+    (item) => item.user.telegramId === options.telegramId,
+  );
+  const legacyAssignee = assignment
+    ? null
+    : await prisma.user.findFirst({
+        where: { id: task.assigneeUserId, telegramId: options.telegramId },
+        select: { id: true },
+      });
+  const completedByUserId = assignment?.user.id ?? legacyAssignee?.id;
+  if (!completedByUserId) return { ok: false, message: "Эта задача назначена не вам" };
+
+  const completedAt = new Date();
+  await prisma.task.update({
+    where: { id: task.id },
+    data: {
+      status: "COMPLETED",
+      completedAt,
+      completedByUserId,
+    },
+  });
+  await completeTaskNotification(task.id);
+  await notifyAdminsTaskCompleted(task.id);
+  if (options.callbackQueryId) {
+    await answerTelegramCallback(options.callbackQueryId, "Готово").catch(() => null);
+  }
+  return { ok: true, message: "Задача выполнена" };
 }
 
 export async function processPendingTaskNotifications(limit = 10): Promise<number> {

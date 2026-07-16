@@ -71,6 +71,7 @@ model User {
   auditLogs  AuditLog[]
   createdTasks   Task[] @relation("TaskCreatedBy")
   assignedTasks  Task[] @relation("TaskAssignedTo")
+  taskAssignments TaskAssignee[]
   completedTasks Task[] @relation("TaskCompletedBy")
 
   @@map("users")
@@ -93,12 +94,34 @@ model Task {
   assignee    User  @relation("TaskAssignedTo", fields: [assigneeUserId], references: [id])
   createdBy   User  @relation("TaskCreatedBy", fields: [createdByUserId], references: [id])
   completedBy User? @relation("TaskCompletedBy", fields: [completedByUserId], references: [id])
+  assignees TaskAssignee[]
   notification TaskNotification?
 
   @@index([status, dueAt])
   @@index([assigneeUserId])
   @@index([scheduledAt])
   @@map("tasks")
+}
+
+model TaskAssignee {
+  id                String   @id @default(uuid())
+  taskId            String
+  userId            String
+  notificationStatus String  @default("PENDING")
+  attempts          Int      @default(0)
+  lastError         String?
+  notifiedAt        DateTime?
+  telegramChatId    String?
+  telegramMessageId Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([taskId, userId])
+  @@index([userId])
+  @@map("task_assignees")
 }
 
 model TaskNotification {

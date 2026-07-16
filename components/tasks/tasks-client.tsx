@@ -3,14 +3,15 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Bell,
   CalendarClock,
   Check,
   CheckCircle2,
   ClipboardList,
   Clock3,
+  Pencil,
   Plus,
   Search,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/hooks/use-toast";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -42,6 +42,13 @@ interface Task {
   completedAt: string | null;
   createdAt: string;
   assignee: TaskUser;
+  assignees: Array<{
+    user: TaskUser;
+    notificationStatus?: string;
+    lastError?: string | null;
+    notifiedAt?: string | null;
+    telegramMessageId?: number | null;
+  }>;
   createdBy: { id: string; name: string };
   completedBy: { id: string; name: string } | null;
   notification: {
@@ -55,12 +62,13 @@ interface Task {
 interface Props {
   initialTasks: Task[];
   users: TaskUser[];
+  isAdmin: boolean;
 }
 
 const emptyForm = () => ({
   title: "",
   description: "",
-  assigneeUserId: "",
+  assigneeUserIds: [] as string[],
   dueAt: toDateTimeLocal(new Date(Date.now() + 60 * 60_000)),
   scheduled: false,
   scheduledAt: toDateTimeLocal(new Date()),
@@ -88,19 +96,16 @@ function isPlanned(task: Task) {
   );
 }
 
-function notificationLabel(task: Task) {
-  if (task.status === "COMPLETED") return "закрыто";
-  if (!task.notification) return "ожидает";
-  if (task.notification.status === "SENT") return "отправлено";
-  if (task.notification.status === "RETRY") return "повтор";
-  if (task.notification.status === "PROCESSING") return "отправка";
-  return "ожидает";
+function assigneeNames(task: Task) {
+  const assignees = task.assignees?.length ? task.assignees : [{ user: task.assignee }];
+  return assignees.map((assignee) => assignee.user.name).join(", ");
 }
 
-export function TasksClient({ initialTasks, users }: Props) {
+export function TasksClient({ initialTasks, users, isAdmin }: Props) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [statusFilter, setStatusFilter] = useState<"ACTIVE" | "PLANNED" | "COMPLETED" | "ALL">("ACTIVE");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -122,7 +127,7 @@ export function TasksClient({ initialTasks, users }: Props) {
       if (statusFilter === "PLANNED" && !isPlanned(task)) return false;
       if (statusFilter === "COMPLETED" && task.status !== "COMPLETED") return false;
       if (!query) return true;
-      return [task.title, task.description ?? "", task.assignee.name]
+      return [task.title, task.description ?? "", assigneeNames(task)]
         .join(" ")
         .toLowerCase()
         .includes(query);
@@ -138,20 +143,46 @@ export function TasksClient({ initialTasks, users }: Props) {
 
   function closeCreate() {
     setShowCreate(false);
+    setEditingTask(null);
     setForm(emptyForm());
   }
 
-  async function handleCreate(event: React.FormEvent) {
+  function openEdit(task: Task) {
+    setEditingTask(task);
+    setForm({
+      title: task.title,
+      description: task.description ?? "",
+      assigneeUserIds: task.assignees?.length
+        ? task.assignees.map((assignee) => assignee.user.id)
+        : [task.assignee.id],
+      dueAt: toDateTimeLocal(new Date(task.dueAt)),
+      scheduled: Boolean(task.scheduledAt),
+      scheduledAt: toDateTimeLocal(task.scheduledAt ? new Date(task.scheduledAt) : new Date()),
+    });
+    setShowCreate(true);
+  }
+
+  function toggleAssignee(userId: string) {
+    setForm((current) => ({
+      ...current,
+      assigneeUserIds: current.assigneeUserIds.includes(userId)
+        ? current.assigneeUserIds.filter((id) => id !== userId)
+        : [...current.assigneeUserIds, userId],
+    }));
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!isAdmin) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/tasks", {
-        method: "POST",
+      const res = await fetch(editingTask ? `/api/tasks/${editingTask.id}` : "/api/tasks", {
+        method: editingTask ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: form.title,
           description: form.description,
-          assigneeUserId: form.assigneeUserId,
+          assigneeUserIds: form.assigneeUserIds,
           dueAt: toApiDate(form.dueAt),
           scheduledAt: form.scheduled ? toApiDate(form.scheduledAt) : null,
         }),
@@ -160,8 +191,28 @@ export function TasksClient({ initialTasks, users }: Props) {
         const data = await res.json().catch(() => null);
         throw new Error(typeof data?.error === "string" ? data.error : "Не удалось создать задачу");
       }
-      toast({ title: "Задача создана" });
+      toast({ title: editingTask ? "Задача обновлена" : "Задача создана" });
       closeCreate();
+      await refreshTasks();
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Ошибка",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteTask(task: Task) {
+    if (!isAdmin || !window.confirm(`Удалить задачу "${task.title}"?`)) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Не удалось удалить задачу");
+      toast({ title: "Задача удалена" });
       await refreshTasks();
       router.refresh();
     } catch (error) {
@@ -206,10 +257,12 @@ export function TasksClient({ initialTasks, users }: Props) {
             <h1 className="text-xl font-semibold tracking-tight">Задачи</h1>
             <p className="section-caption">Личные поручения, сроки и Telegram-напоминания</p>
           </div>
-          <Button size="sm" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4" />
-            Создать
-          </Button>
+          {isAdmin ? (
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4" />
+              Создать
+            </Button>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-4 gap-2">
@@ -253,11 +306,10 @@ export function TasksClient({ initialTasks, users }: Props) {
           <table className="w-full table-fixed text-sm">
             <thead className="border-b bg-muted/55 text-xs text-muted-foreground">
               <tr>
-                <th className="w-[34%] px-3 py-2 text-left font-medium">Задача</th>
-                <th className="w-[18%] px-3 py-2 text-left font-medium">Ответственный</th>
+                <th className="w-[36%] px-3 py-2 text-left font-medium">Задача</th>
+                <th className="w-[24%] px-3 py-2 text-left font-medium">Ответственные</th>
                 <th className="w-[18%] px-3 py-2 text-left font-medium">Срок</th>
-                <th className="w-[14%] px-3 py-2 text-left font-medium">Бот</th>
-                <th className="w-[16%] px-3 py-2 text-right font-medium">Действие</th>
+                <th className="w-[22%] px-3 py-2 text-right font-medium">Действие</th>
               </tr>
             </thead>
             <tbody>
@@ -269,29 +321,38 @@ export function TasksClient({ initialTasks, users }: Props) {
                       <p className="truncate text-xs text-muted-foreground">{task.description}</p>
                     ) : null}
                   </td>
-                  <td className="px-3 py-3">{task.assignee.name}</td>
+                  <td className="px-3 py-3">{assigneeNames(task)}</td>
                   <td className="px-3 py-3">
                     <DueBadge task={task} />
                   </td>
-                  <td className="px-3 py-3">
-                    <NotificationBadge task={task} />
-                  </td>
                   <td className="px-3 py-3 text-right">
-                    {task.status === "OPEN" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={loading}
-                        onClick={() => completeTask(task)}
-                      >
-                        <Check className="h-4 w-4" />
-                        Готово
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">
-                        {task.completedAt ? formatDateTime(task.completedAt) : "Выполнено"}
-                      </span>
-                    )}
+                    <div className="flex justify-end gap-1">
+                      {task.status === "OPEN" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={loading}
+                          onClick={() => completeTask(task)}
+                        >
+                          <Check className="h-4 w-4" />
+                          Готово
+                        </Button>
+                      ) : (
+                        <span className="self-center text-xs text-muted-foreground">
+                          {task.completedAt ? formatDateTime(task.completedAt) : "Выполнено"}
+                        </span>
+                      )}
+                      {isAdmin ? (
+                        <>
+                          <Button size="sm" variant="outline" disabled={loading} onClick={() => openEdit(task)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" disabled={loading} onClick={() => deleteTask(task)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -305,7 +366,10 @@ export function TasksClient({ initialTasks, users }: Props) {
               key={task.id}
               task={task}
               loading={loading}
+              isAdmin={isAdmin}
               onComplete={() => completeTask(task)}
+              onEdit={() => openEdit(task)}
+              onDelete={() => deleteTask(task)}
             />
           ))}
         </div>
@@ -323,9 +387,9 @@ export function TasksClient({ initialTasks, users }: Props) {
       <Dialog open={showCreate} onOpenChange={(open) => !open && closeCreate()}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Новая задача</DialogTitle>
+            <DialogTitle>{editingTask ? "Редактировать задачу" : "Новая задача"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1">
               <Label>Название *</Label>
               <Input
@@ -345,22 +409,22 @@ export function TasksClient({ initialTasks, users }: Props) {
               />
             </div>
             <div className="space-y-1">
-              <Label>Ответственный *</Label>
-              <Select
-                value={form.assigneeUserId}
-                onValueChange={(value) => setForm((current) => ({ ...current, assigneeUserId: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите сотрудника" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
+              <Label>Ответственные *</Label>
+              <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                {users.map((user) => (
+                  <label key={user.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-secondary/70">
+                    <input
+                      type="checkbox"
+                      checked={form.assigneeUserIds.includes(user.id)}
+                      onChange={() => toggleAssignee(user.id)}
+                      className="h-4 w-4"
+                    />
+                    <span className="min-w-0 flex-1 truncate">
                       {user.name}{user.telegramId ? "" : " - без Telegram ID"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Срок *</Label>
@@ -397,9 +461,9 @@ export function TasksClient({ initialTasks, users }: Props) {
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={loading || !form.title || !form.assigneeUserId || !form.dueAt}
+                disabled={loading || !form.title || form.assigneeUserIds.length === 0 || !form.dueAt}
               >
-                {loading ? "Сохранение..." : "Создать"}
+                {loading ? "Сохранение..." : editingTask ? "Сохранить" : "Создать"}
               </Button>
             </div>
           </form>
@@ -449,23 +513,20 @@ function DueBadge({ task }: { task: Task }) {
   );
 }
 
-function NotificationBadge({ task }: { task: Task }) {
-  return (
-    <Badge variant={task.notification?.status === "RETRY" ? "warning" : "secondary"}>
-      <Bell className="mr-1 h-3 w-3" />
-      {notificationLabel(task)}
-    </Badge>
-  );
-}
-
 function TaskCard({
   task,
   loading,
+  isAdmin,
   onComplete,
+  onEdit,
+  onDelete,
 }: {
   task: Task;
   loading: boolean;
+  isAdmin: boolean;
   onComplete: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   return (
     <Card className={cn(isOverdue(task) && "border-destructive/35")}>
@@ -482,7 +543,7 @@ function TaskCard({
         <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <UserRound className="h-4 w-4" />
-            <span>{task.assignee.name}</span>
+            <span>{assigneeNames(task)}</span>
           </div>
           <div className="flex items-center gap-2">
             <Clock3 className="h-4 w-4" />
@@ -495,8 +556,7 @@ function TaskCard({
             </div>
           ) : null}
         </div>
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <NotificationBadge task={task} />
+        <div className="mt-3 flex items-center justify-end gap-2">
           {task.status === "OPEN" ? (
             <Button size="sm" disabled={loading} onClick={onComplete}>
               <Check className="h-4 w-4" />
@@ -505,6 +565,16 @@ function TaskCard({
           ) : (
             <Badge variant="success">Выполнено</Badge>
           )}
+          {isAdmin ? (
+            <>
+              <Button size="sm" variant="outline" disabled={loading} onClick={onEdit}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="outline" disabled={loading} onClick={onDelete}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          ) : null}
         </div>
       </CardContent>
     </Card>

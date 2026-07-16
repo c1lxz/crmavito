@@ -3,6 +3,8 @@ const path = require("path");
 
 const POLL_INTERVAL_MS = 5_000;
 let processing = false;
+let updatesProcessing = false;
+let updateOffset = 0;
 
 function loadEnv() {
   const envPath = path.join(process.cwd(), ".env");
@@ -65,7 +67,60 @@ async function tick() {
   }
 }
 
+async function processTelegramUpdates() {
+  if (updatesProcessing) return;
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const secret = getWorkerSecret();
+  if (!token || !secret) return;
+
+  updatesProcessing = true;
+  try {
+    const params = new URLSearchParams({
+      timeout: "0",
+      allowed_updates: JSON.stringify(["callback_query"]),
+    });
+    if (updateOffset > 0) params.set("offset", String(updateOffset));
+
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/getUpdates?${params.toString()}`,
+      { signal: AbortSignal.timeout(15_000) }
+    );
+    const body = await response.json().catch(() => null);
+    if (!response.ok || !body?.ok) {
+      console.error(
+        `[telegram-queue] getUpdates failed: ${response.status} ${JSON.stringify(body).slice(0, 500)}`
+      );
+      return;
+    }
+
+    for (const update of body.result || []) {
+      updateOffset = Math.max(updateOffset, Number(update.update_id) + 1);
+      if (!update.callback_query?.data?.startsWith("task_done:")) continue;
+
+      const crmResponse = await fetch("http://127.0.0.1:3000/api/internal/telegram-updates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-worker-secret": secret,
+        },
+        body: JSON.stringify(update),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!crmResponse.ok) {
+        const text = await crmResponse.text().catch(() => "");
+        console.error(`[telegram-queue] callback handling failed: ${crmResponse.status} ${text.slice(0, 500)}`);
+      }
+    }
+  } catch (error) {
+    console.error("[telegram-queue] getUpdates error", error);
+  } finally {
+    updatesProcessing = false;
+  }
+}
+
 loadEnv();
 console.log(`[telegram-queue] worker started, poll interval ${POLL_INTERVAL_MS}ms`);
 void tick();
+void processTelegramUpdates();
 setInterval(() => void tick(), POLL_INTERVAL_MS);
+setInterval(() => void processTelegramUpdates(), POLL_INTERVAL_MS);

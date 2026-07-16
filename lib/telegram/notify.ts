@@ -101,13 +101,11 @@ async function tgJsonFetch<T>(
 }
 
 export interface TaskNotificationPayload {
+  taskId: string;
   title: string;
   description: string | null;
   dueAt: Date;
-  scheduledAt: Date | null;
   assigneeTelegramId: string;
-  assigneeName: string;
-  createdByName: string;
 }
 
 function formatTaskDate(date: Date): string {
@@ -123,16 +121,9 @@ function formatTaskDate(date: Date): string {
 
 function buildTaskMessage(task: TaskNotificationPayload): string {
   return [
-    "CRM STROK SHOP",
-    "",
-    `Новая задача: ${task.title}`,
+    `Задача: ${task.title}`,
     task.description ? `Описание: ${task.description}` : null,
-    `Ответственный: ${task.assigneeName}`,
-    `Срок: ${formatTaskDate(task.dueAt)}`,
-    task.scheduledAt ? `Запланирована: ${formatTaskDate(task.scheduledAt)}` : null,
-    `Создал: ${task.createdByName}`,
-    "",
-    "Сообщение удалится после выполнения задачи в CRM.",
+    `⏰ Дедлайн: ${formatTaskDate(task.dueAt)}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -152,6 +143,11 @@ export async function sendTaskNotification(task: TaskNotificationPayload): Promi
       chat_id: task.assigneeTelegramId,
       text: buildTaskMessage(task),
       disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Готово", callback_data: `task_done:${task.taskId}` }],
+        ],
+      },
     }
   );
 
@@ -159,6 +155,47 @@ export async function sendTaskNotification(task: TaskNotificationPayload): Promi
     chatId: String(result.chat.id),
     messageId: result.message_id,
   };
+}
+
+export async function sendTaskCompletedToAdmin(options: {
+  adminTelegramId: string;
+  title: string;
+  description: string | null;
+  dueAt: Date;
+  completedAt: Date;
+  assigneeNames: string[];
+  completedByName: string | null;
+}): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("TELEGRAM_BOT_TOKEN not set");
+
+  await tgJsonFetch(token, "sendMessage", {
+    chat_id: options.adminTelegramId,
+    text: [
+      `Задача выполнена: ${options.title}`,
+      options.description ? `Описание: ${options.description}` : null,
+      `⏰ Срок: ${formatTaskDate(options.dueAt)}`,
+      `Ответственный: ${options.assigneeNames.join(", ")}`,
+      options.completedByName ? `Выполнил: ${options.completedByName}` : null,
+      `Выполнено: ${formatTaskDate(options.completedAt)}`,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    disable_web_page_preview: true,
+  });
+}
+
+export async function answerTelegramCallback(
+  callbackQueryId: string,
+  text: string
+): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("TELEGRAM_BOT_TOKEN not set");
+  await tgJsonFetch(token, "answerCallbackQuery", {
+    callback_query_id: callbackQueryId,
+    text,
+    show_alert: false,
+  });
 }
 
 export async function deleteTaskNotificationMessage(
