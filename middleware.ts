@@ -34,17 +34,6 @@ export function middleware(req: NextRequest) {
     return response;
   }
 
-  const rememberedMode = req.cookies.get("crmavito-ui-mode")?.value;
-  if (
-    (rememberedMode === "pc" || rememberedMode === "m") &&
-    pathname !== "/" &&
-    !pathname.startsWith("/_next") &&
-    !pathname.startsWith("/v") &&
-    !pathname.startsWith("/v-data")
-  ) {
-    return NextResponse.redirect(publicUrl(req, `/${rememberedMode}${pathname}`, search));
-  }
-
   return NextResponse.next();
 }
 
