@@ -375,7 +375,7 @@ export function OrdersClient({
             )}
           </div>
         </div>
-        <div className="space-y-2 lg:space-y-3">
+        <div className="space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -386,7 +386,7 @@ export function OrdersClient({
               className="pl-9"
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar lg:flex-wrap lg:overflow-visible">
+          <div className="pc-chip-wrap flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             {statuses.map((s) => (
               <button
                 key={s.value}
@@ -401,7 +401,7 @@ export function OrdersClient({
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <div className="pc-orders-date-grid grid grid-cols-2 gap-2">
             <label className="space-y-1 text-xs font-medium text-muted-foreground">
               С даты
               <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
@@ -411,7 +411,7 @@ export function OrdersClient({
               <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
             </label>
           </div>
-          <label className="block space-y-1 text-xs font-medium text-muted-foreground lg:inline-block lg:w-[calc(50%-0.25rem)]">
+          <label className="pc-inline-half block space-y-1 text-xs font-medium text-muted-foreground">
             Контрагент
             <Select value={counterpartyFilter} onValueChange={setCounterpartyFilter}>
               <SelectTrigger>
@@ -427,7 +427,7 @@ export function OrdersClient({
               </SelectContent>
             </Select>
           </label>
-          <label className="block space-y-1 text-xs font-medium text-muted-foreground lg:inline-block lg:w-[calc(50%-0.25rem)] lg:pl-2">
+          <label className="pc-inline-half pc-inline-half-right block space-y-1 text-xs font-medium text-muted-foreground">
             Профиль Avito
             <Select value={avitoProfileFilter} onValueChange={setAvitoProfileFilter}>
               <SelectTrigger>
@@ -555,7 +555,7 @@ export function OrdersClient({
             </Button>
           </div>
         )}
-        <div className="grid grid-cols-3 gap-2 lg:max-w-3xl">
+        <div className="pc-stats-wide grid grid-cols-3 gap-2">
           <Card>
             <CardContent className="p-3">
               <p className="text-[11px] font-semibold text-muted-foreground">Выручка</p>
@@ -576,7 +576,7 @@ export function OrdersClient({
           </Card>
         </div>
 
-        <div className="hidden overflow-hidden rounded-lg border border-border bg-card lg:block">
+        <div className="pc-only hidden overflow-hidden rounded-lg border border-border bg-card">
           <table className="w-full table-fixed text-sm">
             <thead className="border-b border-border bg-muted/55 text-left text-xs font-semibold text-muted-foreground">
               <tr>
@@ -712,7 +712,7 @@ export function OrdersClient({
           </table>
         </div>
 
-        <div className="space-y-3 lg:hidden">
+        <div className="mobile-only space-y-3">
         {filtered.map((order) => {
           const selected = selectedIds.has(order.id);
           const content = (

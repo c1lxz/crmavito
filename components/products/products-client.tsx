@@ -104,7 +104,7 @@ export function ProductsClient({ products: initial, isAdmin }: Props) {
         </div>
       </div>
 
-      <div className="flex gap-4 border-b border-border/80 bg-card/45 px-4 py-3 text-sm lg:px-8">
+      <div className="pc-summary-wide flex gap-4 border-b border-border/80 bg-card/45 px-4 py-3 text-sm">
         <span className="text-muted-foreground">
           Всего: <span className="font-semibold text-foreground">{products.length}</span>
         </span>
@@ -113,9 +113,9 @@ export function ProductsClient({ products: initial, isAdmin }: Props) {
         </span>
       </div>
 
-      <div className="app-content grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+      <div className="pc-products-grid app-content grid gap-3">
         {filtered.length === 0 && (
-          <div className="py-12 text-center text-muted-foreground lg:col-span-full">
+          <div className="py-12 text-center text-muted-foreground">
             <Package className="mx-auto mb-3 h-10 w-10 opacity-45" />
             <p className="text-sm font-semibold">{search ? "Ничего не найдено" : "Нет товаров"}</p>
             {!search && (

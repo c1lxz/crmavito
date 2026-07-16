@@ -16,14 +16,14 @@ import {
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/dashboard", label: "Главная", icon: Home },
-  { href: "/orders", label: "Заказы", icon: ShoppingBag },
-  { href: "/returns", label: "Возвраты", icon: RotateCcw },
-  { href: "/products", label: "Товары", icon: Boxes },
-  { href: "/expenses", label: "Расходы", icon: Wallet },
-  { href: "/counterparties", label: "Поставщики", icon: Users },
-  { href: "/reports", label: "Отчёты", icon: BarChart3 },
-  { href: "/settings", label: "Настройки", icon: Settings },
+  { href: "/pc/dashboard", match: "/dashboard", label: "Главная", icon: Home },
+  { href: "/pc/orders", match: "/orders", label: "Заказы", icon: ShoppingBag },
+  { href: "/pc/returns", match: "/returns", label: "Возвраты", icon: RotateCcw },
+  { href: "/pc/products", match: "/products", label: "Товары", icon: Boxes },
+  { href: "/pc/expenses", match: "/expenses", label: "Расходы", icon: Wallet },
+  { href: "/pc/counterparties", match: "/counterparties", label: "Поставщики", icon: Users },
+  { href: "/pc/reports", match: "/reports", label: "Отчёты", icon: BarChart3 },
+  { href: "/pc/settings", match: "/settings", label: "Настройки", icon: Settings },
 ];
 
 export function DesktopSidebar() {
@@ -42,8 +42,12 @@ export function DesktopSidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(`${href}/`);
+        {navItems.map(({ href, match, label, icon: Icon }) => {
+          const isActive =
+            pathname === href ||
+            pathname.startsWith(`${href}/`) ||
+            pathname === match ||
+            pathname.startsWith(`${match}/`);
           return (
             <Link
               key={href}

@@ -7,11 +7,11 @@ import { Dock } from "@/components/ui/dock";
 import { sanitizeOrderFilterQuery } from "@/lib/orders/filters";
 
 const navItems = [
-  { href: "/dashboard", label: "Главная", icon: Home },
-  { href: "/orders", label: "Заказы", icon: ShoppingBag },
-  { href: "/returns", label: "Возвраты", icon: RotateCcw },
-  { href: "/expenses", label: "Расходы", icon: Wallet },
-  { href: "/reports", label: "Отчёты", icon: BarChart3 },
+  { href: "/m/dashboard", match: "/dashboard", label: "Главная", icon: Home },
+  { href: "/m/orders", match: "/orders", label: "Заказы", icon: ShoppingBag },
+  { href: "/m/returns", match: "/returns", label: "Возвраты", icon: RotateCcw },
+  { href: "/m/expenses", match: "/expenses", label: "Расходы", icon: Wallet },
+  { href: "/m/reports", match: "/reports", label: "Отчёты", icon: BarChart3 },
 ];
 
 export function BottomNav() {
@@ -19,24 +19,24 @@ export function BottomNav() {
   const searchParams = useSearchParams();
   const currentQuery = searchParams.toString();
   const items = useMemo(() => {
-    if (!pathname.startsWith("/orders")) return navItems;
+    if (!pathname.startsWith("/orders") && !pathname.startsWith("/m/orders")) return navItems;
 
     const filterQuery =
-      pathname === "/orders"
+      pathname === "/orders" || pathname === "/m/orders"
         ? sanitizeOrderFilterQuery(currentQuery)
         : sanitizeOrderFilterQuery(
             new URLSearchParams(currentQuery).get("returnTo") ?? "",
           );
-    const ordersHref = filterQuery ? `/orders?${filterQuery}` : "/orders";
+    const ordersHref = filterQuery ? `/m/orders?${filterQuery}` : "/m/orders";
     return navItems.map((item) =>
-      item.href === "/orders" ? { ...item, href: ordersHref } : item,
+      item.match === "/orders" ? { ...item, href: ordersHref } : item,
     );
   }, [currentQuery, pathname]);
-  const activeIndex = navItems.findIndex((item) => pathname.startsWith(item.href));
+  const activeIndex = navItems.findIndex((item) => pathname.startsWith(item.href) || pathname.startsWith(item.match));
   const activeHref = activeIndex >= 0 ? items[activeIndex].href : undefined;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 mx-auto max-w-xl pointer-events-none lg:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-40 mx-auto max-w-xl pointer-events-none">
       <Dock fullWidth className="pointer-events-auto" items={items} activeHref={activeHref} />
     </div>
   );

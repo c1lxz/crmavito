@@ -173,23 +173,97 @@
   }
 }
 
-@media (min-width: 1024px) {
-  :root {
+@layer components {
+  .pc-shell {
     --app-top-pad: 0px;
+    --app-bottom-pad: 0px;
   }
 
-  @layer components {
-    .app-shell {
-      background-image: none;
-    }
+  .pc-shell .app-shell {
+    background-image: none;
+  }
 
-    .app-header {
-      @apply px-8 py-5;
-    }
+  .pc-shell .app-header {
+    @apply px-8 py-5;
+  }
 
-    .app-content {
-      @apply px-8 py-6 pb-8;
-    }
+  .pc-shell .app-content {
+    @apply px-8 py-6 pb-8;
+  }
+
+  .pc-shell .pc-only {
+    display: block;
+  }
+
+  .pc-shell .mobile-only {
+    display: none;
+  }
+
+  .mobile-shell .pc-only {
+    display: none;
+  }
+
+  .pc-shell .pc-chip-wrap {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .pc-shell .pc-orders-date-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .pc-shell .pc-inline-half {
+    display: inline-block;
+    width: calc(50% - 0.25rem);
+  }
+
+  .pc-shell .pc-inline-half-right {
+    padding-left: 0.5rem;
+  }
+
+  .pc-shell .pc-stats-wide {
+    max-width: 48rem;
+  }
+
+  .pc-shell .pc-dashboard-kpi {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .pc-shell .pc-quick-actions {
+    max-width: 42rem;
+  }
+
+  .pc-shell .pc-dashboard-main {
+    grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
+  }
+
+  .pc-shell .pc-products-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pc-shell .pc-reports-range {
+    max-width: 28rem;
+  }
+
+  .pc-shell .pc-reports-kpi,
+  .pc-shell .pc-donut-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pc-shell .pc-summary-wide {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  .pc-shell .pc-products-grid,
+  .pc-shell .pc-reports-kpi {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pc-shell .pc-reports-kpi {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 

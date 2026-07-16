@@ -310,7 +310,7 @@ export function ReturnsClient({ initialData }: Props) {
               className="pl-9"
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar lg:flex-wrap lg:overflow-visible">
+          <div className="pc-chip-wrap flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             {STATUS_TABS.map((tab) => (
               <button
                 key={tab.value}
@@ -369,7 +369,7 @@ export function ReturnsClient({ initialData }: Props) {
             </Button>
           </div>
         )}
-        <div className="hidden overflow-hidden rounded-lg border border-border bg-card lg:block">
+        <div className="pc-only hidden overflow-hidden rounded-lg border border-border bg-card">
           <table className="w-full table-fixed text-sm">
             <thead className="border-b border-border bg-muted/55 text-left text-xs font-semibold text-muted-foreground">
               <tr>
@@ -478,7 +478,7 @@ export function ReturnsClient({ initialData }: Props) {
           </table>
         </div>
 
-        <div className="space-y-3 lg:hidden">
+        <div className="mobile-only space-y-3">
         {filtered.map((ret) => {
           const mainContent = (
             <div className="space-y-2">
@@ -591,7 +591,7 @@ export function ReturnsClient({ initialData }: Props) {
       </div>
 
       {/* Summary */}
-      <div className="px-4 py-3 border-t lg:px-8">
+      <div className="pc-summary-wide px-4 py-3 border-t">
         <div className="flex gap-4 text-sm text-muted-foreground">
           <span>Всего: <strong className="text-foreground">{data.returns.length}</strong></span>
           <span>На возврате: <strong className="text-orange-600">{data.totalReturning}</strong></span>
