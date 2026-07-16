@@ -71,9 +71,14 @@ describe("botv mini app UI", () => {
   });
 
   it("requests duplicate XML with a replacement phone", () => {
+    const xmlRouteSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/[id]/xml/route.ts"), "utf8");
+    const xmlAliasSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/work/[id]/xml/route.ts"), "utf8");
+
     expect(clientSource).toContain("JSON.stringify({ phone })");
     expect(clientSource).toContain("Создать XML с другим телефоном?");
     expect(clientSource).toContain("Скачать ещё");
+    expect(xmlRouteSource).toContain("export async function GET");
+    expect(xmlAliasSource).toContain("GET as apiGET");
   });
 
   it("can download many replacement-phone XML files from one prompt", () => {
@@ -100,8 +105,9 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("selectedPublishProfileId");
     expect(clientSource).not.toContain("crmavito:botv-publish-credentials");
     expect(clientSource).not.toContain("profileName");
-    expect(publishRouteSource).toContain("getAvitoXmlPublishEndpoint");
     expect(publishRouteSource).toContain("publishAvitoXml");
+    expect(publishRouteSource).toContain("publicXmlFeedUrl");
+    expect(publishRouteSource).toContain("/v-data/botv/work/");
     expect(publishRouteSource).toContain("fetchAvitoAccountProfile");
     expect(publishRouteSource).toContain("saveAvitoProfileCredentials");
     expect(publishRouteSource).toContain("getAvitoCredentials");

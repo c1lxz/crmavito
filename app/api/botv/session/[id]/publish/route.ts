@@ -3,7 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { buildXml } from "@/lib/botv/session";
 import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
-import { getAvitoXmlPublishEndpoint, publishAvitoXml } from "@/lib/avito/publish";
+import { publishAvitoXml } from "@/lib/avito/publish";
 import { getAvitoCredentials, saveAvitoProfileCredentials } from "@/lib/avito/profile-store";
 
 export const runtime = "nodejs";
@@ -14,6 +14,22 @@ const publishSchema = z.object({
   clientId: z.string().trim().optional(),
   clientSecret: z.string().trim().optional(),
 });
+
+function publicBaseUrl(request: Request): string {
+  const fallback = new URL(request.url);
+  const protocol = request.headers.get("x-forwarded-proto") || fallback.protocol.replace(":", "") || "https";
+  const rawHost = (request.headers.get("x-forwarded-host") || request.headers.get("host") || fallback.host)
+    .split(",")[0]
+    .trim();
+  const host = (rawHost || "crmavito.duckdns.org")
+    .replace(/:\d+$/, "")
+    .replace(/^localhost$/, "crmavito.duckdns.org");
+  return `${protocol}://${host}`;
+}
+
+function publicXmlFeedUrl(request: Request, sessionId: string): string {
+  return `${publicBaseUrl(request)}/v-data/botv/work/${encodeURIComponent(sessionId)}/xml`;
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -39,13 +55,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    getAvitoXmlPublishEndpoint();
     const [xmlResult, profile] = await Promise.all([
       buildXml(id),
       fetchAvitoAccountProfile(credentials),
     ]);
     const savedProfile = await saveAvitoProfileCredentials(credentials, profile);
-    const publish = await publishAvitoXml(credentials, xmlResult.xml, xmlResult.filename);
+    const publish = await publishAvitoXml(credentials, xmlResult.xml, xmlResult.filename, {
+      feedUrl: publicXmlFeedUrl(request, id),
+    });
     return NextResponse.json({
       success: true,
       profile: savedProfile,
