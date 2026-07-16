@@ -16,9 +16,12 @@ export function middleware(req: NextRequest) {
     requestHeaders.set("x-ui-mode", mode);
 
     const rewriteUrl = req.nextUrl.clone();
-    rewriteUrl.protocol = "http:";
-    rewriteUrl.hostname = "localhost";
-    rewriteUrl.port = "3000";
+    const forwardedProto = req.headers.get("x-forwarded-proto") || "https";
+    const forwardedHost = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    rewriteUrl.protocol = `${forwardedProto}:`;
+    if (forwardedHost) {
+      rewriteUrl.host = forwardedHost;
+    }
     rewriteUrl.pathname = targetPath;
     rewriteUrl.search = search;
 

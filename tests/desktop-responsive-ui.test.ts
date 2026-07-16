@@ -43,9 +43,10 @@ describe("desktop responsive UI", () => {
   it("splits explicit /pc and /m modes instead of relying on viewport width", () => {
     expect(middlewareSource).toContain('pathname.match(/^\\/(pc|m)');
     expect(middlewareSource).toContain('requestHeaders.set("x-ui-mode", mode)');
-    expect(middlewareSource).toContain('rewriteUrl.protocol = "http:"');
-    expect(middlewareSource).toContain('rewriteUrl.hostname = "localhost"');
-    expect(middlewareSource).toContain('rewriteUrl.port = "3000"');
+    expect(middlewareSource).toContain('req.headers.get("x-forwarded-proto")');
+    expect(middlewareSource).toContain('req.headers.get("x-forwarded-host")');
+    expect(middlewareSource).not.toContain('rewriteUrl.hostname = "localhost"');
+    expect(middlewareSource).not.toContain('rewriteUrl.port = "3000"');
     expect(middlewareSource).toContain("crmavito-ui-mode");
     expect(appLayoutSource).toContain('headerList.get("x-ui-mode") === "pc"');
     expect(appLayoutSource).toContain("pc-shell");
