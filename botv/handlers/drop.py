@@ -683,7 +683,7 @@ async def _process_and_send_xml(message: Message, state: FSMContext, bot: Bot, b
             ) or ""
 
         text = description.render(title=name, color=color, price=price_fmt, design=design_text)
-        brand = detect_brand(name, brands or [])
+        brand = detect_brand(name, brands or []) or "Без бренда"
         base_extra = product_extra(f"{name} {ad_title}", size)
         variants = location_extras(locations, base_extra)
         for location_index, extra in enumerate(variants, 1):

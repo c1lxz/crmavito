@@ -54,7 +54,13 @@ type AutoloadUpload = {
   status?: string;
   started_at?: string;
   feed_urls?: { name?: string; url?: string }[];
-  stats?: { count?: number; title?: string };
+  stats?: { count?: number; title?: string; sections?: AutoloadStatSection[] };
+};
+
+type AutoloadStatSection = {
+  title?: string;
+  count?: number;
+  sections?: AutoloadStatSection[];
 };
 
 type AutoloadStatus = {
@@ -132,6 +138,17 @@ function uploadLine(upload: AutoloadUpload | null | undefined) {
     typeof upload.stats?.count === "number" ? `${upload.stats.count} объявлений` : null,
   ].filter(Boolean);
   return parts.join(" · ") || "Есть загрузка";
+}
+
+function uploadStatLines(upload: AutoloadUpload | null | undefined) {
+  const sections = upload?.stats?.sections ?? [];
+  return sections.flatMap((section) => {
+    const line = section.title && typeof section.count === "number" ? `${section.title}: ${section.count}` : null;
+    const nested = (section.sections ?? [])
+      .map((item) => item.title && typeof item.count === "number" ? `${item.title}: ${item.count}` : null)
+      .filter(Boolean) as string[];
+    return line ? [line, ...nested] : nested;
+  });
 }
 
 async function apiFetch(input: RequestInfo | URL, init?: RequestInit, retries = 3) {
@@ -761,6 +778,14 @@ export function BotvMiniApp() {
                 <p><span className="font-medium">Текущая:</span> {uploadLine(autoloadStatus.current)}</p>
                 <p><span className="font-medium">Последняя успешная:</span> {uploadLine(autoloadStatus.lastSuccessful)}</p>
               </div>
+              {uploadStatLines(autoloadStatus.current).length > 0 && (
+                <div className="mt-2 space-y-1 text-xs">
+                  <p className="font-medium">Разбивка текущей загрузки</p>
+                  {uploadStatLines(autoloadStatus.current).map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                </div>
+              )}
               {autoloadStatus.uploads && autoloadStatus.uploads.length > 0 && (
                 <div className="mt-2 space-y-1 text-xs">
                   <p className="font-medium">Последние запуски</p>

@@ -109,6 +109,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("checkAutoloadStatus");
     expect(clientSource).toContain("/api/avito/autoload/status");
     expect(clientSource).toContain("Статус автозагрузки Avito");
+    expect(clientSource).toContain("Разбивка текущей загрузки");
     expect(clientSource).toContain("Последние запуски");
     expect(autoloadStatusRouteSource).toContain("fetchAvitoAutoloadStatus");
     expect(clientSource).toContain("Email отчётов Avito *");

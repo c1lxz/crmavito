@@ -185,7 +185,7 @@ def test_web_session_xml_limits_slow_gigachat_and_uses_fallback(tmp_path):
     assert "<Color>\u0427\u0451\u0440\u043d\u044b\u0439</Color>" in xml["xml"]
 
 
-def test_web_session_xml_skips_brand_when_not_in_avito_cache(tmp_path):
+def test_web_session_xml_uses_default_brand_when_not_in_avito_cache(tmp_path):
     archive = tmp_path / "drop.zip"
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("Drop/Raf Simons Archive/one.jpg", b"jpg")
@@ -210,8 +210,7 @@ def test_web_session_xml_skips_brand_when_not_in_avito_cache(tmp_path):
         },
     )
 
-    assert "<Brand>" not in xml["xml"]
-    assert "Без бренда" not in xml["xml"]
+    assert "<Brand>Без бренда</Brand>" in xml["xml"]
 def test_web_session_phone_xml_keeps_brand_from_stale_cache(tmp_path):
     archive = tmp_path / "drop.zip"
     with zipfile.ZipFile(archive, "w") as zf:

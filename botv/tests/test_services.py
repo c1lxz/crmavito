@@ -487,11 +487,11 @@ def test_xml_title_is_independent_from_description_name():
     assert "<Description>Исходное название товара" in xml
 
 
-def test_xml_brand_skipped_when_none():
+def test_xml_uses_default_brand_when_detection_misses():
     gen, td = _make_xml_generator()
     with td:
-        xml = gen.build([_sample_ad(brand=None)]).decode("utf-8")
-    assert "<Brand>" not in xml
+        xml = gen.build([_sample_ad(brand="Без бренда")]).decode("utf-8")
+    assert "<Brand>Без бренда</Brand>" in xml
 
 
 def test_xml_field_order():
