@@ -101,6 +101,10 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Публикация");
     expect(clientSource).toContain("publishXml");
     expect(clientSource).toContain("publishReportEmail");
+    expect(clientSource).toContain("publishResult");
+    expect(clientSource).toContain("setPublishResult(data.publish ?? {})");
+    expect(clientSource).toContain("Публикация Avito запущена");
+    expect(clientSource).toContain("Итог публикации появится в отчётах Автозагрузки Avito");
     expect(clientSource).toContain("Email отчётов Avito *");
     expect(clientSource).toContain("reportEmail: publishReportEmail || undefined");
     expect(clientSource).toContain("!publishReportEmail.trim()");

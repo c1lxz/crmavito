@@ -43,6 +43,12 @@ type AvitoCredentialProfile = {
   isActive: boolean;
 };
 
+type PublishResult = {
+  feedUrl?: string;
+  profileStatus?: number;
+  uploadStatus?: number;
+};
+
 function formatRub(value: number | null) {
   if (value == null) return "Цена не задана";
   return new Intl.NumberFormat("ru-RU").format(value) + " ₽";
@@ -201,6 +207,7 @@ export function BotvMiniApp() {
   const [selectedPublishProfileId, setSelectedPublishProfileId] = useState("");
   const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const manualColorOverrides = useRef(new Map<string, ProductColor>());
 
@@ -240,6 +247,7 @@ export function BotvMiniApp() {
   function rememberSession(data: BotvSession) {
     setSession(applyManualColorOverrides(data));
     window.localStorage.setItem("botv:lastSessionId", data.id);
+    setPublishResult(null);
   }
 
   function applyManualColorOverrides(data: BotvSession): BotvSession {
@@ -478,6 +486,7 @@ export function BotvMiniApp() {
       const data = await readJsonResponse(res, "Не удалось опубликовать XML");
       if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать XML");
       rememberPublishCredentials(data.profile);
+      setPublishResult(data.publish ?? {});
       setError("");
     } finally {
       setPublishing(false);
@@ -662,6 +671,28 @@ export function BotvMiniApp() {
           )}
 
           {error && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+          {publishResult && (
+            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-900 dark:text-emerald-100">
+              <p className="font-semibold">Публикация Avito запущена</p>
+              <p className="mt-1 text-xs opacity-80">
+                Avito принял XML-фид в автозагрузку. Итог публикации появится в отчётах Автозагрузки Avito после обработки.
+              </p>
+              {publishResult.feedUrl && (
+                <a
+                  href={publishResult.feedUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 block truncate text-xs font-medium underline underline-offset-2"
+                >
+                  {publishResult.feedUrl}
+                </a>
+              )}
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                {publishResult.profileStatus && <span>Профиль: HTTP {publishResult.profileStatus}</span>}
+                {publishResult.uploadStatus && <span>Запуск: HTTP {publishResult.uploadStatus}</span>}
+              </div>
+            </div>
+          )}
 
           {session && (
             <Card className="sticky top-[132px] z-20 lg:top-[142px]"><CardContent className="space-y-3 p-3">
