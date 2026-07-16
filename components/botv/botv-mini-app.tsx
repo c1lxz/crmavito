@@ -194,6 +194,7 @@ export function BotvMiniApp() {
   const [historyOpen, setHistoryOpen] = useState(true);
   const [publishClientId, setPublishClientId] = useState("");
   const [publishClientSecret, setPublishClientSecret] = useState("");
+  const [publishReportEmail, setPublishReportEmail] = useState("");
   const [publishProfiles, setPublishProfiles] = useState<AvitoCredentialProfile[]>([]);
   const [selectedPublishProfileId, setSelectedPublishProfileId] = useState("");
   const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
@@ -454,6 +455,7 @@ export function BotvMiniApp() {
     setSelectedPublishProfileId("");
     setPublishClientId("");
     setPublishClientSecret("");
+    setPublishReportEmail("");
   }
 
   async function publishXml() {
@@ -468,6 +470,7 @@ export function BotvMiniApp() {
           profileId: selectedPublishProfileId || undefined,
           clientId: publishClientId,
           clientSecret: publishClientSecret,
+          reportEmail: publishReportEmail || undefined,
         }),
       });
       const data = await readJsonResponse(res, "Не удалось опубликовать XML");
@@ -674,6 +677,14 @@ export function BotvMiniApp() {
                   placeholder="Avito client_secret"
                   value={publishClientSecret}
                   onChange={(event) => setPublishClientSecret(event.target.value)}
+                  autoComplete="off"
+                />
+                <Input
+                  className="h-8 w-52"
+                  type="email"
+                  placeholder="Email отчётов Avito"
+                  value={publishReportEmail}
+                  onChange={(event) => setPublishReportEmail(event.target.value)}
                   autoComplete="off"
                 />
                 <Button

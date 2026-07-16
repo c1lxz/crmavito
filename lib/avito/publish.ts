@@ -22,6 +22,14 @@ type AutoloadProfile = {
   schedule?: AutoloadScheduleItem[];
 };
 
+type PublishOptions = {
+  feedUrl: string;
+  fetchFn?: FetchFn;
+  sleepFn?: SleepFn;
+  feedName?: string;
+  reportEmail?: string;
+};
+
 export type AvitoXmlPublishResult = {
   feedUrl: string;
   profileStatus: number;
@@ -39,22 +47,25 @@ async function readJsonResponse(response: Response): Promise<unknown> {
   }
 }
 
-function reportEmailFrom(profile: AutoloadProfile | null): string {
-  const email = profile?.report_email?.trim() || process.env.AVITO_AUTOLOAD_REPORT_EMAIL?.trim();
+function reportEmailFrom(profile: AutoloadProfile | null, explicitEmail?: string): string {
+  const email =
+    explicitEmail?.trim() ||
+    profile?.report_email?.trim() ||
+    process.env.AVITO_AUTOLOAD_REPORT_EMAIL?.trim();
   if (!email) {
     throw new Error(
-      "В профиле автозагрузки Avito не указан email для отчётов. Укажите его в настройках автозагрузки Avito или задайте AVITO_AUTOLOAD_REPORT_EMAIL на сервере.",
+      "Avito не дал прочитать профиль автозагрузки, поэтому нужен email для отчётов. Укажите его в поле публикации или в настройке AVITO_AUTOLOAD_REPORT_EMAIL на сервере.",
     );
   }
   return email;
 }
 
-function buildProfilePayload(profile: AutoloadProfile | null, feed: AutoloadFeed) {
+function buildProfilePayload(profile: AutoloadProfile | null, feed: AutoloadFeed, explicitEmail?: string) {
   return {
     agreement: true,
     autoload_enabled: true,
     feeds_data: [feed],
-    report_email: reportEmailFrom(profile),
+    report_email: reportEmailFrom(profile, explicitEmail),
     schedule: profile?.schedule ?? [],
   };
 }
@@ -76,6 +87,10 @@ async function getAutoloadProfile(
   if (response.status === 404) return null;
   const data = await readJsonResponse(response);
   if (!response.ok) {
+    const errorText = extractAvitoErrorText(data);
+    if (response.status === 403 && errorText.includes("Получение профиля недоступно")) {
+      return null;
+    }
     throw new Error(`Получение профиля автозагрузки Avito не прошло: ${extractAvitoErrorText(data).slice(0, 500)}`);
   }
   return data as AutoloadProfile;
@@ -85,7 +100,7 @@ async function upsertAutoloadProfile(
   token: string,
   profile: AutoloadProfile | null,
   feed: AutoloadFeed,
-  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+  options: PublishOptions,
 ): Promise<number> {
   const response = await fetchWithRetry(
     "https://api.avito.ru/autoload/v2/profile",
@@ -95,7 +110,7 @@ async function upsertAutoloadProfile(
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildProfilePayload(profile, feed)),
+      body: JSON.stringify(buildProfilePayload(profile, feed, options.reportEmail)),
       cache: "no-store",
       signal: AbortSignal.timeout(30_000),
     },
@@ -133,7 +148,7 @@ export async function publishAvitoXml(
   credentials: AvitoCredentials,
   xml: string,
   filename: string,
-  options: { feedUrl: string; fetchFn?: FetchFn; sleepFn?: SleepFn; feedName?: string },
+  options: PublishOptions,
 ): Promise<AvitoXmlPublishResult> {
   if (!xml.trim()) throw new Error("XML пустой, публикация Avito не запущена.");
   const feedUrl = options.feedUrl.trim();

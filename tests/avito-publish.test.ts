@@ -74,4 +74,37 @@ describe("Avito XML publication", () => {
     expect(uploadCall?.init?.method).toBe("POST");
     expect(uploadCall?.init?.headers).toEqual({ Authorization: "Bearer token" });
   });
+
+  it("continues when Avito does not allow reading the autoload profile", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/autoload/v2/profile") && init?.method !== "POST") {
+        return Response.json({ error: { message: "Получение профиля недоступно." } }, { status: 403 });
+      }
+      if (href.includes("/autoload/v2/profile") && init?.method === "POST") {
+        return new Response("", { status: 200 });
+      }
+      if (href.includes("/autoload/v1/upload")) {
+        return new Response("", { status: 200 });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      publishAvitoXml(credentials, "<Ads />", "avito.xml", {
+        feedUrl: "https://crmavito.duckdns.org/v-data/botv/work/session-1/xml",
+        reportEmail: "reports@example.test",
+        fetchFn,
+        sleepFn: async () => undefined,
+      }),
+    ).resolves.toMatchObject({ uploadStatus: 200 });
+
+    const profileCall = calls.find((call) => call.url.includes("/autoload/v2/profile") && call.init?.method === "POST");
+    expect(JSON.parse(String(profileCall?.init?.body)).report_email).toBe("reports@example.test");
+  });
 });

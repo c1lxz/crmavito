@@ -100,6 +100,9 @@ describe("botv mini app UI", () => {
 
     expect(clientSource).toContain("Публикация");
     expect(clientSource).toContain("publishXml");
+    expect(clientSource).toContain("publishReportEmail");
+    expect(clientSource).toContain("Email отчётов Avito");
+    expect(clientSource).toContain("reportEmail: publishReportEmail || undefined");
     expect(clientSource).toContain("/api/avito-profiles/credentials");
     expect(clientSource).toContain("publishProfiles");
     expect(clientSource).toContain("selectedPublishProfileId");

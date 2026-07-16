@@ -13,6 +13,7 @@ const publishSchema = z.object({
   profileId: z.string().trim().optional(),
   clientId: z.string().trim().optional(),
   clientSecret: z.string().trim().optional(),
+  reportEmail: z.string().trim().optional(),
 });
 
 function publicBaseUrl(request: Request): string {
@@ -62,6 +63,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const savedProfile = await saveAvitoProfileCredentials(credentials, profile);
     const publish = await publishAvitoXml(credentials, xmlResult.xml, xmlResult.filename, {
       feedUrl: publicXmlFeedUrl(request, id),
+      reportEmail: parsed.data.reportEmail,
     });
     return NextResponse.json({
       success: true,
