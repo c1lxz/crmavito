@@ -104,7 +104,7 @@ export function StocksClient() {
         body: JSON.stringify({ profileId: selectedProfileId || undefined, clientId, clientSecret }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РѕР±СЉСЏРІР»РµРЅРёСЏ");
+      if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить объявления");
       setItems(data.items ?? []);
       rememberCredentials(data.profile);
       setDrafts(
@@ -112,10 +112,10 @@ export function StocksClient() {
           (data.items ?? []).map((item: StockItem) => [item.itemId, String(item.quantity ?? 0)]),
         ),
       );
-      toast({ title: "РћР±СЉСЏРІР»РµРЅРёСЏ Р·Р°РіСЂСѓР¶РµРЅС‹", description: `РќР°Р№РґРµРЅРѕ: ${(data.items ?? []).length}` });
+      toast({ title: "Объявления загружены", description: `Найдено: ${(data.items ?? []).length}` });
     } catch (error) {
       toast({
-        title: "РћС€РёР±РєР° Avito",
+        title: "Ошибка Avito",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
@@ -131,7 +131,7 @@ export function StocksClient() {
       body: JSON.stringify({ profileId: selectedProfileId || undefined, clientId, clientSecret, updates }),
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ РѕСЃС‚Р°С‚РєРё");
+    if (!response.ok) throw new Error(data.error ?? "Не удалось обновить остатки");
     const successful = new Set(
       (data.stocks ?? [])
         .filter((stock: { item_id: string | number; success?: boolean }) => stock.success !== false)
@@ -143,21 +143,21 @@ export function StocksClient() {
   async function saveOne(itemId: string) {
     const quantity = Number(drafts[itemId]);
     if (!Number.isInteger(quantity) || quantity < 0) {
-      toast({ title: "РћСЃС‚Р°С‚РѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С†РµР»С‹Рј С‡РёСЃР»РѕРј РѕС‚ 0", variant: "destructive" });
+      toast({ title: "Остаток должен быть целым числом от 0", variant: "destructive" });
       return;
     }
 
     setSavingId(itemId);
     try {
       const successful = await saveUpdates([{ itemId, quantity }]);
-      if (!successful.has(itemId)) throw new Error("Avito РЅРµ РїРѕРґС‚РІРµСЂРґРёР» РѕР±РЅРѕРІР»РµРЅРёРµ");
+      if (!successful.has(itemId)) throw new Error("Avito не подтвердил обновление");
       setItems((current) =>
         current.map((item) => (item.itemId === itemId ? { ...item, quantity } : item)),
       );
-      toast({ title: "РћСЃС‚Р°С‚РѕРє РѕР±РЅРѕРІР»С‘РЅ" });
+      toast({ title: "Остаток обновлён" });
     } catch (error) {
       toast({
-        title: "РћС€РёР±РєР° Avito",
+        title: "Ошибка Avito",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
@@ -169,7 +169,7 @@ export function StocksClient() {
   async function saveBulk() {
     const quantity = Number(bulkQuantity);
     if (!Number.isInteger(quantity) || quantity < 0) {
-      toast({ title: "РћСЃС‚Р°С‚РѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С†РµР»С‹Рј С‡РёСЃР»РѕРј РѕС‚ 0", variant: "destructive" });
+      toast({ title: "Остаток должен быть целым числом от 0", variant: "destructive" });
       return;
     }
     const updates = [...selected].map((itemId) => ({ itemId, quantity }));
@@ -186,10 +186,10 @@ export function StocksClient() {
         ...Object.fromEntries([...successful].map((itemId) => [itemId, String(quantity)])),
       }));
       setSelected(new Set());
-      toast({ title: "РћСЃС‚Р°С‚РєРё РѕР±РЅРѕРІР»РµРЅС‹", description: `РџРѕР·РёС†РёР№: ${successful.size}` });
+      toast({ title: "Остатки обновлены", description: `Позиций: ${successful.size}` });
     } catch (error) {
       toast({
-        title: "РћС€РёР±РєР° Avito",
+        title: "Ошибка Avito",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
@@ -228,12 +228,12 @@ export function StocksClient() {
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="flex-1">
-            <h1 className="text-lg font-semibold tracking-tight">РћСЃС‚Р°С‚РєРё Avito</h1>
-            <p className="section-caption">РћР±СЉСЏРІР»РµРЅРёСЏ Рё РєРѕР»РёС‡РµСЃС‚РІРѕ РЅР° РІС‹Р±СЂР°РЅРЅРѕРј Р°РєРєР°СѓРЅС‚Рµ</p>
+            <h1 className="text-lg font-semibold tracking-tight">Остатки Avito</h1>
+            <p className="section-caption">Объявления и количество на выбранном аккаунте</p>
           </div>
           <Button size="sm" variant="outline" onClick={loadItems} disabled={!canLoad}>
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            {loading ? "Р—Р°РіСЂСѓР·РєР°" : "Р—Р°РіСЂСѓР·РёС‚СЊ"}
+            {loading ? "Загрузка" : "Загрузить"}
           </Button>
           {credentialProfiles.length > 0 && (
             <Button size="sm" variant="outline" onClick={() => setProfilesOpen((value) => !value)}>
@@ -305,7 +305,7 @@ export function StocksClient() {
               type="button"
               onClick={toggleVisible}
               className="icon-tile h-9 w-9"
-              aria-label="Р’С‹Р±СЂР°С‚СЊ РІРёРґРёРјС‹Рµ"
+              aria-label="Выбрать видимые"
             >
               {filtered.length > 0 && filtered.every((item) => selected.has(item.itemId)) ? (
                 <CheckSquare className="h-4 w-4" />
@@ -316,7 +316,7 @@ export function StocksClient() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="РџРѕРёСЃРє РѕР±СЉСЏРІР»РµРЅРёСЏ..."
+                placeholder="Поиск объявления..."
                 className="pl-9"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -329,7 +329,7 @@ export function StocksClient() {
               min={0}
               step={1}
               className="h-9 w-32"
-              placeholder="РћСЃС‚Р°С‚РѕРє"
+              placeholder="Остаток"
               value={bulkQuantity}
               onChange={(event) => setBulkQuantity(event.target.value)}
               disabled={selectedCount === 0}
@@ -340,7 +340,7 @@ export function StocksClient() {
               disabled={selectedCount === 0 || bulkSaving}
               className="min-w-32"
             >
-              {bulkSaving ? "РЎРѕС…СЂР°РЅРµРЅРёРµ" : `Р”Р»СЏ РІС‹Р±СЂР°РЅРЅС‹С…: ${selectedCount}`}
+              {bulkSaving ? "Сохранение" : `Для выбранных: ${selectedCount}`}
             </Button>
           </div>
         </div>
@@ -350,7 +350,7 @@ export function StocksClient() {
         {!loading && items.length === 0 && (
           <div className="py-12 text-center text-muted-foreground">
             <Package className="mx-auto mb-3 h-10 w-10 opacity-45" />
-            <p className="text-sm font-semibold">Р’РІРµРґРёС‚Рµ РєР»СЋС‡Рё Avito Рё Р·Р°РіСЂСѓР·РёС‚Рµ РѕР±СЉСЏРІР»РµРЅРёСЏ</p>
+            <p className="text-sm font-semibold">Введите ключи Avito и загрузите объявления</p>
           </div>
         )}
 
@@ -366,7 +366,7 @@ export function StocksClient() {
                   type="button"
                   onClick={() => toggleSelected(item.itemId)}
                   className="text-muted-foreground transition-colors hover:text-primary"
-                  aria-label={isSelected ? "РЎРЅСЏС‚СЊ РІС‹Р±РѕСЂ" : "Р’С‹Р±СЂР°С‚СЊ"}
+                  aria-label={isSelected ? "Снять выбор" : "Выбрать"}
                 >
                   {isSelected ? <CheckSquare className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5" />}
                 </button>
@@ -395,7 +395,7 @@ export function StocksClient() {
                     {item.status && (
                       <Badge variant={item.status === "active" ? "success" : "warning"}>{item.status}</Badge>
                     )}
-                    {item.isUnlimited && <Badge variant="secondary">Р‘РµР· Р»РёРјРёС‚Р°</Badge>}
+                    {item.isUnlimited && <Badge variant="secondary">Без лимита</Badge>}
                   </div>
                 </div>
 
@@ -416,7 +416,7 @@ export function StocksClient() {
                     className="h-9 w-9"
                     onClick={() => saveOne(item.itemId)}
                     disabled={savingId === item.itemId || !changed}
-                    aria-label="РЎРѕС…СЂР°РЅРёС‚СЊ РѕСЃС‚Р°С‚РѕРє"
+                    aria-label="Сохранить остаток"
                   >
                     {savingId === item.itemId ? (
                       <RefreshCw className="h-4 w-4 animate-spin" />

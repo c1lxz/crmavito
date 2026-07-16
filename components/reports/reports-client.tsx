@@ -145,7 +145,6 @@ export function ReportsClient() {
       ]
     : [];
   const ordersReturnsTotal = ordersReturnsData.reduce((s, d) => s + d.count, 0);
-  const returnsRatio = kpi?.current.returnsPercent ?? 0;
   const avitoProfileData: OrderStatusItem[] = avitoProfiles.map((profile, index) => ({
     status: profile.id,
     label: profile.label,
@@ -212,8 +211,6 @@ export function ReportsClient() {
               title="Заказы / возвраты"
               data={ordersReturnsData}
               total={ordersReturnsTotal}
-              centerValue={formatPercent(returnsRatio)}
-              centerLabel="Возвраты"
               showSlicePercentLabels
             />
             <OrdersStatusDonut title="Заказы по профилям Avito" data={avitoProfileData} total={avitoProfileTotal} />
