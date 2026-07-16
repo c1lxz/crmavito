@@ -16,6 +16,9 @@ export function middleware(req: NextRequest) {
     requestHeaders.set("x-ui-mode", mode);
 
     const rewriteUrl = req.nextUrl.clone();
+    rewriteUrl.protocol = "http:";
+    rewriteUrl.hostname = "localhost";
+    rewriteUrl.port = "3000";
     rewriteUrl.pathname = targetPath;
     rewriteUrl.search = search;
 
