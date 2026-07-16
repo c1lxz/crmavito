@@ -125,18 +125,18 @@ export function CounterpartiesClient({ counterparties: initial }: Props) {
                   <div className="flex items-center justify-center gap-1 mb-0.5">
                     <Package className="h-3 w-3 text-muted-foreground" />
                   </div>
-                  <p className="text-xs font-semibold">{cp.ordersCount}</p>
+                  <p className="counterparty-metric-value text-xs font-semibold tabular-nums">{cp.ordersCount}</p>
                   <p className="text-[10px] text-muted-foreground">заказов</p>
                 </div>
                 <div className="bg-secondary/70 rounded-md p-2">
-                  <p className="text-xs font-semibold">{formatRub(cp.totalPurchase)}</p>
+                  <p className="counterparty-metric-value text-xs font-semibold tabular-nums">{formatRub(cp.totalPurchase)}</p>
                   <p className="text-[10px] text-muted-foreground">закуплено</p>
                 </div>
                 <div className="bg-secondary/70 rounded-md p-2">
                   <div className="flex items-center justify-center gap-1 mb-0.5">
                     <TrendingUp className="h-3 w-3 money-positive" />
                   </div>
-                  <p className={`text-xs font-semibold ${cp.totalProfit >= 0 ? "money-positive" : "money-negative"}`}>
+                  <p className={`counterparty-metric-value text-xs font-semibold tabular-nums ${cp.totalProfit >= 0 ? "money-positive" : "money-negative"}`}>
                     {formatRub(cp.totalProfit)}
                   </p>
                   <p className="text-[10px] text-muted-foreground">прибыль</p>

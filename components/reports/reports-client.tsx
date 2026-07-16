@@ -240,12 +240,12 @@ export function ReportsClient() {
                     ].map(({ label, value, sign }) => (
                       <div key={label} className="flex justify-between py-1.5 border-b border-border/70 last:border-0">
                         <span className="text-sm">{label}</span>
-                        <span className={`text-sm font-medium tabular-nums ${sign < 0 ? "money-negative" : ""}`}>{formatRub(value ?? 0)}</span>
+                        <span className={`report-value text-sm font-medium tabular-nums ${sign < 0 ? "money-negative" : ""}`}>{formatRub(value ?? 0)}</span>
                       </div>
                     ))}
                     <div className="flex justify-between pt-2 border-t-2">
                       <span className="font-bold">= Чистая прибыль</span>
-                      <span className={`font-bold tabular-nums ${(pnl.netProfit ?? 0) >= 0 ? "money-positive" : "money-negative"}`}>{formatRub(pnl.netProfit ?? 0)}</span>
+                      <span className={`report-value font-bold tabular-nums ${(pnl.netProfit ?? 0) >= 0 ? "money-positive" : "money-negative"}`}>{formatRub(pnl.netProfit ?? 0)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -264,7 +264,7 @@ export function ReportsClient() {
                         <p className="font-medium text-sm truncate">{p.name}</p>
                         <p className="text-xs text-muted-foreground">Продано: {p.sold} шт. · Выручка: {formatRub(p.revenue)}</p>
                       </div>
-                  <p className="text-sm font-bold tabular-nums money-positive ml-2">{formatRub(p.profit)}</p>
+                  <p className="report-value text-sm font-bold tabular-nums money-positive ml-2">{formatRub(p.profit)}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -279,7 +279,7 @@ export function ReportsClient() {
                 <Card key={counterparty.counterpartyId}>
                   <CardContent className="p-3">
                     <p className="text-sm font-medium">{counterparty.name}</p>
-                    <div className="mt-1 grid grid-cols-3 gap-2 text-xs">
+                    <div className="report-counterparty-grid mt-1 grid grid-cols-3 gap-2 text-xs">
                       <span className="text-muted-foreground">Закупка<br /><strong className="text-foreground">{formatRub(counterparty.purchased)}</strong></span>
                       <span className="text-muted-foreground">Выручка<br /><strong className="text-foreground">{formatRub(counterparty.revenue)}</strong></span>
                       <span className="text-muted-foreground">Прибыль<br /><strong className={counterparty.profit >= 0 ? "money-positive" : "money-negative"}>{formatRub(counterparty.profit)}</strong></span>
@@ -300,7 +300,7 @@ export function ReportsClient() {
                       <p className="truncate text-sm font-medium">{item.name}</p>
                       <p className="text-xs text-muted-foreground">Возвратов: {item.returns}</p>
                     </div>
-                    <span className="ml-3 text-sm font-semibold money-negative">{formatPercent(item.returnPercent)}</span>
+                    <span className="report-value ml-3 text-sm font-semibold money-negative">{formatPercent(item.returnPercent)}</span>
                   </CardContent>
                 </Card>
               ))}

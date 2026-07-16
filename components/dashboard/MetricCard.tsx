@@ -19,7 +19,7 @@ export function MetricCard({ label, value, format, prevValue }: MetricCardProps)
   return (
     <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
       <p className="text-[11px] font-semibold text-foreground/55 leading-tight mb-2">{label}</p>
-      <p className="text-xl font-bold tabular-nums leading-none">{fmt(value)}</p>
+      <p className="dashboard-metric-value text-xl font-bold tabular-nums leading-none">{fmt(value)}</p>
       {delta !== null && (
         <p
           className={cn(

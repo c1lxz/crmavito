@@ -54,7 +54,7 @@ export function TopProductsProfit({ products }: Props) {
                     </div>
                   </div>
 
-                  <span className="text-xs font-bold whitespace-nowrap">
+                  <span className="report-value text-xs font-bold whitespace-nowrap">
                     {product.profit.toLocaleString("ru-RU")} ₽
                   </span>
                 </div>
