@@ -1,3 +1,5 @@
+import { ProxyAgent } from "undici";
+
 export type AvitoProbeInput = {
   category: string;
   periodDays: number;
@@ -63,6 +65,18 @@ type ProbeOptions = {
 
 const DEFAULT_CITY_SLUG = "rossiya";
 const DEFAULT_PERIOD_DAYS = 3;
+const AVITO_HEADERS = {
+  "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "accept-language": "ru-RU,ru;q=0.9,en;q=0.7",
+  "cache-control": "no-cache",
+  "user-agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+};
+
+type ProxyFetchInit = RequestInit & { dispatcher?: ProxyAgent };
+
+let cachedProxyUrl: string | null = null;
+let cachedProxyAgent: ProxyAgent | null = null;
 
 export function buildAvitoSearchUrl(category: string): string {
   const url = new URL(`https://www.avito.ru/${DEFAULT_CITY_SLUG}`);
@@ -86,18 +100,18 @@ export async function probeAvitoPublicPage(
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 15000);
 
   try {
-    const response = await fetchFn(requestedUrl, {
-      headers: {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "accept-language": "ru-RU,ru;q=0.9,en;q=0.7",
-        "cache-control": "no-cache",
-        "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-      },
-      redirect: "follow",
-      signal: controller.signal,
-      cache: "no-store",
-    });
+    const response = await fetchFn(
+      requestedUrl,
+      withMarketProxy(
+        {
+          headers: AVITO_HEADERS,
+          redirect: "follow",
+          signal: controller.signal,
+          cache: "no-store",
+        },
+        fetchFn,
+      ),
+    );
     const html = await response.text();
     const contentType = response.headers.get("content-type") ?? "";
     return parseAvitoHtml(html, {
@@ -135,6 +149,9 @@ export async function analyzeAvitoMarket(
   const notes = [...probe.notes];
   if (listings.length > 0) {
     notes.push(`Checked listings: ${listings.length}. Listings with visible views: ${views.length}.`);
+  }
+  if (getMarketProxyUrl()) {
+    notes.push("Avito market requests used configured proxy.");
   }
   if (listings.length > 0 && views.length === 0) {
     notes.push("Avito did not expose listing view counters in the available public HTML.");
@@ -263,18 +280,18 @@ async function fetchListingDetails(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchFn(preview.url, {
-      headers: {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "accept-language": "ru-RU,ru;q=0.9,en;q=0.7",
-        "cache-control": "no-cache",
-        "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-      },
-      redirect: "follow",
-      signal: controller.signal,
-      cache: "no-store",
-    });
+    const response = await fetchFn(
+      preview.url,
+      withMarketProxy(
+        {
+          headers: AVITO_HEADERS,
+          redirect: "follow",
+          signal: controller.signal,
+          cache: "no-store",
+        },
+        fetchFn,
+      ),
+    );
     const html = await response.text();
     const publishedAt = extractPublishedAt(html);
     return {
@@ -307,6 +324,32 @@ async function fetchListingDetails(
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withMarketProxy(init: RequestInit, fetchFn: typeof fetch): RequestInit {
+  if (fetchFn !== fetch) return init;
+
+  const proxyUrl = getMarketProxyUrl();
+  if (!proxyUrl) return init;
+
+  if (cachedProxyUrl !== proxyUrl) {
+    cachedProxyUrl = proxyUrl;
+    cachedProxyAgent = new ProxyAgent(proxyUrl);
+  }
+
+  return { ...init, dispatcher: cachedProxyAgent ?? undefined } as ProxyFetchInit;
+}
+
+function getMarketProxyUrl(): string | null {
+  const raw = process.env.AVITO_MARKET_PROXY_URL?.trim();
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const parts = raw.split(":");
+  if (parts.length !== 4) return raw;
+
+  const [host, port, username, password] = parts;
+  return `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}`;
 }
 
 function extractViews(html: string): number | null {

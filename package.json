@@ -52,6 +52,7 @@
     "recharts": "^2.15.1",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "undici": "^6.21.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
