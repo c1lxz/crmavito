@@ -31,6 +31,16 @@ def _bool_env(key: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _crm_url(path: str) -> str:
+    base = (
+        os.getenv("CRM_APP_URL")
+        or os.getenv("APP_URL")
+        or os.getenv("NEXTAUTH_URL")
+        or "https://crmavito.duckdns.org"
+    ).rstrip("/")
+    return f"{base}{path}"
+
+
 @dataclass
 class Config:
     bot_token: str = field(default_factory=lambda: _require("BOT_TOKEN"))
@@ -57,6 +67,12 @@ class Config:
     )
     mini_app_url: str = field(
         default_factory=lambda: os.getenv("BOTV_MINI_APP_URL", "https://crmavito.duckdns.org/v")
+    )
+    crm_mobile_url: str = field(
+        default_factory=lambda: os.getenv("CRM_MOBILE_URL", _crm_url("/m/dashboard"))
+    )
+    crm_desktop_url: str = field(
+        default_factory=lambda: os.getenv("CRM_DESKTOP_URL", _crm_url("/pc/dashboard"))
     )
 
     gigachat_credentials: str = field(
