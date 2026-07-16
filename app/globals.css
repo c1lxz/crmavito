@@ -276,6 +276,17 @@
     grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
   }
 
+  .pc-shell .expense-month-chart {
+    max-width: 58rem;
+  }
+
+  .pc-shell .expense-month-chart-grid {
+    display: grid;
+    grid-template-columns: 20rem minmax(0, 1fr);
+    align-items: center;
+    gap: 1.5rem;
+  }
+
   .pc-shell .pc-products-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -293,6 +304,11 @@
     padding-left: 2rem;
     padding-right: 2rem;
   }
+}
+
+.expense-month-chart-grid {
+  display: grid;
+  gap: 1rem;
 }
 
 @media (min-width: 1536px) {

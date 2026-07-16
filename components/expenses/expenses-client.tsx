@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, ShoppingCart, Truck, Megaphone, Package, Percent, DollarSign, MoreHorizontal, Wallet } from "lucide-react";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,6 +100,16 @@ export function ExpensesClient({ initialData, initialOpen = false }: Props) {
 
   const totalFiltered = filtered.reduce((s, e) => s + e.amount, 0);
   const monthSummary = useMemo(() => summarizeExpensesForMonth(expenses), [expenses]);
+  const monthChartData = useMemo(
+    () =>
+      CATEGORIES.map(([category, label]) => ({
+        key: category,
+        label,
+        amount: monthSummary.byCategory[category] ?? 0,
+        color: EXPENSE_CATEGORY_COLORS[category],
+      })).filter((item) => item.amount > 0),
+    [monthSummary.byCategory],
+  );
   const days = filtered.length > 0
     ? Math.max(1, Math.ceil((new Date(filtered[0].date).getTime() - new Date(filtered[filtered.length - 1].date).getTime()) / 86400000) + 1)
     : 1;
@@ -169,27 +180,7 @@ export function ExpensesClient({ initialData, initialOpen = false }: Props) {
 
       <div className="px-4 py-3">
         <h2 className="section-title mb-2">Расходы за месяц</h2>
-        <div className="grid grid-cols-4 gap-2 mb-2">
-          <Card className="col-span-4 border-primary/25 bg-accent/65">
-            <CardContent className="p-3 text-center">
-              <p className="text-xs text-muted-foreground">Всего</p>
-              <p className="text-lg font-semibold text-foreground tabular-nums">{formatRub(monthSummary.total)}</p>
-            </CardContent>
-          </Card>
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {CATEGORIES.map(([cat, label]) => (
-            <Card key={cat} className="border-border/60 bg-card">
-              <CardContent className="p-2 text-center">
-                <div className="flex justify-center mb-1" style={{ color: EXPENSE_CATEGORY_COLORS[cat] }}>
-                  {CATEGORY_ICONS[cat]}
-                </div>
-                <p className="text-[10px] text-muted-foreground leading-tight mb-0.5">{label}</p>
-                <p className="text-xs font-semibold">{formatRub(monthSummary.byCategory[cat] ?? 0)}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <ExpenseMonthDonut data={monthChartData} total={monthSummary.total} />
       </div>
 
       {/* List */}
@@ -279,5 +270,88 @@ export function ExpensesClient({ initialData, initialOpen = false }: Props) {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function ExpenseMonthDonut({
+  data,
+  total,
+}: {
+  data: Array<{ key: ExpenseCategory; label: string; amount: number; color: string }>;
+  total: number;
+}) {
+  const chartData = data.length > 0
+    ? data
+    : [{ key: "empty" as ExpenseCategory, label: "", amount: 1, color: "hsl(var(--muted))" }];
+
+  return (
+    <Card className="expense-month-chart border-primary/15 bg-card">
+      <CardContent className="p-4">
+        <div className="expense-month-chart-grid">
+          <div className="relative mx-auto h-64 w-64 max-w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  dataKey="amount"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius="62%"
+                  outerRadius="92%"
+                  paddingAngle={data.length > 1 ? 2 : 0}
+                  strokeWidth={0}
+                  startAngle={90}
+                  endAngle={-270}
+                >
+                  {chartData.map((entry) => (
+                    <Cell key={entry.key} fill={entry.color} />
+                  ))}
+                </Pie>
+                {data.length > 0 && (
+                  <Tooltip
+                    formatter={(value: number) => formatRub(value)}
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                    wrapperStyle={{ zIndex: 20 }}
+                  />
+                )}
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
+              <span className="text-xs font-medium text-muted-foreground">Все расходы</span>
+              <span className="mt-1 text-xl font-bold leading-tight tabular-nums text-foreground">
+                {formatRub(total)}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {data.length === 0 ? (
+              <p className="py-6 text-center text-sm font-medium text-muted-foreground">
+                Расходов за месяц пока нет
+              </p>
+            ) : (
+              data.map((item) => {
+                const percent = total > 0 ? (item.amount / total) * 100 : 0;
+                return (
+                  <div key={item.key} className="flex items-center gap-2 rounded-md bg-secondary/55 px-3 py-2">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.label}</span>
+                    <span className="whitespace-nowrap text-sm font-semibold tabular-nums">
+                      {formatRub(item.amount)}
+                    </span>
+                    <span className="w-12 text-right text-xs font-medium text-muted-foreground tabular-nums">
+                      {percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

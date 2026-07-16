@@ -45,6 +45,16 @@ describe("server refresh propagation", () => {
     expect(contents).toContain("monthSummary.byCategory");
   });
 
+  it("renders the expenses month summary as a donut without zero categories", () => {
+    const contents = source("components/expenses/expenses-client.tsx");
+    expect(contents).toContain("ExpenseMonthDonut");
+    expect(contents).toContain("ResponsiveContainer");
+    expect(contents).toContain("PieChart");
+    expect(contents).toContain("filter((item) => item.amount > 0)");
+    expect(contents).toContain("Все расходы");
+    expect(contents).not.toContain("grid grid-cols-3 gap-2");
+  });
+
   it("shows gross order amounts under the left dashboard cards", () => {
     const contents = source("app/(app)/dashboard/page.tsx");
     expect(contents).toContain("todayOrderAmount");
