@@ -680,16 +680,16 @@ export function BotvMiniApp() {
                   autoComplete="off"
                 />
                 <Input
-                  className="h-8 w-52"
+                  className="h-8 w-56"
                   type="email"
-                  placeholder="Email отчётов Avito"
+                  placeholder="Email отчётов Avito *"
                   value={publishReportEmail}
                   onChange={(event) => setPublishReportEmail(event.target.value)}
-                  autoComplete="off"
+                  autoComplete="email"
                 />
                 <Button
                   size="sm"
-                  disabled={!publishClientId.trim() || !publishClientSecret.trim() || publishing}
+                  disabled={!publishClientId.trim() || !publishClientSecret.trim() || !publishReportEmail.trim() || publishing}
                   onClick={() => run(publishXml)}
                 >
                   {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
