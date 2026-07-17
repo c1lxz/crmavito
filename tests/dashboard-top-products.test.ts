@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import {
   buildTopProductsByOrders,
   normalizeTopProductName,
@@ -48,5 +50,19 @@ describe("dashboard top products by orders", () => {
 
   it("normalizes Russian spelling, punctuation and whitespace", () => {
     expect(normalizeTopProductName("  Чёрный—лонгслив! ")).toBe("черный лонгслив");
+  });
+});
+
+describe("mobile dashboard layout", () => {
+  it("keeps mobile dashboard rows inside the viewport", () => {
+    const source = readFileSync(
+      path.resolve(__dirname, "../app/(app)/dashboard/page.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain("grid-cols-[auto_minmax(0,1fr)_minmax(4.75rem,auto)]");
+    expect(source).toContain("grid-cols-[1.5rem_minmax(0,1fr)_minmax(4.5rem,auto)]");
+    expect(source).toContain("const getOrderImageUrl");
+    expect(source).toContain("item.imageUrls.length > 0");
   });
 });

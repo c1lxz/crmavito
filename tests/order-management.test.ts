@@ -82,6 +82,14 @@ describe("order management UI/API", () => {
     path.resolve(__dirname, "../components/orders/create-order-dialog.tsx"),
     "utf8"
   );
+  const ordersPageSource = readFileSync(
+    path.resolve(__dirname, "../app/(app)/orders/page.tsx"),
+    "utf8"
+  );
+  const ordersClientSource = readFileSync(
+    path.resolve(__dirname, "../components/orders/orders-client.tsx"),
+    "utf8"
+  );
   const reportsSource = readFileSync(
     path.resolve(__dirname, "../lib/db/reports.ts"),
     "utf8"
@@ -110,5 +118,16 @@ describe("order management UI/API", () => {
     expect(formSource).toContain("avitoProfileId");
     expect(formSource).toContain("Профиль Avito");
     expect(orderRouteSource).toContain("avitoProfileId");
+  });
+
+  it("shows manually uploaded order item photos in order lists", () => {
+    expect(ordersPageSource).toContain(
+      'items: { include: { product: true }, orderBy: { position: "asc" } }',
+    );
+    expect(ordersPageSource).toContain("imageUrls: item.imageUrls");
+    expect(ordersClientSource).toContain("function getOrderImageUrl(order: Order)");
+    expect(ordersClientSource).toContain(
+      "order.items?.find((item) => item.imageUrls.length > 0)?.imageUrls[0]",
+    );
   });
 });

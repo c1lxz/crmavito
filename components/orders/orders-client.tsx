@@ -34,6 +34,10 @@ interface Order {
   commissionCost: number;
   otherCosts: number;
   product: { imageUrl: string | null };
+  items?: Array<{
+    imageUrls: string[];
+    product?: { imageUrl: string | null };
+  }>;
   counterparty: { id: string; name: string };
   avitoProfile: { id: string; name: string; color: string | null; isActive: boolean } | null;
 }
@@ -71,6 +75,15 @@ const EDITABLE_STATUSES: OrderStatus[] = [
   "RETURNED",
   "CANCELLED",
 ];
+
+function getOrderImageUrl(order: Order): string | null {
+  return (
+    order.items?.find((item) => item.imageUrls.length > 0)?.imageUrls[0] ??
+    order.product.imageUrl ??
+    order.items?.find((item) => item.product?.imageUrl)?.product?.imageUrl ??
+    null
+  );
+}
 
 export function OrdersClient({
   initialOrders,
@@ -620,6 +633,7 @@ export function OrdersClient({
             <tbody className="divide-y divide-border">
               {filtered.map((order) => {
                 const selected = selectedIds.has(order.id);
+                const imageUrl = getOrderImageUrl(order);
                 const row = (
                   <>
                     {selectionMode && (
@@ -643,9 +657,9 @@ export function OrdersClient({
                     <td className="px-4 py-3 align-top">
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
-                          {order.product.imageUrl ? (
+                          {imageUrl ? (
                             <Image
-                              src={order.product.imageUrl}
+                              src={imageUrl}
                               alt={order.productNameSnapshot}
                               width={40}
                               height={40}
@@ -743,6 +757,7 @@ export function OrdersClient({
         <div className="mobile-only space-y-3">
         {filtered.map((order) => {
           const selected = selectedIds.has(order.id);
+          const imageUrl = getOrderImageUrl(order);
           const content = (
             <Card
               className={`transition-colors ${
@@ -766,8 +781,8 @@ export function OrdersClient({
                     </span>
                   )}
                   <div className="w-12 h-12 rounded-md bg-muted overflow-hidden flex-shrink-0">
-                    {order.product.imageUrl ? (
-                      <Image src={order.product.imageUrl} alt={order.productNameSnapshot} width={48} height={48} className="object-cover w-full h-full" />
+                    {imageUrl ? (
+                      <Image src={imageUrl} alt={order.productNameSnapshot} width={48} height={48} className="object-cover w-full h-full" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                         <Package className="h-5 w-5" />

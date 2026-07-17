@@ -55,7 +55,10 @@ async function getDashboardData() {
         where: { isDeleted: false },
         orderBy: { createdAt: "desc" },
         take: 10,
-        include: { product: true },
+        include: {
+          product: true,
+          items: { include: { product: true }, orderBy: { position: "asc" } },
+        },
       }),
       prisma.order.findMany({
         where: { isDeleted: false, status: { not: "CANCELLED" } },
@@ -150,6 +153,12 @@ export default async function DashboardPage() {
     { label: "Расход", icon: Wallet, href: "/expenses?new=1" },
   ];
 
+  const getOrderImageUrl = (order: (typeof data.lastOrders)[number]) =>
+    order.items.find((item) => item.imageUrls.length > 0)?.imageUrls[0] ??
+    order.product.imageUrl ??
+    order.items.find((item) => item.product.imageUrl)?.product.imageUrl ??
+    null;
+
   return (
     <div className="app-shell">
       <div className="app-header">
@@ -204,6 +213,7 @@ export default async function DashboardPage() {
           </div>
           <div className="overflow-hidden rounded-lg border border-border/75 bg-card">
             {data.lastOrders.map((order) => {
+              const imageUrl = getOrderImageUrl(order);
               const fin = calcOrderFinancials({
                 salePriceAtOrder: toDecimalNumber(order.salePriceAtOrder),
                 quantity: order.quantity,
@@ -214,10 +224,10 @@ export default async function DashboardPage() {
               });
               return (
                 <Link key={order.id} href={`/orders/${order.id}`} className="block border-b border-border/70 transition-colors last:border-b-0 hover:bg-accent/55">
-                  <div className="flex items-center gap-3 p-3">
+                  <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_minmax(4.75rem,auto)] items-center gap-2 p-3 sm:gap-3">
                     <div className="h-11 w-11 shrink-0 overflow-hidden rounded-md bg-muted">
-                      {order.product.imageUrl ? (
-                        <Image src={order.product.imageUrl} alt={order.productNameSnapshot} width={44} height={44} className="h-full w-full object-cover" />
+                      {imageUrl ? (
+                        <Image src={imageUrl} alt={order.productNameSnapshot} width={44} height={44} className="h-full w-full object-cover" />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-muted-foreground">
                           <Package className="h-5 w-5" />
@@ -228,9 +238,9 @@ export default async function DashboardPage() {
                       <p className="truncate text-sm font-semibold">{order.productNameSnapshot}</p>
                       <p className="truncate text-xs font-medium text-muted-foreground">{order.trackingNumber}</p>
                     </div>
-                    <div className="shrink-0 space-y-1 text-right">
-                      <p className="text-sm font-semibold tabular-nums">{formatRub(fin.revenue)}</p>
-                      <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${ORDER_STATUS_COLORS[order.status as OrderStatus]}`}>
+                    <div className="min-w-0 space-y-1 text-right">
+                      <p className="truncate text-sm font-semibold tabular-nums">{formatRub(fin.revenue)}</p>
+                      <span className={`inline-block max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${ORDER_STATUS_COLORS[order.status as OrderStatus]}`}>
                         {ORDER_STATUS_LABELS[order.status as OrderStatus]}
                       </span>
                     </div>
@@ -254,10 +264,10 @@ export default async function DashboardPage() {
           <Card>
             <CardContent className="p-2">
               {data.topProductsList.map((p, i) => (
-                <div key={p.id} className="flex items-center gap-3 rounded-md px-2 py-2">
+                <div key={p.id} className="grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)_minmax(4.5rem,auto)] items-center gap-2 rounded-md px-2 py-2">
                   <span className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary text-xs font-semibold text-muted-foreground">{i + 1}</span>
                   <p className="min-w-0 flex-1 truncate text-sm font-medium">{p.name}</p>
-                  <p className="whitespace-nowrap text-sm font-semibold tabular-nums">
+                  <p className="min-w-0 truncate text-right text-sm font-semibold tabular-nums">
                     {formatOrderCount(p.orders)}
                   </p>
                 </div>

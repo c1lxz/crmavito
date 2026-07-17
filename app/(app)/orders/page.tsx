@@ -8,7 +8,12 @@ import type { OrderStatus } from "@prisma/client";
 async function getOrders() {
   const orders = await prisma.order.findMany({
     where: { isDeleted: false },
-    include: { product: true, counterparty: true, avitoProfile: true },
+    include: {
+      product: true,
+      counterparty: true,
+      avitoProfile: true,
+      items: { include: { product: true }, orderBy: { position: "asc" } },
+    },
     orderBy: { createdAt: "desc" },
   });
   return orders.map((o) => ({
@@ -45,6 +50,13 @@ async function getOrders() {
           isActive: o.avitoProfile.isActive,
         }
       : null,
+    items: o.items.map((item) => ({
+      id: item.id,
+      imageUrls: item.imageUrls,
+      product: {
+        imageUrl: item.product.imageUrl,
+      },
+    })),
     ...calcOrderFinancials({
       salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
       quantity: o.quantity,
