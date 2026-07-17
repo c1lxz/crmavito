@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ImagePlus, Loader2, Play, RefreshCw, Store, UploadCloud } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileUp, ImagePlus, Loader2, Play, RefreshCw, Store, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,7 @@ const statusLabels: Record<string, string> = {
 
 export function WbResaleClient() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const xmlInputRef = useRef<HTMLInputElement>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("checking");
   const [rpaRunning, setRpaRunning] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -59,6 +60,7 @@ export function WbResaleClient() {
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [sizes, setSizes] = useState(SIZES);
   const [saving, setSaving] = useState(false);
+  const [importingXml, setImportingXml] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [form, setForm] = useState({
     title: "",
@@ -175,6 +177,38 @@ export function WbResaleClient() {
     }
   }
 
+  async function importXml(file: File) {
+    if (agentStatus !== "online") {
+      await checkAgent();
+      return;
+    }
+
+    setImportingXml(true);
+    try {
+      const xml = await file.text();
+      const result = await agentFetch<{ imported: number; errors?: Array<{ index: number; title: string; error: string }>; publishing?: boolean }>("/api/import/xml", {
+        method: "POST",
+        body: JSON.stringify({ xml, publish: true, pickup_point: form.pickupPoint.trim() }),
+      });
+      setEvents((items) => [
+        ...items,
+        {
+          time: new Date().toISOString(),
+          message: `XML импортирован: ${result.imported} объявл. ${result.publishing ? "Публикация запущена." : ""}`,
+        },
+        ...(result.errors ?? []).map((error) => ({
+          time: new Date().toISOString(),
+          level: "error",
+          message: `XML #${error.index}${error.title ? ` ${error.title}` : ""}: ${error.error}`,
+        })),
+      ]);
+      await checkAgent();
+    } finally {
+      setImportingXml(false);
+      if (xmlInputRef.current) xmlInputRef.current.value = "";
+    }
+  }
+
   return (
     <div className="app-shell">
       <div className="app-header">
@@ -187,10 +221,26 @@ export function WbResaleClient() {
             <p className="section-caption">Публикация идёт через локальный агент на ПК сотрудника</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={checkAgent}>
-          <RefreshCw className="h-4 w-4" />
-          Проверить агент
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <input
+            ref={xmlInputRef}
+            type="file"
+            accept=".xml,text/xml,application/xml"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) importXml(file).catch((error) => addError(error instanceof Error ? error.message : String(error)));
+            }}
+          />
+          <Button variant="outline" size="sm" disabled={agentStatus !== "online" || importingXml} onClick={() => xmlInputRef.current?.click()}>
+            {importingXml ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+            Импорт XML
+          </Button>
+          <Button variant="outline" size="sm" onClick={checkAgent}>
+            <RefreshCw className="h-4 w-4" />
+            Проверить агент
+          </Button>
+        </div>
       </div>
 
       <div className="app-content space-y-4">
