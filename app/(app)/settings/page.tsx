@@ -8,9 +8,9 @@ export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const artistOwner = await isArtistOwner(session.user);
-  if (!artistOwner) redirect("/dashboard");
 
-  const [users, avitoProfiles] = await Promise.all([
+  const [users, avitoProfiles] = session.user.role === "ADMIN"
+    ? await Promise.all([
       prisma.user.findMany({
         select: {
           id: true,
@@ -26,8 +26,23 @@ export default async function SettingsPage() {
       }),
       prisma.avitoProfile.findMany({
         orderBy: [{ isActive: "desc" }, { name: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          accountId: true,
+          isActive: true,
+          ...(artistOwner
+            ? {
+                clientId: true,
+                clientSecret: true,
+                reportEmail: true,
+              }
+            : {}),
+        },
       }),
-    ]);
+    ])
+    : [[], []];
 
   return (
     <SettingsClient
@@ -44,9 +59,9 @@ export default async function SettingsPage() {
         name: profile.name,
         color: profile.color,
         accountId: profile.accountId,
-        clientId: profile.clientId,
-        clientSecret: profile.clientSecret,
-        reportEmail: profile.reportEmail,
+        clientId: "clientId" in profile ? profile.clientId : null,
+        clientSecret: "clientSecret" in profile ? profile.clientSecret : null,
+        reportEmail: "reportEmail" in profile ? profile.reportEmail : null,
         isActive: profile.isActive,
       }))}
     />

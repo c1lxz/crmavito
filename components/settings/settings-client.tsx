@@ -412,10 +412,12 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
                 <CardTitle className="text-sm flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" /> Профили Avito
                 </CardTitle>
-                <Button size="sm" variant="outline" onClick={() => setShowAvitoProfileDialog(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  Добавить
-                </Button>
+                {user.isOwner && (
+                  <Button size="sm" variant="outline" onClick={() => setShowAvitoProfileDialog(true)}>
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Добавить
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-2">
@@ -426,31 +428,40 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
                       {profile.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <Input
-                        className="h-8"
-                        value={profile.name}
-                        onChange={(event) => patchAvitoProfile(profile.id, { name: event.target.value })}
-                      />
+                      {user.isOwner ? (
+                        <Input
+                          className="h-8"
+                          value={profile.name}
+                          onChange={(event) => patchAvitoProfile(profile.id, { name: event.target.value })}
+                        />
+                      ) : (
+                        <p className="truncate text-sm font-medium">{profile.name}</p>
+                      )}
                       <p className="mt-1 text-xs text-muted-foreground">{profile.isActive ? "Активен" : "Отключен"}</p>
                     </div>
-                    <button
-                      onClick={() => toggleAvitoProfile(profile)}
-                      className="text-muted-foreground transition-colors hover:text-foreground"
-                      aria-label={profile.isActive ? "Отключить профиль" : "Включить профиль"}
-                    >
-                      {profile.isActive ? <ToggleRight className="h-5 w-5 text-primary" /> : <ToggleLeft className="h-5 w-5" />}
-                    </button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-8 w-8"
-                      onClick={() => saveAvitoProfile(profile)}
-                      disabled={savingAvitoProfileId === profile.id || !profile.name.trim()}
-                      aria-label="Сохранить профиль Avito"
-                    >
-                      <Save className="h-4 w-4" />
-                    </Button>
+                    {user.isOwner && (
+                      <>
+                        <button
+                          onClick={() => toggleAvitoProfile(profile)}
+                          className="text-muted-foreground transition-colors hover:text-foreground"
+                          aria-label={profile.isActive ? "Отключить профиль" : "Включить профиль"}
+                        >
+                          {profile.isActive ? <ToggleRight className="h-5 w-5 text-primary" /> : <ToggleLeft className="h-5 w-5" />}
+                        </button>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="h-8 w-8"
+                          onClick={() => saveAvitoProfile(profile)}
+                          disabled={savingAvitoProfileId === profile.id || !profile.name.trim()}
+                          aria-label="Сохранить профиль Avito"
+                        >
+                          <Save className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
+                  {user.isOwner && (
                   <div className="grid gap-2 sm:grid-cols-3">
                     <Input
                       placeholder="client_id"
@@ -473,6 +484,7 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
                       autoComplete="email"
                     />
                   </div>
+                  )}
                   {profile.accountId && (
                     <p className="mt-1 truncate text-xs text-muted-foreground">Account ID: {profile.accountId}</p>
                   )}

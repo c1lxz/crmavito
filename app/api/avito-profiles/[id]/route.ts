@@ -18,7 +18,7 @@ const updateSchema = z.object({
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!(await isArtistOwner(session.user))) {
+  if (session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -28,12 +28,25 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const data = {
-    ...parsed.data,
-    clientId: parsed.data.clientId?.trim() || parsed.data.clientId,
-    clientSecret: parsed.data.clientSecret?.trim() || parsed.data.clientSecret,
-    reportEmail: parsed.data.reportEmail?.trim() || parsed.data.reportEmail,
-  };
+  const artistOwner = await isArtistOwner(session.user);
+  const secretKeys = ["clientId", "clientSecret", "reportEmail"] as const;
+  const hasSecretFields = secretKeys.some((key) => key in parsed.data);
+  if (hasSecretFields && !artistOwner) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const data = artistOwner
+    ? {
+        ...parsed.data,
+        clientId: parsed.data.clientId?.trim() || parsed.data.clientId,
+        clientSecret: parsed.data.clientSecret?.trim() || parsed.data.clientSecret,
+        reportEmail: parsed.data.reportEmail?.trim() || parsed.data.reportEmail,
+      }
+    : {
+        name: parsed.data.name,
+        color: parsed.data.color,
+        isActive: parsed.data.isActive,
+      };
 
   const profile = await prisma.avitoProfile.update({
     where: { id },
