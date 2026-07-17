@@ -26,6 +26,17 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: "week", label: "Недели" },
   { value: "month", label: "Месяцы" },
 ];
+const TOOLTIP_CONTENT_STYLE = {
+  backgroundColor: "#ffffff",
+  border: "1px solid #e5e7eb",
+  borderRadius: 8,
+  color: "#111827",
+  fontSize: 12,
+};
+const TOOLTIP_LABEL_STYLE = {
+  color: "#111827",
+  fontWeight: 600,
+};
 
 function fmtXDate(d: string) {
   const date = new Date(d);
@@ -156,7 +167,9 @@ export function DynamicsChart({ data, period, onPeriodChange }: BaseProps) {
                 width={62}
               />
               <Tooltip
-                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                labelStyle={TOOLTIP_LABEL_STYLE}
+                itemStyle={{ color: "#111827" }}
                 formatter={(v: number, name: string) => [
                   v.toLocaleString("ru-RU") + " ₽",
                   name === "revenue" ? "Выручка" : "Прибыль",
@@ -244,7 +257,9 @@ export function OrdersDynamicsChart({ data, period, onPeriodChange }: BaseProps)
                 width={42}
               />
               <Tooltip
-                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                contentStyle={TOOLTIP_CONTENT_STYLE}
+                labelStyle={TOOLTIP_LABEL_STYLE}
+                itemStyle={{ color: "#111827" }}
                 formatter={(v: number) => [v.toLocaleString("ru-RU"), "Заказы"]}
                 labelFormatter={fmtXDate}
               />

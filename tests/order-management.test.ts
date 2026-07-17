@@ -90,6 +90,10 @@ describe("order management UI/API", () => {
     path.resolve(__dirname, "../components/orders/orders-client.tsx"),
     "utf8"
   );
+  const orderUploadThumbRouteSource = readFileSync(
+    path.resolve(__dirname, "../app/api/uploads/orders/[filename]/route.ts"),
+    "utf8"
+  );
   const reportsSource = readFileSync(
     path.resolve(__dirname, "../lib/db/reports.ts"),
     "utf8"
@@ -126,10 +130,17 @@ describe("order management UI/API", () => {
     );
     expect(ordersPageSource).toContain("imageUrls: item.imageUrls");
     expect(ordersClientSource).toContain("function getOrderImageUrl(order: Order)");
+    expect(ordersClientSource).toContain("function getOrderThumbnailUrl(order: Order, size: number)");
+    expect(ordersClientSource).toContain("/api/uploads/orders/");
+    expect(ordersClientSource).toContain("?thumb=1&size=");
     expect(ordersClientSource).toContain(
       "order.items?.find((item) => item.imageUrls.length > 0)?.imageUrls[0]",
     );
     expect(ordersClientSource.match(/unoptimized/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(orderUploadThumbRouteSource).toContain("sharp(filePath)");
+    expect(orderUploadThumbRouteSource).toContain(".thumbs");
+    expect(orderUploadThumbRouteSource).toContain("resize");
+    expect(orderUploadThumbRouteSource).toContain("webp");
   });
 
   it("hides mobile order filters without scroll jitter", () => {

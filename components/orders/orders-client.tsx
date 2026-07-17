@@ -86,6 +86,15 @@ function getOrderImageUrl(order: Order): string | null {
   );
 }
 
+function getOrderThumbnailUrl(order: Order, size: number): string | null {
+  const imageUrl = getOrderImageUrl(order);
+  if (!imageUrl?.startsWith("/uploads/orders/")) return imageUrl;
+
+  const filename = imageUrl.split("/").pop();
+  if (!filename) return imageUrl;
+  return `/api/uploads/orders/${encodeURIComponent(filename)}?thumb=1&size=${size}`;
+}
+
 export function OrdersClient({
   initialOrders,
   counterparties,
@@ -702,7 +711,7 @@ export function OrdersClient({
             <tbody className="divide-y divide-border">
               {filtered.map((order) => {
                 const selected = selectedIds.has(order.id);
-                const imageUrl = getOrderImageUrl(order);
+                const imageUrl = getOrderThumbnailUrl(order, 80);
                 const row = (
                   <>
                     {selectionMode && (
@@ -827,7 +836,7 @@ export function OrdersClient({
         <div className="mobile-only space-y-3">
         {filtered.map((order) => {
           const selected = selectedIds.has(order.id);
-          const imageUrl = getOrderImageUrl(order);
+          const imageUrl = getOrderThumbnailUrl(order, 96);
           const content = (
             <Card
               className={`transition-colors ${
