@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Database, FileArchive, KeyRound, LogOut, PackageCheck, Palette, Plus, Save, Shield, ToggleLeft, ToggleRight, Trash2, User, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Database, FileArchive, KeyRound, LogOut, PackageCheck, Palette, Plus, Save, Shield, Store, ToggleLeft, ToggleRight, Trash2, User, Users } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -526,6 +526,16 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
               <span className="flex items-center gap-2">
                 <FileArchive className="h-4 w-4 text-muted-foreground" />
                 Выгрузка объявлений XML
+              </span>
+              <ArrowLeft className="h-4 w-4 rotate-180 text-muted-foreground" />
+            </Link>
+            <Link
+              href="/wbr"
+              className="flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-secondary/70 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Store className="h-4 w-4 text-muted-foreground" />
+                WB Resale
               </span>
               <ArrowLeft className="h-4 w-4 rotate-180 text-muted-foreground" />
             </Link>

@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Settings,
   ShoppingBag,
+  Store,
   Users,
   Wallet,
 } from "lucide-react";
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/pc/tasks", match: "/tasks", label: "Задачи", icon: ClipboardList },
   { href: "/pc/returns", match: "/returns", label: "Возвраты", icon: RotateCcw },
   { href: "/pc/products", match: "/products", label: "Товары", icon: Boxes },
+  { href: "/pc/wbr", match: "/wbr", label: "WB Resale", icon: Store },
   { href: "/pc/expenses", match: "/expenses", label: "Расходы", icon: Wallet },
   { href: "/pc/counterparties", match: "/counterparties", label: "Поставщики", icon: Users },
   { href: "/pc/reports", match: "/reports", label: "Отчёты", icon: BarChart3 },
