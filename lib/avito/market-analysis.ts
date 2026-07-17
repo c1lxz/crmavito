@@ -196,7 +196,7 @@ export function parseAvitoHtml(
     Partial<Pick<AvitoProbeResult, "category" | "periodDays">>,
 ): AvitoProbeResult {
   const pageTitle = extractTitle(html);
-  const listingPreviews = extractListingPreviews(html, meta.finalUrl);
+  const listingPreviews = extractAvitoListingPreviews(html, meta.finalUrl);
   const viewCandidates = extractViewCandidates(html);
   const hasNextData = /id=["']__NEXT_DATA__["']/.test(html);
   const jsonScriptCount = (html.match(/<script[^>]+type=["']application\/(?:ld\+)?json["']/gi) ?? []).length;
@@ -256,14 +256,14 @@ function extractTitle(html: string): string | null {
   return title ? decodeHtml(title).trim().replace(/\s+/g, " ") : null;
 }
 
-function extractListingPreviews(html: string, finalUrl: string): AvitoListingPreview[] {
+export function extractAvitoListingPreviews(html: string, finalUrl: string, limit = 20): AvitoListingPreview[] {
   const base = new URL(finalUrl);
   const seen = new Set<string>();
   const items: AvitoListingPreview[] = [];
   const regex = /href=["']([^"']*?_(\d{6,})(?:\?[^"']*)?)["']/gi;
   let match: RegExpExecArray | null;
 
-  while ((match = regex.exec(html)) && items.length < 20) {
+  while ((match = regex.exec(html)) && items.length < limit) {
     const href = decodeHtml(match[1]);
     if (/^https?:\/\//i.test(href) && !isAvitoHost(new URL(href).hostname)) continue;
     const url = new URL(href, base).toString();
@@ -273,6 +273,27 @@ function extractListingPreviews(html: string, finalUrl: string): AvitoListingPre
   }
 
   return items;
+}
+
+export function parseAvitoListingDetails(
+  preview: AvitoListingPreview,
+  html: string,
+  meta: { finalUrl?: string; status?: number; ok?: boolean } = {},
+): AvitoAnalyzedListing {
+  const publishedAt = extractPublishedAt(html);
+  const status = meta.status ?? 200;
+  const ok = meta.ok ?? (status >= 200 && status < 300);
+  return {
+    id: preview.id,
+    url: meta.finalUrl || preview.url,
+    title: extractTitle(html),
+    views: extractViews(html),
+    publishedAt,
+    ageDays: publishedAt ? daysSince(publishedAt) : null,
+    status,
+    ok,
+    note: ok ? null : `HTTP ${status}`,
+  };
 }
 
 function extractViewCandidates(html: string): string[] {
@@ -314,18 +335,11 @@ async function fetchListingDetails(
       ),
     );
     const html = await response.text();
-    const publishedAt = extractPublishedAt(html);
-    return {
-      id: preview.id,
-      url: response.url || preview.url,
-      title: extractTitle(html),
-      views: extractViews(html),
-      publishedAt,
-      ageDays: publishedAt ? daysSince(publishedAt) : null,
+    return parseAvitoListingDetails(preview, html, {
+      finalUrl: response.url || preview.url,
       status: response.status,
       ok: response.ok,
-      note: response.ok ? null : `HTTP ${response.status}`,
-    };
+    });
   } catch (error) {
     return {
       id: preview.id,

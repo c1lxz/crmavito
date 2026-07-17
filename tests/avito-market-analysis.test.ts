@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { analyzeAvitoMarket, buildAvitoSearchUrl, formatAvitoMarketError, parseAvitoHtml } from "@/lib/avito/market-analysis";
+import {
+  analyzeAvitoMarket,
+  buildAvitoSearchUrl,
+  extractAvitoListingPreviews,
+  formatAvitoMarketError,
+  parseAvitoHtml,
+  parseAvitoListingDetails,
+} from "@/lib/avito/market-analysis";
 
 describe("Avito public market probe", () => {
   it("builds a public search url from category without city input", () => {
@@ -57,6 +64,33 @@ describe("Avito public market probe", () => {
 
     expect(result.signals.likelyCaptcha).toBe(false);
     expect(result.pageType).toBe("search");
+  });
+
+  it("can extract more than the default preview window for browser collection", () => {
+    const html = Array.from(
+      { length: 25 },
+      (_, index) => `<a href="/moskva/odezhda/item_${1234567890 + index}">item</a>`,
+    ).join("");
+
+    expect(parseAvitoHtml(html, {
+      requestedUrl: "https://www.avito.ru/rossiya?q=футболки&s=104",
+      finalUrl: "https://www.avito.ru/rossiya?q=футболки&s=104",
+      status: 200,
+      ok: true,
+      contentType: "text/html",
+    }).listingPreviews).toHaveLength(20);
+    expect(extractAvitoListingPreviews(html, "https://www.avito.ru/rossiya", 25)).toHaveLength(25);
+  });
+
+  it("parses listing detail statistics from html", () => {
+    const result = parseAvitoListingDetails(
+      { id: "1234567890", url: "https://www.avito.ru/item_1234567890" },
+      "<title>Футболка</title><span>1 248 просмотров</span><time datetime=\"2026-07-15\"></time>",
+      { status: 200, ok: true },
+    );
+
+    expect(result.views).toBe(1248);
+    expect(result.title).toBe("Футболка");
   });
 
   it("checks listing pages and summarizes visible views", async () => {
