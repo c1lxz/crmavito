@@ -467,7 +467,7 @@ function AgentBanner({ status, running }: { status: AgentStatus; running: boolea
           </p>
           <div className="pt-2">
             <Button asChild size="sm">
-              <a href="/downloads/install-wb-resale-agent.ps1" download>
+              <a href="/downloads/install-wb-resale-agent.exe" download>
                 Скачать установщик агента
               </a>
             </Button>

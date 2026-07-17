@@ -17,21 +17,29 @@ function Test-Command($name) {
   return [bool](Get-Command $name -ErrorAction SilentlyContinue)
 }
 
+function Refresh-Path {
+  $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  $env:Path = "$machinePath;$userPath"
+}
+
 Write-Host "WB Resale local agent installer" -ForegroundColor Green
-Write-Host "This installs the local agent for https://crmavito.duckdns.org/wbr"
+Write-Host "Site: https://crmavito.duckdns.org/wbr"
 
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
 try {
   if (-not (Test-Command "node")) {
-    Write-Step "Node.js is not installed. Trying to install Node.js LTS via winget"
+    Write-Step "Node.js is not installed. Installing Node.js LTS via winget"
     if (-not (Test-Command "winget")) {
-      throw "Node.js is required, and winget was not found. Install Node.js LTS from https://nodejs.org/ and run this installer again."
+      throw "Node.js is required, but winget was not found. Install Node.js LTS from https://nodejs.org/ and run this installer again."
     }
+
     winget install OpenJS.NodeJS.LTS --silent --accept-source-agreements --accept-package-agreements
-    $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+    Refresh-Path
+
     if (-not (Test-Command "node")) {
-      throw "Node.js installation finished, but node.exe is not available yet. Restart PowerShell and run this installer again."
+      throw "Node.js was installed, but node.exe is not available yet. Restart Windows or open the installer again."
     }
   }
 
@@ -44,6 +52,7 @@ try {
   if (-not (Test-Path (Join-Path $crmDir "server.js"))) {
     throw "WB Resale CRM was not extracted correctly."
   }
+
   if (-not (Test-Path (Join-Path $rpaDir "package.json"))) {
     throw "WB Resale RPA was not extracted correctly."
   }
@@ -63,12 +72,13 @@ try {
 
   Start-Sleep -Seconds 3
   try {
-    $status = Invoke-RestMethod -Uri "http://127.0.0.1:3017/api/rpa/status" -Method Get -TimeoutSec 5
+    Invoke-RestMethod -Uri "http://127.0.0.1:3017/api/rpa/status" -Method Get -TimeoutSec 5 | Out-Null
     Write-Host ""
     Write-Host "Done. Local agent is running on http://127.0.0.1:3017" -ForegroundColor Green
-    Write-Host "Open https://crmavito.duckdns.org/wbr and press 'Проверить агент'."
+    Write-Host "Open https://crmavito.duckdns.org/wbr and click Check agent."
   } catch {
-    Write-Warning "Files were installed, but the local agent did not answer yet. Run '$crmDir\Запустить CRM.bat' manually once."
+    Write-Warning "Files were installed, but the local agent did not answer yet."
+    Write-Warning "Open Desktop\WB Resale CRM and run the CRM .bat file once, then click Check agent on the site."
   }
 } finally {
   if (Test-Path $tempDir) {
