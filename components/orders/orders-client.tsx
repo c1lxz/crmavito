@@ -75,6 +75,7 @@ const EDITABLE_STATUSES: OrderStatus[] = [
   "RETURNED",
   "CANCELLED",
 ];
+const MOBILE_FILTERS_MEDIA = "(max-width: 767px)";
 
 function getOrderImageUrl(order: Order): string | null {
   return (
@@ -152,11 +153,29 @@ export function OrdersClient({
 
   useEffect(() => {
     lastScrollYRef.current = window.scrollY;
+    const mobileFiltersMedia = window.matchMedia(MOBILE_FILTERS_MEDIA);
+
+    const showFilters = () => {
+      if (!filtersHiddenRef.current) return;
+      filtersHiddenRef.current = false;
+      lastFilterToggleYRef.current = window.scrollY;
+      setFiltersHidden(false);
+    };
 
     const handleScroll = () => {
+      if (!mobileFiltersMedia.matches) {
+        showFilters();
+        lastScrollYRef.current = window.scrollY;
+        return;
+      }
       if (scrollFrameRef.current !== null) return;
       scrollFrameRef.current = window.requestAnimationFrame(() => {
         scrollFrameRef.current = null;
+        if (!mobileFiltersMedia.matches) {
+          showFilters();
+          lastScrollYRef.current = window.scrollY;
+          return;
+        }
         const currentY = window.scrollY;
         const delta = currentY - lastScrollYRef.current;
         lastScrollYRef.current = currentY;
@@ -194,9 +213,16 @@ export function OrdersClient({
       });
     };
 
+    const handleViewportChange = () => {
+      if (!mobileFiltersMedia.matches) showFilters();
+      lastScrollYRef.current = window.scrollY;
+    };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
+    mobileFiltersMedia.addEventListener("change", handleViewportChange);
     return () => {
       window.removeEventListener("scroll", handleScroll);
+      mobileFiltersMedia.removeEventListener("change", handleViewportChange);
       if (scrollFrameRef.current !== null) {
         window.cancelAnimationFrame(scrollFrameRef.current);
         scrollFrameRef.current = null;
@@ -707,6 +733,7 @@ export function OrdersClient({
                               width={40}
                               height={40}
                               className="h-full w-full object-cover"
+                              unoptimized
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-muted-foreground">
@@ -825,7 +852,7 @@ export function OrdersClient({
                   )}
                   <div className="w-12 h-12 rounded-md bg-muted overflow-hidden flex-shrink-0">
                     {imageUrl ? (
-                      <Image src={imageUrl} alt={order.productNameSnapshot} width={48} height={48} className="object-cover w-full h-full" />
+                      <Image src={imageUrl} alt={order.productNameSnapshot} width={48} height={48} className="object-cover w-full h-full" unoptimized />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                         <Package className="h-5 w-5" />

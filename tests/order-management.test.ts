@@ -129,12 +129,16 @@ describe("order management UI/API", () => {
     expect(ordersClientSource).toContain(
       "order.items?.find((item) => item.imageUrls.length > 0)?.imageUrls[0]",
     );
+    expect(ordersClientSource.match(/unoptimized/g)?.length).toBeGreaterThanOrEqual(2);
   });
 
   it("hides mobile order filters without scroll jitter", () => {
     expect(ordersClientSource).toContain("requestAnimationFrame");
     expect(ordersClientSource).toContain("filtersHiddenRef");
     expect(ordersClientSource).toContain("lastFilterToggleYRef");
+    expect(ordersClientSource).toContain('MOBILE_FILTERS_MEDIA = "(max-width: 767px)"');
+    expect(ordersClientSource).toContain("window.matchMedia(MOBILE_FILTERS_MEDIA)");
+    expect(ordersClientSource).toContain("showFilters");
     expect(ordersClientSource).toContain("currentY > 150");
     expect(ordersClientSource).toContain("delta > 18");
     expect(ordersClientSource).toContain("delta < -34");

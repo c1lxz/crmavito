@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/lib/hooks/use-toast";
 
 const LOCAL_AGENT_URL = "http://127.0.0.1:3217/api/avito/market-analysis/probe";
+const LOCAL_AGENT_HEALTH_URL = "http://127.0.0.1:3217/health";
 
 type ProbeResult = {
   requestedUrl: string;
@@ -65,6 +66,11 @@ export function MarketAnalysisClient() {
   async function probe() {
     setLoading(true);
     try {
+      const agentReady = await waitForLocalAgent();
+      if (!agentReady) {
+        throw new TypeError("Local Avito agent is unavailable");
+      }
+
       const response = await fetch(LOCAL_AGENT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,7 +87,7 @@ export function MarketAnalysisClient() {
     } catch (error) {
       const message =
         error instanceof TypeError
-          ? "Локальный агент Avito не запущен или недоступен. Запустите на этом ПК: npm run avito:local-agent"
+          ? "Локальный агент Avito не запущен. Один раз установите автозапуск на этом ПК: npm run avito:install-local-agent"
           : error instanceof Error
             ? error.message
             : String(error);
@@ -277,6 +283,20 @@ export function MarketAnalysisClient() {
       </div>
     </div>
   );
+}
+
+async function waitForLocalAgent(timeoutMs = 15000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const response = await fetch(LOCAL_AGENT_HEALTH_URL, { cache: "no-store" });
+      if (response.ok) return true;
+    } catch {
+      // The local agent may still be starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 750));
+  }
+  return false;
 }
 
 function normalizeProbeResult(data: Partial<ProbeResult>): ProbeResult {

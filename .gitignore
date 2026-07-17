@@ -3,6 +3,7 @@ node_modules/
 .env
 .env.*
 .avito-local-browser/
+.avito-local-agent/
 *.tsbuildinfo
 
 # Bot
