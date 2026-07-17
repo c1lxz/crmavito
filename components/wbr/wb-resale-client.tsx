@@ -66,7 +66,7 @@ export function WbResaleClient() {
     title: "",
     category: "Одежда / Футболки",
     price: "2500",
-    condition: "Хорошее",
+    condition: "Новое",
     pickupPoint: "",
     description: "",
     characteristics: "Цвет черный",
