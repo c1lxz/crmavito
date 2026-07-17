@@ -105,7 +105,7 @@ async function probeWithBrowser(input: { category: string; periodDays: number })
 
     await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
     const html = await page.content();
-    return parseAvitoHtml(html, {
+    const probe = parseAvitoHtml(html, {
       requestedUrl,
       finalUrl: page.url(),
       status: response?.status() ?? 0,
@@ -114,6 +114,17 @@ async function probeWithBrowser(input: { category: string; periodDays: number })
       category: input.category.trim(),
       periodDays: input.periodDays,
     });
+    return {
+      ...probe,
+      listings: [],
+      summary: {
+        checked: probe.listingPreviews.length,
+        withViews: 0,
+        totalViews: 0,
+        averageViews: null,
+        maxViews: null,
+      },
+    };
   } finally {
     await context.close();
   }

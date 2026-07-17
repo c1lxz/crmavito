@@ -72,7 +72,8 @@ export function MarketAnalysisClient() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Не удалось проверить Авито через локальный агент");
-      setResult(data);
+      const normalized = normalizeProbeResult(data);
+      setResult(normalized);
       toast({
         title: "Проверка завершена",
         description: `Локальный агент проверил карточек: ${data.summary?.checked ?? 0}`,
@@ -276,6 +277,42 @@ export function MarketAnalysisClient() {
       </div>
     </div>
   );
+}
+
+function normalizeProbeResult(data: Partial<ProbeResult>): ProbeResult {
+  const listingPreviews = data.listingPreviews ?? [];
+  return {
+    requestedUrl: data.requestedUrl ?? "",
+    finalUrl: data.finalUrl ?? data.requestedUrl ?? "",
+    status: data.status ?? 0,
+    ok: data.ok ?? false,
+    contentType: data.contentType ?? "",
+    bytes: data.bytes ?? 0,
+    fetchedAt: data.fetchedAt ?? new Date().toISOString(),
+    category: data.category ?? "",
+    periodDays: data.periodDays ?? 3,
+    pageTitle: data.pageTitle ?? null,
+    pageType: data.pageType ?? (listingPreviews.length > 0 ? "search" : "unknown"),
+    itemId: null,
+    views: null,
+    viewCandidates: data.viewCandidates ?? [],
+    listingPreviews,
+    signals: data.signals ?? {
+      hasNextData: false,
+      jsonScriptCount: 0,
+      likelyCaptcha: false,
+      likelyJsRequired: false,
+    },
+    notes: data.notes ?? [],
+    listings: data.listings ?? [],
+    summary: data.summary ?? {
+      checked: listingPreviews.length,
+      withViews: 0,
+      totalViews: 0,
+      averageViews: null,
+      maxViews: null,
+    },
+  };
 }
 
 function MetricCard({
