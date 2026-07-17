@@ -38,8 +38,7 @@ type AvitoCredentialProfile = {
   id: string;
   name: string;
   accountId: string | null;
-  clientId: string;
-  clientSecret: string;
+  reportEmail: string | null;
   isActive: boolean;
 };
 
@@ -254,8 +253,6 @@ export function BotvMiniApp() {
   const [replacementXmlCount, setReplacementXmlCount] = useState(0);
   const [history, setHistory] = useState<BotvSessionHistoryItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
-  const [publishClientId, setPublishClientId] = useState("");
-  const [publishClientSecret, setPublishClientSecret] = useState("");
   const [publishReportEmail, setPublishReportEmail] = useState("");
   const [publishProfiles, setPublishProfiles] = useState<AvitoCredentialProfile[]>([]);
   const [selectedPublishProfileId, setSelectedPublishProfileId] = useState("");
@@ -504,25 +501,9 @@ export function BotvMiniApp() {
     if (selected) applyPublishProfile(selected);
   }
 
-  function rememberPublishCredentials(profile?: AvitoCredentialProfile) {
-    if (!profile) return;
-    setSelectedPublishProfileId(profile.id);
-    setPublishClientId(profile.clientId);
-    setPublishClientSecret(profile.clientSecret);
-    void refreshPublishProfiles(profile.id);
-  }
-
   function applyPublishProfile(profile: AvitoCredentialProfile) {
     setSelectedPublishProfileId(profile.id);
-    setPublishClientId(profile.clientId);
-    setPublishClientSecret(profile.clientSecret);
-  }
-
-  function startManualPublishCredentials() {
-    setSelectedPublishProfileId("");
-    setPublishClientId("");
-    setPublishClientSecret("");
-    setPublishReportEmail("");
+    setPublishReportEmail(profile.reportEmail ?? "");
   }
 
   async function publishXml() {
@@ -534,15 +515,11 @@ export function BotvMiniApp() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          profileId: selectedPublishProfileId || undefined,
-          clientId: publishClientId,
-          clientSecret: publishClientSecret,
-          reportEmail: publishReportEmail || undefined,
+          profileId: selectedPublishProfileId,
         }),
       });
       const data = await readJsonResponse(res, "Не удалось опубликовать XML");
       if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать XML");
-      rememberPublishCredentials(data.profile);
       setPublishResult(data.publish ?? {});
       setError("");
     } finally {
@@ -558,9 +535,7 @@ export function BotvMiniApp() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          profileId: selectedPublishProfileId || undefined,
-          clientId: publishClientId,
-          clientSecret: publishClientSecret,
+          profileId: selectedPublishProfileId,
         }),
       });
       const data = await readJsonResponse(res, "Не удалось получить статус автозагрузки");
@@ -807,31 +782,16 @@ export function BotvMiniApp() {
                 <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
                 <Button size="sm" disabled={status === "generating"} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
                 <Input
-                  className="h-8 w-44"
-                  placeholder="Avito client_id"
-                  value={publishClientId}
-                  onChange={(event) => setPublishClientId(event.target.value)}
-                  autoComplete="off"
-                />
-                <Input
-                  className="h-8 w-48"
-                  type="password"
-                  placeholder="Avito client_secret"
-                  value={publishClientSecret}
-                  onChange={(event) => setPublishClientSecret(event.target.value)}
-                  autoComplete="off"
-                />
-                <Input
                   className="h-8 w-56"
                   type="email"
                   placeholder="Email отчётов Avito *"
                   value={publishReportEmail}
-                  onChange={(event) => setPublishReportEmail(event.target.value)}
+                  readOnly
                   autoComplete="email"
                 />
                 <Button
                   size="sm"
-                  disabled={!publishClientId.trim() || !publishClientSecret.trim() || !publishReportEmail.trim() || publishing}
+                  disabled={!selectedPublishProfileId || publishing}
                   onClick={() => run(publishXml)}
                 >
                   {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -840,7 +800,7 @@ export function BotvMiniApp() {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={!publishClientId.trim() || !publishClientSecret.trim() || publishStatusLoading}
+                  disabled={!selectedPublishProfileId || publishStatusLoading}
                   onClick={() => run(checkAutoloadStatus)}
                 >
                   {publishStatusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
@@ -866,20 +826,10 @@ export function BotvMiniApp() {
                     >
                       <p className="truncate text-xs font-semibold">{item.name}</p>
                       <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                        {item.accountId || item.clientId}
+                        {item.accountId || item.reportEmail || "Saved credentials"}
                       </p>
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={startManualPublishCredentials}
-                    className={`rounded-md border border-dashed p-2 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${
-                      !selectedPublishProfileId ? "border-primary/40 bg-accent" : "border-border"
-                    }`}
-                  >
-                    <p className="truncate text-xs font-semibold">New profile</p>
-                    <p className="mt-1 truncate text-[11px] text-muted-foreground">Enter client_id and client_secret</p>
-                  </button>
                 </div>
               )}
             </CardContent></Card>

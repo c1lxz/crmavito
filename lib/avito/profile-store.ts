@@ -6,8 +6,7 @@ export type AvitoProfileWithCredentials = {
   id: string;
   name: string;
   accountId: string | null;
-  clientId: string;
-  clientSecret: string;
+  reportEmail: string | null;
   isActive: boolean;
 };
 
@@ -23,6 +22,7 @@ export async function listAvitoProfilesWithCredentials(): Promise<AvitoProfileWi
       id: true,
       name: true,
       accountId: true,
+      reportEmail: true,
       clientId: true,
       clientSecret: true,
       isActive: true,
@@ -31,17 +31,11 @@ export async function listAvitoProfilesWithCredentials(): Promise<AvitoProfileWi
 
   return profiles
     .filter((profile) => profile.clientId && profile.clientSecret)
-    .map((profile) => ({
-      ...profile,
-      clientId: profile.clientId ?? "",
-      clientSecret: profile.clientSecret ?? "",
-    }));
+    .map(({ clientId: _clientId, clientSecret: _clientSecret, ...profile }) => profile);
 }
 
 export async function getAvitoCredentials(input: {
   profileId?: string | null;
-  clientId?: string | null;
-  clientSecret?: string | null;
 }): Promise<AvitoCredentials> {
   if (input.profileId) {
     const profile = await prisma.avitoProfile.findFirst({
@@ -64,19 +58,22 @@ export async function getAvitoCredentials(input: {
     };
   }
 
-  const clientId = input.clientId?.trim();
-  const clientSecret = input.clientSecret?.trim();
-  if (!clientId || !clientSecret) {
-    throw new Error("Укажите профиль Avito или client_id и client_secret.");
-  }
+  throw new Error("Выберите профиль Avito с сохранёнными ключами.");
+}
 
-  return { clientId, clientSecret };
+export async function getAvitoProfileReportEmail(profileId?: string | null): Promise<string | undefined> {
+  if (!profileId) return undefined;
+  const profile = await prisma.avitoProfile.findFirst({
+    where: { id: profileId, isActive: true },
+    select: { reportEmail: true },
+  });
+  return profile?.reportEmail?.trim() || undefined;
 }
 
 export async function saveAvitoProfileCredentials(
   credentials: AvitoCredentials,
   accountProfile: AvitoAccountProfile,
-): Promise<AvitoProfileWithCredentials> {
+): Promise<AvitoProfileWithCredentials & { clientId: string; clientSecret: string }> {
   const accountId = accountProfile.id === "unknown" ? null : accountProfile.id;
   const existing = await prisma.avitoProfile.findFirst({
     where: {
@@ -104,6 +101,7 @@ export async function saveAvitoProfileCredentials(
           id: true,
           name: true,
           accountId: true,
+          reportEmail: true,
           clientId: true,
           clientSecret: true,
           isActive: true,
@@ -115,6 +113,7 @@ export async function saveAvitoProfileCredentials(
           id: true,
           name: true,
           accountId: true,
+          reportEmail: true,
           clientId: true,
           clientSecret: true,
           isActive: true,

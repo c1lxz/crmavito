@@ -60,6 +60,7 @@ model User {
   email        String?   @unique
   passwordHash String?
   telegramId   String?   @unique
+  telegramUsername String? @unique
   credentialsDeliveredAt DateTime?
   credentialsDeliveryError String?
   role         UserRole  @default(MANAGER)
@@ -243,6 +244,7 @@ model AvitoProfile {
   accountId    String?
   clientId     String?
   clientSecret String?
+  reportEmail  String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

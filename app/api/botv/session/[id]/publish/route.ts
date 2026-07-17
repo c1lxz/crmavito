@@ -2,18 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { buildXml } from "@/lib/botv/session";
-import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
 import { publishAvitoXml } from "@/lib/avito/publish";
-import { getAvitoCredentials, saveAvitoProfileCredentials } from "@/lib/avito/profile-store";
+import { getAvitoCredentials, getAvitoProfileReportEmail } from "@/lib/avito/profile-store";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const publishSchema = z.object({
-  profileId: z.string().trim().optional(),
-  clientId: z.string().trim().optional(),
-  clientSecret: z.string().trim().optional(),
-  reportEmail: z.string().trim().optional(),
+  profileId: z.string().trim().min(1),
 });
 
 function publicBaseUrl(request: Request): string {
@@ -41,7 +37,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const parsed = publishSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Укажите client_id и client_secret Avito." }, { status: 400 });
+    return NextResponse.json({ error: "Выберите профиль Avito." }, { status: 400 });
   }
 
   const { id } = await params;
@@ -56,18 +52,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const [xmlResult, profile] = await Promise.all([
+    const [xmlResult, reportEmail] = await Promise.all([
       buildXml(id),
-      fetchAvitoAccountProfile(credentials),
+      getAvitoProfileReportEmail(parsed.data.profileId),
     ]);
-    const savedProfile = await saveAvitoProfileCredentials(credentials, profile);
     const publish = await publishAvitoXml(credentials, xmlResult.xml, xmlResult.filename, {
       feedUrl: publicXmlFeedUrl(request, id),
-      reportEmail: parsed.data.reportEmail,
+      reportEmail,
     });
     return NextResponse.json({
       success: true,
-      profile: savedProfile,
       ads: xmlResult.ads,
       products: xmlResult.products,
       publish,

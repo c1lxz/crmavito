@@ -49,8 +49,15 @@ export const authConfig: NextAuthConfig = {
         if (!user) { console.error("[tg-auth] user not found for telegramId:", telegramId); return null; }
 
         const fullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ");
-        if (fullName && user.name !== fullName) {
-          await prisma.user.update({ where: { id: user.id }, data: { name: fullName } });
+        const telegramUsername = tgUser.username?.trim() || null;
+        if ((fullName && user.name !== fullName) || telegramUsername) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              ...(fullName && user.name !== fullName ? { name: fullName } : {}),
+              ...(telegramUsername ? { telegramUsername } : {}),
+            },
+          });
         }
 
         return { id: user.id, name: fullName || user.name, email: user.email ?? "", role: user.role };

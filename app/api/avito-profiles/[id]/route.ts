@@ -2,19 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { isArtistOwner } from "@/lib/auth/artist-owner";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 const updateSchema = z.object({
   name: z.string().trim().min(1).optional(),
   color: z.string().trim().nullable().optional(),
+  clientId: z.string().trim().nullable().optional(),
+  clientSecret: z.string().trim().nullable().optional(),
+  reportEmail: z.string().trim().email().nullable().optional(),
   isActive: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (session.user.role !== "ADMIN") {
+  if (!(await isArtistOwner(session.user))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -24,9 +28,16 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  const data = {
+    ...parsed.data,
+    clientId: parsed.data.clientId?.trim() || parsed.data.clientId,
+    clientSecret: parsed.data.clientSecret?.trim() || parsed.data.clientSecret,
+    reportEmail: parsed.data.reportEmail?.trim() || parsed.data.reportEmail,
+  };
+
   const profile = await prisma.avitoProfile.update({
     where: { id },
-    data: parsed.data,
+    data,
   });
   return NextResponse.json(profile);
 }
@@ -34,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 export async function DELETE(_req: NextRequest, { params }: RouteContext) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (session.user.role !== "ADMIN") {
+  if (!(await isArtistOwner(session.user))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

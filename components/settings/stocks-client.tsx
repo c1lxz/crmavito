@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "@/lib/hooks/use-toast";
 import { formatRub, matchesSearch } from "@/lib/utils";
 
@@ -29,14 +28,11 @@ type AvitoCredentialProfile = {
   id: string;
   name: string;
   accountId: string | null;
-  clientId: string;
-  clientSecret: string;
+  reportEmail: string | null;
   isActive: boolean;
 };
 
 export function StocksClient() {
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
   const [credentialProfiles, setCredentialProfiles] = useState<AvitoCredentialProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [profilesOpen, setProfilesOpen] = useState(true);
@@ -55,7 +51,7 @@ export function StocksClient() {
   );
 
   const selectedCount = selected.size;
-  const canLoad = (selectedProfileId || (clientId.trim() && clientSecret.trim())) && !loading;
+  const canLoad = Boolean(selectedProfileId) && !loading;
 
   useEffect(() => {
     void refreshCredentialProfiles();
@@ -74,24 +70,8 @@ export function StocksClient() {
     if (selected) applyProfile(selected);
   }
 
-  function rememberCredentials(profile?: AvitoCredentialProfile) {
-    if (!profile) return;
-    setSelectedProfileId(profile.id);
-    setClientId(profile.clientId);
-    setClientSecret(profile.clientSecret);
-    void refreshCredentialProfiles(profile.id);
-  }
-
   function applyProfile(profile: AvitoCredentialProfile) {
     setSelectedProfileId(profile.id);
-    setClientId(profile.clientId);
-    setClientSecret(profile.clientSecret);
-  }
-
-  function startManualCredentials() {
-    setSelectedProfileId("");
-    setClientId("");
-    setClientSecret("");
   }
 
   async function loadItems() {
@@ -101,12 +81,11 @@ export function StocksClient() {
       const response = await fetch("/api/avito/stocks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileId: selectedProfileId || undefined, clientId, clientSecret }),
+        body: JSON.stringify({ profileId: selectedProfileId }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить объявления");
       setItems(data.items ?? []);
-      rememberCredentials(data.profile);
       setDrafts(
         Object.fromEntries(
           (data.items ?? []).map((item: StockItem) => [item.itemId, String(item.quantity ?? 0)]),
@@ -128,7 +107,7 @@ export function StocksClient() {
     const response = await fetch("/api/avito/stocks/update", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profileId: selectedProfileId || undefined, clientId, clientSecret, updates }),
+      body: JSON.stringify({ profileId: selectedProfileId, updates }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error ?? "Не удалось обновить остатки");
@@ -264,46 +243,12 @@ export function StocksClient() {
               >
                 <p className="truncate text-sm font-semibold">{profile.name}</p>
                 <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {profile.accountId || profile.clientId}
+                  {profile.accountId || profile.reportEmail || "Saved credentials"}
                 </p>
               </button>
             ))}
-            <button
-              type="button"
-              onClick={startManualCredentials}
-              className={`rounded-md border border-dashed p-3 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${
-                !selectedProfileId ? "border-primary/40 bg-accent" : "border-border"
-              }`}
-            >
-              <p className="truncate text-sm font-semibold">New profile</p>
-              <p className="mt-1 truncate text-xs text-muted-foreground">Enter client_id and client_secret</p>
-            </button>
           </div>
         )}
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="avito-client-id">Avito client_id</Label>
-            <Input
-              id="avito-client-id"
-              value={clientId}
-              onChange={(event) => setClientId(event.target.value)}
-              placeholder="client_id"
-              autoComplete="off"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="avito-client-secret">Avito client_secret</Label>
-            <Input
-              id="avito-client-secret"
-              type="password"
-              value={clientSecret}
-              onChange={(event) => setClientSecret(event.target.value)}
-              placeholder="client_secret"
-              autoComplete="off"
-            />
-          </div>
-        </div>
       </div>
 
       {items.length > 0 && (

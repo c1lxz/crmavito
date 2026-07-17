@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Database, FileArchive, KeyRound, LogOut, PackageCheck, Palette, Plus, Shield, ToggleLeft, ToggleRight, Trash2, User, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, CheckCircle2, Database, FileArchive, KeyRound, LogOut, PackageCheck, Palette, Plus, Save, Shield, ToggleLeft, ToggleRight, Trash2, User, Users } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,11 +33,15 @@ interface AvitoProfile {
   id: string;
   name: string;
   color: string | null;
+  accountId: string | null;
+  clientId: string | null;
+  clientSecret: string | null;
+  reportEmail: string | null;
   isActive: boolean;
 }
 
 interface Props {
-  user: { id: string; name: string; email: string; role: string };
+  user: { id: string; name: string; email: string; role: string; isOwner: boolean };
   users: UserItem[];
   avitoProfiles: AvitoProfile[];
 }
@@ -56,6 +60,7 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
   const [avitoProfileName, setAvitoProfileName] = useState("");
   const [addLoading, setAddLoading] = useState(false);
   const [avitoProfileLoading, setAvitoProfileLoading] = useState(false);
+  const [savingAvitoProfileId, setSavingAvitoProfileId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [issuedCredentials, setIssuedCredentials] = useState<IssuedCredentials | null>(null);
@@ -104,6 +109,34 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
       setAvitoProfiles((items) => items.map((item) => (item.id === profile.id ? data : item)));
     } catch (error) {
       toast({ title: "Ошибка обновления", description: String(error), variant: "destructive" });
+    }
+  }
+
+  function patchAvitoProfile(id: string, patch: Partial<AvitoProfile>) {
+    setAvitoProfiles((items) => items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  async function saveAvitoProfile(profile: AvitoProfile) {
+    setSavingAvitoProfileId(profile.id);
+    try {
+      const response = await fetch(`/api/avito-profiles/${profile.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: profile.name,
+          clientId: profile.clientId?.trim() || null,
+          clientSecret: profile.clientSecret?.trim() || null,
+          reportEmail: profile.reportEmail?.trim() || null,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Ошибка");
+      setAvitoProfiles((items) => items.map((item) => (item.id === profile.id ? data : item)));
+      toast({ title: "Профиль Avito сохранён" });
+    } catch (error) {
+      toast({ title: "Ошибка сохранения", description: String(error), variant: "destructive" });
+    } finally {
+      setSavingAvitoProfileId(null);
     }
   }
 
@@ -387,21 +420,62 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-2">
               {avitoProfiles.map((profile) => (
-                <div key={profile.id} className={`flex items-center gap-3 rounded-md p-2 hover:bg-secondary/70 ${!profile.isActive ? "opacity-50" : ""}`}>
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-secondary text-xs font-bold">
-                    {profile.name.charAt(0).toUpperCase()}
+                <div key={profile.id} className={`rounded-md p-2 hover:bg-secondary/70 ${!profile.isActive ? "opacity-50" : ""}`}>
+                  <div className="mb-2 flex items-center gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-secondary text-xs font-bold">
+                      {profile.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <Input
+                        className="h-8"
+                        value={profile.name}
+                        onChange={(event) => patchAvitoProfile(profile.id, { name: event.target.value })}
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">{profile.isActive ? "Активен" : "Отключен"}</p>
+                    </div>
+                    <button
+                      onClick={() => toggleAvitoProfile(profile)}
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                      aria-label={profile.isActive ? "Отключить профиль" : "Включить профиль"}
+                    >
+                      {profile.isActive ? <ToggleRight className="h-5 w-5 text-primary" /> : <ToggleLeft className="h-5 w-5" />}
+                    </button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-8 w-8"
+                      onClick={() => saveAvitoProfile(profile)}
+                      disabled={savingAvitoProfileId === profile.id || !profile.name.trim()}
+                      aria-label="Сохранить профиль Avito"
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{profile.name}</p>
-                    <p className="text-xs text-muted-foreground">{profile.isActive ? "Активен" : "Отключен"}</p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <Input
+                      placeholder="client_id"
+                      value={profile.clientId ?? ""}
+                      onChange={(event) => patchAvitoProfile(profile.id, { clientId: event.target.value })}
+                      autoComplete="off"
+                    />
+                    <Input
+                      type="password"
+                      placeholder="client_secret"
+                      value={profile.clientSecret ?? ""}
+                      onChange={(event) => patchAvitoProfile(profile.id, { clientSecret: event.target.value })}
+                      autoComplete="off"
+                    />
+                    <Input
+                      type="email"
+                      placeholder="Email отчётов"
+                      value={profile.reportEmail ?? ""}
+                      onChange={(event) => patchAvitoProfile(profile.id, { reportEmail: event.target.value })}
+                      autoComplete="email"
+                    />
                   </div>
-                  <button
-                    onClick={() => toggleAvitoProfile(profile)}
-                    className="text-muted-foreground transition-colors hover:text-foreground"
-                    aria-label={profile.isActive ? "Отключить профиль" : "Включить профиль"}
-                  >
-                    {profile.isActive ? <ToggleRight className="h-5 w-5 text-primary" /> : <ToggleLeft className="h-5 w-5" />}
-                  </button>
+                  {profile.accountId && (
+                    <p className="mt-1 truncate text-xs text-muted-foreground">Account ID: {profile.accountId}</p>
+                  )}
                 </div>
               ))}
               {avitoProfiles.length === 0 && (

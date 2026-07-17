@@ -19,36 +19,40 @@ const stocksUpdateRouteSource = readFileSync(
 );
 
 describe("Avito credential profiles", () => {
-  it("stores credentials on Avito profiles", () => {
+  it("stores credentials and report email on Avito profiles", () => {
     expect(schemaSource).toContain("accountId");
     expect(schemaSource).toContain("clientId");
     expect(schemaSource).toContain("clientSecret");
+    expect(schemaSource).toContain("reportEmail");
     expect(storeSource).toContain("listAvitoProfilesWithCredentials");
     expect(storeSource).toContain("getAvitoCredentials");
-    expect(storeSource).toContain("saveAvitoProfileCredentials");
+    expect(storeSource).toContain("getAvitoProfileReportEmail");
   });
 
-  it("exposes saved credential profiles only through an admin route", () => {
+  it("exposes saved credential profiles without browser-visible secrets", () => {
     expect(credentialsRouteSource).toContain("session.user.role !== \"ADMIN\"");
     expect(credentialsRouteSource).toContain("listAvitoProfilesWithCredentials");
+    expect(storeSource).toContain("clientId: _clientId");
+    expect(storeSource).toContain("clientSecret: _clientSecret");
   });
 
-  it("uses server profiles in stock management instead of browser history", () => {
+  it("uses server profiles in stock management instead of manual keys", () => {
     expect(stocksClientSource).toContain("/api/avito-profiles/credentials");
     expect(stocksClientSource).toContain("credentialProfiles");
     expect(stocksClientSource).toContain("selectedProfileId");
-    expect(stocksClientSource).toContain("profileId: selectedProfileId || undefined");
+    expect(stocksClientSource).toContain("profileId: selectedProfileId");
     expect(stocksClientSource).toContain("selectAllItems");
-    expect(stocksClientSource).toContain("Все найденные");
+    expect(stocksClientSource).not.toContain("setClientSecret");
     expect(stocksClientSource).not.toContain("crmavito:avito-stocks-credentials");
     expect(stocksClientSource).not.toContain("localStorage");
   });
 
-  it("resolves profileId and saves credentials after a successful Avito check", () => {
+  it("resolves profileId without accepting manual credentials in stock management", () => {
     expect(stocksRouteSource).toContain("getAvitoCredentials");
-    expect(stocksRouteSource).toContain("saveAvitoProfileCredentials");
     expect(stocksRouteSource).toContain("profileId");
     expect(stocksUpdateRouteSource).toContain("getAvitoCredentials");
     expect(stocksUpdateRouteSource).toContain("profileId");
+    expect(stocksRouteSource).not.toContain("clientSecret: z.string()");
+    expect(stocksUpdateRouteSource).not.toContain("clientSecret: z.string()");
   });
 });

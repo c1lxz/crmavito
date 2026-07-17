@@ -8,9 +8,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const statusSchema = z.object({
-  profileId: z.string().trim().optional(),
-  clientId: z.string().trim().optional(),
-  clientSecret: z.string().trim().optional(),
+  profileId: z.string().trim().min(1),
 });
 
 export async function POST(request: Request) {
@@ -22,7 +20,7 @@ export async function POST(request: Request) {
 
   const parsed = statusSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Укажите профиль Avito или client_id и client_secret." }, { status: 400 });
+    return NextResponse.json({ error: "Выберите профиль Avito." }, { status: 400 });
   }
 
   try {
