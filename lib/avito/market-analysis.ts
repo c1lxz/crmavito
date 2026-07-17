@@ -200,7 +200,9 @@ export function parseAvitoHtml(
   const viewCandidates = extractViewCandidates(html);
   const hasNextData = /id=["']__NEXT_DATA__["']/.test(html);
   const jsonScriptCount = (html.match(/<script[^>]+type=["']application\/(?:ld\+)?json["']/gi) ?? []).length;
-  const likelyCaptcha = /captcha|verify|доступ ограничен|подтвердите/i.test(html);
+  const likelyCaptcha =
+    listingPreviews.length === 0 &&
+    /Доступ ограничен|проблема с IP|firewallCaptcha|h-captcha|captcha_solved|verify|подтвердите/i.test(html);
   const likelyJsRequired = listingPreviews.length === 0 && /enable javascript|включите javascript/i.test(html);
   const notes: string[] = [];
 

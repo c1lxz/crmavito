@@ -2,6 +2,7 @@ node_modules/
 .next/
 .env
 .env.*
+.avito-local-browser/
 *.tsbuildinfo
 
 # Bot

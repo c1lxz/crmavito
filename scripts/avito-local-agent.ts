@@ -1,8 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { analyzeAvitoMarket, formatAvitoMarketError } from "@/lib/avito/market-analysis";
+import { analyzeAvitoMarket, buildAvitoSearchUrl, formatAvitoMarketError, parseAvitoHtml } from "@/lib/avito/market-analysis";
 
 const HOST = process.env.AVITO_LOCAL_AGENT_HOST ?? "127.0.0.1";
 const PORT = Number(process.env.AVITO_LOCAL_AGENT_PORT ?? 3217);
+const USE_BROWSER = process.env.AVITO_LOCAL_AGENT_BROWSER === "1";
+const BROWSER_PROFILE_DIR = process.env.AVITO_LOCAL_AGENT_PROFILE_DIR ?? ".avito-local-browser";
 
 type JsonResponse = {
   status: number;
@@ -53,12 +55,19 @@ createServer(async (req, res) => {
       return;
     }
 
-    const result = await analyzeAvitoMarket({ category, periodDays }, { timeoutMs: 20000 });
+    const result = USE_BROWSER
+      ? await probeWithBrowser({ category, periodDays })
+      : await analyzeAvitoMarket({ category, periodDays }, { timeoutMs: 20000 });
     sendJson(res, {
       status: 200,
       body: {
         ...result,
-        notes: ["Запрос выполнен локальным агентом на этом компьютере.", ...result.notes],
+        notes: [
+          USE_BROWSER
+            ? "Запрос выполнен локальным браузерным агентом на этом компьютере."
+            : "Запрос выполнен локальным агентом на этом компьютере.",
+          ...result.notes,
+        ],
       },
     });
   } catch (error) {
@@ -66,4 +75,46 @@ createServer(async (req, res) => {
   }
 }).listen(PORT, HOST, () => {
   console.log(`Avito local agent listening on http://${HOST}:${PORT}`);
+  if (USE_BROWSER) {
+    console.log(`Browser mode enabled. Profile: ${BROWSER_PROFILE_DIR}`);
+  }
 });
+
+async function probeWithBrowser(input: { category: string; periodDays: number }) {
+  const { chromium } = await import("playwright");
+  const requestedUrl = buildAvitoSearchUrl(input.category);
+  const context = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
+    channel: process.env.AVITO_LOCAL_AGENT_BROWSER_CHANNEL || undefined,
+    headless: process.env.AVITO_LOCAL_AGENT_HEADLESS === "1",
+    viewport: { width: 1366, height: 900 },
+    locale: "ru-RU",
+  });
+
+  try {
+    const page = context.pages()[0] ?? (await context.newPage());
+    const response = await page.goto(requestedUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+
+    if (await page.locator("text=/Доступ ограничен|Продолжить|captcha/i").first().isVisible().catch(() => false)) {
+      console.log("Avito access check is visible. Complete it in the opened browser window.");
+      await page.waitForFunction(
+        () => !/Доступ ограничен|captcha/i.test(document.body?.innerText ?? ""),
+        undefined,
+        { timeout: 120000 },
+      ).catch(() => undefined);
+    }
+
+    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => undefined);
+    const html = await page.content();
+    return parseAvitoHtml(html, {
+      requestedUrl,
+      finalUrl: page.url(),
+      status: response?.status() ?? 0,
+      ok: response?.ok() ?? false,
+      contentType: response?.headers()["content-type"] ?? "text/html",
+      category: input.category.trim(),
+      periodDays: input.periodDays,
+    });
+  } finally {
+    await context.close();
+  }
+}

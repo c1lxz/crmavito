@@ -43,6 +43,22 @@ describe("Avito public market probe", () => {
     });
   });
 
+  it("does not flag regular search html as captcha when listings are present", () => {
+    const result = parseAvitoHtml(
+      `<html><body><script src="/captcha/runtime.js"></script><a href="/moskva/odezhda/futbolka_1234567890">item</a></body></html>`,
+      {
+        requestedUrl: "https://www.avito.ru/rossiya?q=футболки&s=104",
+        finalUrl: "https://www.avito.ru/rossiya?q=футболки&s=104",
+        status: 200,
+        ok: true,
+        contentType: "text/html",
+      },
+    );
+
+    expect(result.signals.likelyCaptcha).toBe(false);
+    expect(result.pageType).toBe("search");
+  });
+
   it("checks listing pages and summarizes visible views", async () => {
     const fetchFn = async (url: string | URL) => {
       const textUrl = String(url);
