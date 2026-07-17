@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/lib/hooks/use-toast";
 
+const LOCAL_AGENT_URL = "http://127.0.0.1:3217/api/avito/market-analysis/probe";
+
 type ProbeResult = {
   requestedUrl: string;
   finalUrl: string;
@@ -63,22 +65,28 @@ export function MarketAnalysisClient() {
   async function probe() {
     setLoading(true);
     try {
-      const response = await fetch("/api/avito/market-analysis/probe", {
+      const response = await fetch(LOCAL_AGENT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ category, periodDays }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? "Не удалось проверить Авито");
+      if (!response.ok) throw new Error(data.error ?? "Не удалось проверить Авито через локальный агент");
       setResult(data);
       toast({
         title: "Проверка завершена",
-        description: `Проверено карточек: ${data.summary?.checked ?? 0}`,
+        description: `Локальный агент проверил карточек: ${data.summary?.checked ?? 0}`,
       });
     } catch (error) {
+      const message =
+        error instanceof TypeError
+          ? "Локальный агент Avito не запущен или недоступен. Запустите на этом ПК: npm run avito:local-agent"
+          : error instanceof Error
+            ? error.message
+            : String(error);
       toast({
         title: "Ошибка проверки",
-        description: error instanceof Error ? error.message : String(error),
+        description: message,
         variant: "destructive",
       });
     } finally {
