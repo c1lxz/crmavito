@@ -253,7 +253,6 @@ export function BotvMiniApp() {
   const [replacementXmlCount, setReplacementXmlCount] = useState(0);
   const [history, setHistory] = useState<BotvSessionHistoryItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
-  const [publishReportEmail, setPublishReportEmail] = useState("");
   const [publishProfiles, setPublishProfiles] = useState<AvitoCredentialProfile[]>([]);
   const [selectedPublishProfileId, setSelectedPublishProfileId] = useState("");
   const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
@@ -503,7 +502,6 @@ export function BotvMiniApp() {
 
   function applyPublishProfile(profile: AvitoCredentialProfile) {
     setSelectedPublishProfileId(profile.id);
-    setPublishReportEmail(profile.reportEmail ?? "");
   }
 
   async function publishXml() {
@@ -781,14 +779,6 @@ export function BotvMiniApp() {
                 <Button size="sm" variant="outline" disabled={!selected.size || !bulkPrice} onClick={() => run(() => patch({ ids: selectedIds, bulkPrice }))}>Одна цена</Button>
                 <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
                 <Button size="sm" disabled={status === "generating"} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
-                <Input
-                  className="h-8 w-56"
-                  type="email"
-                  placeholder="Email отчётов Avito *"
-                  value={publishReportEmail}
-                  readOnly
-                  autoComplete="email"
-                />
                 <Button
                   size="sm"
                   disabled={!selectedPublishProfileId || publishing}
@@ -826,7 +816,7 @@ export function BotvMiniApp() {
                     >
                       <p className="truncate text-xs font-semibold">{item.name}</p>
                       <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                        {item.accountId || item.reportEmail || "Saved credentials"}
+                        {item.accountId || "Saved credentials"}
                       </p>
                     </button>
                   ))}
