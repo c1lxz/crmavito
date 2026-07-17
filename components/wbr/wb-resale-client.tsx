@@ -415,6 +415,13 @@ function AgentBanner({ status, running }: { status: AgentStatus; running: boolea
             Запустите на этом ПК файл <span className="font-semibold text-foreground">WB Resale CRM / Запустить CRM.bat</span>, затем нажмите “Проверить агент”.
             Без локального агента браузер WB нельзя открыть от имени сотрудника.
           </p>
+          <div className="pt-2">
+            <Button asChild size="sm">
+              <a href="/downloads/install-wb-resale-agent.ps1" download>
+                Скачать установщик агента
+              </a>
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
