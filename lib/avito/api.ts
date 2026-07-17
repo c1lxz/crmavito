@@ -147,6 +147,62 @@ async function tryEndpoint(url: string, token: string, fetchFn: FetchFn = fetch)
   }
 }
 
+async function tryDetailEndpoint(
+  url: string,
+  token: string,
+  fetchFn: FetchFn = fetch,
+): Promise<AvitoResult<unknown>> {
+  try {
+    const r = await fetchFn(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) {
+      const body = await r.text().catch(() => "");
+      console.warn(`[avito] ${url} HTTP ${r.status}: ${body.slice(0, 150)}`);
+      return { ok: false, reason: `Avito API HTTP ${r.status}` };
+    }
+    return { ok: true, value: await r.json() };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[avito] ${url} error: ${msg}`);
+    return { ok: false, reason: `Avito error: ${msg.slice(0, 60)}` };
+  }
+}
+
+export async function fetchAvitoItemDetailWithToken(
+  avitoItemId: string,
+  token: string,
+  options: { fetchFn?: FetchFn } = {},
+): Promise<AvitoResult<unknown>> {
+  const fetchFn = options.fetchFn ?? fetch;
+  let lastReason = "Avito РЅРµ РІРµСЂРЅСѓР» РґР°РЅРЅС‹Рµ РѕР±СЉСЏРІР»РµРЅРёСЏ";
+
+  for (const url of [
+    `https://api.avito.ru/core/v1/items/${avitoItemId}/`,
+    `https://api.avito.ru/core/v1/items/${avitoItemId}`,
+  ]) {
+    const res = await tryDetailEndpoint(url, token, fetchFn);
+    if (res.ok) return res;
+    lastReason = res.reason;
+  }
+
+  const accountId = await getAccountId(token, fetchFn);
+  if (accountId) {
+    for (const url of [
+      `https://api.avito.ru/core/v1/accounts/${accountId}/items/${avitoItemId}/`,
+      `https://api.avito.ru/core/v1/accounts/${accountId}/items/${avitoItemId}`,
+    ]) {
+      const res = await tryDetailEndpoint(url, token, fetchFn);
+      if (res.ok) return res;
+      lastReason = res.reason;
+    }
+  }
+
+  return { ok: false, reason: lastReason };
+}
+
 export async function fetchAvitoItemImageWithToken(
   avitoItemId: string,
   token: string,

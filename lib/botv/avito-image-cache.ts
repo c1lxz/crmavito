@@ -3,7 +3,13 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 type XmlFile = { path: string; mtimeMs: number };
-type Cache = { expiresAt: number; root: string; maxFiles: number; imagesByTitle: Map<string, string> };
+type Cache = {
+  expiresAt: number;
+  root: string;
+  maxFiles: number;
+  imagesByExternalId: Map<string, string>;
+  imagesByTitle: Map<string, string>;
+};
 
 let cache: Cache | null = null;
 
@@ -27,6 +33,10 @@ function normalizeTitle(value: string): string {
     .replace(/[“”„«»]/g, "\"")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeExternalId(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function decodeXml(value: string): string {
@@ -82,35 +92,52 @@ async function collectXmlFiles(root: string): Promise<XmlFile[]> {
   return files.sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
 
-function indexXml(xml: string, imagesByTitle: Map<string, string>): void {
+function indexXml(
+  xml: string,
+  imagesByExternalId: Map<string, string>,
+  imagesByTitle: Map<string, string>,
+): void {
   for (const adMatch of xml.matchAll(/<Ad\b[\s\S]*?<\/Ad>/g)) {
     const ad = adMatch[0];
+    const id = ad.match(/<Id>([\s\S]*?)<\/Id>/i)?.[1];
     const title = ad.match(/<Title>([\s\S]*?)<\/Title>/)?.[1];
-    if (!title) continue;
-
-    const normalizedTitle = normalizeTitle(decodeXml(title));
-    if (!normalizedTitle || imagesByTitle.has(normalizedTitle)) continue;
-
     const image = ad.match(/<Image\b[^>]*\burl=(["'])(.*?)\1/i)?.[2];
-    if (image) imagesByTitle.set(normalizedTitle, normalizeImageUrl(decodeXml(image)));
+    if (!image) continue;
+
+    const imageUrl = normalizeImageUrl(decodeXml(image));
+    if (id) {
+      const normalizedId = normalizeExternalId(decodeXml(id));
+      if (normalizedId && !imagesByExternalId.has(normalizedId)) {
+        imagesByExternalId.set(normalizedId, imageUrl);
+      }
+    }
+
+    if (title) {
+      const normalizedTitle = normalizeTitle(decodeXml(title));
+      if (normalizedTitle && !imagesByTitle.has(normalizedTitle)) {
+        imagesByTitle.set(normalizedTitle, imageUrl);
+      }
+    }
   }
 }
 
 async function buildIndex(): Promise<Cache> {
   const root = sessionsRoot();
   const maxFiles = maxXmlFiles();
+  const imagesByExternalId = new Map<string, string>();
   const imagesByTitle = new Map<string, string>();
   const xmlFiles = (await collectXmlFiles(root)).slice(0, maxFiles);
 
   for (const file of xmlFiles) {
     const xml = await readFile(file.path, "utf8").catch(() => "");
-    if (xml) indexXml(xml, imagesByTitle);
+    if (xml) indexXml(xml, imagesByExternalId, imagesByTitle);
   }
 
   return {
     expiresAt: Date.now() + CACHE_TTL_MS,
     root,
     maxFiles,
+    imagesByExternalId,
     imagesByTitle,
   };
 }
@@ -133,4 +160,10 @@ export async function findBotvImageByTitle(title: string | null | undefined): Pr
   if (!title?.trim()) return null;
   const index = await getIndex();
   return index.imagesByTitle.get(normalizeTitle(title)) ?? null;
+}
+
+export async function findBotvImageByExternalId(externalId: string | null | undefined): Promise<string | null> {
+  if (!externalId?.trim()) return null;
+  const index = await getIndex();
+  return index.imagesByExternalId.get(normalizeExternalId(externalId)) ?? null;
 }

@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
-import { fetchAvitoItemImageWithToken, findFirstImageUrl } from "./api";
+import { fetchAvitoItemDetailWithToken, findFirstImageUrl } from "./api";
 import { fetchAvitoListingImage } from "./fetch-image";
-import { findBotvImageByTitle } from "@/lib/botv/avito-image-cache";
+import { findBotvImageByExternalId, findBotvImageByTitle } from "@/lib/botv/avito-image-cache";
 
 export type AvitoListItem = {
   id: number | string;
@@ -30,11 +30,38 @@ const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 const defaultSleep: SleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const DEFAULT_PAGE_DELAY_MS = 900;
 const DEFAULT_HTML_IMAGE_LIMIT = 120;
-const DEFAULT_IMAGE_DETAIL_LIMIT = 0;
+const DEFAULT_IMAGE_DETAIL_LIMIT = 120;
 
 function getEnvNumber(name: string, fallback: number): number {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+function findAutoloadItemId(value: unknown, depth = 0): string | null {
+  if (depth > 6 || value == null) return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findAutoloadItemId(item, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (typeof value !== "object") return null;
+
+  const record = value as Record<string, unknown>;
+  for (const key of ["autoload_item_id", "autoloadItemId", "external_id", "externalId", "xml_id"]) {
+    const raw = record[key];
+    if (typeof raw === "string" || typeof raw === "number") {
+      const id = String(raw).trim();
+      if (id) return id;
+    }
+  }
+
+  for (const key of Object.keys(record)) {
+    const found = findAutoloadItemId(record[key], depth + 1);
+    if (found) return found;
+  }
+  return null;
 }
 
 function retryDelay(response: Response | null, attempt: number): number {
@@ -279,8 +306,16 @@ export async function syncAvitoProducts(
 
     if (imageDetailAttempts >= imageDetailLimit) continue;
     imageDetailAttempts++;
-    const detailImage = await fetchAvitoItemImageWithToken(avitoItemId, tokenData.access_token, { fetchFn });
-    if (detailImage.ok) imageUrlsById.set(avitoItemId, detailImage.value);
+    const detail = await fetchAvitoItemDetailWithToken(avitoItemId, tokenData.access_token, { fetchFn });
+    if (detail.ok) {
+      const detailImage = findFirstImageUrl(detail.value);
+      if (detailImage) {
+        imageUrlsById.set(avitoItemId, detailImage);
+      } else {
+        const botvImageByExternalId = await findBotvImageByExternalId(findAutoloadItemId(detail.value));
+        if (botvImageByExternalId) imageUrlsById.set(avitoItemId, botvImageByExternalId);
+      }
+    }
     if (imageDetailAttempts < imageDetailLimit) await sleepFn(500);
   }
 

@@ -131,6 +131,9 @@ export function OrdersClient({
   const [filtersHidden, setFiltersHidden] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const lastScrollYRef = useRef(0);
+  const filtersHiddenRef = useRef(false);
+  const lastFilterToggleYRef = useRef(0);
+  const scrollFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     setOrders(initialOrders);
@@ -151,20 +154,54 @@ export function OrdersClient({
     lastScrollYRef.current = window.scrollY;
 
     const handleScroll = () => {
-      const currentY = window.scrollY;
-      const delta = currentY - lastScrollYRef.current;
-      lastScrollYRef.current = currentY;
+      if (scrollFrameRef.current !== null) return;
+      scrollFrameRef.current = window.requestAnimationFrame(() => {
+        scrollFrameRef.current = null;
+        const currentY = window.scrollY;
+        const delta = currentY - lastScrollYRef.current;
+        lastScrollYRef.current = currentY;
 
-      if (currentY < 24) {
-        setFiltersHidden(false);
-        return;
-      }
-      if (delta > 8) setFiltersHidden(true);
-      if (delta < -8) setFiltersHidden(false);
+        if (currentY < 32) {
+          if (filtersHiddenRef.current) {
+            filtersHiddenRef.current = false;
+            lastFilterToggleYRef.current = currentY;
+            setFiltersHidden(false);
+          }
+          return;
+        }
+
+        if (
+          !filtersHiddenRef.current &&
+          currentY > 150 &&
+          delta > 18 &&
+          Math.abs(currentY - lastFilterToggleYRef.current) > 56
+        ) {
+          filtersHiddenRef.current = true;
+          lastFilterToggleYRef.current = currentY;
+          setFiltersHidden(true);
+          return;
+        }
+
+        if (
+          filtersHiddenRef.current &&
+          delta < -34 &&
+          Math.abs(currentY - lastFilterToggleYRef.current) > 56
+        ) {
+          filtersHiddenRef.current = false;
+          lastFilterToggleYRef.current = currentY;
+          setFiltersHidden(false);
+        }
+      });
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -411,9 +448,9 @@ export function OrdersClient({
           </div>
         </div>
         <div
-          className={`orders-filter-panel space-y-2 transition-[max-height,opacity,transform,margin] duration-200 ease-out ${
+          className={`orders-filter-panel space-y-2 will-change-[max-height,opacity,transform] transition-[max-height,opacity,transform] duration-150 ease-out ${
             filtersHidden
-              ? "max-h-0 -translate-y-2 overflow-hidden opacity-0"
+              ? "max-h-0 -translate-y-1 overflow-hidden opacity-0"
               : "max-h-[32rem] translate-y-0 opacity-100"
           }`}
         >
@@ -504,7 +541,13 @@ export function OrdersClient({
 
       <div className="app-content space-y-3">
         {selectionMode && selectedIds.size > 0 && (
-          <div className="sticky top-[calc(var(--app-top-pad)+19.25rem)] z-20 space-y-2 rounded-lg border border-primary/25 bg-card p-2 shadow-lg shadow-foreground/10">
+          <div
+            className={`sticky z-20 space-y-2 rounded-lg border border-primary/25 bg-card p-2 shadow-lg shadow-foreground/10 transition-[top] duration-150 ease-out ${
+              filtersHidden
+                ? "top-[calc(var(--app-top-pad)+5.75rem)]"
+                : "top-[calc(var(--app-top-pad)+19.25rem)]"
+            }`}
+          >
             <div className="flex gap-2">
               <Select
                 value={bulkStatus}

@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fetchAllAvitoItems, fetchWithRetry, syncAvitoProducts } from "@/lib/avito/sync";
+import { __resetAvitoTokenCacheForTests } from "@/lib/avito/api";
 import { __resetBotvImageCacheForTests } from "@/lib/botv/avito-image-cache";
 
 describe("Avito synchronization transport", () => {
@@ -207,6 +208,65 @@ describe("Avito synchronization transport", () => {
       if (previousRoot === undefined) delete process.env.BOTV_WEB_SESSIONS_DIR;
       else process.env.BOTV_WEB_SESSIONS_DIR = previousRoot;
       __resetBotvImageCacheForTests();
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("fills missing images from BotV XML by Avito autoload_item_id", async () => {
+    const previousRoot = process.env.BOTV_WEB_SESSIONS_DIR;
+    const previousLimit = process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT;
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "crmavito-botv-"));
+    const sessionDir = path.join(tempRoot, "session");
+    await mkdir(sessionDir, { recursive: true });
+    await writeFile(
+      path.join(sessionDir, "avito.xml"),
+      `<?xml version="1.0" encoding="UTF-8"?><Ads><Ad><Id>SKU-7</Id><Title>Changed title</Title><Images><Image url="https://crm.test/sku-7.jpg"/></Images></Ad></Ads>`,
+      "utf8",
+    );
+    process.env.BOTV_WEB_SESSIONS_DIR = tempRoot;
+    process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT = "1";
+    __resetBotvImageCacheForTests();
+    __resetAvitoTokenCacheForTests();
+
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ access_token: "token" }))
+      .mockResolvedValueOnce(Response.json({ resources: [{ id: 7, title: "Avito title", price: 100 }] }))
+      .mockResolvedValueOnce(Response.json({ resources: [] }))
+      .mockResolvedValueOnce(new Response("not found", { status: 404 }))
+      .mockResolvedValueOnce(new Response("not found", { status: 404 }))
+      .mockResolvedValueOnce(Response.json({ id: 123 }))
+      .mockResolvedValueOnce(Response.json({ autoload_item_id: "SKU-7", status: "active" })) as unknown as typeof fetch;
+    const upsert = vi.fn(async () => ({}));
+    const prisma = {
+      product: {
+        findMany: vi.fn(async () => []),
+        upsert,
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+    } as unknown as Parameters<typeof syncAvitoProducts>[0];
+
+    try {
+      const result = await syncAvitoProducts(
+        prisma,
+        { clientId: "client", clientSecret: "secret" },
+        { fetchFn, sleepFn: async () => undefined },
+      );
+
+      expect(result.imagesFound).toBe(1);
+      expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({
+          avitoItemId: "7",
+          imageUrl: "https://crm.test/sku-7.jpg",
+        }),
+      }));
+    } finally {
+      if (previousRoot === undefined) delete process.env.BOTV_WEB_SESSIONS_DIR;
+      else process.env.BOTV_WEB_SESSIONS_DIR = previousRoot;
+      if (previousLimit === undefined) delete process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT;
+      else process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT = previousLimit;
+      __resetBotvImageCacheForTests();
+      __resetAvitoTokenCacheForTests();
       await rm(tempRoot, { recursive: true, force: true });
     }
   });
