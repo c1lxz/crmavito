@@ -60,7 +60,7 @@ model User {
   email        String?   @unique
   passwordHash String?
   telegramId   String?   @unique
-  telegramUsername String? @unique
+  telegramUsername String?
   credentialsDeliveredAt DateTime?
   credentialsDeliveryError String?
   role         UserRole  @default(MANAGER)
