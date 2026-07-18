@@ -34,6 +34,9 @@ type SleepFn = (ms: number) => Promise<void>;
 type StockOptions = {
   fetchFn?: FetchFn;
   sleepFn?: SleepFn;
+  listingPerPage?: number;
+  listingEmptyPagesToStop?: number;
+  listingStatus?: string;
   pageDelayMs?: number;
   stockDelayMs?: number;
   stockDeadlineMs?: number;
@@ -226,7 +229,10 @@ export async function fetchAvitoStockItemsResult(
   const token = await getAvitoStockToken(credentials, options);
   const { items } = await fetchAllAvitoItems(token, {
     ...options,
-    pageDelayMs: options.pageDelayMs ?? 150,
+    perPage: options.listingPerPage ?? 25,
+    emptyPagesToStop: options.listingEmptyPagesToStop ?? 1,
+    status: options.listingStatus ?? "active",
+    pageDelayMs: options.pageDelayMs ?? 1_200,
   });
   const ids = items.map((item) => String(item.id)).filter(Boolean);
   const stockResult =

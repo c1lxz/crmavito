@@ -153,21 +153,28 @@ export async function fetchAllAvitoItems(
     perPage?: number;
     maxPages?: number;
     pageDelayMs?: number;
+    emptyPagesToStop?: number;
+    status?: string;
   } = {},
 ): Promise<{ items: AvitoListItem[]; statusCounts: Record<string, number> }> {
   const fetchFn = options.fetchFn ?? fetch;
   const sleepFn = options.sleepFn ?? defaultSleep;
-  const perPage = options.perPage ?? 100;
+  const perPage = options.perPage ?? 99;
   const maxPages = options.maxPages ?? 100;
   const pageDelayMs = options.pageDelayMs ?? getEnvNumber("AVITO_SYNC_PAGE_DELAY_MS", DEFAULT_PAGE_DELAY_MS);
+  const emptyPagesToStop = Math.max(1, options.emptyPagesToStop ?? 1);
   const itemsById = new Map<string, AvitoListItem>();
   const statusCounts: Record<string, number> = {};
+  let emptyPages = 0;
   let reachedEnd = false;
 
   for (let page = 1; page <= maxPages; page++) {
-    const url = `https://api.avito.ru/core/v1/items?per_page=${perPage}&page=${page}`;
+    const url = new URL("https://api.avito.ru/core/v1/items");
+    url.searchParams.set("per_page", String(perPage));
+    url.searchParams.set("page", String(page));
+    if (options.status?.trim()) url.searchParams.set("status", options.status.trim());
     const response = await fetchWithRetry(
-      url,
+      url.toString(),
       {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
@@ -197,9 +204,15 @@ export async function fetchAllAvitoItems(
 
     const batch = data.resources ?? data.items ?? [];
     if (batch.length === 0) {
-      reachedEnd = true;
-      break;
+      emptyPages += 1;
+      if (emptyPages >= emptyPagesToStop) {
+        reachedEnd = true;
+        break;
+      }
+      if (page < maxPages && pageDelayMs > 0) await sleepFn(pageDelayMs);
+      continue;
     }
+    emptyPages = 0;
 
     for (const item of batch) {
       if (item.id == null) continue;

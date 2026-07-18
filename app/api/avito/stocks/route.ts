@@ -41,7 +41,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await fetchAvitoStockItemsResult(credentials, { skipStocks: true });
+    const result = await fetchAvitoStockItemsResult(credentials, {
+      skipStocks: true,
+      listingPerPage: 25,
+      listingEmptyPagesToStop: 3,
+      pageDelayMs: 1_200,
+    });
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

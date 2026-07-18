@@ -93,6 +93,30 @@ describe("Avito synchronization transport", () => {
     expect(fetchFn).toHaveBeenCalledTimes(3);
   });
 
+  it("can wait for consecutive empty pages before ending pagination", async () => {
+    const pages: Record<string, unknown> = {
+      "1": { resources: [{ id: 1, title: "One", status: "active" }] },
+      "2": { resources: [] },
+      "3": { resources: [{ id: 2, title: "Two", status: "active" }] },
+      "4": { resources: [] },
+      "5": { resources: [] },
+    };
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      const page = new URL(String(url)).searchParams.get("page") ?? "";
+      return Response.json(pages[page]);
+    }) as unknown as typeof fetch;
+
+    const result = await fetchAllAvitoItems("token", {
+      fetchFn,
+      sleepFn: async () => undefined,
+      emptyPagesToStop: 2,
+      maxPages: 6,
+    });
+
+    expect(result.items.map((item) => item.id)).toEqual([1, 2]);
+    expect(fetchFn).toHaveBeenCalledTimes(5);
+  });
+
   it("paces listing pages to avoid Avito rate limits", async () => {
     const fetchFn = vi.fn(async (url: string | URL | Request) => {
       const page = new URL(String(url)).searchParams.get("page");

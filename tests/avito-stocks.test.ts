@@ -107,6 +107,38 @@ describe("Avito stock management", () => {
     expect(result.items.map((item) => item.quantity)).toEqual([301, 101, 202]);
   });
 
+  it("loads stock listings slowly with explicit active profile order", async () => {
+    const listingUrls: URL[] = [];
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/core/v1/items")) {
+        const parsed = new URL(href);
+        listingUrls.push(parsed);
+        return Response.json({
+          resources: parsed.searchParams.get("page") === "1"
+            ? [{ id: 101, title: "Первое", price: { value: 1000 }, status: "active" }]
+            : [],
+        });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    const result = await fetchAvitoStockItemsResult(credentials, {
+      fetchFn,
+      sleepFn: async () => undefined,
+      skipStocks: true,
+      listingEmptyPagesToStop: 3,
+    });
+
+    expect(result.items.map((item) => item.itemId)).toEqual(["101"]);
+    expect(listingUrls[0].searchParams.get("per_page")).toBe("25");
+    expect(listingUrls[0].searchParams.get("status")).toBe("active");
+    expect(listingUrls).toHaveLength(4);
+  });
+
   it("updates quantities through stock-management payload", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
