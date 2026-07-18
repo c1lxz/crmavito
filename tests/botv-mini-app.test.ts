@@ -71,6 +71,14 @@ describe("botv mini app UI", () => {
     expect(clientSource).not.toContain("<Eye");
   });
 
+  it("edits per-listing XML descriptions", () => {
+    expect(clientSource).toContain("Textarea");
+    expect(clientSource).toContain("saveProductDescription");
+    expect(clientSource).toContain("description: e.target.value");
+    expect(clientSource).toContain("saveProductDescription(product.index, e.currentTarget.value)");
+    expect(clientSource).toContain("Описание для XML");
+  });
+
   it("requests duplicate XML with a replacement phone", () => {
     const xmlRouteSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/[id]/xml/route.ts"), "utf8");
     const xmlAliasSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/work/[id]/xml/route.ts"), "utf8");

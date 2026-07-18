@@ -180,6 +180,7 @@ def _serialize_product(index: int, product: dict) -> dict:
         "photos": [_photo_token(photo) for photo in photos],
         "color": _binary_color(product.get("color") or (details.get("color") if isinstance(details, dict) else None)),
         "description": product.get("description", ""),
+        "descriptionManual": bool(product.get("description_manual")),
         "details": details if isinstance(details, dict) else {},
     }
 
@@ -196,6 +197,10 @@ def _product_price(product: dict) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _description_is_manual(product: dict) -> bool:
+    return bool(product.get("description_manual") and str(product.get("description") or "").strip())
 
 
 def _public_state(state: dict) -> dict:
@@ -364,10 +369,15 @@ def update_session(session_id: str, payload: dict) -> dict:
         if "color" in item:
             product["color"] = _binary_color(str(item.get("color") or ""))
             product["color_source"] = "manual"
+        if "description" in item:
+            description_value = str(item.get("description") or "").strip()
+            product["description"] = description_value
+            product["description_manual"] = bool(description_value)
         title = (product.get("ad_title") or product["name"]).strip()
         color = _binary_color(product.get("color"))
         product["color"] = color
-        product["description"] = _description_for_preview(product["name"], title, product.get("price"), product.get("design", ""))
+        if not _description_is_manual(product):
+            product["description"] = _description_for_preview(product["name"], title, product.get("price"), product.get("design", ""))
         product["details"] = _product_details(product["name"], [Path(p) for p in product.get("photos", [])], color)
         if "photoOrder" in item and isinstance(item["photoOrder"], list):
             _reorder_photos(product, [str(token) for token in item["photoOrder"]])
@@ -555,14 +565,18 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
         brand = detect_brand(name, brands) or "Без бренда"
         base_extra = product_extra(f"{name} {title}", sizes[idx - 1])
         photos = [Path(p) for p in product.get("photos", [])]
-        needs_ai = not str(product.get("design") or "").strip()
+        needs_ai = not _description_is_manual(product) and not str(product.get("design") or "").strip()
         allow_ai = needs_ai and ai_products_left > 0
         if allow_ai:
             ai_products_left -= 1
         color = _binary_color(product.get("color") or color_detector.detect(f"{name} {title}"))
         product["color_source"] = product.get("color_source") or "detector"
-        design_text = asyncio.run(_generate_product_design(product, title or name, allow_ai=allow_ai, timeout=ai_timeout))
-        text = description.render(title=name, color=color, price=price_fmt, design=design_text)
+        if _description_is_manual(product):
+            design_text = str(product.get("design") or "").strip()
+            text = str(product.get("description") or "").strip()
+        else:
+            design_text = asyncio.run(_generate_product_design(product, title or name, allow_ai=allow_ai, timeout=ai_timeout))
+            text = description.render(title=name, color=color, price=price_fmt, design=design_text)
         product["color"] = color
         product["design"] = design_text
         product["description"] = text

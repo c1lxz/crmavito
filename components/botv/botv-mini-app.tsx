@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import type { BotvProduct, BotvSession, BotvSessionHistoryItem } from "@/lib/botv/session";
 
 type Status = "idle" | "uploading" | "ready" | "saving" | "generating";
@@ -587,6 +588,11 @@ export function BotvMiniApp() {
     await patch({ products: [{ index, price: value }] });
   }
 
+  async function saveProductDescription(index: number, value: string) {
+    updateLocalProduct(index, { description: value });
+    await patch({ products: [{ index, description: value }] });
+  }
+
   async function saveProductColor(product: BotvProduct, color: ProductColor) {
     if (session) manualColorOverrides.current.set(`${session.id}:${product.index}`, color);
     updateLocalProduct(product.index, {
@@ -838,6 +844,15 @@ export function BotvMiniApp() {
                       <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">#{product.index} {product.name}</p><p className="text-xs text-muted-foreground">{product.photoCount} фото · {formatRub(product.price)}</p></div>
                     </div>
                     <Input value={product.adTitle} disabled={product.useOriginalTitle || product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { adTitle: e.target.value })} onBlur={(e) => run(() => saveProductTitle(product.index, e.currentTarget.value))} />
+                    <Textarea
+                      value={product.description}
+                      disabled={product.deleted}
+                      placeholder="Описание для XML"
+                      className="min-h-24 resize-y text-xs leading-5"
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => updateLocalProduct(product.index, { description: e.target.value })}
+                      onBlur={(e) => run(() => saveProductDescription(product.index, e.currentTarget.value))}
+                    />
                     <div className="grid grid-cols-2 gap-1" onClick={(e) => e.stopPropagation()}>
                       {PRODUCT_COLORS.map((color) => (
                         <Button
