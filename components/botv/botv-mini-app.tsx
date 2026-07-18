@@ -941,12 +941,14 @@ export function BotvMiniApp() {
                   placeholder="client_id вручную"
                   value={manualPublishClientId}
                   onChange={(event) => setManualPublishClientId(event.target.value)}
+                  autoComplete="off"
                 />
                 <Input
                   placeholder="client_secret вручную"
                   type="password"
                   value={manualPublishClientSecret}
                   onChange={(event) => setManualPublishClientSecret(event.target.value)}
+                  autoComplete="new-password"
                 />
                 <Input
                   placeholder="Email отчётов XML"

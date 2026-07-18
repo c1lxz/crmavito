@@ -476,7 +476,7 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
                       placeholder="client_secret"
                       value={profile.clientSecret ?? ""}
                       onChange={(event) => patchAvitoProfile(profile.id, { clientSecret: event.target.value })}
-                      autoComplete="off"
+                      autoComplete="new-password"
                     />
                     <Input
                       type="email"

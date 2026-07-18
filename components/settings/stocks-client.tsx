@@ -378,12 +378,14 @@ export function StocksClient() {
             placeholder="client_id вручную"
             value={manualClientId}
             onChange={(event) => setManualClientId(event.target.value)}
+            autoComplete="off"
           />
           <Input
             placeholder="client_secret вручную"
             type="password"
             value={manualClientSecret}
             onChange={(event) => setManualClientSecret(event.target.value)}
+            autoComplete="new-password"
           />
         </div>
 
