@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { buildPublicationXml, savePublishedXml } from "@/lib/botv/session";
+import { buildXml } from "@/lib/botv/session";
 import { publishAvitoXml } from "@/lib/avito/publish";
 import { getAvitoCredentials, getAvitoProfileAutoloadSettings } from "@/lib/avito/profile-store";
 
@@ -31,7 +31,6 @@ function publicBaseUrl(request: Request): string {
 function publicXmlFeedUrl(request: Request, sessionId: string, profileId?: string | null): string {
   const url = new URL(`${publicBaseUrl(request)}/v-data/botv/work/${encodeURIComponent(sessionId)}/xml`);
   if (profileId) url.searchParams.set("profileId", profileId);
-  if (profileId) url.searchParams.set("includePrevious", "1");
   return url.toString();
 }
 
@@ -63,10 +62,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const savedSettings = await getAvitoProfileAutoloadSettings(parsed.data.profileId);
     const reportEmail = parsed.data.reportEmail?.trim() || savedSettings.reportEmail;
     const contactPhone = savedSettings.contactPhone;
-    const xmlResult = await buildPublicationXml(id, contactPhone, {
-      profileId: profileScope,
-      includePrevious: !parsed.data.legacyIds,
-    });
+    const xmlResult = await buildXml(id, contactPhone, { profileId: profileScope });
     const publish = await publishAvitoXml(credentials, xmlResult.xml, xmlResult.filename, {
       feedUrl: publicXmlFeedUrl(
         request,
@@ -75,12 +71,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ),
       reportEmail,
     });
-    await savePublishedXml(parsed.data.legacyIds ? undefined : profileScope, xmlResult.xml);
     return NextResponse.json({
       success: true,
       ads: xmlResult.ads,
       products: xmlResult.products,
-      previousAds: xmlResult.previousAds,
       adIds: xmlResult.adIds ?? [],
       legacyIds: parsed.data.legacyIds,
       publish,
