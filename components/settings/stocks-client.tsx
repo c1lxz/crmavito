@@ -134,9 +134,9 @@ export function StocksClient() {
 
   async function loadListingPages(runId: number): Promise<{ items: StockItem[]; warning?: string }> {
     const attempts = [
-      { perPage: 25, delayMs: 1_500, maxPages: 160 },
-      { perPage: 10, delayMs: 1_000, maxPages: 260 },
-      { perPage: 5, delayMs: 700, maxPages: 520 },
+      { perPage: 25, delayMs: 3_000, maxPages: 160 },
+      { perPage: 10, delayMs: 2_500, maxPages: 260 },
+      { perPage: 5, delayMs: 2_000, maxPages: 520 },
     ];
     let lastError: unknown;
 
@@ -154,21 +154,33 @@ export function StocksClient() {
       for (let page = 1; page <= attempt.maxPages; page++) {
         if (stockLoadRun.current !== runId) return { items: loadedItems };
 
-        let data: { items?: StockItem[]; error?: string };
-        try {
-          const response = await fetch("/api/avito/stocks/page", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...avitoAuthPayload(), page, perPage: attempt.perPage }),
-          });
-          data = await readApiJson(response);
-          if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить страницу объявлений");
-        } catch (error) {
-          lastError = error;
+        let data: { items?: StockItem[]; error?: string } | null = null;
+        let pageError: unknown;
+        for (let pageAttempt = 0; pageAttempt < 3; pageAttempt++) {
+          try {
+            const response = await fetch("/api/avito/stocks/page", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...avitoAuthPayload(), page, perPage: attempt.perPage }),
+            });
+            const parsedData = await readApiJson(response);
+            if (!response.ok) throw new Error(parsedData.error ?? "Не удалось загрузить страницу объявлений");
+            data = parsedData;
+            pageError = undefined;
+            break;
+          } catch (error) {
+            pageError = error;
+            if (stockLoadRun.current !== runId) return { items: loadedItems };
+            if (pageAttempt < 2) await wait(20_000 * (pageAttempt + 1));
+          }
+        }
+
+        if (!data || pageError) {
+          lastError = pageError;
           if (loadedItems.length > 0) {
             return {
               items: loadedItems,
-              warning: `Avito временно прервал загрузку на странице ${page}. Загружено: ${loadedItems.length}. ${error instanceof Error ? error.message : String(error)}`,
+              warning: `Avito временно прервал загрузку на странице ${page}. Загружено: ${loadedItems.length}. ${pageError instanceof Error ? pageError.message : String(pageError)}`,
             };
           }
           break;
