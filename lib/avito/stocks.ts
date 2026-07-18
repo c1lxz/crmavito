@@ -170,7 +170,14 @@ export async function fetchAvitoStocksInfo(
 
     const data = (await readJsonResponse(response)) as { stocks?: StockInfo[] };
     if (!response.ok) {
-      throw new Error(`Получение остатков Avito не прошло: ${extractAvitoErrorText(data).slice(0, 300)}`);
+      const details = extractAvitoErrorText(data).slice(0, 300);
+      const reason =
+        response.status === 429
+          ? "Avito ограничил частоту запросов остатков"
+          : response.status >= 500
+            ? "Avito временно не отвечает на запрос остатков"
+            : `Avito отклонил запрос остатков (${response.status})`;
+      throw new Error(details && details !== "{}" ? `${reason}: ${details}` : reason);
     }
 
     return { hasStocks: Array.isArray(data.stocks), stocks: data.stocks ?? [] };
@@ -193,9 +200,10 @@ export async function fetchAvitoStocksInfo(
     try {
       data = await fetchChunk(chunk);
     } catch (error) {
+      const details = error instanceof Error ? error.message : String(error);
       return {
         stocks: result,
-        warning: `Avito временно ограничил или прервал получение остатков. Загружено остатков: ${result.size} из ${itemIds.length}. ${error instanceof Error ? error.message : String(error)}`,
+        warning: `Avito временно ограничил или прервал получение остатков. Загружено остатков: ${result.size} из ${itemIds.length}.${details ? ` ${details}` : ""}`,
       };
     }
     for (const stock of data.stocks) result.set(String(stock.item_id), stock);

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchAvitoStockItems, getAvitoStockToken, updateAvitoStocks } from "@/lib/avito/stocks";
+import { fetchAvitoStockItems, fetchAvitoStockItemsResult, getAvitoStockToken, updateAvitoStocks } from "@/lib/avito/stocks";
 import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
 
 const credentials = { clientId: "client", clientSecret: "secret" };
@@ -122,6 +122,45 @@ describe("Avito stock management", () => {
         isOutOfStock: false,
       }),
     ]);
+  });
+
+  it("warns without raw Avito JSON when stock loading is rate limited", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "1") {
+        return Response.json({
+          resources: Array.from({ length: 11 }, (_, index) => ({
+            id: index + 1,
+            title: `Товар ${index + 1}`,
+            price: { value: 1000 },
+            status: "active",
+          })),
+        });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "2") {
+        return Response.json({ resources: [] });
+      }
+      if (href.includes("/stock-management/1/info")) {
+        const body = JSON.parse(String(init?.body)) as { item_ids: number[] };
+        if (body.item_ids.includes(11)) return Response.json({}, { status: 429 });
+        return Response.json({
+          stocks: body.item_ids.map((itemId) => ({ item_id: itemId, quantity: 3 })),
+        });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    const result = await fetchAvitoStockItemsResult(credentials, {
+      fetchFn,
+      sleepFn: async () => undefined,
+    });
+
+    expect(result.items).toHaveLength(11);
+    expect(result.warning).toContain("Avito ограничил частоту запросов остатков");
+    expect(result.warning).not.toContain("{}");
   });
 
   it("splits large stock updates into Avito-sized batches", async () => {
