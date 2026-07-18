@@ -257,7 +257,7 @@ export function StocksClient() {
 
   async function loadStocksInBackground(sourceItems: StockItem[], runId: number) {
     if (sourceItems.length === 0) return;
-    const chunkSize = 50;
+    const chunkSize = 10;
     let loaded = 0;
     let stopped = false;
     setStockLoading(true);

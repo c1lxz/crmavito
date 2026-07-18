@@ -44,6 +44,7 @@ describe("Avito stock management", () => {
     expect(stocksClientSource).toContain("loadListingPages");
     expect(stocksClientSource).toContain("listingProgress");
     expect(stocksClientSource).toContain("emptyPages >= 3");
+    expect(stocksClientSource).toContain("const chunkSize = 10");
   });
 
   it("loads items and merges stock quantities by item id", async () => {
