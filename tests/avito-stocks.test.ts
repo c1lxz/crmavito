@@ -90,6 +90,40 @@ describe("Avito stock management", () => {
     );
   });
 
+  it("loads items when Avito returns an empty stock info body", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "1") {
+        return Response.json({
+          resources: [{ id: 101, title: "Футболка", price: { value: 1500 }, status: "active" }],
+        });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "2") {
+        return Response.json({ resources: [] });
+      }
+      if (href.includes("/stock-management/1/info")) {
+        return Response.json({});
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchAvitoStockItems(credentials, {
+        fetchFn,
+        sleepFn: async () => undefined,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        itemId: "101",
+        quantity: null,
+        isOutOfStock: false,
+      }),
+    ]);
+  });
+
   it("splits large stock updates into Avito-sized batches", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {

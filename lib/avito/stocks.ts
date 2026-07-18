@@ -26,6 +26,12 @@ export type AvitoStockUpdate = {
 
 type FetchFn = typeof fetch;
 type SleepFn = (ms: number) => Promise<void>;
+type StockOptions = {
+  fetchFn?: FetchFn;
+  sleepFn?: SleepFn;
+  stockConcurrency?: number;
+  pageDelayMs?: number;
+};
 
 type StockInfo = {
   item_id: number | string;
@@ -92,7 +98,7 @@ async function readJsonResponse(response: Response): Promise<unknown> {
 
 export async function getAvitoStockToken(
   credentials: AvitoCredentials,
-  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+  options: StockOptions = {},
 ): Promise<string> {
   const response = await fetchWithRetry(
     "https://api.avito.ru/token/",
@@ -121,13 +127,20 @@ export async function getAvitoStockToken(
 export async function fetchAvitoStocksInfo(
   token: string,
   itemIds: string[],
-  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+  options: StockOptions = {},
 ): Promise<Map<string, StockInfo>> {
   const result = new Map<string, StockInfo>();
   const chunkSize = 10;
+  const chunks: string[][] = [];
 
   for (let i = 0; i < itemIds.length; i += chunkSize) {
-    const chunk = itemIds.slice(i, i + chunkSize);
+    chunks.push(itemIds.slice(i, i + chunkSize));
+  }
+
+  let nextChunk = 0;
+  const workerCount = Math.max(1, Math.min(options.stockConcurrency ?? 6, chunks.length));
+
+  async function loadChunk(chunk: string[]) {
     const response = await fetchWithRetry(
       "https://api.avito.ru/stock-management/1/info",
       {
@@ -153,15 +166,27 @@ export async function fetchAvitoStocksInfo(
     }
   }
 
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextChunk < chunks.length) {
+        const chunk = chunks[nextChunk++];
+        await loadChunk(chunk);
+      }
+    }),
+  );
+
   return result;
 }
 
 export async function fetchAvitoStockItems(
   credentials: AvitoCredentials,
-  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+  options: StockOptions = {},
 ): Promise<AvitoStockItem[]> {
   const token = await getAvitoStockToken(credentials, options);
-  const { items } = await fetchAllAvitoItems(token, options);
+  const { items } = await fetchAllAvitoItems(token, {
+    ...options,
+    pageDelayMs: options.pageDelayMs ?? 150,
+  });
   const ids = items.map((item) => String(item.id)).filter(Boolean);
   const stocks = ids.length ? await fetchAvitoStocksInfo(token, ids, options) : new Map();
 
@@ -186,7 +211,7 @@ export async function fetchAvitoStockItems(
 export async function updateAvitoStocks(
   credentials: AvitoCredentials,
   updates: AvitoStockUpdate[],
-  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+  options: StockOptions = {},
 ): Promise<StockUpdateResult[]> {
   const token = await getAvitoStockToken(credentials, options);
   const chunkSize = 200;

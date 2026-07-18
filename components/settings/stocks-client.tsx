@@ -32,6 +32,21 @@ type AvitoCredentialProfile = {
   isActive: boolean;
 };
 
+async function readApiJson(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    const cleanText = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return {
+      error: cleanText
+        ? `Сервер вернул не JSON: ${cleanText.slice(0, 220)}`
+        : "Сервер вернул пустой некорректный ответ",
+    };
+  }
+}
+
 export function StocksClient() {
   const [credentialProfiles, setCredentialProfiles] = useState<AvitoCredentialProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
@@ -83,7 +98,7 @@ export function StocksClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profileId: selectedProfileId }),
       });
-      const data = await response.json();
+      const data = await readApiJson(response);
       if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить объявления");
       setItems(data.items ?? []);
       setDrafts(
@@ -109,7 +124,7 @@ export function StocksClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ profileId: selectedProfileId, updates }),
     });
-    const data = await response.json();
+    const data = await readApiJson(response);
     if (!response.ok) throw new Error(data.error ?? "Не удалось обновить остатки");
     const successful = new Set(
       (data.stocks ?? [])
