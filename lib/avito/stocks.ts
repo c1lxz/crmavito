@@ -41,6 +41,9 @@ type StockOptions = {
   stockDelayMs?: number;
   stockDeadlineMs?: number;
   skipStocks?: boolean;
+  listingAllowPartial?: boolean;
+  listingRequestTimeoutMs?: number;
+  listingMaxPages?: number;
 };
 
 export type StockInfo = {
@@ -227,13 +230,18 @@ export async function fetchAvitoStockItemsResult(
   options: StockOptions = {},
 ): Promise<AvitoStockItemsResult> {
   const token = await getAvitoStockToken(credentials, options);
-  const { items } = await fetchAllAvitoItems(token, {
+  const listing = await fetchAllAvitoItems(token, {
     ...options,
     perPage: options.listingPerPage ?? 25,
     emptyPagesToStop: options.listingEmptyPagesToStop ?? 1,
+    maxPages: options.listingMaxPages,
     status: options.listingStatus ?? "active",
     pageDelayMs: options.pageDelayMs ?? 1_200,
+    allowPartialOnPageError: options.listingAllowPartial,
+    requestTimeoutMs: options.listingRequestTimeoutMs,
+    warningPrefix: "Avito временно прервал загрузку списка объявлений",
   });
+  const { items } = listing;
   const ids = items.map((item) => String(item.id)).filter(Boolean);
   const stockResult =
     ids.length && !options.skipStocks
@@ -241,8 +249,9 @@ export async function fetchAvitoStockItemsResult(
       : { stocks: new Map<string, StockInfo>() };
   const stocks = stockResult.stocks;
 
+  const warning = [listing.warning, stockResult.warning].filter(Boolean).join(" ") || undefined;
   return {
-    warning: stockResult.warning,
+    warning,
     items: items.map((item) => {
       const itemId = String(item.id);
       const stock = stocks.get(itemId);

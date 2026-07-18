@@ -145,9 +145,10 @@ export function StocksClient() {
           loadedItems.map((item: StockItem) => [item.itemId, String(item.quantity ?? 0)]),
         ),
       );
+      const loadWarning = typeof data.warning === "string" ? data.warning : "";
       toast({
-        title: "Объявления загружены",
-        description: `Найдено: ${loadedItems.length}. Остатки загружаются фоном.`,
+        title: loadWarning ? "Объявления загружены частично" : "Объявления загружены",
+        description: loadWarning || `Найдено: ${loadedItems.length}. Остатки загружаются фоном.`,
       });
       void loadStocksInBackground(loadedItems, runId);
     } catch (error) {

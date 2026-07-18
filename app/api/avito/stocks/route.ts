@@ -41,13 +41,32 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await fetchAvitoStockItemsResult(credentials, {
-      skipStocks: true,
-      listingPerPage: 25,
-      listingEmptyPagesToStop: 3,
-      pageDelayMs: 1_200,
-    });
-    return NextResponse.json(result);
+    const attempts = [
+      { listingPerPage: 25, pageDelayMs: 1_500, listingRequestTimeoutMs: 45_000, listingMaxPages: 160 },
+      { listingPerPage: 10, pageDelayMs: 1_000, listingRequestTimeoutMs: 45_000, listingMaxPages: 260 },
+      { listingPerPage: 5, pageDelayMs: 700, listingRequestTimeoutMs: 45_000, listingMaxPages: 520 },
+    ];
+    let lastError: unknown;
+    for (const [index, attempt] of attempts.entries()) {
+      try {
+        const result = await fetchAvitoStockItemsResult(credentials, {
+          skipStocks: true,
+          listingEmptyPagesToStop: 3,
+          listingAllowPartial: true,
+          ...attempt,
+        });
+        return NextResponse.json({
+          ...result,
+          warning: [
+            result.warning,
+            index > 0 ? `Avito ответил ошибкой на быстрой загрузке, поэтому объявления загружены медленным режимом ${attempt.listingPerPage} на страницу.` : undefined,
+          ].filter(Boolean).join(" ") || undefined,
+        });
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },

@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { fetchAvitoStockItems, fetchAvitoStockItemsResult, getAvitoStockToken, updateAvitoStocks } from "@/lib/avito/stocks";
 import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
 
 const credentials = { clientId: "client", clientSecret: "secret" };
+const stocksRouteSource = readFileSync(path.resolve(__dirname, "../app/api/avito/stocks/route.ts"), "utf8");
 
 describe("Avito stock management", () => {
   it("loads items and merges stock quantities by item id", async () => {
@@ -137,6 +140,46 @@ describe("Avito stock management", () => {
     expect(listingUrls[0].searchParams.get("per_page")).toBe("25");
     expect(listingUrls[0].searchParams.get("status")).toBe("active");
     expect(listingUrls).toHaveLength(4);
+  });
+
+  it("returns ordered partial listings when Avito 504s after some pages", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "1") {
+        return Response.json({
+          resources: [
+            { id: 301, title: "Первое", price: { value: 3000 }, status: "active" },
+            { id: 101, title: "Второе", price: { value: 1000 }, status: "active" },
+          ],
+        });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "2") {
+        return new Response("504 Gateway Time-out nginx", { status: 504 });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    const result = await fetchAvitoStockItemsResult(credentials, {
+      fetchFn,
+      sleepFn: async () => undefined,
+      skipStocks: true,
+      listingAllowPartial: true,
+      listingEmptyPagesToStop: 3,
+    });
+
+    expect(result.items.map((item) => item.itemId)).toEqual(["301", "101"]);
+    expect(result.warning).toContain("Avito временно прервал загрузку списка объявлений");
+    expect(result.warning).toContain("504");
+  });
+
+  it("uses fallback listing sizes in the stocks route", () => {
+    expect(stocksRouteSource).toContain("listingPerPage: 25");
+    expect(stocksRouteSource).toContain("listingPerPage: 10");
+    expect(stocksRouteSource).toContain("listingPerPage: 5");
+    expect(stocksRouteSource).toContain("listingAllowPartial: true");
   });
 
   it("updates quantities through stock-management payload", async () => {

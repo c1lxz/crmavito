@@ -155,14 +155,18 @@ export async function fetchAllAvitoItems(
     pageDelayMs?: number;
     emptyPagesToStop?: number;
     status?: string;
+    allowPartialOnPageError?: boolean;
+    requestTimeoutMs?: number;
+    warningPrefix?: string;
   } = {},
-): Promise<{ items: AvitoListItem[]; statusCounts: Record<string, number> }> {
+): Promise<{ items: AvitoListItem[]; statusCounts: Record<string, number>; warning?: string }> {
   const fetchFn = options.fetchFn ?? fetch;
   const sleepFn = options.sleepFn ?? defaultSleep;
   const perPage = options.perPage ?? 99;
   const maxPages = options.maxPages ?? 100;
   const pageDelayMs = options.pageDelayMs ?? getEnvNumber("AVITO_SYNC_PAGE_DELAY_MS", DEFAULT_PAGE_DELAY_MS);
   const emptyPagesToStop = Math.max(1, options.emptyPagesToStop ?? 1);
+  const requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
   const itemsById = new Map<string, AvitoListItem>();
   const statusCounts: Record<string, number> = {};
   let emptyPages = 0;
@@ -173,18 +177,33 @@ export async function fetchAllAvitoItems(
     url.searchParams.set("per_page", String(perPage));
     url.searchParams.set("page", String(page));
     if (options.status?.trim()) url.searchParams.set("status", options.status.trim());
-    const response = await fetchWithRetry(
-      url.toString(),
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-        signal: AbortSignal.timeout(30_000),
-      },
-      { fetchFn, sleepFn },
-    );
+    let response: Response;
+    try {
+      response = await fetchWithRetry(
+        url.toString(),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+          signal: AbortSignal.timeout(requestTimeoutMs),
+        },
+        { fetchFn, sleepFn },
+      );
+    } catch (error) {
+      if (options.allowPartialOnPageError && itemsById.size > 0) {
+        return finalizeAvitoItems(itemsById, statusCounts, `${options.warningPrefix ?? "Avito временно прервал загрузку объявлений"} на странице ${page}. Загружено: ${itemsById.size}. ${error instanceof Error ? error.message : String(error)}`);
+      }
+      throw error;
+    }
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
+      if (options.allowPartialOnPageError && itemsById.size > 0 && (response.status === 429 || response.status >= 500)) {
+        return finalizeAvitoItems(
+          itemsById,
+          statusCounts,
+          `${options.warningPrefix ?? "Avito временно прервал загрузку объявлений"} на странице ${page} (${response.status}). Загружено: ${itemsById.size}. ${body.slice(0, 200)}`,
+        );
+      }
       if (response.status === 429) {
         throw new Error(
           `Avito limited request rate on page ${page}. Wait a few minutes and start sync again. ${body.slice(0, 200)}`,
@@ -228,12 +247,20 @@ export async function fetchAllAvitoItems(
     throw new Error(`Avito pagination exceeded the safety limit of ${maxPages} pages`);
   }
 
+  return finalizeAvitoItems(itemsById, statusCounts);
+}
+
+function finalizeAvitoItems(
+  itemsById: Map<string, AvitoListItem>,
+  statusCounts: Record<string, number>,
+  warning?: string,
+): { items: AvitoListItem[]; statusCounts: Record<string, number>; warning?: string } {
   for (const item of itemsById.values()) {
     const status = item.status ?? "unknown";
     statusCounts[status] = (statusCounts[status] ?? 0) + 1;
   }
 
-  return { items: [...itemsById.values()], statusCounts };
+  return { items: [...itemsById.values()], statusCounts, warning };
 }
 
 function getPrice(value: AvitoListItem["price"]): number {
