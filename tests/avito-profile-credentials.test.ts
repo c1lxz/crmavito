@@ -62,6 +62,9 @@ describe("Avito credential profiles", () => {
     expect(stocksClientSource).toContain("applyDragSelection");
     expect(stocksClientSource).toContain("onMouseDown={(event) => startDragSelection");
     expect(stocksClientSource).toContain("onMouseEnter={() => applyDragSelection");
+    expect(stocksClientSource).toContain("selectNextBatch");
+    expect(stocksClientSource).toContain("[50, 100, 150].map");
+    expect(stocksClientSource).toContain("Math.max(...selectedIndexes) + 1");
   });
 
   it("resolves profileId or manual credentials in stock management", () => {

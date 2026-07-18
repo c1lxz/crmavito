@@ -444,6 +444,31 @@ export function StocksClient() {
     setSelected(new Set(items.map((item) => item.itemId)));
   }
 
+  function selectNextBatch(count: number) {
+    setSelected((current) => {
+      const visibleIds = filtered.map((item) => item.itemId);
+      const selectedIndexes = visibleIds
+        .map((itemId, index) => (current.has(itemId) ? index : -1))
+        .filter((index) => index >= 0);
+      if (selectedIndexes.length === 0) {
+        toast({ title: "Сначала выберите первое объявление" });
+        return current;
+      }
+
+      const startIndex = Math.max(...selectedIndexes) + 1;
+      const batch = visibleIds.slice(startIndex, startIndex + count);
+      if (batch.length === 0) {
+        toast({ title: "Дальше объявлений нет" });
+        return current;
+      }
+
+      const next = new Set(current);
+      for (const itemId of batch) next.add(itemId);
+      toast({ title: `Выбрано ещё: ${batch.length}`, description: `Всего выбрано: ${next.size}` });
+      return next;
+    });
+  }
+
   return (
     <div className="app-shell">
       <div className="app-header">
@@ -575,6 +600,17 @@ export function StocksClient() {
             >
               Все: {items.length}
             </Button>
+            {[50, 100, 150].map((count) => (
+              <Button
+                key={count}
+                size="sm"
+                variant="outline"
+                onClick={() => selectNextBatch(count)}
+                disabled={filtered.length === 0 || selectedCount === 0 || bulkSaving}
+              >
+                +{count}
+              </Button>
+            ))}
           </div>
         </div>
       )}
