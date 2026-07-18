@@ -7,7 +7,9 @@ import { fetchAvitoAdsAnalytics } from "@/lib/avito/ads-analytics";
 export const maxDuration = 60;
 
 const analyticsSchema = z.object({
-  profileId: z.string().trim().min(1),
+  profileId: z.string().trim().optional().nullable(),
+  clientId: z.string().trim().optional().nullable(),
+  clientSecret: z.string().trim().optional().nullable(),
   periodDays: z.coerce.number().int().min(1).max(270).default(3),
 });
 
@@ -24,9 +26,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const credentials = await getAvitoCredentials({ profileId: parsed.data.profileId });
+    const credentials = await getAvitoCredentials(parsed.data);
+    const profileId = parsed.data.profileId || parsed.data.clientId || "manual";
     const result = await fetchAvitoAdsAnalytics({
-      profileId: parsed.data.profileId,
+      profileId,
       credentials,
       periodDays: parsed.data.periodDays,
     });

@@ -9,7 +9,10 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const publishSchema = z.object({
-  profileId: z.string().trim().min(1),
+  profileId: z.string().trim().optional().nullable(),
+  clientId: z.string().trim().optional().nullable(),
+  clientSecret: z.string().trim().optional().nullable(),
+  reportEmail: z.string().trim().email().optional().nullable(),
   legacyIds: z.boolean().optional().default(false),
 });
 
@@ -25,7 +28,7 @@ function publicBaseUrl(request: Request): string {
   return `${protocol}://${host}`;
 }
 
-function publicXmlFeedUrl(request: Request, sessionId: string, profileId?: string): string {
+function publicXmlFeedUrl(request: Request, sessionId: string, profileId?: string | null): string {
   const url = new URL(`${publicBaseUrl(request)}/v-data/botv/work/${encodeURIComponent(sessionId)}/xml`);
   if (profileId) url.searchParams.set("profileId", profileId);
   return url.toString();
@@ -55,12 +58,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const [xmlResult, reportEmail] = await Promise.all([
-      buildXml(id, undefined, { profileId: parsed.data.legacyIds ? null : parsed.data.profileId }),
+    const [xmlResult, savedReportEmail] = await Promise.all([
+      buildXml(id, undefined, { profileId: parsed.data.legacyIds ? null : (parsed.data.profileId || parsed.data.clientId) }),
       getAvitoProfileReportEmail(parsed.data.profileId),
     ]);
+    const reportEmail = parsed.data.reportEmail?.trim() || savedReportEmail;
     const publish = await publishAvitoXml(credentials, xmlResult.xml, xmlResult.filename, {
-      feedUrl: publicXmlFeedUrl(request, id, parsed.data.legacyIds ? undefined : parsed.data.profileId),
+      feedUrl: publicXmlFeedUrl(request, id, parsed.data.legacyIds ? undefined : (parsed.data.profileId || parsed.data.clientId)),
       reportEmail,
     });
     return NextResponse.json({

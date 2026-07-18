@@ -99,6 +99,8 @@ export function MarketAnalysisClient() {
   const [marketResult, setMarketResult] = useState<ProbeResult | null>(null);
   const [credentialProfiles, setCredentialProfiles] = useState<AvitoCredentialProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [manualClientId, setManualClientId] = useState("");
+  const [manualClientSecret, setManualClientSecret] = useState("");
   const [profilesOpen, setProfilesOpen] = useState(true);
   const [ownPeriodDays, setOwnPeriodDays] = useState(3);
   const [ownLoading, setOwnLoading] = useState(false);
@@ -106,7 +108,9 @@ export function MarketAnalysisClient() {
 
   const selectedProfile = credentialProfiles.find((profile) => profile.id === selectedProfileId) ?? null;
   const canSubmitMarket = category.trim().length > 0 && marketPeriodDays >= 1 && marketPeriodDays <= 30;
-  const canSubmitOwn = Boolean(selectedProfileId) && ownPeriodDays >= 1 && ownPeriodDays <= 270 && !ownLoading;
+  const manualCredentialsComplete = Boolean(manualClientId.trim() && manualClientSecret.trim());
+  const manualCredentialsPartial = Boolean(manualClientId.trim() || manualClientSecret.trim()) && !manualCredentialsComplete;
+  const canSubmitOwn = (manualCredentialsComplete || Boolean(selectedProfileId)) && !manualCredentialsPartial && ownPeriodDays >= 1 && ownPeriodDays <= 270 && !ownLoading;
 
   const topViews = useMemo(() => rankBy(ownResult?.items ?? [], "views"), [ownResult]);
   const topFavorites = useMemo(() => rankBy(ownResult?.items ?? [], "favorites"), [ownResult]);
@@ -173,7 +177,12 @@ export function MarketAnalysisClient() {
       const response = await fetch("/api/avito/ads-analytics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileId: selectedProfileId, periodDays: ownPeriodDays }),
+        body: JSON.stringify({
+          ...(manualCredentialsComplete
+            ? { clientId: manualClientId.trim(), clientSecret: manualClientSecret.trim() }
+            : { profileId: selectedProfileId }),
+          periodDays: ownPeriodDays,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить аналитику объявлений");
@@ -228,6 +237,19 @@ export function MarketAnalysisClient() {
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-muted-foreground">Профиль</p>
                 <p className="truncate text-sm font-semibold">{selectedProfile?.name ?? "Выберите профиль Avito"}</p>
+              </div>
+              <div className="grid min-w-[280px] flex-1 gap-2 sm:grid-cols-2">
+                <Input
+                  placeholder="client_id вручную"
+                  value={manualClientId}
+                  onChange={(event) => setManualClientId(event.target.value)}
+                />
+                <Input
+                  placeholder="client_secret вручную"
+                  type="password"
+                  value={manualClientSecret}
+                  onChange={(event) => setManualClientSecret(event.target.value)}
+                />
               </div>
               {credentialProfiles.length > 0 && (
                 <Button size="sm" variant="outline" onClick={() => setProfilesOpen((value) => !value)}>

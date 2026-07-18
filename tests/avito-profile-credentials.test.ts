@@ -36,13 +36,14 @@ describe("Avito credential profiles", () => {
     expect(storeSource).toContain("clientSecret: _clientSecret");
   });
 
-  it("uses server profiles in stock management instead of manual keys", () => {
+  it("uses server profiles and optional manual keys in stock management", () => {
     expect(stocksClientSource).toContain("/api/avito-profiles/credentials");
     expect(stocksClientSource).toContain("credentialProfiles");
     expect(stocksClientSource).toContain("selectedProfileId");
-    expect(stocksClientSource).toContain("profileId: selectedProfileId");
+    expect(stocksClientSource).toContain("manualClientId");
+    expect(stocksClientSource).toContain("manualClientSecret");
+    expect(stocksClientSource).toContain("avitoAuthPayload");
     expect(stocksClientSource).toContain("selectAllItems");
-    expect(stocksClientSource).not.toContain("setClientSecret");
     expect(stocksClientSource).not.toContain("crmavito:avito-stocks-credentials");
     expect(stocksClientSource).not.toContain("localStorage");
   });
@@ -55,12 +56,14 @@ describe("Avito credential profiles", () => {
     expect(stocksClientSource).toContain("onMouseEnter={() => applyDragSelection");
   });
 
-  it("resolves profileId without accepting manual credentials in stock management", () => {
+  it("resolves profileId or manual credentials in stock management", () => {
     expect(stocksRouteSource).toContain("getAvitoCredentials");
     expect(stocksRouteSource).toContain("profileId");
+    expect(stocksRouteSource).toContain("clientId");
+    expect(stocksRouteSource).toContain("clientSecret");
     expect(stocksUpdateRouteSource).toContain("getAvitoCredentials");
     expect(stocksUpdateRouteSource).toContain("profileId");
-    expect(stocksRouteSource).not.toContain("clientSecret: z.string()");
-    expect(stocksUpdateRouteSource).not.toContain("clientSecret: z.string()");
+    expect(stocksUpdateRouteSource).toContain("clientId");
+    expect(stocksUpdateRouteSource).toContain("clientSecret");
   });
 });

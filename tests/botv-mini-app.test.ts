@@ -101,8 +101,8 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("setReplacementXmlCount((count) => count + 1)");
     expect(clientSource).toContain("ID последнего XML");
     expect(clientSource).toContain("parseAdIdsXml(await blob.text())");
-    expect(clientSource).toContain("params.set(\"profileId\", selectedPublishProfileId)");
-    expect(clientSource).toContain("!publishLegacyIds && !selectedPublishProfileId");
+    expect(clientSource).toContain("manualPublishCredentialsComplete ? manualPublishClientId.trim() : selectedPublishProfileId");
+    expect(clientSource).toContain("!publishLegacyIds && (!hasPublishAuth || manualPublishCredentialsPartial)");
     expect(clientSource).not.toContain("await downloadXml(replacementPhone); setPhonePromptOpen(false)");
   });
 
@@ -113,7 +113,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Можно продолжить работу без созданного XML");
   });
 
-  it("adds Avito publication controls with saved server profiles", () => {
+  it("adds Avito publication controls with saved profiles or manual keys", () => {
     const publishRouteSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/[id]/publish/route.ts"), "utf8");
 
     expect(clientSource).toContain("Публикация");
@@ -133,13 +133,16 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Разбивка текущей загрузки");
     expect(clientSource).toContain("Последние запуски");
     expect(autoloadStatusRouteSource).toContain("fetchAvitoAutoloadStatus");
-    expect(clientSource).toContain("profileId: selectedPublishProfileId");
+    expect(clientSource).toContain("publishAuthPayload");
+    expect(clientSource).toContain("manualPublishClientId");
+    expect(clientSource).toContain("manualPublishClientSecret");
+    expect(clientSource).toContain("manualPublishReportEmail");
+    expect(clientSource).toContain("Email отчётов XML");
     expect(clientSource).toContain("/api/avito-profiles/credentials");
     expect(clientSource).toContain("publishProfiles");
     expect(clientSource).toContain("selectedPublishProfileId");
     expect(clientSource).not.toContain("publishReportEmail");
     expect(clientSource).not.toContain("Email отчётов Avito *");
-    expect(clientSource).not.toContain("setPublishClientSecret");
     expect(clientSource).not.toContain("crmavito:botv-publish-credentials");
     expect(clientSource).not.toContain("profileName");
     expect(publishRouteSource).toContain("publishAvitoXml");
@@ -147,10 +150,11 @@ describe("botv mini app UI", () => {
     expect(publishRouteSource).toContain("/v-data/botv/work/");
     expect(publishRouteSource).toContain("url.searchParams.set(\"profileId\", profileId)");
     expect(publishRouteSource).toContain("legacyIds");
-    expect(publishRouteSource).toContain("parsed.data.legacyIds ? null : parsed.data.profileId");
+    expect(publishRouteSource).toContain("parsed.data.legacyIds ? null : (parsed.data.profileId || parsed.data.clientId)");
+    expect(publishRouteSource).toContain("parsed.data.reportEmail");
     expect(publishRouteSource).toContain("getAvitoCredentials");
     expect(publishRouteSource).toContain("getAvitoProfileReportEmail");
-    expect(publishRouteSource).toContain("buildXml(id, undefined, { profileId: parsed.data.legacyIds ? null : parsed.data.profileId })");
+    expect(publishRouteSource).toContain("buildXml(id, undefined, { profileId: parsed.data.legacyIds ? null : (parsed.data.profileId || parsed.data.clientId) })");
     expect(publishRouteSource).toContain("adIds: xmlResult.adIds");
   });
 

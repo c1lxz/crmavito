@@ -58,6 +58,8 @@ async function readApiJson(response: Response) {
 export function StocksClient() {
   const [credentialProfiles, setCredentialProfiles] = useState<AvitoCredentialProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [manualClientId, setManualClientId] = useState("");
+  const [manualClientSecret, setManualClientSecret] = useState("");
   const [profilesOpen, setProfilesOpen] = useState(true);
   const [items, setItems] = useState<StockItem[]>([]);
   const [search, setSearch] = useState("");
@@ -81,7 +83,9 @@ export function StocksClient() {
   );
 
   const selectedCount = selected.size;
-  const canLoad = Boolean(selectedProfileId) && !loading;
+  const manualCredentialsComplete = Boolean(manualClientId.trim() && manualClientSecret.trim());
+  const manualCredentialsPartial = Boolean(manualClientId.trim() || manualClientSecret.trim()) && !manualCredentialsComplete;
+  const canLoad = (manualCredentialsComplete || Boolean(selectedProfileId)) && !manualCredentialsPartial && !loading;
 
   useEffect(() => {
     void refreshCredentialProfiles();
@@ -113,6 +117,12 @@ export function StocksClient() {
     setSelectedProfileId(profile.id);
   }
 
+  function avitoAuthPayload() {
+    return manualCredentialsComplete
+      ? { clientId: manualClientId.trim(), clientSecret: manualClientSecret.trim() }
+      : { profileId: selectedProfileId };
+  }
+
   async function loadItems() {
     const runId = stockLoadRun.current + 1;
     stockLoadRun.current = runId;
@@ -124,7 +134,7 @@ export function StocksClient() {
       const response = await fetch("/api/avito/stocks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileId: selectedProfileId }),
+        body: JSON.stringify(avitoAuthPayload()),
       });
       const data = await readApiJson(response);
       if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить объявления");
@@ -166,7 +176,7 @@ export function StocksClient() {
         const response = await fetch("/api/avito/stocks/info", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ profileId: selectedProfileId, itemIds: chunk.map((item) => item.itemId) }),
+          body: JSON.stringify({ ...avitoAuthPayload(), itemIds: chunk.map((item) => item.itemId) }),
         });
         const data = await readApiJson(response);
         if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить остатки");
@@ -227,7 +237,7 @@ export function StocksClient() {
     const response = await fetch("/api/avito/stocks/update", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profileId: selectedProfileId, updates }),
+      body: JSON.stringify({ ...avitoAuthPayload(), updates }),
     });
     const data = await readApiJson(response);
     if (!response.ok) throw new Error(data.error ?? "Не удалось обновить остатки");
@@ -361,6 +371,20 @@ export function StocksClient() {
               Profiles
             </Button>
           )}
+        </div>
+
+        <div className="mb-3 grid gap-2 md:grid-cols-2">
+          <Input
+            placeholder="client_id вручную"
+            value={manualClientId}
+            onChange={(event) => setManualClientId(event.target.value)}
+          />
+          <Input
+            placeholder="client_secret вручную"
+            type="password"
+            value={manualClientSecret}
+            onChange={(event) => setManualClientSecret(event.target.value)}
+          />
         </div>
 
         {profilesOpen && credentialProfiles.length > 0 && (

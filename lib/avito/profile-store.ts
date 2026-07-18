@@ -36,7 +36,18 @@ export async function listAvitoProfilesWithCredentials(): Promise<AvitoProfileWi
 
 export async function getAvitoCredentials(input: {
   profileId?: string | null;
+  clientId?: string | null;
+  clientSecret?: string | null;
 }): Promise<AvitoCredentials> {
+  const manualClientId = input.clientId?.trim();
+  const manualClientSecret = input.clientSecret?.trim();
+  if (manualClientId || manualClientSecret) {
+    if (!manualClientId || !manualClientSecret) {
+      throw new Error("Введите client_id и client_secret Avito.");
+    }
+    return { clientId: manualClientId, clientSecret: manualClientSecret };
+  }
+
   if (input.profileId) {
     const profile = await prisma.avitoProfile.findFirst({
       where: {

@@ -8,7 +8,9 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const statusSchema = z.object({
-  profileId: z.string().trim().min(1),
+  profileId: z.string().trim().optional().nullable(),
+  clientId: z.string().trim().optional().nullable(),
+  clientSecret: z.string().trim().optional().nullable(),
 });
 
 export async function POST(request: Request) {

@@ -7,7 +7,9 @@ import { getAvitoCredentials } from "@/lib/avito/profile-store";
 export const maxDuration = 60;
 
 const stockInfoSchema = z.object({
-  profileId: z.string().trim().min(1),
+  profileId: z.string().trim().optional().nullable(),
+  clientId: z.string().trim().optional().nullable(),
+  clientSecret: z.string().trim().optional().nullable(),
   itemIds: z.array(z.string().trim().min(1)).min(1).max(50),
 });
 
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const credentials = await getAvitoCredentials({ profileId: parsed.data.profileId });
+    const credentials = await getAvitoCredentials(parsed.data);
     const token = await getAvitoStockToken(credentials);
     const result = await fetchAvitoStocksInfo(token, parsed.data.itemIds, {
       stockDelayMs: 1_000,

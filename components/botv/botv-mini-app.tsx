@@ -285,6 +285,9 @@ export function BotvMiniApp() {
   const [historyOpen, setHistoryOpen] = useState(true);
   const [publishProfiles, setPublishProfiles] = useState<AvitoCredentialProfile[]>([]);
   const [selectedPublishProfileId, setSelectedPublishProfileId] = useState("");
+  const [manualPublishClientId, setManualPublishClientId] = useState("");
+  const [manualPublishClientSecret, setManualPublishClientSecret] = useState("");
+  const [manualPublishReportEmail, setManualPublishReportEmail] = useState("");
   const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [publishLegacyIds, setPublishLegacyIds] = useState(false);
@@ -304,6 +307,9 @@ export function BotvMiniApp() {
   }, [products, query]);
   const selectedIds = Array.from(selected);
   const allVisibleSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.index));
+  const manualPublishCredentialsComplete = Boolean(manualPublishClientId.trim() && manualPublishClientSecret.trim());
+  const manualPublishCredentialsPartial = Boolean(manualPublishClientId.trim() || manualPublishClientSecret.trim()) && !manualPublishCredentialsComplete;
+  const hasPublishAuth = manualPublishCredentialsComplete || Boolean(selectedPublishProfileId);
   useEffect(() => {
     runInitialLoad();
   }, []);
@@ -478,13 +484,13 @@ export function BotvMiniApp() {
 
   async function downloadXml(phone?: string) {
     if (!session) return;
-    if (!publishLegacyIds && !selectedPublishProfileId) {
+    if (!publishLegacyIds && (!hasPublishAuth || manualPublishCredentialsPartial)) {
       throw new Error("Выберите профиль Avito для XML с новыми ID или включите старые ID для восстановления.");
     }
     setStatus("generating");
     setError("");
     const params = new URLSearchParams();
-    if (!publishLegacyIds) params.set("profileId", selectedPublishProfileId);
+    if (!publishLegacyIds) params.set("profileId", manualPublishCredentialsComplete ? manualPublishClientId.trim() : selectedPublishProfileId);
     const query = params.toString();
     const res = await apiFetch(`${BOTV_API_BASE}/${session.id}/xml${query ? `?${query}` : ""}`, {
       method: "POST",
@@ -545,6 +551,16 @@ export function BotvMiniApp() {
     setSelectedPublishProfileId(profile.id);
   }
 
+  function publishAuthPayload() {
+    return manualPublishCredentialsComplete
+      ? {
+          clientId: manualPublishClientId.trim(),
+          clientSecret: manualPublishClientSecret.trim(),
+          reportEmail: manualPublishReportEmail.trim() || null,
+        }
+      : { profileId: selectedPublishProfileId };
+  }
+
   async function publishXml() {
     if (!session) return;
     setPublishing(true);
@@ -554,7 +570,7 @@ export function BotvMiniApp() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          profileId: selectedPublishProfileId,
+          ...publishAuthPayload(),
           legacyIds: publishLegacyIds,
         }),
       });
@@ -575,9 +591,7 @@ export function BotvMiniApp() {
       const res = await apiFetch("/api/avito/autoload/status", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          profileId: selectedPublishProfileId,
-        }),
+        body: JSON.stringify(publishAuthPayload()),
       });
       const data = await readJsonResponse(res, "Не удалось получить статус автозагрузки");
       if (!res.ok) throw new Error(data.error ?? "Не удалось получить статус автозагрузки");
@@ -853,10 +867,10 @@ export function BotvMiniApp() {
                   Остаток XML
                 </Button>
                 <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
-                <Button size="sm" disabled={status === "generating" || (!publishLegacyIds && !selectedPublishProfileId)} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
+                <Button size="sm" disabled={status === "generating" || (!publishLegacyIds && (!hasPublishAuth || manualPublishCredentialsPartial))} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
                 <Button
                   size="sm"
-                  disabled={!selectedPublishProfileId || publishing}
+                  disabled={!hasPublishAuth || manualPublishCredentialsPartial || publishing}
                   onClick={() => run(publishXml)}
                 >
                   {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -865,7 +879,7 @@ export function BotvMiniApp() {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={!selectedPublishProfileId || publishStatusLoading}
+                  disabled={!hasPublishAuth || manualPublishCredentialsPartial || publishStatusLoading}
                   onClick={() => run(checkAutoloadStatus)}
                 >
                   {publishStatusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
@@ -877,6 +891,25 @@ export function BotvMiniApp() {
                     Профили
                   </Button>
                 )}
+              </div>
+              <div className="grid gap-2 md:grid-cols-3">
+                <Input
+                  placeholder="client_id вручную"
+                  value={manualPublishClientId}
+                  onChange={(event) => setManualPublishClientId(event.target.value)}
+                />
+                <Input
+                  placeholder="client_secret вручную"
+                  type="password"
+                  value={manualPublishClientSecret}
+                  onChange={(event) => setManualPublishClientSecret(event.target.value)}
+                />
+                <Input
+                  placeholder="Email отчётов XML"
+                  type="email"
+                  value={manualPublishReportEmail}
+                  onChange={(event) => setManualPublishReportEmail(event.target.value)}
+                />
               </div>
               {publishProfilesOpen && publishProfiles.length > 0 && (
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">

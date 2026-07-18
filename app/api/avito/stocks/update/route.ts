@@ -7,7 +7,9 @@ import { getAvitoCredentials } from "@/lib/avito/profile-store";
 export const maxDuration = 300;
 
 const updateSchema = z.object({
-  profileId: z.string().trim().min(1),
+  profileId: z.string().trim().optional().nullable(),
+  clientId: z.string().trim().optional().nullable(),
+  clientSecret: z.string().trim().optional().nullable(),
   updates: z
     .array(
       z.object({
