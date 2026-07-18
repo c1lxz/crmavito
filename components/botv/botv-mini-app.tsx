@@ -275,6 +275,7 @@ export function BotvMiniApp() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [bulkPrice, setBulkPrice] = useState("");
+  const [dropStockInput, setDropStockInput] = useState("");
   const [diskLink, setDiskLink] = useState("");
   const [preview, setPreview] = useState<BotvProduct | null>(null);
   const [phonePromptOpen, setPhonePromptOpen] = useState(false);
@@ -329,6 +330,7 @@ export function BotvMiniApp() {
 
   function rememberSession(data: BotvSession) {
     setSession(applyManualColorOverrides(data));
+    setDropStockInput(data.dropStockQuantity == null ? "" : String(data.dropStockQuantity));
     window.localStorage.setItem("botv:lastSessionId", data.id);
     setPublishResult(null);
     setLastXmlAdIds([]);
@@ -642,6 +644,19 @@ export function BotvMiniApp() {
     await patch({ products: [{ index: product.index, color }] });
   }
 
+  async function saveDropStockQuantity() {
+    const trimmed = dropStockInput.trim();
+    if (!trimmed) {
+      await patch({ dropStockQuantity: null });
+      return;
+    }
+    const quantity = Number(trimmed);
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      throw new Error("Остаток дропа должен быть целым числом от 0");
+    }
+    await patch({ dropStockQuantity: quantity });
+  }
+
   function reorderTokens(tokens: string[], token: string, direction: "first" | "left" | "right") {
     const next = [...tokens];
     const index = next.indexOf(token);
@@ -826,6 +841,17 @@ export function BotvMiniApp() {
                 <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, bulkOriginalTitle: true }))}><Check className="h-4 w-4" /> Название из папки</Button>
                 <Input className="h-8 w-28" placeholder="Цена" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} />
                 <Button size="sm" variant="outline" disabled={!selected.size || !bulkPrice} onClick={() => run(() => patch({ ids: selectedIds, bulkPrice }))}>Одна цена</Button>
+                <Input
+                  className="h-8 w-36"
+                  inputMode="numeric"
+                  placeholder="Остаток дропа"
+                  value={dropStockInput}
+                  onChange={(e) => setDropStockInput(e.target.value)}
+                />
+                <Button size="sm" variant="outline" onClick={() => run(saveDropStockQuantity)}>
+                  <PackageCheck className="h-4 w-4" />
+                  Остаток XML
+                </Button>
                 <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
                 <Button size="sm" disabled={status === "generating" || (!publishLegacyIds && !selectedPublishProfileId)} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
                 <Button

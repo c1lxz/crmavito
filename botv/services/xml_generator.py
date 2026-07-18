@@ -14,6 +14,7 @@ class AvitoAd:
     price: int
     description: str
     color: str
+    quantity: int | None = None
     images: list[str] = field(default_factory=list)
     brand: str | None = None
     material: str = "Хлопок"
@@ -52,6 +53,8 @@ class XmlGenerator:
         merged["Description"] = ad.description
         merged["Price"] = str(ad.price)
         merged["Color"] = ad.color
+        if ad.quantity is not None:
+            merged["Quantity"] = str(ad.quantity)
 
         fields_order: list[str] = self._schema.get("fields_order", list(merged.keys()))
         rendered: set[str] = set()

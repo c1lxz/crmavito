@@ -199,6 +199,18 @@ def _product_price(product: dict) -> int | None:
         return None
 
 
+def _drop_stock_quantity(value: object) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        quantity = int(value)
+    except (TypeError, ValueError):
+        raise SystemExit("Остаток дропа должен быть целым числом")
+    if quantity < 0:
+        raise SystemExit("Остаток дропа не может быть меньше 0")
+    return quantity
+
+
 def _plain_description(value: object) -> str:
     text = str(value or "")
     text = re.sub(r"&lt;br\s*/?&gt;", "\n", text, flags=re.IGNORECASE)
@@ -226,6 +238,7 @@ def _public_state(state: dict) -> dict:
         "createdAt": state.get("created_at"),
         "updatedAt": state.get("updated_at") or state.get("created_at"),
         "sourceName": state.get("source_name"),
+        "dropStockQuantity": _drop_stock_quantity(state.get("drop_stock_quantity")),
         "products": [_serialize_product(i, p) for i, p in enumerate(products, 1)],
         "summary": {
             "total": len(products),
@@ -364,6 +377,8 @@ def update_session(session_id: str, payload: dict) -> dict:
     state_path = _session_dir(session_id) / "state.json"
     state = _read_json(state_path)
     products = state["products"]
+    if "dropStockQuantity" in payload:
+        state["drop_stock_quantity"] = _drop_stock_quantity(payload.get("dropStockQuantity"))
     for item in payload.get("products", []):
         index = int(item.get("index") or 0) - 1
         if index < 0 or index >= len(products):
@@ -567,6 +582,7 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
     description = DescriptionRenderer(settings_dir / "description_template.txt")
     xml_gen = XmlGenerator(defaults_path=settings_dir / "avito_defaults.json", schema_path=settings_dir / "xml_schema.json")
     locations = load_locations(settings_dir / "locations.json")
+    drop_stock_quantity = _drop_stock_quantity(state.get("drop_stock_quantity"))
     color_detector = ColorDetector(settings_dir / "color_rules.json")
     brands_path = settings_dir / "brands_cache.json"
     import asyncio
@@ -611,7 +627,7 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
         images = asyncio.run(_image_urls(yd, session_id, name, photos))
         for location_index, extra in enumerate(location_extras(locations, base_extra), 1):
             ad_number = (idx - 1) * len(locations) + location_index
-            ads.append(AvitoAd(ad_id=make_ad_id(id_prefix, ad_number, id_scope), title=title, price=price, description=text, color=color, images=images, brand=brand, extra=extra))
+            ads.append(AvitoAd(ad_id=make_ad_id(id_prefix, ad_number, id_scope), title=title, price=price, description=text, color=color, quantity=drop_stock_quantity, images=images, brand=brand, extra=extra))
     xml_text = xml_gen.build(ads).decode("utf-8")
     out_path = _write_xml_file(session_id, xml_text)
     state["progress"] = [*state.get("progress", []), f"XML created: {len(ads)} ads"][-12:]

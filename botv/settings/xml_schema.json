@@ -16,6 +16,7 @@
     "Description",
     "Category",
     "Price",
+    "Quantity",
     "GoodsType",
     "Condition",
     "AdType",

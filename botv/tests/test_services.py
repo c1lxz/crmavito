@@ -304,6 +304,19 @@ def test_xml_has_required_size():
     assert "<Size>48 (M)</Size>" in xml
 
 
+def test_xml_has_quantity_when_drop_stock_is_set():
+    gen, td = _make_xml_generator(extra_schema={
+        "fields_order": [
+            "Id", "Title", "Description", "Price", "Quantity", "Brand",
+        ],
+    })
+    with td:
+        xml = gen.build([_sample_ad(quantity=4)]).decode("utf-8")
+    assert "<Price>1000</Price>" in xml
+    assert "<Quantity>4</Quantity>" in xml
+    assert xml.index("<Price>") < xml.index("<Quantity>") < xml.index("<Brand>")
+
+
 def test_longsleeve_uses_sweatshirt_subcategory():
     assert product_extra("Лонгслив Saint Michael", "46 (S)") == {
         "Size": "46 (S)",

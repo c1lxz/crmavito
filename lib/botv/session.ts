@@ -25,6 +25,7 @@ export interface BotvSession {
   createdAt: number;
   updatedAt: number;
   sourceName: string;
+  dropStockQuantity?: number | null;
   products: BotvProduct[];
   summary: { total: number; active: number; deleted: number; ready: number; photos: number };
   progress: string[];

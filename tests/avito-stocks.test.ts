@@ -65,6 +65,48 @@ describe("Avito stock management", () => {
     );
   });
 
+  it("keeps stock items in the Avito profile listing order", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "1") {
+        return Response.json({
+          resources: [
+            { id: 301, title: "Первое в профиле", price: { value: 3000 }, status: "active" },
+            { id: 101, title: "Второе в профиле", price: { value: 1000 }, status: "active" },
+          ],
+        });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "2") {
+        return Response.json({
+          resources: [{ id: 202, title: "Третье в профиле", price: { value: 2000 }, status: "active" }],
+        });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "3") {
+        return Response.json({ resources: [] });
+      }
+      if (href.includes("/stock-management/1/info")) {
+        const body = JSON.parse(String(init?.body)) as { item_ids: number[] };
+        return Response.json({
+          stocks: [...body.item_ids]
+            .reverse()
+            .map((itemId) => ({ item_id: itemId, quantity: itemId })),
+        });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    const result = await fetchAvitoStockItemsResult(credentials, {
+      fetchFn,
+      sleepFn: async () => undefined,
+    });
+
+    expect(result.items.map((item) => item.itemId)).toEqual(["301", "101", "202"]);
+    expect(result.items.map((item) => item.quantity)).toEqual([301, 101, 202]);
+  });
+
   it("updates quantities through stock-management payload", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {

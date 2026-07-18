@@ -59,10 +59,16 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert color_updated["products"][0]["color"] == "Белый"
     assert color_updated["products"][0]["details"]["color"] == "Белый"
 
+    stock_updated = _run_cli("update", state["id"], json.dumps({
+        "dropStockQuantity": 6,
+    }, ensure_ascii=False))
+    assert stock_updated["dropStockQuantity"] == 6
+
     xml = _run_cli("xml", state["id"])
     assert xml["products"] == 1
     assert xml["ads"] == 3
     assert xml["adIds"] == ["SKU-1", "SKU-2", "SKU-3"]
+    assert xml["xml"].count("<Quantity>6</Quantity>") == 3
     assert "Product Black" in xml["xml"]
     assert "Product White" not in xml["xml"]
     assert "<Color>\u0411\u0435\u043b\u044b\u0439</Color>" in xml["xml"]

@@ -62,6 +62,10 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("movePhoto");
     expect(clientSource).toContain("PRODUCT_COLORS");
     expect(clientSource).toContain("saveProductColor");
+    expect(clientSource).toContain("dropStockInput");
+    expect(clientSource).toContain("saveDropStockQuantity");
+    expect(clientSource).toContain("dropStockQuantity");
+    expect(clientSource).toContain("Остаток XML");
     expect(clientSource).toContain("Чёрный");
     expect(clientSource).toContain("Белый");
     expect(clientSource).toContain("PanelTop");
