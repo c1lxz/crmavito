@@ -48,6 +48,7 @@ type PublishResult = {
   profileStatus?: number;
   uploadStatus?: number;
   adIds?: string[];
+  legacyIds?: boolean;
 };
 
 type AutoloadUpload = {
@@ -291,6 +292,7 @@ export function BotvMiniApp() {
   const [selectedPublishProfileId, setSelectedPublishProfileId] = useState("");
   const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [publishLegacyIds, setPublishLegacyIds] = useState(false);
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
   const [lastXmlAdIds, setLastXmlAdIds] = useState<string[]>([]);
   const [publishStatusLoading, setPublishStatusLoading] = useState(false);
@@ -551,12 +553,13 @@ export function BotvMiniApp() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           profileId: selectedPublishProfileId,
+          legacyIds: publishLegacyIds,
         }),
       });
       const data = await readJsonResponse(res, "Не удалось опубликовать XML");
       if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать XML");
       const adIds: string[] = Array.isArray(data.adIds) ? data.adIds.map(String).filter(Boolean) : [];
-      setPublishResult({ ...(data.publish ?? {}), adIds });
+      setPublishResult({ ...(data.publish ?? {}), adIds, legacyIds: Boolean(data.legacyIds) });
       setError("");
     } finally {
       setPublishing(false);
@@ -785,6 +788,7 @@ export function BotvMiniApp() {
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 {publishResult.profileStatus && <span>Профиль: HTTP {publishResult.profileStatus}</span>}
                 {publishResult.uploadStatus && <span>Запуск: HTTP {publishResult.uploadStatus}</span>}
+                <span>{publishResult.legacyIds ? "Старые ID" : "Новые профильные ID"}</span>
               </div>
             </div>
           )}
@@ -867,6 +871,20 @@ export function BotvMiniApp() {
                   ))}
                 </div>
               )}
+              <label className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-950 dark:text-amber-100">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4"
+                  checked={publishLegacyIds}
+                  onChange={(event) => setPublishLegacyIds(event.target.checked)}
+                />
+                <span>
+                  <span className="block font-semibold">Опубликовать со старыми ID</span>
+                  <span className="mt-1 block opacity-80">
+                    Только для восстановления старых объявлений: Avito обновит объявления с ID SKU-1, SKU-2... Новые дропы публикуйте без этой галочки.
+                  </span>
+                </span>
+              </label>
             </CardContent></Card>
           )}
 

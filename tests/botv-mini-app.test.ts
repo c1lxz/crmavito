@@ -113,10 +113,13 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Публикация");
     expect(clientSource).toContain("publishXml");
     expect(clientSource).toContain("publishResult");
-    expect(clientSource).toContain("setPublishResult({ ...(data.publish ?? {}), adIds })");
+    expect(clientSource).toContain("setPublishResult({ ...(data.publish ?? {}), adIds, legacyIds: Boolean(data.legacyIds) })");
     expect(clientSource).toContain("Публикация Avito запущена");
     expect(clientSource).toContain("ID опубликованных объявлений");
     expect(clientSource).toContain("const adIds");
+    expect(clientSource).toContain("Опубликовать со старыми ID");
+    expect(clientSource).toContain("legacyIds: publishLegacyIds");
+    expect(clientSource).toContain("Новые дропы публикуйте без этой галочки");
     expect(clientSource).toContain("Итог публикации появится в отчётах Автозагрузки Avito");
     expect(clientSource).toContain("checkAutoloadStatus");
     expect(clientSource).toContain("/api/avito/autoload/status");
@@ -137,9 +140,11 @@ describe("botv mini app UI", () => {
     expect(publishRouteSource).toContain("publicXmlFeedUrl");
     expect(publishRouteSource).toContain("/v-data/botv/work/");
     expect(publishRouteSource).toContain("url.searchParams.set(\"profileId\", profileId)");
+    expect(publishRouteSource).toContain("legacyIds");
+    expect(publishRouteSource).toContain("parsed.data.legacyIds ? null : parsed.data.profileId");
     expect(publishRouteSource).toContain("getAvitoCredentials");
     expect(publishRouteSource).toContain("getAvitoProfileReportEmail");
-    expect(publishRouteSource).toContain("buildXml(id, undefined, { profileId: parsed.data.profileId })");
+    expect(publishRouteSource).toContain("buildXml(id, undefined, { profileId: parsed.data.legacyIds ? null : parsed.data.profileId })");
     expect(publishRouteSource).toContain("adIds: xmlResult.adIds");
   });
 
