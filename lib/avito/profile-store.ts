@@ -7,6 +7,7 @@ export type AvitoProfileWithCredentials = {
   name: string;
   accountId: string | null;
   reportEmail: string | null;
+  contactPhone: string | null;
   isActive: boolean;
 };
 
@@ -23,6 +24,7 @@ export async function listAvitoProfilesWithCredentials(): Promise<AvitoProfileWi
       name: true,
       accountId: true,
       reportEmail: true,
+      contactPhone: true,
       clientId: true,
       clientSecret: true,
       isActive: true,
@@ -73,12 +75,28 @@ export async function getAvitoCredentials(input: {
 }
 
 export async function getAvitoProfileReportEmail(profileId?: string | null): Promise<string | undefined> {
-  if (!profileId) return undefined;
+  const settings = await getAvitoProfileAutoloadSettings(profileId);
+  return settings.reportEmail;
+}
+
+export async function getAvitoProfileContactPhone(profileId?: string | null): Promise<string | undefined> {
+  const settings = await getAvitoProfileAutoloadSettings(profileId);
+  return settings.contactPhone;
+}
+
+export async function getAvitoProfileAutoloadSettings(profileId?: string | null): Promise<{
+  reportEmail?: string;
+  contactPhone?: string;
+}> {
+  if (!profileId) return {};
   const profile = await prisma.avitoProfile.findFirst({
     where: { id: profileId, isActive: true },
-    select: { reportEmail: true },
+    select: { reportEmail: true, contactPhone: true },
   });
-  return profile?.reportEmail?.trim() || undefined;
+  return {
+    reportEmail: profile?.reportEmail?.trim() || undefined,
+    contactPhone: profile?.contactPhone?.trim() || undefined,
+  };
 }
 
 export async function saveAvitoProfileCredentials(
@@ -113,6 +131,7 @@ export async function saveAvitoProfileCredentials(
           name: true,
           accountId: true,
           reportEmail: true,
+          contactPhone: true,
           clientId: true,
           clientSecret: true,
           isActive: true,
@@ -125,6 +144,7 @@ export async function saveAvitoProfileCredentials(
           name: true,
           accountId: true,
           reportEmail: true,
+          contactPhone: true,
           clientId: true,
           clientSecret: true,
           isActive: true,

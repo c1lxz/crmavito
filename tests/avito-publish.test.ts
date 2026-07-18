@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchAvitoAutoloadStatus, publishAvitoXml } from "@/lib/avito/publish";
+import { disableAvitoAutoload, fetchAvitoAutoloadStatus, publishAvitoXml } from "@/lib/avito/publish";
 
 const credentials = { clientId: "client", clientSecret: "secret" };
 
@@ -168,6 +168,45 @@ describe("Avito XML publication", () => {
       current: { upload_id: 1, status: "processing" },
       lastSuccessful: { upload_id: 0, status: "success" },
       uploads: [{ upload_id: 1 }, { upload_id: 0 }],
+    });
+  });
+
+  it("disables autoload and clears feed urls", async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/autoload/v2/profile") && init?.method !== "POST") {
+        return Response.json({
+          autoload_enabled: true,
+          feeds_data: [{ feed_name: "old.xml", feed_url: "https://example.test/old.xml" }],
+          report_email: "reports@example.test",
+          schedule: [{ rate: 1, time_slots: [8], weekdays: [1] }],
+        });
+      }
+      if (href.includes("/autoload/v2/profile") && init?.method === "POST") {
+        return new Response("", { status: 200 });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      disableAvitoAutoload(credentials, {
+        fetchFn,
+        sleepFn: async () => undefined,
+      }),
+    ).resolves.toEqual({ profileStatus: 200 });
+
+    const profileCall = calls.find((call) => call.url.includes("/autoload/v2/profile") && call.init?.method === "POST");
+    expect(JSON.parse(String(profileCall?.init?.body))).toEqual({
+      agreement: true,
+      autoload_enabled: false,
+      feeds_data: [],
+      report_email: "reports@example.test",
+      schedule: [{ rate: 1, time_slots: [8], weekdays: [1] }],
     });
   });
 });

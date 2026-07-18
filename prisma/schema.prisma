@@ -245,6 +245,7 @@ model AvitoProfile {
   clientId     String?
   clientSecret String?
   reportEmail  String?
+  contactPhone String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

@@ -40,6 +40,7 @@ type AvitoCredentialProfile = {
   name: string;
   accountId: string | null;
   reportEmail: string | null;
+  contactPhone: string | null;
   isActive: boolean;
 };
 
@@ -288,10 +289,13 @@ export function BotvMiniApp() {
   const [manualPublishClientId, setManualPublishClientId] = useState("");
   const [manualPublishClientSecret, setManualPublishClientSecret] = useState("");
   const [manualPublishReportEmail, setManualPublishReportEmail] = useState("");
+  const [manualPublishContactPhone, setManualPublishContactPhone] = useState("");
   const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [stoppingAutoload, setStoppingAutoload] = useState(false);
   const [publishLegacyIds, setPublishLegacyIds] = useState(false);
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
+  const [autoloadStopMessage, setAutoloadStopMessage] = useState("");
   const [lastXmlAdIds, setLastXmlAdIds] = useState<string[]>([]);
   const [publishStatusLoading, setPublishStatusLoading] = useState(false);
   const [autoloadStatus, setAutoloadStatus] = useState<AutoloadStatus | null>(null);
@@ -491,6 +495,9 @@ export function BotvMiniApp() {
     setError("");
     const params = new URLSearchParams();
     if (!publishLegacyIds) params.set("profileId", manualPublishCredentialsComplete ? manualPublishClientId.trim() : selectedPublishProfileId);
+    if (!phone && manualPublishCredentialsComplete && manualPublishContactPhone.trim()) {
+      params.set("phone", manualPublishContactPhone.trim());
+    }
     const query = params.toString();
     const res = await apiFetch(`${BOTV_API_BASE}/${session.id}/xml${query ? `?${query}` : ""}`, {
       method: "POST",
@@ -557,6 +564,7 @@ export function BotvMiniApp() {
           clientId: manualPublishClientId.trim(),
           clientSecret: manualPublishClientSecret.trim(),
           reportEmail: manualPublishReportEmail.trim() || null,
+          contactPhone: manualPublishContactPhone.trim() || null,
         }
       : { profileId: selectedPublishProfileId };
   }
@@ -578,9 +586,29 @@ export function BotvMiniApp() {
       if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать XML");
       const adIds: string[] = Array.isArray(data.adIds) ? data.adIds.map(String).filter(Boolean) : [];
       setPublishResult({ ...(data.publish ?? {}), adIds, legacyIds: Boolean(data.legacyIds) });
+      setAutoloadStopMessage("");
       setError("");
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function stopAutoload() {
+    setStoppingAutoload(true);
+    setError("");
+    setAutoloadStopMessage("");
+    try {
+      const res = await apiFetch("/api/avito/autoload/stop", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(publishAuthPayload()),
+      });
+      const data = await readJsonResponse(res, "Не удалось остановить автозагрузку");
+      if (!res.ok) throw new Error(data.error ?? "Не удалось остановить автозагрузку");
+      setAutoloadStopMessage(data.message ?? "Автозагрузка отключена.");
+      await checkAutoloadStatus();
+    } finally {
+      setStoppingAutoload(false);
     }
   }
 
@@ -797,6 +825,11 @@ export function BotvMiniApp() {
           )}
 
           {error && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+          {autoloadStopMessage && (
+            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-950 dark:text-amber-100">
+              {autoloadStopMessage}
+            </div>
+          )}
           <AdIdsBlock title="ID последнего XML" adIds={lastXmlAdIds} />
           {publishResult && (
             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-900 dark:text-emerald-100">
@@ -885,6 +918,15 @@ export function BotvMiniApp() {
                   {publishStatusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
                   Статус
                 </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={!hasPublishAuth || manualPublishCredentialsPartial || stoppingAutoload}
+                  onClick={() => run(stopAutoload)}
+                >
+                  {stoppingAutoload ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                  Остановить
+                </Button>
                 {publishProfiles.length > 0 && (
                   <Button size="sm" variant="outline" onClick={() => setPublishProfilesOpen((value) => !value)}>
                     <History className="h-4 w-4" />
@@ -892,7 +934,7 @@ export function BotvMiniApp() {
                   </Button>
                 )}
               </div>
-              <div className="grid gap-2 md:grid-cols-3">
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                 <Input
                   placeholder="client_id вручную"
                   value={manualPublishClientId}
@@ -910,6 +952,11 @@ export function BotvMiniApp() {
                   value={manualPublishReportEmail}
                   onChange={(event) => setManualPublishReportEmail(event.target.value)}
                 />
+                <Input
+                  placeholder="Телефон XML вручную"
+                  value={manualPublishContactPhone}
+                  onChange={(event) => setManualPublishContactPhone(event.target.value)}
+                />
               </div>
               {publishProfilesOpen && publishProfiles.length > 0 && (
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -924,7 +971,7 @@ export function BotvMiniApp() {
                     >
                       <p className="truncate text-xs font-semibold">{item.name}</p>
                       <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                        {item.accountId || "Saved credentials"}
+                        {item.accountId || item.contactPhone || item.reportEmail || "Saved credentials"}
                       </p>
                     </button>
                   ))}

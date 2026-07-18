@@ -7,6 +7,7 @@ const pageSource = readFileSync(path.resolve(__dirname, "../app/v/page.tsx"), "u
 const apiSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/route.ts"), "utf8");
 const aliasSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/work/route.ts"), "utf8");
 const autoloadStatusRouteSource = readFileSync(path.resolve(__dirname, "../app/api/avito/autoload/status/route.ts"), "utf8");
+const autoloadStopRouteSource = readFileSync(path.resolve(__dirname, "../app/api/avito/autoload/stop/route.ts"), "utf8");
 
 describe("botv mini app UI", () => {
   it("does not contain mojibake or replacement characters", () => {
@@ -137,7 +138,14 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("manualPublishClientId");
     expect(clientSource).toContain("manualPublishClientSecret");
     expect(clientSource).toContain("manualPublishReportEmail");
+    expect(clientSource).toContain("manualPublishContactPhone");
+    expect(clientSource).toContain("contactPhone: manualPublishContactPhone.trim() || null");
     expect(clientSource).toContain("Email отчётов XML");
+    expect(clientSource).toContain("Телефон XML вручную");
+    expect(clientSource).toContain("stopAutoload");
+    expect(clientSource).toContain("/api/avito/autoload/stop");
+    expect(clientSource).toContain("Остановить");
+    expect(autoloadStopRouteSource).toContain("disableAvitoAutoload");
     expect(clientSource).toContain("/api/avito-profiles/credentials");
     expect(clientSource).toContain("publishProfiles");
     expect(clientSource).toContain("selectedPublishProfileId");
@@ -152,9 +160,10 @@ describe("botv mini app UI", () => {
     expect(publishRouteSource).toContain("legacyIds");
     expect(publishRouteSource).toContain("parsed.data.legacyIds ? null : (parsed.data.profileId || parsed.data.clientId)");
     expect(publishRouteSource).toContain("parsed.data.reportEmail");
+    expect(publishRouteSource).toContain("parsed.data.contactPhone");
     expect(publishRouteSource).toContain("getAvitoCredentials");
-    expect(publishRouteSource).toContain("getAvitoProfileReportEmail");
-    expect(publishRouteSource).toContain("buildXml(id, undefined, { profileId: parsed.data.legacyIds ? null : (parsed.data.profileId || parsed.data.clientId) })");
+    expect(publishRouteSource).toContain("getAvitoProfileAutoloadSettings");
+    expect(publishRouteSource).toContain("buildXml(id, contactPhone, { profileId: profileScope })");
     expect(publishRouteSource).toContain("adIds: xmlResult.adIds");
   });
 

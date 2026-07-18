@@ -24,9 +24,12 @@ describe("Avito credential profiles", () => {
     expect(schemaSource).toContain("clientId");
     expect(schemaSource).toContain("clientSecret");
     expect(schemaSource).toContain("reportEmail");
+    expect(schemaSource).toContain("contactPhone");
     expect(storeSource).toContain("listAvitoProfilesWithCredentials");
     expect(storeSource).toContain("getAvitoCredentials");
     expect(storeSource).toContain("getAvitoProfileReportEmail");
+    expect(storeSource).toContain("getAvitoProfileContactPhone");
+    expect(storeSource).toContain("getAvitoProfileAutoloadSettings");
   });
 
   it("exposes saved credential profiles without browser-visible secrets", () => {

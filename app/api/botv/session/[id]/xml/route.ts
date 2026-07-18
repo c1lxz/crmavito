@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildXml } from "@/lib/botv/session";
+import { getAvitoProfileContactPhone } from "@/lib/avito/profile-store";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -18,8 +19,10 @@ function xmlResponse(result: { filename: string; xml: string; ads: number; produ
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const profileId = new URL(request.url).searchParams.get("profileId");
-    return xmlResponse(await buildXml(id, undefined, { profileId }));
+    const url = new URL(request.url);
+    const profileId = url.searchParams.get("profileId");
+    const phone = url.searchParams.get("phone")?.trim() || await getAvitoProfileContactPhone(profileId);
+    return xmlResponse(await buildXml(id, phone, { profileId }));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ошибка XML" }, { status: 500 });
   }
@@ -34,7 +37,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const body = await request.json().catch(() => ({}));
       phone = typeof body.phone === "string" ? body.phone : "";
     }
-    const profileId = new URL(request.url).searchParams.get("profileId");
+    const url = new URL(request.url);
+    const profileId = url.searchParams.get("profileId");
+    phone ||= url.searchParams.get("phone")?.trim() || await getAvitoProfileContactPhone(profileId) || "";
     const result = await buildXml(id, phone, { profileId });
     return xmlResponse(result);
   } catch (error) {

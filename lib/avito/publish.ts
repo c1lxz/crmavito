@@ -30,6 +30,12 @@ type PublishOptions = {
   reportEmail?: string;
 };
 
+type StopOptions = {
+  fetchFn?: FetchFn;
+  sleepFn?: SleepFn;
+  reportEmail?: string;
+};
+
 export type AvitoXmlPublishResult = {
   feedUrl: string;
   profileStatus: number;
@@ -118,6 +124,16 @@ function buildProfilePayload(profile: AutoloadProfile | null, feed: AutoloadFeed
     agreement: true,
     autoload_enabled: true,
     feeds_data: [feed],
+    report_email: reportEmailFrom(profile, explicitEmail),
+    schedule: profile?.schedule ?? [],
+  };
+}
+
+function buildStoppedProfilePayload(profile: AutoloadProfile | null, explicitEmail?: string) {
+  return {
+    agreement: true,
+    autoload_enabled: false,
+    feeds_data: [],
     report_email: reportEmailFrom(profile, explicitEmail),
     schedule: profile?.schedule ?? [],
   };
@@ -234,6 +250,33 @@ export async function fetchAvitoAutoloadStatus(
     : [];
 
   return { current, lastSuccessful, uploads };
+}
+
+export async function disableAvitoAutoload(
+  credentials: AvitoCredentials,
+  options: StopOptions = {},
+): Promise<{ profileStatus: number }> {
+  const token = await getAvitoStockToken(credentials, options);
+  const profile = await getAutoloadProfile(token, options);
+  const response = await fetchAutoload(
+    "https://api.avito.ru/autoload/v2/profile",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildStoppedProfilePayload(profile, options.reportEmail)),
+      cache: "no-store",
+    },
+    options,
+    "Остановка автозагрузки Avito",
+  );
+  const data = await readJsonResponse(response);
+  if (!response.ok) {
+    throw new Error(`Остановка автозагрузки Avito не прошла: ${extractAvitoErrorText(data).slice(0, 500)}`);
+  }
+  return { profileStatus: response.status };
 }
 
 export async function publishAvitoXml(

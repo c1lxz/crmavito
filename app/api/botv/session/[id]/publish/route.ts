@@ -3,7 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { buildXml } from "@/lib/botv/session";
 import { publishAvitoXml } from "@/lib/avito/publish";
-import { getAvitoCredentials, getAvitoProfileReportEmail } from "@/lib/avito/profile-store";
+import { getAvitoCredentials, getAvitoProfileAutoloadSettings } from "@/lib/avito/profile-store";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -13,6 +13,7 @@ const publishSchema = z.object({
   clientId: z.string().trim().optional().nullable(),
   clientSecret: z.string().trim().optional().nullable(),
   reportEmail: z.string().trim().email().optional().nullable(),
+  contactPhone: z.string().trim().optional().nullable(),
   legacyIds: z.boolean().optional().default(false),
 });
 
@@ -28,9 +29,10 @@ function publicBaseUrl(request: Request): string {
   return `${protocol}://${host}`;
 }
 
-function publicXmlFeedUrl(request: Request, sessionId: string, profileId?: string | null): string {
+function publicXmlFeedUrl(request: Request, sessionId: string, profileId?: string | null, phone?: string | null): string {
   const url = new URL(`${publicBaseUrl(request)}/v-data/botv/work/${encodeURIComponent(sessionId)}/xml`);
   if (profileId) url.searchParams.set("profileId", profileId);
+  if (phone?.trim()) url.searchParams.set("phone", phone.trim());
   return url.toString();
 }
 
@@ -58,13 +60,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const [xmlResult, savedReportEmail] = await Promise.all([
-      buildXml(id, undefined, { profileId: parsed.data.legacyIds ? null : (parsed.data.profileId || parsed.data.clientId) }),
-      getAvitoProfileReportEmail(parsed.data.profileId),
-    ]);
-    const reportEmail = parsed.data.reportEmail?.trim() || savedReportEmail;
+    const profileScope = parsed.data.legacyIds ? null : (parsed.data.profileId || parsed.data.clientId);
+    const savedSettings = await getAvitoProfileAutoloadSettings(parsed.data.profileId);
+    const reportEmail = parsed.data.reportEmail?.trim() || savedSettings.reportEmail;
+    const contactPhone = parsed.data.contactPhone?.trim() || savedSettings.contactPhone;
+    const xmlResult = await buildXml(id, contactPhone, { profileId: profileScope });
     const publish = await publishAvitoXml(credentials, xmlResult.xml, xmlResult.filename, {
-      feedUrl: publicXmlFeedUrl(request, id, parsed.data.legacyIds ? undefined : (parsed.data.profileId || parsed.data.clientId)),
+      feedUrl: publicXmlFeedUrl(
+        request,
+        id,
+        parsed.data.legacyIds ? undefined : profileScope,
+        !parsed.data.profileId ? contactPhone : undefined,
+      ),
       reportEmail,
     });
     return NextResponse.json({
