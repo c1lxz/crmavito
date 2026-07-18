@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 
 const AGENT_URL = "http://127.0.0.1:3017";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
+const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
 
 type AgentStatus = "checking" | "online" | "offline";
 
@@ -67,7 +68,6 @@ export function WbResaleClient() {
     category: "Одежда / Футболки",
     price: "2500",
     condition: "Новое",
-    pickupPoint: "",
     description: "",
     characteristics: "Цвет черный",
   });
@@ -159,7 +159,7 @@ export function WbResaleClient() {
           condition: form.condition,
           description: form.description.trim(),
           characteristics: form.characteristics.trim(),
-          pickup_point: form.pickupPoint.trim(),
+          pickup_point: DEFAULT_PICKUP_POINT,
           accept_rules: true,
           draft_only: false,
           status: "ready",
@@ -186,15 +186,15 @@ export function WbResaleClient() {
     setImportingXml(true);
     try {
       const xml = await file.text();
-      const result = await agentFetch<{ imported: number; errors?: Array<{ index: number; title: string; error: string }>; publishing?: boolean }>("/api/import/xml", {
+      const result = await agentFetch<{ imported: number; skippedDuplicates?: number; errors?: Array<{ index: number; title: string; error: string }>; publishing?: boolean }>("/api/import/xml", {
         method: "POST",
-        body: JSON.stringify({ xml, publish: true, pickup_point: form.pickupPoint.trim() }),
+        body: JSON.stringify({ xml, publish: true, pickup_point: DEFAULT_PICKUP_POINT }),
       });
       setEvents((items) => [
         ...items,
         {
           time: new Date().toISOString(),
-          message: `XML импортирован: ${result.imported} объявл. ${result.publishing ? "Публикация запущена." : ""}`,
+          message: `XML импортирован: ${result.imported} объявл. Пропущено дублей: ${result.skippedDuplicates ?? 0}. ${result.publishing ? "Публикация запущена." : ""}`,
         },
         ...(result.errors ?? []).map((error) => ({
           time: new Date().toISOString(),
@@ -287,7 +287,7 @@ export function WbResaleClient() {
                 </div>
                 <div className="space-y-1">
                   <Label>Пункт отправки</Label>
-                  <Input value={form.pickupPoint} onChange={(event) => setFormValue("pickupPoint", event.target.value)} placeholder="ПВЗ по умолчанию" />
+                  <Input value={DEFAULT_PICKUP_POINT} readOnly />
                 </div>
               </div>
 
