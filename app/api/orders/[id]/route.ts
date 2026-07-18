@@ -114,6 +114,22 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Avito profile not found" }, { status: 404 });
     }
   }
+  if (data.trackingNumber) {
+    const trackingConflict = await prisma.order.findFirst({
+      where: {
+        id: { not: id },
+        isDeleted: false,
+        trackingNumber: { equals: data.trackingNumber, mode: "insensitive" },
+      },
+      select: { orderNumber: true },
+    });
+    if (trackingConflict) {
+      return NextResponse.json(
+        { error: `Заказ с трек-номером ${data.trackingNumber} уже существует: ${trackingConflict.orderNumber}` },
+        { status: 409 },
+      );
+    }
+  }
 
   const productsById = new Map(products.map((product) => [product.id, product]));
   const updateData: Record<string, unknown> = {};

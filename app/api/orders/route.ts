@@ -87,6 +87,20 @@ export async function POST(req: NextRequest) {
   }
 
   const data = parsed.data;
+  const trackingConflict = await prisma.order.findFirst({
+    where: {
+      isDeleted: false,
+      trackingNumber: { equals: data.trackingNumber, mode: "insensitive" },
+    },
+    select: { orderNumber: true },
+  });
+  if (trackingConflict) {
+    return NextResponse.json(
+      { error: `Заказ с трек-номером ${data.trackingNumber} уже существует: ${trackingConflict.orderNumber}` },
+      { status: 409 },
+    );
+  }
+
   const productIds = [...new Set(data.items.map((item) => item.productId))];
   const sourceReturnIds = data.items.flatMap((item) =>
     item.sourceReturnId ? [item.sourceReturnId] : [],

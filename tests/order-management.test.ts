@@ -124,6 +124,19 @@ describe("order management UI/API", () => {
     expect(orderRouteSource).toContain("avitoProfileId");
   });
 
+  it("rejects active duplicate tracking numbers", () => {
+    const createRouteSource = readFileSync(
+      path.resolve(__dirname, "../app/api/orders/route.ts"),
+      "utf8"
+    );
+    expect(createRouteSource).toContain("trackingNumber: { equals: data.trackingNumber, mode: \"insensitive\" }");
+    expect(createRouteSource).toContain("Заказ с трек-номером");
+    expect(createRouteSource).toContain("{ status: 409 }");
+    expect(orderRouteSource).toContain("id: { not: id }");
+    expect(orderRouteSource).toContain("trackingNumber: { equals: data.trackingNumber, mode: \"insensitive\" }");
+    expect(orderRouteSource).toContain("{ status: 409 }");
+  });
+
   it("shows manually uploaded order item photos in order lists", () => {
     expect(ordersPageSource).toContain(
       'items: { include: { product: true }, orderBy: { position: "asc" } }',
