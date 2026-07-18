@@ -34,6 +34,34 @@ describe("Avito ads analytics", () => {
     });
   });
 
+  it("parses Avito stats array items with nested daily stats", () => {
+    const stats = parseAvitoStatsItems({
+      result: {
+        items: [
+          {
+            itemId: 101,
+            stats: [
+              { date: "2026-07-16", uniqViews: 4, uniqContacts: 1, uniqFavorites: 2 },
+              { date: "2026-07-17", uniqViews: 6, uniqContacts: 3, uniqFavorites: 5 },
+            ],
+          },
+          { itemId: 202, stats: [] },
+        ],
+      },
+    });
+
+    expect(stats.get("101")).toMatchObject({
+      uniqViews: 10,
+      uniqContacts: 4,
+      uniqFavorites: 7,
+    });
+    expect(stats.get("202")).toMatchObject({
+      uniqViews: 0,
+      uniqContacts: 0,
+      uniqFavorites: 0,
+    });
+  });
+
   it("loads own ads and ranks analytics counters", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {

@@ -77,6 +77,17 @@ function itemIdFromStats(value: unknown): string | null {
   return null;
 }
 
+function sumStatsRecords(records: unknown[]): AvitoStatsCounters {
+  const sum: AvitoStatsCounters = { uniqViews: 0, uniqContacts: 0, uniqFavorites: 0 };
+  for (const record of records) {
+    const counters = countersFrom(record);
+    sum.uniqViews = numberFrom(sum.uniqViews) + numberFrom(counters.uniqViews ?? counters.views);
+    sum.uniqContacts = numberFrom(sum.uniqContacts) + numberFrom(counters.uniqContacts ?? counters.contacts);
+    sum.uniqFavorites = numberFrom(sum.uniqFavorites) + numberFrom(counters.uniqFavorites ?? counters.favorites);
+  }
+  return sum;
+}
+
 export function parseAvitoStatsItems(data: unknown): Map<string, AvitoStatsCounters> {
   const root = data && typeof data === "object" ? data as Record<string, unknown> : {};
   const result = root.result && typeof root.result === "object" ? root.result as Record<string, unknown> : root;
@@ -86,7 +97,11 @@ export function parseAvitoStatsItems(data: unknown): Map<string, AvitoStatsCount
   if (Array.isArray(items)) {
     for (const item of items) {
       const itemId = itemIdFromStats(item);
-      if (itemId) stats.set(itemId, countersFrom(item));
+      if (!itemId) continue;
+      const rows = item && typeof item === "object" && Array.isArray((item as Record<string, unknown>).stats)
+        ? (item as { stats: unknown[] }).stats
+        : [item];
+      stats.set(itemId, sumStatsRecords(rows));
     }
     return stats;
   }
@@ -94,14 +109,7 @@ export function parseAvitoStatsItems(data: unknown): Map<string, AvitoStatsCount
   if (items && typeof items === "object") {
     for (const [itemId, value] of Object.entries(items as Record<string, unknown>)) {
       const records = Array.isArray(value) ? value : [value];
-      const sum: AvitoStatsCounters = {};
-      for (const record of records) {
-        const counters = countersFrom(record);
-        sum.uniqViews = numberFrom(sum.uniqViews) + numberFrom(counters.uniqViews ?? counters.views);
-        sum.uniqContacts = numberFrom(sum.uniqContacts) + numberFrom(counters.uniqContacts ?? counters.contacts);
-        sum.uniqFavorites = numberFrom(sum.uniqFavorites) + numberFrom(counters.uniqFavorites ?? counters.favorites);
-      }
-      stats.set(String(itemId), sum);
+      stats.set(String(itemId), sumStatsRecords(records));
     }
   }
 
