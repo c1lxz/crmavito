@@ -13,4 +13,4 @@ class DescriptionRenderer:
             text = self._template.format(**data)
         except KeyError as exc:
             text = self._template.replace("{" + str(exc.args[0]) + "}", "")
-        return text.replace("\n", "<br>")
+        return text.strip()

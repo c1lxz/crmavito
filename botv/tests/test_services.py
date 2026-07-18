@@ -60,6 +60,7 @@ def test_yandex_disk_mkdir_retries_locked_resource(monkeypatch):
     assert session.get_calls == 1
 
 from services.price_parser import parse_prices
+from services.description import DescriptionRenderer
 from services.ai_description import _clean_design_text, normalize_avito_color
 from services.color_parser import parse_ordered_colors
 from services.product_rules import (
@@ -125,6 +126,16 @@ def test_price_parser_missing():
     text = "Товар А — 1000\nТовар Б — 2000"
     result = parse_prices(text, products)
     assert "Товар В" in result.missing
+
+
+def test_description_renderer_keeps_plain_newlines_without_html_breaks(tmp_path):
+    template = tmp_path / "description_template.txt"
+    template.write_text("Title: {title}\nDesign:\n{design}\nPrice: {price}", encoding="utf-8")
+
+    rendered = DescriptionRenderer(template).render(title="Item", color="", design="Line one", price="1990")
+
+    assert rendered == "Title: Item\nDesign:\nLine one\nPrice: 1990"
+    assert "<br" not in rendered
 
 
 # ---------------------------------------------------------------------------
