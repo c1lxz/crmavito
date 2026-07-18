@@ -202,7 +202,7 @@ export function StocksClient() {
           break;
         }
         if (i + chunkSize < sourceItems.length) {
-          await new Promise((resolve) => setTimeout(resolve, 1_500));
+          await new Promise((resolve) => setTimeout(resolve, 3_000));
         }
       }
 

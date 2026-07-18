@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const credentials = await getAvitoCredentials({ profileId: parsed.data.profileId });
     const token = await getAvitoStockToken(credentials);
     const result = await fetchAvitoStocksInfo(token, parsed.data.itemIds, {
-      stockDelayMs: 350,
+      stockDelayMs: 1_000,
       stockDeadlineMs: 25_000,
     });
 
