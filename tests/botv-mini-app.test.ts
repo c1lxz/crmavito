@@ -101,7 +101,8 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("setReplacementPhone(\"\")");
     expect(clientSource).toContain("setReplacementXmlCount((count) => count + 1)");
     expect(clientSource).toContain("ID последнего XML");
-    expect(clientSource).toContain("parseAdIdsXml(await blob.text())");
+    expect(clientSource).toContain("const xmlText = await blob.text()");
+    expect(clientSource).toContain("parseAdIdsXml(xmlText)");
     expect(clientSource).toContain("manualPublishCredentialsComplete ? manualPublishClientId.trim() : selectedPublishProfileId");
     expect(clientSource).toContain("!publishLegacyIds && (!hasPublishAuth || manualPublishCredentialsPartial)");
     expect(clientSource).not.toContain("await downloadXml(replacementPhone); setPhonePromptOpen(false)");
@@ -193,6 +194,14 @@ describe("botv mini app UI", () => {
     expect(clientSource).not.toContain("Failed to fetch");
     expect(clientSource).not.toContain("await fetch(`/api/botv/session/${session.id}`");
     expect(clientSource).not.toContain('fetch("/api/botv/session');
+  });
+
+  it("shows XML stock quantity save and generation status", () => {
+    expect(clientSource).toContain("parseXmlStockStatus");
+    expect(clientSource).toContain("lastXmlStockStatus");
+    expect(clientSource).toContain("dropStockStatus");
+    expect(clientSource).toContain("setLastXmlStockStatus(parseXmlStockStatus(xmlText))");
+    expect(clientSource).toContain("Quantity");
   });
 
   it("keeps edits fast and avoids per-photo Python hops", () => {

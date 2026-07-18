@@ -72,6 +72,12 @@ type AutoloadStatus = {
   uploads?: AutoloadUpload[];
 };
 
+type XmlStockStatus = {
+  quantity: string | null;
+  count: number;
+  message: string;
+};
+
 function formatRub(value: number | null) {
   if (value == null) return "Цена не задана";
   return new Intl.NumberFormat("ru-RU").format(value) + " ₽";
@@ -178,6 +184,36 @@ function AdIdsBlock({ title, adIds }: { title: string; adIds: string[] }) {
 
 function parseAdIdsXml(xml: string): string[] {
   return Array.from(xml.matchAll(/<Id>([^<]+)<\/Id>/g), (match) => match[1]?.trim()).filter(Boolean) as string[];
+}
+
+function parseXmlStockStatus(xml: string): XmlStockStatus {
+  const quantities = Array.from(
+    xml.matchAll(/<Quantity>([^<]*)<\/Quantity>/g),
+    (match) => match[1]?.trim() ?? "",
+  ).filter(Boolean);
+  const unique = Array.from(new Set(quantities));
+
+  if (quantities.length === 0) {
+    return {
+      quantity: null,
+      count: 0,
+      message: "Последний XML: остаток не задан, тег Quantity не добавлен.",
+    };
+  }
+
+  if (unique.length === 1) {
+    return {
+      quantity: unique[0],
+      count: quantities.length,
+      message: `Последний XML: Quantity ${unique[0]} добавлен в ${quantities.length} объявл.`,
+    };
+  }
+
+  return {
+    quantity: null,
+    count: quantities.length,
+    message: `Последний XML: найдено ${quantities.length} Quantity с разными значениями: ${unique.join(", ")}.`,
+  };
 }
 
 async function apiFetch(input: RequestInfo | URL, init?: RequestInit, retries = 3) {
@@ -296,6 +332,8 @@ export function BotvMiniApp() {
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
   const [autoloadStopMessage, setAutoloadStopMessage] = useState("");
   const [lastXmlAdIds, setLastXmlAdIds] = useState<string[]>([]);
+  const [dropStockStatus, setDropStockStatus] = useState("");
+  const [lastXmlStockStatus, setLastXmlStockStatus] = useState<XmlStockStatus | null>(null);
   const [publishStatusLoading, setPublishStatusLoading] = useState(false);
   const [autoloadStatus, setAutoloadStatus] = useState<AutoloadStatus | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
@@ -340,9 +378,15 @@ export function BotvMiniApp() {
   function rememberSession(data: BotvSession) {
     setSession(applyManualColorOverrides(data));
     setDropStockInput(data.dropStockQuantity == null ? "" : String(data.dropStockQuantity));
+    setDropStockStatus(
+      data.dropStockQuantity == null
+        ? "Остаток XML не задан: Avito сам будет считать остаток по фиду."
+        : `Остаток XML сохранён: ${data.dropStockQuantity}. Он попадёт во все объявления нового XML.`,
+    );
     window.localStorage.setItem("botv:lastSessionId", data.id);
     setPublishResult(null);
     setLastXmlAdIds([]);
+    setLastXmlStockStatus(null);
     setAutoloadStatus(null);
   }
 
@@ -505,7 +549,9 @@ export function BotvMiniApp() {
       throw new Error(data.error ?? "Не удалось собрать XML");
     }
     const blob = await res.blob();
-    setLastXmlAdIds(parseAdIdsXml(await blob.text()));
+    const xmlText = await blob.text();
+    setLastXmlAdIds(parseAdIdsXml(xmlText));
+    setLastXmlStockStatus(parseXmlStockStatus(xmlText));
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -685,6 +731,8 @@ export function BotvMiniApp() {
     const trimmed = dropStockInput.trim();
     if (!trimmed) {
       await patch({ dropStockQuantity: null });
+      setDropStockStatus("Остаток XML очищен: в следующем XML тег Quantity добавлен не будет.");
+      setLastXmlStockStatus(null);
       return;
     }
     const quantity = Number(trimmed);
@@ -692,6 +740,8 @@ export function BotvMiniApp() {
       throw new Error("Остаток дропа должен быть целым числом от 0");
     }
     await patch({ dropStockQuantity: quantity });
+    setDropStockStatus(`Остаток XML сохранён: ${quantity}. Скачай или опубликуй XML, чтобы применить его в Avito.`);
+    setLastXmlStockStatus(null);
   }
 
   function reorderTokens(tokens: string[], token: string, direction: "first" | "left" | "right") {
@@ -769,6 +819,9 @@ export function BotvMiniApp() {
             <span className="text-muted-foreground">Готово: <b className="text-foreground">{session.summary.ready}</b></span>
             <span className="text-muted-foreground">Удалено: <b className="text-foreground">{session.summary.deleted}</b></span>
             <span className="text-muted-foreground">Фото: <b className="text-foreground">{session.summary.photos}</b></span>
+            <span className="text-muted-foreground">
+              Остаток XML: <b className="text-foreground">{session.dropStockQuantity == null ? "не задан" : session.dropStockQuantity}</b>
+            </span>
           </div>
         </div>
       )}
@@ -826,6 +879,12 @@ export function BotvMiniApp() {
             </div>
           )}
           <AdIdsBlock title="ID последнего XML" adIds={lastXmlAdIds} />
+          {lastXmlStockStatus && (
+            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-900 dark:text-emerald-100">
+              <p className="font-semibold">Проверка остатка в XML</p>
+              <p className="mt-1 text-xs opacity-80">{lastXmlStockStatus.message}</p>
+            </div>
+          )}
           {publishResult && (
             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-900 dark:text-emerald-100">
               <p className="font-semibold">Публикация Avito запущена</p>
@@ -895,6 +954,9 @@ export function BotvMiniApp() {
                   <PackageCheck className="h-4 w-4" />
                   Остаток XML
                 </Button>
+                {dropStockStatus && (
+                  <span className="max-w-[360px] text-xs text-muted-foreground">{dropStockStatus}</span>
+                )}
                 <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
                 <Button size="sm" disabled={status === "generating" || (!publishLegacyIds && (!hasPublishAuth || manualPublishCredentialsPartial))} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
                 <Button
