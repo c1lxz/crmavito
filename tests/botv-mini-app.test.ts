@@ -97,6 +97,8 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("setReplacementXmlCount((count) => count + 1)");
     expect(clientSource).toContain("ID последнего XML");
     expect(clientSource).toContain("parseAdIdsXml(await blob.text())");
+    expect(clientSource).toContain("params.set(\"profileId\", selectedPublishProfileId)");
+    expect(clientSource).toContain("!publishLegacyIds && !selectedPublishProfileId");
     expect(clientSource).not.toContain("await downloadXml(replacementPhone); setPhonePromptOpen(false)");
   });
 
@@ -117,9 +119,9 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Публикация Avito запущена");
     expect(clientSource).toContain("ID опубликованных объявлений");
     expect(clientSource).toContain("const adIds");
-    expect(clientSource).toContain("Опубликовать со старыми ID");
+    expect(clientSource).toContain("XML и публикация со старыми ID");
     expect(clientSource).toContain("legacyIds: publishLegacyIds");
-    expect(clientSource).toContain("Новые дропы публикуйте без этой галочки");
+    expect(clientSource).toContain("Новые дропы скачивайте и публикуйте без этой галочки");
     expect(clientSource).toContain("Итог публикации появится в отчётах Автозагрузки Avito");
     expect(clientSource).toContain("checkAutoloadStatus");
     expect(clientSource).toContain("/api/avito/autoload/status");

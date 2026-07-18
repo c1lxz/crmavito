@@ -476,9 +476,15 @@ export function BotvMiniApp() {
 
   async function downloadXml(phone?: string) {
     if (!session) return;
+    if (!publishLegacyIds && !selectedPublishProfileId) {
+      throw new Error("Выберите профиль Avito для XML с новыми ID или включите старые ID для восстановления.");
+    }
     setStatus("generating");
     setError("");
-    const res = await apiFetch(`${BOTV_API_BASE}/${session.id}/xml`, {
+    const params = new URLSearchParams();
+    if (!publishLegacyIds) params.set("profileId", selectedPublishProfileId);
+    const query = params.toString();
+    const res = await apiFetch(`${BOTV_API_BASE}/${session.id}/xml${query ? `?${query}` : ""}`, {
       method: "POST",
       headers: phone ? { "content-type": "application/json" } : undefined,
       body: phone ? JSON.stringify({ phone }) : undefined,
@@ -821,7 +827,7 @@ export function BotvMiniApp() {
                 <Input className="h-8 w-28" placeholder="Цена" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} />
                 <Button size="sm" variant="outline" disabled={!selected.size || !bulkPrice} onClick={() => run(() => patch({ ids: selectedIds, bulkPrice }))}>Одна цена</Button>
                 <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
-                <Button size="sm" disabled={status === "generating"} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
+                <Button size="sm" disabled={status === "generating" || (!publishLegacyIds && !selectedPublishProfileId)} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
                 <Button
                   size="sm"
                   disabled={!selectedPublishProfileId || publishing}
@@ -873,9 +879,9 @@ export function BotvMiniApp() {
                   onChange={(event) => setPublishLegacyIds(event.target.checked)}
                 />
                 <span>
-                  <span className="block font-semibold">Опубликовать со старыми ID</span>
+                  <span className="block font-semibold">XML и публикация со старыми ID</span>
                   <span className="mt-1 block opacity-80">
-                    Только для восстановления старых объявлений: Avito обновит объявления с ID SKU-1, SKU-2... Новые дропы публикуйте без этой галочки.
+                    Только для восстановления старых объявлений: XML и публикация будут с ID SKU-1, SKU-2... Новые дропы скачивайте и публикуйте без этой галочки.
                   </span>
                 </span>
               </label>
