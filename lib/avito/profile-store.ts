@@ -7,9 +7,36 @@ export type AvitoProfileWithCredentials = {
   name: string;
   accountId: string | null;
   reportEmail: string | null;
-  contactPhone: string | null;
   isActive: boolean;
 };
+
+const PROFILE_CONTACT_PHONES: Array<{ match: RegExp; phone: string }> = [
+  { match: /^BY(?:\s+|$)/i, phone: "79334340391" },
+  { match: /^RE(?:\s+|$)/i, phone: "+7 (999) 121-23-49" },
+  { match: /^KY(?:\s+|$)/i, phone: "+7 933 432-00-87" },
+  { match: /^MU(?:\s+|$)/i, phone: "79082387103" },
+  { match: /^LE(?:\s+|$)/i, phone: "79334205210" },
+  { match: /^GU(?:\s+|$)/i, phone: "79087693452" },
+  { match: /^STROK(?:\s+|$)/i, phone: "79306840311" },
+];
+
+export function normalizeAvitoXmlPhone(phone: string): string | undefined {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("7")) return `+${digits}`;
+  if (digits.length === 11 && digits.startsWith("8")) return `+7${digits.slice(1)}`;
+  if (digits.length === 10) return `+7${digits}`;
+  return undefined;
+}
+
+export function avitoXmlPhoneForProfileName(name?: string | null): string | undefined {
+  const cleanName = (name ?? "")
+    .toUpperCase()
+    .replace(/\bSHOP\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const match = PROFILE_CONTACT_PHONES.find((item) => item.match.test(cleanName));
+  return match ? normalizeAvitoXmlPhone(match.phone) : undefined;
+}
 
 export async function listAvitoProfilesWithCredentials(): Promise<AvitoProfileWithCredentials[]> {
   const profiles = await prisma.avitoProfile.findMany({
@@ -24,7 +51,6 @@ export async function listAvitoProfilesWithCredentials(): Promise<AvitoProfileWi
       name: true,
       accountId: true,
       reportEmail: true,
-      contactPhone: true,
       clientId: true,
       clientSecret: true,
       isActive: true,
@@ -91,11 +117,11 @@ export async function getAvitoProfileAutoloadSettings(profileId?: string | null)
   if (!profileId) return {};
   const profile = await prisma.avitoProfile.findFirst({
     where: { id: profileId, isActive: true },
-    select: { reportEmail: true, contactPhone: true },
+    select: { name: true, reportEmail: true },
   });
   return {
     reportEmail: profile?.reportEmail?.trim() || undefined,
-    contactPhone: profile?.contactPhone?.trim() || undefined,
+    contactPhone: avitoXmlPhoneForProfileName(profile?.name),
   };
 }
 
@@ -131,7 +157,6 @@ export async function saveAvitoProfileCredentials(
           name: true,
           accountId: true,
           reportEmail: true,
-          contactPhone: true,
           clientId: true,
           clientSecret: true,
           isActive: true,
@@ -144,7 +169,6 @@ export async function saveAvitoProfileCredentials(
           name: true,
           accountId: true,
           reportEmail: true,
-          contactPhone: true,
           clientId: true,
           clientSecret: true,
           isActive: true,

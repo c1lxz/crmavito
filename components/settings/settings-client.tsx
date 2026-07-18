@@ -37,7 +37,6 @@ interface AvitoProfile {
   clientId: string | null;
   clientSecret: string | null;
   reportEmail: string | null;
-  contactPhone: string | null;
   isActive: boolean;
 }
 
@@ -128,7 +127,6 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
           clientId: profile.clientId?.trim() || null,
           clientSecret: profile.clientSecret?.trim() || null,
           reportEmail: profile.reportEmail?.trim() || null,
-          contactPhone: profile.contactPhone?.trim() || null,
         }),
       });
       const data = await response.json();
@@ -464,7 +462,7 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
                     )}
                   </div>
                   {user.isOwner && (
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid gap-2 sm:grid-cols-3">
                     <Input
                       placeholder="client_id"
                       value={profile.clientId ?? ""}
@@ -484,12 +482,6 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
                       value={profile.reportEmail ?? ""}
                       onChange={(event) => patchAvitoProfile(profile.id, { reportEmail: event.target.value })}
                       autoComplete="email"
-                    />
-                    <Input
-                      placeholder="Телефон XML"
-                      value={profile.contactPhone ?? ""}
-                      onChange={(event) => patchAvitoProfile(profile.id, { contactPhone: event.target.value })}
-                      autoComplete="tel"
                     />
                   </div>
                   )}

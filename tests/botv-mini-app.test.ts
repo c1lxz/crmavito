@@ -138,10 +138,10 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("manualPublishClientId");
     expect(clientSource).toContain("manualPublishClientSecret");
     expect(clientSource).toContain("manualPublishReportEmail");
-    expect(clientSource).toContain("manualPublishContactPhone");
-    expect(clientSource).toContain("contactPhone: manualPublishContactPhone.trim() || null");
+    expect(clientSource).not.toContain("manualPublishContactPhone");
+    expect(clientSource).not.toContain("contactPhone: manualPublishContactPhone.trim() || null");
     expect(clientSource).toContain("Email отчётов XML");
-    expect(clientSource).toContain("Телефон XML вручную");
+    expect(clientSource).not.toContain("Телефон XML вручную");
     expect(clientSource).toContain("stopAutoload");
     expect(clientSource).toContain("/api/avito/autoload/stop");
     expect(clientSource).toContain("Остановить");
@@ -161,7 +161,7 @@ describe("botv mini app UI", () => {
     expect(publishRouteSource).toContain("legacyIds");
     expect(publishRouteSource).toContain("parsed.data.legacyIds ? null : (parsed.data.profileId || parsed.data.clientId)");
     expect(publishRouteSource).toContain("parsed.data.reportEmail");
-    expect(publishRouteSource).toContain("parsed.data.contactPhone");
+    expect(publishRouteSource).not.toContain("parsed.data.contactPhone");
     expect(publishRouteSource).toContain("getAvitoCredentials");
     expect(publishRouteSource).toContain("getAvitoProfileAutoloadSettings");
     expect(publishRouteSource).toContain("buildPublicationXml");

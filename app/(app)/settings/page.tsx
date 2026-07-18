@@ -37,7 +37,6 @@ export default async function SettingsPage() {
                 clientId: true,
                 clientSecret: true,
                 reportEmail: true,
-                contactPhone: true,
               }
             : {}),
         },
@@ -63,7 +62,6 @@ export default async function SettingsPage() {
         clientId: "clientId" in profile ? profile.clientId : null,
         clientSecret: "clientSecret" in profile ? profile.clientSecret : null,
         reportEmail: "reportEmail" in profile ? profile.reportEmail : null,
-        contactPhone: "contactPhone" in profile ? profile.contactPhone : null,
         isActive: profile.isActive,
       }))}
     />

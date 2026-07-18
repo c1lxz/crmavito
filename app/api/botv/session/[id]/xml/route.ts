@@ -21,7 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const url = new URL(request.url);
     const profileId = url.searchParams.get("profileId");
-    const phone = url.searchParams.get("phone")?.trim() || await getAvitoProfileContactPhone(profileId);
+    const phone = await getAvitoProfileContactPhone(profileId);
     const includePrevious = url.searchParams.get("includePrevious") === "1";
     const result = includePrevious
       ? await buildPublicationXml(id, phone, { profileId, includePrevious: true })
@@ -43,7 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const url = new URL(request.url);
     const profileId = url.searchParams.get("profileId");
-    phone ||= url.searchParams.get("phone")?.trim() || await getAvitoProfileContactPhone(profileId) || "";
+    phone ||= await getAvitoProfileContactPhone(profileId) || "";
     const includePrevious = url.searchParams.get("includePrevious") === "1";
     const result = includePrevious
       ? await buildPublicationXml(id, phone, { profileId, includePrevious: true })

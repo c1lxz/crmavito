@@ -12,7 +12,6 @@ const updateSchema = z.object({
   clientId: z.string().trim().nullable().optional(),
   clientSecret: z.string().trim().nullable().optional(),
   reportEmail: z.string().trim().email().nullable().optional(),
-  contactPhone: z.string().trim().nullable().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -30,7 +29,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   }
 
   const artistOwner = await isArtistOwner(session.user);
-  const secretKeys = ["clientId", "clientSecret", "reportEmail", "contactPhone"] as const;
+  const secretKeys = ["clientId", "clientSecret", "reportEmail"] as const;
   const hasSecretFields = secretKeys.some((key) => key in parsed.data);
   if (hasSecretFields && !artistOwner) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -42,7 +41,6 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
         clientId: parsed.data.clientId?.trim() || parsed.data.clientId,
         clientSecret: parsed.data.clientSecret?.trim() || parsed.data.clientSecret,
         reportEmail: parsed.data.reportEmail?.trim() || parsed.data.reportEmail,
-        contactPhone: parsed.data.contactPhone?.trim() || parsed.data.contactPhone,
       }
     : {
         name: parsed.data.name,

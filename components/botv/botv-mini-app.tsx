@@ -40,7 +40,6 @@ type AvitoCredentialProfile = {
   name: string;
   accountId: string | null;
   reportEmail: string | null;
-  contactPhone: string | null;
   isActive: boolean;
 };
 
@@ -290,7 +289,6 @@ export function BotvMiniApp() {
   const [manualPublishClientId, setManualPublishClientId] = useState("");
   const [manualPublishClientSecret, setManualPublishClientSecret] = useState("");
   const [manualPublishReportEmail, setManualPublishReportEmail] = useState("");
-  const [manualPublishContactPhone, setManualPublishContactPhone] = useState("");
   const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [stoppingAutoload, setStoppingAutoload] = useState(false);
@@ -496,9 +494,6 @@ export function BotvMiniApp() {
     setError("");
     const params = new URLSearchParams();
     if (!publishLegacyIds) params.set("profileId", manualPublishCredentialsComplete ? manualPublishClientId.trim() : selectedPublishProfileId);
-    if (!phone && manualPublishCredentialsComplete && manualPublishContactPhone.trim()) {
-      params.set("phone", manualPublishContactPhone.trim());
-    }
     const query = params.toString();
     const res = await apiFetch(`${BOTV_API_BASE}/${session.id}/xml${query ? `?${query}` : ""}`, {
       method: "POST",
@@ -565,7 +560,6 @@ export function BotvMiniApp() {
           clientId: manualPublishClientId.trim(),
           clientSecret: manualPublishClientSecret.trim(),
           reportEmail: manualPublishReportEmail.trim() || null,
-          contactPhone: manualPublishContactPhone.trim() || null,
         }
       : { profileId: selectedPublishProfileId };
   }
@@ -936,7 +930,7 @@ export function BotvMiniApp() {
                   </Button>
                 )}
               </div>
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-2 md:grid-cols-3">
                 <Input
                   placeholder="client_id вручную"
                   value={manualPublishClientId}
@@ -956,11 +950,6 @@ export function BotvMiniApp() {
                   value={manualPublishReportEmail}
                   onChange={(event) => setManualPublishReportEmail(event.target.value)}
                 />
-                <Input
-                  placeholder="Телефон XML вручную"
-                  value={manualPublishContactPhone}
-                  onChange={(event) => setManualPublishContactPhone(event.target.value)}
-                />
               </div>
               {publishProfilesOpen && publishProfiles.length > 0 && (
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -975,7 +964,7 @@ export function BotvMiniApp() {
                     >
                       <p className="truncate text-xs font-semibold">{item.name}</p>
                       <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                        {item.accountId || item.contactPhone || item.reportEmail || "Saved credentials"}
+                        {item.accountId || item.reportEmail || "Saved credentials"}
                       </p>
                     </button>
                   ))}

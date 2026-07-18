@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const schemaSource = readFileSync(path.resolve(__dirname, "../prisma/schema.prisma"), "utf8");
 const storeSource = readFileSync(path.resolve(__dirname, "../lib/avito/profile-store.ts"), "utf8");
+const settingsClientSource = readFileSync(path.resolve(__dirname, "../components/settings/settings-client.tsx"), "utf8");
 const credentialsRouteSource = readFileSync(
   path.resolve(__dirname, "../app/api/avito-profiles/credentials/route.ts"),
   "utf8",
@@ -24,12 +25,16 @@ describe("Avito credential profiles", () => {
     expect(schemaSource).toContain("clientId");
     expect(schemaSource).toContain("clientSecret");
     expect(schemaSource).toContain("reportEmail");
-    expect(schemaSource).toContain("contactPhone");
     expect(storeSource).toContain("listAvitoProfilesWithCredentials");
     expect(storeSource).toContain("getAvitoCredentials");
     expect(storeSource).toContain("getAvitoProfileReportEmail");
     expect(storeSource).toContain("getAvitoProfileContactPhone");
     expect(storeSource).toContain("getAvitoProfileAutoloadSettings");
+    expect(storeSource).toContain("PROFILE_CONTACT_PHONES");
+    expect(storeSource).toContain("normalizeAvitoXmlPhone");
+    expect(storeSource).toContain("avitoXmlPhoneForProfileName");
+    expect(storeSource).toContain("+7 (999) 121-23-49");
+    expect(settingsClientSource).not.toContain("Телефон XML");
   });
 
   it("exposes saved credential profiles without browser-visible secrets", () => {
