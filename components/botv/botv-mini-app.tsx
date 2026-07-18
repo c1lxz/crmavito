@@ -50,6 +50,7 @@ type PublishResult = {
   uploadStatus?: number;
   adIds?: string[];
   legacyIds?: boolean;
+  previousAds?: number;
 };
 
 type AutoloadUpload = {
@@ -585,7 +586,7 @@ export function BotvMiniApp() {
       const data = await readJsonResponse(res, "Не удалось опубликовать XML");
       if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать XML");
       const adIds: string[] = Array.isArray(data.adIds) ? data.adIds.map(String).filter(Boolean) : [];
-      setPublishResult({ ...(data.publish ?? {}), adIds, legacyIds: Boolean(data.legacyIds) });
+      setPublishResult({ ...(data.publish ?? {}), adIds, legacyIds: Boolean(data.legacyIds), previousAds: Number(data.previousAds ?? 0) });
       setAutoloadStopMessage("");
       setError("");
     } finally {
@@ -850,6 +851,7 @@ export function BotvMiniApp() {
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 {publishResult.profileStatus && <span>Профиль: HTTP {publishResult.profileStatus}</span>}
                 {publishResult.uploadStatus && <span>Запуск: HTTP {publishResult.uploadStatus}</span>}
+                {publishResult.previousAds ? <span>Подхвачено прошлых: {publishResult.previousAds}</span> : null}
                 <span>{publishResult.legacyIds ? "Старые ID" : "Новые профильные ID"}</span>
               </div>
             </div>

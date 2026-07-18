@@ -120,7 +120,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Публикация");
     expect(clientSource).toContain("publishXml");
     expect(clientSource).toContain("publishResult");
-    expect(clientSource).toContain("setPublishResult({ ...(data.publish ?? {}), adIds, legacyIds: Boolean(data.legacyIds) })");
+    expect(clientSource).toContain("previousAds: Number(data.previousAds ?? 0)");
     expect(clientSource).toContain("Публикация Avito запущена");
     expect(clientSource).toContain("ID опубликованных объявлений");
     expect(clientSource).toContain("const adIds");
@@ -145,6 +145,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("stopAutoload");
     expect(clientSource).toContain("/api/avito/autoload/stop");
     expect(clientSource).toContain("Остановить");
+    expect(clientSource).toContain("Подхвачено прошлых");
     expect(autoloadStopRouteSource).toContain("disableAvitoAutoload");
     expect(clientSource).toContain("/api/avito-profiles/credentials");
     expect(clientSource).toContain("publishProfiles");
@@ -163,7 +164,10 @@ describe("botv mini app UI", () => {
     expect(publishRouteSource).toContain("parsed.data.contactPhone");
     expect(publishRouteSource).toContain("getAvitoCredentials");
     expect(publishRouteSource).toContain("getAvitoProfileAutoloadSettings");
-    expect(publishRouteSource).toContain("buildXml(id, contactPhone, { profileId: profileScope })");
+    expect(publishRouteSource).toContain("buildPublicationXml");
+    expect(publishRouteSource).toContain("savePublishedXml");
+    expect(publishRouteSource).toContain("includePrevious: !parsed.data.legacyIds");
+    expect(publishRouteSource).toContain("url.searchParams.set(\"includePrevious\", \"1\")");
     expect(publishRouteSource).toContain("adIds: xmlResult.adIds");
   });
 
