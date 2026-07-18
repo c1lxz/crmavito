@@ -179,7 +179,7 @@ def _serialize_product(index: int, product: dict) -> dict:
         "firstPhoto": _photo_token(first_photo) if first_photo else None,
         "photos": [_photo_token(photo) for photo in photos],
         "color": _binary_color(product.get("color") or (details.get("color") if isinstance(details, dict) else None)),
-        "description": product.get("description", ""),
+        "description": _product_description(product),
         "descriptionManual": bool(product.get("description_manual")),
         "details": details if isinstance(details, dict) else {},
     }
@@ -199,8 +199,22 @@ def _product_price(product: dict) -> int | None:
         return None
 
 
+def _plain_description(value: object) -> str:
+    text = str(value or "")
+    text = re.sub(r"&lt;br\s*/?&gt;", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
 def _description_is_manual(product: dict) -> bool:
-    return bool(product.get("description_manual") and str(product.get("description") or "").strip())
+    return bool(product.get("description_manual") and _plain_description(product.get("description")))
+
+
+def _product_description(product: dict) -> str:
+    description = _plain_description(product.get("description"))
+    product["description"] = description
+    return description
 
 
 def _public_state(state: dict) -> dict:
@@ -370,7 +384,7 @@ def update_session(session_id: str, payload: dict) -> dict:
             product["color"] = _binary_color(str(item.get("color") or ""))
             product["color_source"] = "manual"
         if "description" in item:
-            description_value = str(item.get("description") or "").strip()
+            description_value = _plain_description(item.get("description"))
             product["description"] = description_value
             product["description_manual"] = bool(description_value)
         title = (product.get("ad_title") or product["name"]).strip()
@@ -573,7 +587,7 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
         product["color_source"] = product.get("color_source") or "detector"
         if _description_is_manual(product):
             design_text = str(product.get("design") or "").strip()
-            text = str(product.get("description") or "").strip()
+            text = _product_description(product)
         else:
             design_text = asyncio.run(_generate_product_design(product, title or name, allow_ai=allow_ai, timeout=ai_timeout))
             text = description.render(title=name, color=color, price=price_fmt, design=design_text)

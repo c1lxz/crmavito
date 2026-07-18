@@ -180,6 +180,32 @@ def test_web_session_xml_uses_manual_description(tmp_path):
     assert "Цена: 1 990" not in xml["xml"]
 
 
+def test_web_session_cleans_saved_html_breaks_from_descriptions(tmp_path):
+    archive = tmp_path / "drop.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("Drop/Product Black/one.jpg", b"jpg")
+
+    state = _run_cli("create", str(archive), "drop.zip")
+    updated = _run_cli("update", state["id"], json.dumps({
+        "products": [{
+            "index": 1,
+            "adTitle": "Clean title",
+            "price": 1990,
+            "description": "Line one<br>Line two&lt;br&gt;Line three",
+        }],
+    }, ensure_ascii=False))
+
+    assert updated["products"][0]["description"] == "Line one\nLine two\nLine three"
+
+    restored = _run_cli("state", state["id"])
+    assert restored["products"][0]["description"] == "Line one\nLine two\nLine three"
+
+    xml = _run_cli("xml", state["id"])
+    assert "Line one\nLine two\nLine three" in xml["xml"]
+    assert "<br" not in xml["xml"]
+    assert "&lt;br" not in xml["xml"]
+
+
 def test_web_session_xml_uses_public_photo_urls_by_default(tmp_path):
     archive = tmp_path / "drop.zip"
     with zipfile.ZipFile(archive, "w") as zf:
