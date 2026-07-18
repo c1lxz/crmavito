@@ -163,6 +163,46 @@ describe("Avito stock management", () => {
     expect(result.warning).not.toContain("{}");
   });
 
+  it("stops stock loading when Avito stops returning stock arrays", async () => {
+    let stockRequests = 0;
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "1") {
+        return Response.json({
+          resources: Array.from({ length: 31 }, (_, index) => ({
+            id: index + 1,
+            title: `Товар ${index + 1}`,
+            price: { value: 1000 },
+            status: "active",
+          })),
+        });
+      }
+      if (href.includes("/core/v1/items") && new URL(href).searchParams.get("page") === "2") {
+        return Response.json({ resources: [] });
+      }
+      if (href.includes("/stock-management/1/info")) {
+        stockRequests += 1;
+        if (stockRequests === 1) {
+          return Response.json({ stocks: [{ item_id: 1, quantity: 2 }] });
+        }
+        return Response.json({});
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    const result = await fetchAvitoStockItemsResult(credentials, {
+      fetchFn,
+      sleepFn: async () => undefined,
+    });
+
+    expect(result.items).toHaveLength(31);
+    expect(stockRequests).toBe(2);
+    expect(result.warning).toContain("Avito не отдал данные остатков");
+  });
+
   it("splits large stock updates into Avito-sized batches", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {

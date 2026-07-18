@@ -37,9 +37,10 @@ type StockOptions = {
   pageDelayMs?: number;
   stockDelayMs?: number;
   stockDeadlineMs?: number;
+  skipStocks?: boolean;
 };
 
-type StockInfo = {
+export type StockInfo = {
   item_id: number | string;
   quantity?: number | null;
   is_unlimited?: boolean;
@@ -54,7 +55,7 @@ type StockUpdateResult = {
   message?: string;
 };
 
-type StockInfoResult = {
+export type StockInfoResult = {
   stocks: Map<string, StockInfo>;
   warning?: string;
 };
@@ -149,8 +150,8 @@ export async function fetchAvitoStocksInfo(
   }
 
   const sleepFn = options.sleepFn ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
-  const stockDelayMs = options.stockDelayMs ?? 250;
-  const deadlineAt = Date.now() + (options.stockDeadlineMs ?? 42_000);
+  const stockDelayMs = options.stockDelayMs ?? 300;
+  const deadlineAt = Date.now() + (options.stockDeadlineMs ?? 55_000);
 
   async function fetchChunk(chunk: string[]): Promise<{ hasStocks: boolean; stocks: StockInfo[] }> {
     const response = await fetchWithRetry(
@@ -165,7 +166,7 @@ export async function fetchAvitoStocksInfo(
         cache: "no-store",
         signal: AbortSignal.timeout(30_000),
       },
-      { ...options, attempts: 2 },
+      { ...options, attempts: 3 },
     );
 
     const data = (await readJsonResponse(response)) as { stocks?: StockInfo[] };
@@ -206,6 +207,12 @@ export async function fetchAvitoStocksInfo(
         warning: `Avito временно ограничил или прервал получение остатков. Загружено остатков: ${result.size} из ${itemIds.length}.${details ? ` ${details}` : ""}`,
       };
     }
+    if (!data.hasStocks) {
+      return {
+        stocks: result,
+        warning: `Avito не отдал данные остатков для части объявлений. Загружено остатков: ${result.size} из ${itemIds.length}.`,
+      };
+    }
     for (const stock of data.stocks) result.set(String(stock.item_id), stock);
   }
 
@@ -222,7 +229,10 @@ export async function fetchAvitoStockItemsResult(
     pageDelayMs: options.pageDelayMs ?? 150,
   });
   const ids = items.map((item) => String(item.id)).filter(Boolean);
-  const stockResult = ids.length ? await fetchAvitoStocksInfo(token, ids, options) : { stocks: new Map<string, StockInfo>() };
+  const stockResult =
+    ids.length && !options.skipStocks
+      ? await fetchAvitoStocksInfo(token, ids, options)
+      : { stocks: new Map<string, StockInfo>() };
   const stocks = stockResult.stocks;
 
   return {

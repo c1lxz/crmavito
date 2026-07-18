@@ -47,6 +47,14 @@ describe("Avito credential profiles", () => {
     expect(stocksClientSource).not.toContain("localStorage");
   });
 
+  it("supports drag selection in stock management", () => {
+    expect(stocksClientSource).toContain("dragSelection");
+    expect(stocksClientSource).toContain("startDragSelection");
+    expect(stocksClientSource).toContain("applyDragSelection");
+    expect(stocksClientSource).toContain("onMouseDown={(event) => startDragSelection");
+    expect(stocksClientSource).toContain("onMouseEnter={() => applyDragSelection");
+  });
+
   it("resolves profileId without accepting manual credentials in stock management", () => {
     expect(stocksRouteSource).toContain("getAvitoCredentials");
     expect(stocksRouteSource).toContain("profileId");

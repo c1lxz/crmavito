@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, CheckSquare, ExternalLink, History, Package, RefreshCw, Save, Search, Square } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -22,6 +22,14 @@ type StockItem = {
   isUnlimited: boolean;
   isOutOfStock: boolean;
   isMultiple: boolean;
+};
+
+type StockInfo = {
+  item_id: number | string;
+  quantity?: number | null;
+  is_unlimited?: boolean;
+  is_out_of_stock?: boolean;
+  is_multiple?: boolean;
 };
 
 type AvitoCredentialProfile = {
@@ -57,8 +65,15 @@ export function StocksClient() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [bulkQuantity, setBulkQuantity] = useState("");
   const [loading, setLoading] = useState(false);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockProgress, setStockProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
+  const dragSelection = useRef<{ active: boolean; shouldSelect: boolean }>({
+    active: false,
+    shouldSelect: true,
+  });
+  const stockLoadRun = useRef(0);
 
   const filtered = useMemo(
     () => items.filter((item) => matchesSearch(`${item.title} ${item.itemId}`, search)),
@@ -70,6 +85,15 @@ export function StocksClient() {
 
   useEffect(() => {
     void refreshCredentialProfiles();
+  }, []);
+
+  useEffect(() => {
+    function stopDragSelection() {
+      dragSelection.current.active = false;
+    }
+
+    window.addEventListener("mouseup", stopDragSelection);
+    return () => window.removeEventListener("mouseup", stopDragSelection);
   }, []);
 
   async function refreshCredentialProfiles(preferredId?: string) {
@@ -90,7 +114,11 @@ export function StocksClient() {
   }
 
   async function loadItems() {
+    const runId = stockLoadRun.current + 1;
+    stockLoadRun.current = runId;
     setLoading(true);
+    setStockLoading(false);
+    setStockProgress(null);
     setSelected(new Set());
     try {
       const response = await fetch("/api/avito/stocks", {
@@ -100,17 +128,18 @@ export function StocksClient() {
       });
       const data = await readApiJson(response);
       if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить объявления");
-      setItems(data.items ?? []);
+      const loadedItems: StockItem[] = data.items ?? [];
+      setItems(loadedItems);
       setDrafts(
         Object.fromEntries(
-          (data.items ?? []).map((item: StockItem) => [item.itemId, String(item.quantity ?? 0)]),
+          loadedItems.map((item: StockItem) => [item.itemId, String(item.quantity ?? 0)]),
         ),
       );
       toast({
         title: "Объявления загружены",
-        description: data.warning ?? `Найдено: ${(data.items ?? []).length}`,
-        variant: data.warning ? "destructive" : undefined,
+        description: `Найдено: ${loadedItems.length}. Остатки загружаются фоном.`,
       });
+      void loadStocksInBackground(loadedItems, runId);
     } catch (error) {
       toast({
         title: "Ошибка Avito",
@@ -119,6 +148,78 @@ export function StocksClient() {
       });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadStocksInBackground(sourceItems: StockItem[], runId: number) {
+    if (sourceItems.length === 0) return;
+    const chunkSize = 50;
+    let loaded = 0;
+    let stopped = false;
+    setStockLoading(true);
+    setStockProgress({ loaded: 0, total: sourceItems.length });
+
+    try {
+      for (let i = 0; i < sourceItems.length; i += chunkSize) {
+        if (stockLoadRun.current !== runId) return;
+        const chunk = sourceItems.slice(i, i + chunkSize);
+        const response = await fetch("/api/avito/stocks/info", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ profileId: selectedProfileId, itemIds: chunk.map((item) => item.itemId) }),
+        });
+        const data = await readApiJson(response);
+        if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить остатки");
+
+        const stocks = new Map(
+          ((data.stocks ?? []) as StockInfo[]).map((stock) => [String(stock.item_id), stock]),
+        );
+        setItems((current) =>
+          current.map((item) => {
+            const stock = stocks.get(item.itemId);
+            if (!stock) return item;
+            return {
+              ...item,
+              quantity: typeof stock.quantity === "number" ? stock.quantity : null,
+              isUnlimited: Boolean(stock.is_unlimited),
+              isOutOfStock: Boolean(stock.is_out_of_stock),
+              isMultiple: Boolean(stock.is_multiple),
+            };
+          }),
+        );
+        setDrafts((current) => ({
+          ...current,
+          ...Object.fromEntries(
+            [...stocks.entries()].map(([itemId, stock]) => [itemId, String(stock.quantity ?? 0)]),
+          ),
+        }));
+
+        loaded = Math.min(i + chunk.length, sourceItems.length);
+        setStockProgress({ loaded, total: sourceItems.length });
+        if (data.warning) {
+          stopped = true;
+          toast({ title: "Остатки загружены частично", description: data.warning });
+          break;
+        }
+        if (i + chunkSize < sourceItems.length) {
+          await new Promise((resolve) => setTimeout(resolve, 1_500));
+        }
+      }
+
+      if (!stopped && stockLoadRun.current === runId) {
+        toast({ title: "Остатки загружены", description: `Проверено объявлений: ${sourceItems.length}` });
+      }
+    } catch (error) {
+      if (stockLoadRun.current === runId) {
+        toast({
+          title: "Остатки загружены частично",
+          description: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } finally {
+      if (stockLoadRun.current === runId) {
+        setStockLoading(false);
+      }
     }
   }
 
@@ -196,13 +297,26 @@ export function StocksClient() {
     }
   }
 
-  function toggleSelected(itemId: string) {
+  function setItemSelection(itemId: string, shouldSelect: boolean) {
     setSelected((current) => {
       const next = new Set(current);
-      if (next.has(itemId)) next.delete(itemId);
-      else next.add(itemId);
+      if (shouldSelect) next.add(itemId);
+      else next.delete(itemId);
       return next;
     });
+  }
+
+  function startDragSelection(itemId: string, isSelected: boolean, event: MouseEvent<HTMLButtonElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const shouldSelect = !isSelected;
+    dragSelection.current = { active: true, shouldSelect };
+    setItemSelection(itemId, shouldSelect);
+  }
+
+  function applyDragSelection(itemId: string) {
+    if (!dragSelection.current.active) return;
+    setItemSelection(itemId, dragSelection.current.shouldSelect);
   }
 
   function toggleVisible() {
@@ -272,6 +386,12 @@ export function StocksClient() {
 
       {items.length > 0 && (
         <div className="border-b border-border/80 bg-card/45 px-4 py-3">
+          {stockProgress && (
+            <div className="mb-3 text-xs text-muted-foreground">
+              Остатки: {stockProgress.loaded} / {stockProgress.total}
+              {stockLoading ? " загружаются" : " проверено"}
+            </div>
+          )}
           <div className="mb-3 flex items-center gap-2">
             <button
               type="button"
@@ -352,8 +472,10 @@ export function StocksClient() {
               <CardContent className="flex items-center gap-3 p-3">
                 <button
                   type="button"
-                  onClick={() => toggleSelected(item.itemId)}
-                  className="text-muted-foreground transition-colors hover:text-primary"
+                  onMouseDown={(event) => startDragSelection(item.itemId, isSelected, event)}
+                  onMouseEnter={() => applyDragSelection(item.itemId)}
+                  onClick={(event) => event.preventDefault()}
+                  className="select-none text-muted-foreground transition-colors hover:text-primary"
                   aria-label={isSelected ? "Снять выбор" : "Выбрать"}
                 >
                   {isSelected ? <CheckSquare className="h-5 w-5 text-primary" /> : <Square className="h-5 w-5" />}

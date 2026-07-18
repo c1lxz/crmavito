@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { fetchAvitoStockItemsResult } from "@/lib/avito/stocks";
+import { fetchAvitoStocksInfo, getAvitoStockToken } from "@/lib/avito/stocks";
 import { getAvitoCredentials } from "@/lib/avito/profile-store";
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 
-const credentialsSchema = z.object({
+const stockInfoSchema = z.object({
   profileId: z.string().trim().min(1),
+  itemIds: z.array(z.string().trim().min(1)).min(1).max(50),
 });
 
 async function requireAdminResponse() {
@@ -23,24 +24,23 @@ export async function POST(request: Request) {
   const forbidden = await requireAdminResponse();
   if (forbidden) return forbidden;
 
-  const parsed = credentialsSchema.safeParse(await request.json().catch(() => ({})));
+  const parsed = stockInfoSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Выберите профиль Avito." }, { status: 400 });
-  }
-
-  let credentials;
-  try {
-    credentials = await getAvitoCredentials(parsed.data);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Передайте профиль Avito и список объявлений." }, { status: 400 });
   }
 
   try {
-    const result = await fetchAvitoStockItemsResult(credentials, { skipStocks: true });
-    return NextResponse.json(result);
+    const credentials = await getAvitoCredentials({ profileId: parsed.data.profileId });
+    const token = await getAvitoStockToken(credentials);
+    const result = await fetchAvitoStocksInfo(token, parsed.data.itemIds, {
+      stockDelayMs: 350,
+      stockDeadlineMs: 25_000,
+    });
+
+    return NextResponse.json({
+      stocks: [...result.stocks.values()],
+      warning: result.warning,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },
