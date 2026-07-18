@@ -29,8 +29,8 @@ type SleepFn = (ms: number) => Promise<void>;
 type StockOptions = {
   fetchFn?: FetchFn;
   sleepFn?: SleepFn;
-  stockConcurrency?: number;
   pageDelayMs?: number;
+  stockDelayMs?: number;
 };
 
 type StockInfo = {
@@ -137,10 +137,10 @@ export async function fetchAvitoStocksInfo(
     chunks.push(itemIds.slice(i, i + chunkSize));
   }
 
-  let nextChunk = 0;
-  const workerCount = Math.max(1, Math.min(options.stockConcurrency ?? 6, chunks.length));
+  const sleepFn = options.sleepFn ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const stockDelayMs = options.stockDelayMs ?? 1_000;
 
-  async function loadChunk(chunk: string[]) {
+  async function fetchChunk(chunk: string[]): Promise<{ hasStocks: boolean; stocks: StockInfo[] }> {
     const response = await fetchWithRetry(
       "https://api.avito.ru/stock-management/1/info",
       {
@@ -161,19 +161,19 @@ export async function fetchAvitoStocksInfo(
       throw new Error(`Получение остатков Avito не прошло: ${extractAvitoErrorText(data).slice(0, 300)}`);
     }
 
-    for (const stock of data.stocks ?? []) {
-      result.set(String(stock.item_id), stock);
-    }
+    return { hasStocks: Array.isArray(data.stocks), stocks: data.stocks ?? [] };
   }
 
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      while (nextChunk < chunks.length) {
-        const chunk = chunks[nextChunk++];
-        await loadChunk(chunk);
-      }
-    }),
-  );
+  const first = await fetchChunk(chunks[0]);
+  if (!first.hasStocks) return result;
+
+  for (const stock of first.stocks) result.set(String(stock.item_id), stock);
+
+  for (const chunk of chunks.slice(1)) {
+    if (stockDelayMs > 0) await sleepFn(stockDelayMs);
+    const data = await fetchChunk(chunk);
+    for (const stock of data.stocks) result.set(String(stock.item_id), stock);
+  }
 
   return result;
 }
