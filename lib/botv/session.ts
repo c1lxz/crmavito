@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -90,9 +90,20 @@ export async function updateSession(id: string, payload: unknown): Promise<BotvS
   return JSON.parse(await runCli(["update", id, JSON.stringify(payload)])) as BotvSession;
 }
 
-export async function buildXml(id: string, phone?: string): Promise<{ filename: string; xml: string; ads: number; products: number }> {
+export function xmlIdScopeFromProfile(profileId?: string | null): string {
+  if (!profileId?.trim()) return "";
+  return createHash("sha1").update(profileId.trim()).digest("hex").slice(0, 10);
+}
+
+export async function buildXml(
+  id: string,
+  phone?: string,
+  options: { profileId?: string | null } = {},
+): Promise<{ filename: string; xml: string; ads: number; products: number }> {
   const args = ["xml", id];
   if (phone?.trim()) args.push("--phone", phone.trim());
+  const idScope = xmlIdScopeFromProfile(options.profileId);
+  if (idScope) args.push("--id-scope", idScope);
   return JSON.parse(await runCli(args));
 }
 

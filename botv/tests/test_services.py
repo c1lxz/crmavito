@@ -196,7 +196,7 @@ def test_brand_does_not_match_model_word():
 # xml_generator tests
 # ---------------------------------------------------------------------------
 
-from services.xml_generator import AvitoAd, XmlGenerator
+from services.xml_generator import AvitoAd, XmlGenerator, make_ad_id
 from handlers.drop import (
     _ad_titles_keyboard,
     _format_product_list,
@@ -289,6 +289,12 @@ def test_xml_has_materials_odezhda():
         xml = gen.build([_sample_ad()]).decode("utf-8")
     assert "<MaterialsOdezhda>" in xml
     assert "<Option>Хлопок</Option>" in xml
+
+
+def test_make_ad_id_adds_profile_scope_when_present():
+    assert make_ad_id("SKU-", 7) == "SKU-7"
+    assert make_ad_id("SKU-", 7, "profile_abc-123") == "SKU-profile_abc-123-7"
+    assert make_ad_id("SKU-", 7, "profile abc!") == "SKU-profileabc-7"
 
 
 def test_xml_has_required_size():

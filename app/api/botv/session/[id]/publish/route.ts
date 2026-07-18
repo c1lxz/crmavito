@@ -24,8 +24,10 @@ function publicBaseUrl(request: Request): string {
   return `${protocol}://${host}`;
 }
 
-function publicXmlFeedUrl(request: Request, sessionId: string): string {
-  return `${publicBaseUrl(request)}/v-data/botv/work/${encodeURIComponent(sessionId)}/xml`;
+function publicXmlFeedUrl(request: Request, sessionId: string, profileId: string): string {
+  const url = new URL(`${publicBaseUrl(request)}/v-data/botv/work/${encodeURIComponent(sessionId)}/xml`);
+  url.searchParams.set("profileId", profileId);
+  return url.toString();
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -53,11 +55,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   try {
     const [xmlResult, reportEmail] = await Promise.all([
-      buildXml(id),
+      buildXml(id, undefined, { profileId: parsed.data.profileId }),
       getAvitoProfileReportEmail(parsed.data.profileId),
     ]);
     const publish = await publishAvitoXml(credentials, xmlResult.xml, xmlResult.filename, {
-      feedUrl: publicXmlFeedUrl(request, id),
+      feedUrl: publicXmlFeedUrl(request, id, parsed.data.profileId),
       reportEmail,
     });
     return NextResponse.json({

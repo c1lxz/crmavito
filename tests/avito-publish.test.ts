@@ -108,6 +108,39 @@ describe("Avito XML publication", () => {
     expect(JSON.parse(String(profileCall?.init?.body)).report_email).toBe("reports@example.test");
   });
 
+  it("explains Avito autoload timeouts during upload start", async () => {
+    vi.stubEnv("AVITO_AUTOLOAD_TIMEOUT_MS", "30000");
+    const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url);
+      if (href.includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (href.includes("/autoload/v2/profile") && init?.method !== "POST") {
+        return Response.json({
+          autoload_enabled: true,
+          feeds_data: [],
+          report_email: "reports@example.test",
+          schedule: [],
+        });
+      }
+      if (href.includes("/autoload/v2/profile") && init?.method === "POST") {
+        return new Response("", { status: 200 });
+      }
+      if (href.includes("/autoload/v1/upload")) {
+        throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      publishAvitoXml(credentials, "<Ads />", "avito.xml", {
+        feedUrl: "https://crmavito.duckdns.org/v-data/botv/work/session-1/xml",
+        fetchFn,
+        sleepFn: async () => undefined,
+      }),
+    ).rejects.toThrow("Avito не ответил за 30 секунд");
+  });
+
   it("loads current and recent autoload uploads", async () => {
     const fetchFn = vi.fn(async (url: string | URL | Request) => {
       const href = String(url);

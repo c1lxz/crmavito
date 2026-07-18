@@ -43,6 +43,53 @@ export type AvitoAutoloadStatus = {
   uploads: unknown[];
 };
 
+const DEFAULT_AUTOLOAD_TIMEOUT_MS = 120_000;
+
+function autoloadTimeoutMs(): number {
+  const value = Number(process.env.AVITO_AUTOLOAD_TIMEOUT_MS);
+  return Number.isFinite(value) && value >= 30_000 ? value : DEFAULT_AUTOLOAD_TIMEOUT_MS;
+}
+
+function autoloadSignal() {
+  return AbortSignal.timeout(autoloadTimeoutMs());
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as { name?: unknown; message?: unknown };
+  const text = `${String(record.name ?? "")} ${String(record.message ?? "")}`;
+  return /timeout|aborted due to timeout|operation was aborted/i.test(text);
+}
+
+function formatAutoloadTransportError(error: unknown, action: string): Error {
+  if (isTimeoutError(error)) {
+    return new Error(
+      `${action}: Avito не ответил за ${Math.round(autoloadTimeoutMs() / 1000)} секунд. Попробуйте запустить публикацию ещё раз и затем проверить статус автозагрузки.`,
+    );
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+async function fetchAutoload(
+  url: string,
+  init: RequestInit,
+  options: { fetchFn?: FetchFn; sleepFn?: SleepFn },
+  action: string,
+): Promise<Response> {
+  try {
+    return await fetchWithRetry(
+      url,
+      {
+        ...init,
+        signal: autoloadSignal(),
+      },
+      options,
+    );
+  } catch (error) {
+    throw formatAutoloadTransportError(error, action);
+  }
+}
+
 async function readJsonResponse(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return {};
@@ -80,14 +127,14 @@ async function getAutoloadProfile(
   token: string,
   options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
 ): Promise<AutoloadProfile | null> {
-  const response = await fetchWithRetry(
+  const response = await fetchAutoload(
     "https://api.avito.ru/autoload/v2/profile",
     {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
-      signal: AbortSignal.timeout(30_000),
     },
     options,
+    "Получение профиля автозагрузки Avito",
   );
 
   if (response.status === 404) return null;
@@ -108,7 +155,7 @@ async function upsertAutoloadProfile(
   feed: AutoloadFeed,
   options: PublishOptions,
 ): Promise<number> {
-  const response = await fetchWithRetry(
+  const response = await fetchAutoload(
     "https://api.avito.ru/autoload/v2/profile",
     {
       method: "POST",
@@ -118,9 +165,9 @@ async function upsertAutoloadProfile(
       },
       body: JSON.stringify(buildProfilePayload(profile, feed, options.reportEmail)),
       cache: "no-store",
-      signal: AbortSignal.timeout(30_000),
     },
     options,
+    "Настройка фида автозагрузки Avito",
   );
   const data = await readJsonResponse(response);
   if (!response.ok) {
@@ -133,15 +180,15 @@ async function startAutoloadUpload(
   token: string,
   options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
 ): Promise<{ status: number; data: unknown }> {
-  const response = await fetchWithRetry(
+  const response = await fetchAutoload(
     "https://api.avito.ru/autoload/v1/upload",
     {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
-      signal: AbortSignal.timeout(30_000),
     },
     options,
+    "Запуск автозагрузки Avito",
   );
   const data = await readJsonResponse(response);
   if (!response.ok) {
@@ -155,14 +202,14 @@ async function getOptionalAutoloadData(
   path: string,
   options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
 ): Promise<unknown | null> {
-  const response = await fetchWithRetry(
+  const response = await fetchAutoload(
     `https://api.avito.ru${path}`,
     {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
-      signal: AbortSignal.timeout(30_000),
     },
     options,
+    "Получение статуса автозагрузки Avito",
   );
   const data = await readJsonResponse(response);
   if (response.status === 404) return null;

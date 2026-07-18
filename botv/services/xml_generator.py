@@ -100,5 +100,8 @@ def _images_element(urls: list[str]) -> etree._Element:
     return images
 
 
-def make_ad_id(prefix: str, index: int) -> str:
+def make_ad_id(prefix: str, index: int, scope: str = "") -> str:
+    safe_scope = "".join(ch for ch in scope if ch.isalnum() or ch in "-_")[:16]
+    if safe_scope:
+        return f"{prefix}{safe_scope}-{index}"
     return f"{prefix}{index}"

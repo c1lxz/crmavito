@@ -517,7 +517,16 @@ def _write_xml_file(session_id: str, xml_text: str, phone: str | None = None) ->
     return out_path
 
 
-def _read_last_base_xml(state: dict) -> str | None:
+def _read_last_base_xml(state: dict, id_scope: str = "") -> str | None:
+    if id_scope:
+        scoped = state.get("last_scoped_xmls")
+        if isinstance(scoped, dict):
+            value = scoped.get(id_scope)
+            if value:
+                path = Path(str(value))
+                if path.exists():
+                    return path.read_text(encoding="utf-8")
+        return None
     for key in ("last_base_xml", "last_xml"):
         value = state.get(key)
         if not value:
@@ -530,14 +539,14 @@ def _read_last_base_xml(state: dict) -> str | None:
     return None
 
 
-def generate_xml(session_id: str, phone: str | None = None) -> dict:
+def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") -> dict:
     state_path = _session_dir(session_id) / "state.json"
     state = _read_json(state_path)
     products = [p for p in state["products"] if not p.get("deleted")]
     if phone:
-        base_xml = _read_last_base_xml(state)
+        base_xml = _read_last_base_xml(state, id_scope)
         if base_xml is None:
-            base_result = generate_xml(session_id, None)
+            base_result = generate_xml(session_id, None, id_scope)
             state = _read_json(state_path)
             base_xml = base_result["xml"]
         xml_text = _replace_phone(base_xml, phone)
@@ -598,12 +607,17 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
         images = asyncio.run(_image_urls(yd, session_id, name, photos))
         for location_index, extra in enumerate(location_extras(locations, base_extra), 1):
             ad_number = (idx - 1) * len(locations) + location_index
-            ads.append(AvitoAd(ad_id=make_ad_id(id_prefix, ad_number), title=title, price=price, description=text, color=color, images=images, brand=brand, extra=extra))
+            ads.append(AvitoAd(ad_id=make_ad_id(id_prefix, ad_number, id_scope), title=title, price=price, description=text, color=color, images=images, brand=brand, extra=extra))
     xml_text = xml_gen.build(ads).decode("utf-8")
     out_path = _write_xml_file(session_id, xml_text)
     state["progress"] = [*state.get("progress", []), f"XML created: {len(ads)} ads"][-12:]
-    state["last_xml"] = str(out_path)
-    state["last_base_xml"] = str(out_path)
+    if id_scope:
+        scoped = state.get("last_scoped_xmls") if isinstance(state.get("last_scoped_xmls"), dict) else {}
+        scoped[id_scope] = str(out_path)
+        state["last_scoped_xmls"] = scoped
+    else:
+        state["last_xml"] = str(out_path)
+        state["last_base_xml"] = str(out_path)
     state["updated_at"] = int(time.time())
     _write_json(state_path, state)
     return {"filename": out_path.name, "xml": xml_text, "ads": len(ads), "products": len(products)}
@@ -617,7 +631,7 @@ def main() -> None:
     p_state = sub.add_parser("state"); p_state.add_argument("session_id")
     p_list = sub.add_parser("list"); p_list.add_argument("--limit", type=int, default=20)
     p_update = sub.add_parser("update"); p_update.add_argument("session_id"); p_update.add_argument("payload")
-    p_xml = sub.add_parser("xml"); p_xml.add_argument("session_id"); p_xml.add_argument("--phone", default="")
+    p_xml = sub.add_parser("xml"); p_xml.add_argument("session_id"); p_xml.add_argument("--phone", default=""); p_xml.add_argument("--id-scope", default="")
     p_photo = sub.add_parser("photo"); p_photo.add_argument("token")
     args = parser.parse_args()
     if args.cmd == "create":
@@ -631,7 +645,7 @@ def main() -> None:
     elif args.cmd == "update":
         print(json.dumps(update_session(args.session_id, json.loads(args.payload)), ensure_ascii=False))
     elif args.cmd == "xml":
-        print(json.dumps(generate_xml(args.session_id, args.phone or None), ensure_ascii=False))
+        print(json.dumps(generate_xml(args.session_id, args.phone or None, args.id_scope or ""), ensure_ascii=False))
     elif args.cmd == "photo":
         path = _photo_path(args.token).resolve()
         if path.suffix.lower() not in IMAGE_EXTENSIONS or not path.exists():

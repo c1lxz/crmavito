@@ -15,10 +15,11 @@ function xmlResponse(result: { filename: string; xml: string; ads: number; produ
   });
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    return xmlResponse(await buildXml(id));
+    const profileId = new URL(request.url).searchParams.get("profileId");
+    return xmlResponse(await buildXml(id, undefined, { profileId }));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ошибка XML" }, { status: 500 });
   }
@@ -33,7 +34,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const body = await request.json().catch(() => ({}));
       phone = typeof body.phone === "string" ? body.phone : "";
     }
-    const result = await buildXml(id, phone);
+    const profileId = new URL(request.url).searchParams.get("profileId");
+    const result = await buildXml(id, phone, { profileId });
     return xmlResponse(result);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ошибка XML" }, { status: 500 });

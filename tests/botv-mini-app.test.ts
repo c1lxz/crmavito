@@ -131,9 +131,10 @@ describe("botv mini app UI", () => {
     expect(publishRouteSource).toContain("publishAvitoXml");
     expect(publishRouteSource).toContain("publicXmlFeedUrl");
     expect(publishRouteSource).toContain("/v-data/botv/work/");
+    expect(publishRouteSource).toContain("url.searchParams.set(\"profileId\", profileId)");
     expect(publishRouteSource).toContain("getAvitoCredentials");
     expect(publishRouteSource).toContain("getAvitoProfileReportEmail");
-    expect(publishRouteSource).toContain("buildXml(id)");
+    expect(publishRouteSource).toContain("buildXml(id, undefined, { profileId: parsed.data.profileId })");
   });
 
   it("does not render saved-progress messages that shift the toolbar", () => {
