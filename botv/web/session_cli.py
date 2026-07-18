@@ -184,10 +184,24 @@ def _serialize_product(index: int, product: dict) -> dict:
     }
 
 
+def _product_title(product: dict) -> str:
+    return str(product.get("ad_title") or product.get("adTitle") or product.get("name") or "").strip()
+
+
+def _product_price(product: dict) -> int | None:
+    value = product.get("price")
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _public_state(state: dict) -> dict:
     products = state.get("products", [])
     active = [p for p in products if not p.get("deleted")]
-    ready = [p for p in active if (p.get("ad_title") or "").strip() and p.get("price") is not None]
+    ready = [p for p in active if _product_title(p) and _product_price(p) is not None]
     return {
         "id": state["id"],
         "createdAt": state.get("created_at"),
@@ -509,7 +523,7 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
         state["updated_at"] = int(time.time())
         _write_json(state_path, state)
         return {"filename": out_path.name, "xml": xml_text, "ads": len(products) * len(load_locations(config.settings_dir / "locations.json")), "products": len(products)}
-    missing = [i for i, p in enumerate(products, 1) if not (p.get("ad_title") or "").strip() or p.get("price") is None]
+    missing = [i for i, p in enumerate(state["products"], 1) if not p.get("deleted") and (not _product_title(p) or _product_price(p) is None)]
     if missing:
         raise SystemExit("Не заполнены название или цена: " + ", ".join(f"#{i}" for i in missing))
     settings_dir = config.settings_dir
@@ -533,8 +547,10 @@ def generate_xml(session_id: str, phone: str | None = None) -> dict:
     ads: list[AvitoAd] = []
     for idx, product in enumerate(products, 1):
         name = product["name"]
-        title = (product.get("ad_title") or name).strip()
-        price = int(product["price"])
+        title = _product_title(product)
+        price = _product_price(product)
+        if price is None:
+            raise SystemExit(f"Не заполнена цена: #{idx}")
         price_fmt = f"{price:,}".replace(",", " ")
         brand = detect_brand(name, brands) or "Без бренда"
         base_extra = product_extra(f"{name} {title}", sizes[idx - 1])

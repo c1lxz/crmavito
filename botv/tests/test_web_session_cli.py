@@ -125,6 +125,32 @@ def test_web_session_history_keeps_unfinished_work(tmp_path):
     assert updated["updatedAt"] >= state["createdAt"]
 
 
+def test_web_session_xml_uses_product_name_when_ad_title_is_blank(tmp_path):
+    archive = tmp_path / "drop.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("Drop/Product One/one.jpg", b"jpg")
+        zf.writestr("Drop/Product Two/two.jpg", b"jpg")
+        zf.writestr("Drop/Product Three/three.jpg", b"jpg")
+
+    state = _run_cli("create", str(archive), "drop.zip")
+    by_name = {product["name"]: product["index"] for product in state["products"]}
+    updated = _run_cli("update", state["id"], json.dumps({
+        "ids": [by_name["Product One"], by_name["Product Three"]],
+        "bulkPrice": 1990,
+        "products": [{"index": by_name["Product Two"], "deleted": True}],
+    }, ensure_ascii=False))
+
+    assert updated["summary"]["active"] == 2
+    assert updated["summary"]["ready"] == 2
+
+    xml = _run_cli("xml", state["id"])
+
+    assert xml["products"] == 2
+    assert "Product One" in xml["xml"]
+    assert "Product Three" in xml["xml"]
+    assert "Product Two" not in xml["xml"]
+
+
 def test_web_session_xml_uses_public_photo_urls_by_default(tmp_path):
     archive = tmp_path / "drop.zip"
     with zipfile.ZipFile(archive, "w") as zf:
