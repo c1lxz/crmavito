@@ -75,6 +75,22 @@ function getPrice(value: AvitoListItem["price"]): number {
   return 0;
 }
 
+export function avitoListItemToStockItem(item: AvitoListItem, stock?: StockInfo): AvitoStockItem {
+  const itemId = String(item.id);
+  return {
+    itemId,
+    title: item.title ?? item.name ?? `Avito ${itemId}`,
+    price: getPrice(item.price),
+    url: item.url ?? null,
+    status: item.status ?? null,
+    imageUrl: findFirstImageUrl(item),
+    quantity: typeof stock?.quantity === "number" ? stock.quantity : null,
+    isUnlimited: Boolean(stock?.is_unlimited),
+    isOutOfStock: Boolean(stock?.is_out_of_stock),
+    isMultiple: Boolean(stock?.is_multiple),
+  };
+}
+
 export function extractAvitoErrorText(value: unknown): string {
   if (!value) return "";
   if (typeof value === "string") return value;
@@ -252,22 +268,7 @@ export async function fetchAvitoStockItemsResult(
   const warning = [listing.warning, stockResult.warning].filter(Boolean).join(" ") || undefined;
   return {
     warning,
-    items: items.map((item) => {
-      const itemId = String(item.id);
-      const stock = stocks.get(itemId);
-      return {
-        itemId,
-        title: item.title ?? item.name ?? `Avito ${itemId}`,
-        price: getPrice(item.price),
-        url: item.url ?? null,
-        status: item.status ?? null,
-        imageUrl: findFirstImageUrl(item),
-        quantity: typeof stock?.quantity === "number" ? stock.quantity : null,
-        isUnlimited: Boolean(stock?.is_unlimited),
-        isOutOfStock: Boolean(stock?.is_out_of_stock),
-        isMultiple: Boolean(stock?.is_multiple),
-      };
-    }),
+    items: items.map((item) => avitoListItemToStockItem(item, stocks.get(String(item.id)))),
   };
 }
 

@@ -68,6 +68,7 @@ export function StocksClient() {
   const [bulkQuantity, setBulkQuantity] = useState("");
   const [loading, setLoading] = useState(false);
   const [stockLoading, setStockLoading] = useState(false);
+  const [listingProgress, setListingProgress] = useState<{ loaded: number; page: number; perPage: number } | null>(null);
   const [stockProgress, setStockProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
@@ -123,6 +124,93 @@ export function StocksClient() {
       : { profileId: selectedProfileId };
   }
 
+  function buildDrafts(sourceItems: StockItem[]) {
+    return Object.fromEntries(sourceItems.map((item) => [item.itemId, String(item.quantity ?? 0)]));
+  }
+
+  function wait(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function loadListingPages(runId: number): Promise<{ items: StockItem[]; warning?: string }> {
+    const attempts = [
+      { perPage: 25, delayMs: 1_500, maxPages: 160 },
+      { perPage: 10, delayMs: 1_000, maxPages: 260 },
+      { perPage: 5, delayMs: 700, maxPages: 520 },
+    ];
+    let lastError: unknown;
+
+    for (const [attemptIndex, attempt] of attempts.entries()) {
+      const loadedItems: StockItem[] = [];
+      const seen = new Set<string>();
+      let emptyPages = 0;
+
+      if (attemptIndex > 0) {
+        setItems([]);
+        setDrafts({});
+        setListingProgress(null);
+      }
+
+      for (let page = 1; page <= attempt.maxPages; page++) {
+        if (stockLoadRun.current !== runId) return { items: loadedItems };
+
+        let data: { items?: StockItem[]; error?: string };
+        try {
+          const response = await fetch("/api/avito/stocks/page", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...avitoAuthPayload(), page, perPage: attempt.perPage }),
+          });
+          data = await readApiJson(response);
+          if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить страницу объявлений");
+        } catch (error) {
+          lastError = error;
+          if (loadedItems.length > 0) {
+            return {
+              items: loadedItems,
+              warning: `Avito временно прервал загрузку на странице ${page}. Загружено: ${loadedItems.length}. ${error instanceof Error ? error.message : String(error)}`,
+            };
+          }
+          break;
+        }
+
+        const pageItems = Array.isArray(data.items) ? data.items : [];
+        if (pageItems.length === 0) {
+          emptyPages += 1;
+          if (emptyPages >= 3) {
+            return {
+              items: loadedItems,
+              warning:
+                attemptIndex > 0
+                  ? `Объявления загружены медленным режимом: ${attempt.perPage} на страницу.`
+                  : undefined,
+            };
+          }
+          await wait(attempt.delayMs);
+          continue;
+        }
+
+        emptyPages = 0;
+        for (const item of pageItems) {
+          if (!seen.has(item.itemId)) {
+            seen.add(item.itemId);
+            loadedItems.push(item);
+          }
+        }
+
+        setItems([...loadedItems]);
+        setDrafts(buildDrafts(loadedItems));
+        setListingProgress({ loaded: loadedItems.length, page, perPage: attempt.perPage });
+
+        if (page < attempt.maxPages) await wait(attempt.delayMs);
+      }
+
+      lastError = new Error(`Avito pagination exceeded ${attempt.maxPages} pages`);
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Не удалось загрузить объявления Avito");
+  }
+
   async function loadItems() {
     const runId = stockLoadRun.current + 1;
     stockLoadRun.current = runId;
@@ -130,25 +218,17 @@ export function StocksClient() {
     setStockLoading(false);
     setStockProgress(null);
     setSelected(new Set());
+    setListingProgress(null);
+    setItems([]);
+    setDrafts({});
     try {
-      const response = await fetch("/api/avito/stocks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(avitoAuthPayload()),
-      });
-      const data = await readApiJson(response);
-      if (!response.ok) throw new Error(data.error ?? "Не удалось загрузить объявления");
-      const loadedItems: StockItem[] = data.items ?? [];
+      const { items: loadedItems, warning } = await loadListingPages(runId);
+      if (stockLoadRun.current !== runId) return;
       setItems(loadedItems);
-      setDrafts(
-        Object.fromEntries(
-          loadedItems.map((item: StockItem) => [item.itemId, String(item.quantity ?? 0)]),
-        ),
-      );
-      const loadWarning = typeof data.warning === "string" ? data.warning : "";
+      setDrafts(buildDrafts(loadedItems));
       toast({
-        title: loadWarning ? "Объявления загружены частично" : "Объявления загружены",
-        description: loadWarning || `Найдено: ${loadedItems.length}. Остатки загружаются фоном.`,
+        title: warning ? "Объявления загружены частично" : "Объявления загружены",
+        description: warning || `Найдено: ${loadedItems.length}. Остатки загружаются фоном.`,
       });
       void loadStocksInBackground(loadedItems, runId);
     } catch (error) {
@@ -159,6 +239,7 @@ export function StocksClient() {
       });
     } finally {
       setLoading(false);
+      setListingProgress(null);
     }
   }
 
@@ -366,6 +447,11 @@ export function StocksClient() {
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {loading ? "Загрузка" : "Загрузить"}
           </Button>
+          {listingProgress && (
+            <span className="text-xs text-muted-foreground">
+              Загружено {listingProgress.loaded} · стр. {listingProgress.page} · {listingProgress.perPage}/стр.
+            </span>
+          )}
           {credentialProfiles.length > 0 && (
             <Button size="sm" variant="outline" onClick={() => setProfilesOpen((value) => !value)}>
               <History className="h-4 w-4" />

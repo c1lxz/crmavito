@@ -3,11 +3,49 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { fetchAvitoStockItems, fetchAvitoStockItemsResult, getAvitoStockToken, updateAvitoStocks } from "@/lib/avito/stocks";
 import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
+import { fetchAvitoItemsPage } from "@/lib/avito/sync";
 
 const credentials = { clientId: "client", clientSecret: "secret" };
 const stocksRouteSource = readFileSync(path.resolve(__dirname, "../app/api/avito/stocks/route.ts"), "utf8");
+const stocksPageRouteSource = readFileSync(path.resolve(__dirname, "../app/api/avito/stocks/page/route.ts"), "utf8");
+const stocksClientSource = readFileSync(path.resolve(__dirname, "../components/settings/stocks-client.tsx"), "utf8");
 
 describe("Avito stock management", () => {
+  it("loads a single Avito listing page with explicit paging params", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      expect(new URL(href).searchParams.get("page")).toBe("2");
+      expect(new URL(href).searchParams.get("per_page")).toBe("10");
+      expect(new URL(href).searchParams.get("status")).toBe("active");
+      return Response.json({
+        resources: [
+          { id: 20, title: "Second page first" },
+          { id: 21, title: "Second page second" },
+        ],
+      });
+    }) as unknown as typeof fetch;
+
+    const result = await fetchAvitoItemsPage("token", {
+      fetchFn,
+      sleepFn: async () => undefined,
+      page: 2,
+      perPage: 10,
+      status: "active",
+    });
+
+    expect(result.items.map((item) => item.id)).toEqual([20, 21]);
+  });
+
+  it("uses short paginated requests for the stock list UI", () => {
+    expect(stocksPageRouteSource).toContain("fetchAvitoItemsPage");
+    expect(stocksPageRouteSource).toContain("avitoListItemToStockItem");
+    expect(stocksPageRouteSource).toContain("maxDuration = 60");
+    expect(stocksClientSource).toContain("/api/avito/stocks/page");
+    expect(stocksClientSource).toContain("loadListingPages");
+    expect(stocksClientSource).toContain("listingProgress");
+    expect(stocksClientSource).toContain("emptyPages >= 3");
+  });
+
   it("loads items and merges stock quantities by item id", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {

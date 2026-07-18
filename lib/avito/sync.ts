@@ -107,6 +107,59 @@ export async function fetchWithRetry(
   throw lastError instanceof Error ? lastError : new Error("Avito request failed");
 }
 
+export async function fetchAvitoItemsPage(
+  token: string,
+  options: {
+    fetchFn?: FetchFn;
+    sleepFn?: SleepFn;
+    page: number;
+    perPage?: number;
+    status?: string;
+    requestTimeoutMs?: number;
+  },
+): Promise<{ items: AvitoListItem[]; page: number; perPage: number }> {
+  const fetchFn = options.fetchFn ?? fetch;
+  const sleepFn = options.sleepFn ?? defaultSleep;
+  const page = Math.max(1, Math.floor(options.page));
+  const perPage = Math.max(1, Math.floor(options.perPage ?? 25));
+  const requestTimeoutMs = options.requestTimeoutMs ?? 45_000;
+  const url = new URL("https://api.avito.ru/core/v1/items");
+  url.searchParams.set("per_page", String(perPage));
+  url.searchParams.set("page", String(page));
+  if (options.status?.trim()) url.searchParams.set("status", options.status.trim());
+
+  const response = await fetchWithRetry(
+    url.toString(),
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(requestTimeoutMs),
+    },
+    { fetchFn, sleepFn },
+  );
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    if (response.status === 429) {
+      throw new Error(
+        `Avito limited request rate on page ${page}. Wait a few minutes and start sync again. ${body.slice(0, 200)}`,
+      );
+    }
+    throw new Error(
+      `Avito items page ${page} failed (${response.status}): ${body.slice(0, 200)}`,
+    );
+  }
+
+  let data: { resources?: AvitoListItem[]; items?: AvitoListItem[] };
+  try {
+    data = (await response.json()) as typeof data;
+  } catch {
+    throw new Error(`Avito returned invalid JSON on page ${page}`);
+  }
+
+  return { items: data.resources ?? data.items ?? [], page, perPage };
+}
+
 function extractAvitoErrorText(value: unknown): string {
   if (!value) return "";
   if (typeof value === "string") return value;
