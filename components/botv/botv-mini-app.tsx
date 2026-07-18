@@ -175,14 +175,8 @@ function AdIdsBlock({ title, adIds }: { title: string; adIds: string[] }) {
   );
 }
 
-function parseAdIdsHeader(value: string | null): string[] {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
-  } catch {
-    return [];
-  }
+function parseAdIdsXml(xml: string): string[] {
+  return Array.from(xml.matchAll(/<Id>([^<]+)<\/Id>/g), (match) => match[1]?.trim()).filter(Boolean) as string[];
 }
 
 async function apiFetch(input: RequestInfo | URL, init?: RequestInit, retries = 3) {
@@ -493,8 +487,8 @@ export function BotvMiniApp() {
       const data = await readJsonResponse(res, "Не удалось собрать XML");
       throw new Error(data.error ?? "Не удалось собрать XML");
     }
-    setLastXmlAdIds(parseAdIdsHeader(res.headers.get("x-botv-ad-ids")));
     const blob = await res.blob();
+    setLastXmlAdIds(parseAdIdsXml(await blob.text()));
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

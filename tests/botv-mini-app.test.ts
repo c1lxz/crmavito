@@ -86,7 +86,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("JSON.stringify({ phone })");
     expect(clientSource).toContain("Создать XML с другим телефоном?");
     expect(clientSource).toContain("Скачать ещё");
-    expect(xmlRouteSource).toContain("\"x-botv-ad-ids\"");
+    expect(xmlRouteSource).not.toContain("\"x-botv-ad-ids\"");
     expect(xmlRouteSource).toContain("export async function GET");
     expect(xmlAliasSource).toContain("GET as apiGET");
   });
@@ -96,7 +96,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("setReplacementPhone(\"\")");
     expect(clientSource).toContain("setReplacementXmlCount((count) => count + 1)");
     expect(clientSource).toContain("ID последнего XML");
-    expect(clientSource).toContain("x-botv-ad-ids");
+    expect(clientSource).toContain("parseAdIdsXml(await blob.text())");
     expect(clientSource).not.toContain("await downloadXml(replacementPhone); setPhonePromptOpen(false)");
   });
 
