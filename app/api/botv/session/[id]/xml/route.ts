@@ -4,13 +4,14 @@ import { buildXml } from "@/lib/botv/session";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-function xmlResponse(result: { filename: string; xml: string; ads: number; products: number }) {
+function xmlResponse(result: { filename: string; xml: string; ads: number; products: number; adIds?: string[] }) {
   return new NextResponse(result.xml, {
     headers: {
       "content-type": "application/xml; charset=utf-8",
       "content-disposition": `attachment; filename="${result.filename}"`,
       "x-botv-ads": String(result.ads),
       "x-botv-products": String(result.products),
+      "x-botv-ad-ids": JSON.stringify(result.adIds ?? []),
     },
   });
 }

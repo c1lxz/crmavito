@@ -47,6 +47,7 @@ type PublishResult = {
   feedUrl?: string;
   profileStatus?: number;
   uploadStatus?: number;
+  adIds?: string[];
 };
 
 type AutoloadUpload = {
@@ -149,6 +150,38 @@ function uploadStatLines(upload: AutoloadUpload | null | undefined) {
       .filter(Boolean) as string[];
     return line ? [line, ...nested] : nested;
   });
+}
+
+function AdIdsBlock({ title, adIds }: { title: string; adIds: string[] }) {
+  if (adIds.length === 0) return null;
+  const visible = adIds.slice(0, 80);
+  return (
+    <div className="rounded-md border border-border/80 bg-card/70 p-3 text-sm">
+      <p className="font-semibold">{title}: {adIds.length}</p>
+      <div className="mt-2 flex max-h-32 flex-wrap gap-1 overflow-y-auto">
+        {visible.map((id) => (
+          <span key={id} className="rounded bg-secondary px-2 py-1 font-mono text-[11px] text-secondary-foreground">
+            {id}
+          </span>
+        ))}
+        {adIds.length > visible.length && (
+          <span className="rounded bg-secondary px-2 py-1 text-[11px] text-muted-foreground">
+            ещё {adIds.length - visible.length}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function parseAdIdsHeader(value: string | null): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
 }
 
 async function apiFetch(input: RequestInfo | URL, init?: RequestInit, retries = 3) {
@@ -259,6 +292,7 @@ export function BotvMiniApp() {
   const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
+  const [lastXmlAdIds, setLastXmlAdIds] = useState<string[]>([]);
   const [publishStatusLoading, setPublishStatusLoading] = useState(false);
   const [autoloadStatus, setAutoloadStatus] = useState<AutoloadStatus | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
@@ -301,6 +335,7 @@ export function BotvMiniApp() {
     setSession(applyManualColorOverrides(data));
     window.localStorage.setItem("botv:lastSessionId", data.id);
     setPublishResult(null);
+    setLastXmlAdIds([]);
     setAutoloadStatus(null);
   }
 
@@ -456,6 +491,7 @@ export function BotvMiniApp() {
       const data = await readJsonResponse(res, "Не удалось собрать XML");
       throw new Error(data.error ?? "Не удалось собрать XML");
     }
+    setLastXmlAdIds(parseAdIdsHeader(res.headers.get("x-botv-ad-ids")));
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -519,7 +555,8 @@ export function BotvMiniApp() {
       });
       const data = await readJsonResponse(res, "Не удалось опубликовать XML");
       if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать XML");
-      setPublishResult(data.publish ?? {});
+      const adIds: string[] = Array.isArray(data.adIds) ? data.adIds.map(String).filter(Boolean) : [];
+      setPublishResult({ ...(data.publish ?? {}), adIds });
       setError("");
     } finally {
       setPublishing(false);
@@ -728,6 +765,7 @@ export function BotvMiniApp() {
           )}
 
           {error && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+          <AdIdsBlock title="ID последнего XML" adIds={lastXmlAdIds} />
           {publishResult && (
             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-900 dark:text-emerald-100">
               <p className="font-semibold">Публикация Avito запущена</p>
@@ -750,6 +788,7 @@ export function BotvMiniApp() {
               </div>
             </div>
           )}
+          {publishResult?.adIds && <AdIdsBlock title="ID опубликованных объявлений" adIds={publishResult.adIds} />}
           {autoloadStatus && (
             <div className="rounded-md border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-950 dark:text-sky-100">
               <p className="font-semibold">Статус автозагрузки Avito</p>

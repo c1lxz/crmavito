@@ -86,6 +86,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("JSON.stringify({ phone })");
     expect(clientSource).toContain("Создать XML с другим телефоном?");
     expect(clientSource).toContain("Скачать ещё");
+    expect(xmlRouteSource).toContain("\"x-botv-ad-ids\"");
     expect(xmlRouteSource).toContain("export async function GET");
     expect(xmlAliasSource).toContain("GET as apiGET");
   });
@@ -94,6 +95,8 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("downloadReplacementXml");
     expect(clientSource).toContain("setReplacementPhone(\"\")");
     expect(clientSource).toContain("setReplacementXmlCount((count) => count + 1)");
+    expect(clientSource).toContain("ID последнего XML");
+    expect(clientSource).toContain("x-botv-ad-ids");
     expect(clientSource).not.toContain("await downloadXml(replacementPhone); setPhonePromptOpen(false)");
   });
 
@@ -110,8 +113,10 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Публикация");
     expect(clientSource).toContain("publishXml");
     expect(clientSource).toContain("publishResult");
-    expect(clientSource).toContain("setPublishResult(data.publish ?? {})");
+    expect(clientSource).toContain("setPublishResult({ ...(data.publish ?? {}), adIds })");
     expect(clientSource).toContain("Публикация Avito запущена");
+    expect(clientSource).toContain("ID опубликованных объявлений");
+    expect(clientSource).toContain("const adIds");
     expect(clientSource).toContain("Итог публикации появится в отчётах Автозагрузки Avito");
     expect(clientSource).toContain("checkAutoloadStatus");
     expect(clientSource).toContain("/api/avito/autoload/status");
@@ -135,6 +140,7 @@ describe("botv mini app UI", () => {
     expect(publishRouteSource).toContain("getAvitoCredentials");
     expect(publishRouteSource).toContain("getAvitoProfileReportEmail");
     expect(publishRouteSource).toContain("buildXml(id, undefined, { profileId: parsed.data.profileId })");
+    expect(publishRouteSource).toContain("adIds: xmlResult.adIds");
   });
 
   it("does not render saved-progress messages that shift the toolbar", () => {

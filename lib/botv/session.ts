@@ -99,7 +99,7 @@ export async function buildXml(
   id: string,
   phone?: string,
   options: { profileId?: string | null } = {},
-): Promise<{ filename: string; xml: string; ads: number; products: number }> {
+): Promise<{ filename: string; xml: string; ads: number; products: number; adIds?: string[] }> {
   const args = ["xml", id];
   if (phone?.trim()) args.push("--phone", phone.trim());
   const idScope = xmlIdScopeFromProfile(options.profileId);

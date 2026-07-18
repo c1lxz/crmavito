@@ -66,6 +66,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       success: true,
       ads: xmlResult.ads,
       products: xmlResult.products,
+      adIds: xmlResult.adIds ?? [],
       publish,
     });
   } catch (error) {

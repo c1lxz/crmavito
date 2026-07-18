@@ -539,6 +539,10 @@ def _read_last_base_xml(state: dict, id_scope: str = "") -> str | None:
     return None
 
 
+def _extract_xml_ad_ids(xml_text: str) -> list[str]:
+    return re.findall(r"<Id>([^<]+)</Id>", xml_text)
+
+
 def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") -> dict:
     state_path = _session_dir(session_id) / "state.json"
     state = _read_json(state_path)
@@ -555,7 +559,7 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
         state["last_phone_xml"] = str(out_path)
         state["updated_at"] = int(time.time())
         _write_json(state_path, state)
-        return {"filename": out_path.name, "xml": xml_text, "ads": len(products) * len(load_locations(config.settings_dir / "locations.json")), "products": len(products)}
+        return {"filename": out_path.name, "xml": xml_text, "ads": len(products) * len(load_locations(config.settings_dir / "locations.json")), "products": len(products), "adIds": _extract_xml_ad_ids(xml_text)}
     missing = [i for i, p in enumerate(state["products"], 1) if not p.get("deleted") and (not _product_title(p) or _product_price(p) is None)]
     if missing:
         raise SystemExit("Не заполнены название или цена: " + ", ".join(f"#{i}" for i in missing))
@@ -620,7 +624,7 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
         state["last_base_xml"] = str(out_path)
     state["updated_at"] = int(time.time())
     _write_json(state_path, state)
-    return {"filename": out_path.name, "xml": xml_text, "ads": len(ads), "products": len(products)}
+    return {"filename": out_path.name, "xml": xml_text, "ads": len(ads), "products": len(products), "adIds": [ad.ad_id for ad in ads]}
 
 
 def main() -> None:

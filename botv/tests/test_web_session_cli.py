@@ -62,6 +62,7 @@ def test_web_session_archive_update_and_xml(tmp_path):
     xml = _run_cli("xml", state["id"])
     assert xml["products"] == 1
     assert xml["ads"] == 3
+    assert xml["adIds"] == ["SKU-1", "SKU-2", "SKU-3"]
     assert "Product Black" in xml["xml"]
     assert "Product White" not in xml["xml"]
     assert "<Color>\u0411\u0435\u043b\u044b\u0439</Color>" in xml["xml"]
@@ -74,6 +75,7 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert "<DeliverySubsidy>" not in xml["xml"]
 
     phone_xml = _run_cli("xml", state["id"], "--phone", "+7 999 111-22-33")
+    assert phone_xml["adIds"] == xml["adIds"]
     assert "+79991112233" in phone_xml["xml"]
     assert "+7 900 000 00 00" not in phone_xml["xml"]
     replaced_phone_xml = re.sub(
