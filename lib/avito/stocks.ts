@@ -19,6 +19,11 @@ export type AvitoStockItem = {
   isMultiple: boolean;
 };
 
+export type AvitoStockItemsResult = {
+  items: AvitoStockItem[];
+  warning?: string;
+};
+
 export type AvitoStockUpdate = {
   itemId: string;
   quantity: number;
@@ -31,6 +36,7 @@ type StockOptions = {
   sleepFn?: SleepFn;
   pageDelayMs?: number;
   stockDelayMs?: number;
+  stockDeadlineMs?: number;
 };
 
 type StockInfo = {
@@ -46,6 +52,11 @@ type StockUpdateResult = {
   success?: boolean;
   error?: string;
   message?: string;
+};
+
+type StockInfoResult = {
+  stocks: Map<string, StockInfo>;
+  warning?: string;
 };
 
 function getPrice(value: AvitoListItem["price"]): number {
@@ -128,7 +139,7 @@ export async function fetchAvitoStocksInfo(
   token: string,
   itemIds: string[],
   options: StockOptions = {},
-): Promise<Map<string, StockInfo>> {
+): Promise<StockInfoResult> {
   const result = new Map<string, StockInfo>();
   const chunkSize = 10;
   const chunks: string[][] = [];
@@ -138,7 +149,8 @@ export async function fetchAvitoStocksInfo(
   }
 
   const sleepFn = options.sleepFn ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
-  const stockDelayMs = options.stockDelayMs ?? 1_000;
+  const stockDelayMs = options.stockDelayMs ?? 250;
+  const deadlineAt = Date.now() + (options.stockDeadlineMs ?? 42_000);
 
   async function fetchChunk(chunk: string[]): Promise<{ hasStocks: boolean; stocks: StockInfo[] }> {
     const response = await fetchWithRetry(
@@ -153,7 +165,7 @@ export async function fetchAvitoStocksInfo(
         cache: "no-store",
         signal: AbortSignal.timeout(30_000),
       },
-      options,
+      { ...options, attempts: 2 },
     );
 
     const data = (await readJsonResponse(response)) as { stocks?: StockInfo[] };
@@ -165,47 +177,72 @@ export async function fetchAvitoStocksInfo(
   }
 
   const first = await fetchChunk(chunks[0]);
-  if (!first.hasStocks) return result;
+  if (!first.hasStocks) return { stocks: result };
 
   for (const stock of first.stocks) result.set(String(stock.item_id), stock);
 
   for (const chunk of chunks.slice(1)) {
+    if (Date.now() >= deadlineAt) {
+      return {
+        stocks: result,
+        warning: `Avito не успел отдать все остатки до таймаута. Загружено остатков: ${result.size} из ${itemIds.length}.`,
+      };
+    }
     if (stockDelayMs > 0) await sleepFn(stockDelayMs);
-    const data = await fetchChunk(chunk);
+    let data: { hasStocks: boolean; stocks: StockInfo[] };
+    try {
+      data = await fetchChunk(chunk);
+    } catch (error) {
+      return {
+        stocks: result,
+        warning: `Avito временно ограничил или прервал получение остатков. Загружено остатков: ${result.size} из ${itemIds.length}. ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
     for (const stock of data.stocks) result.set(String(stock.item_id), stock);
   }
 
-  return result;
+  return { stocks: result };
 }
 
-export async function fetchAvitoStockItems(
+export async function fetchAvitoStockItemsResult(
   credentials: AvitoCredentials,
   options: StockOptions = {},
-): Promise<AvitoStockItem[]> {
+): Promise<AvitoStockItemsResult> {
   const token = await getAvitoStockToken(credentials, options);
   const { items } = await fetchAllAvitoItems(token, {
     ...options,
     pageDelayMs: options.pageDelayMs ?? 150,
   });
   const ids = items.map((item) => String(item.id)).filter(Boolean);
-  const stocks = ids.length ? await fetchAvitoStocksInfo(token, ids, options) : new Map();
+  const stockResult = ids.length ? await fetchAvitoStocksInfo(token, ids, options) : { stocks: new Map<string, StockInfo>() };
+  const stocks = stockResult.stocks;
 
-  return items.map((item) => {
-    const itemId = String(item.id);
-    const stock = stocks.get(itemId);
-    return {
-      itemId,
-      title: item.title ?? item.name ?? `Avito ${itemId}`,
-      price: getPrice(item.price),
-      url: item.url ?? null,
-      status: item.status ?? null,
-      imageUrl: findFirstImageUrl(item),
-      quantity: typeof stock?.quantity === "number" ? stock.quantity : null,
-      isUnlimited: Boolean(stock?.is_unlimited),
-      isOutOfStock: Boolean(stock?.is_out_of_stock),
-      isMultiple: Boolean(stock?.is_multiple),
-    };
-  });
+  return {
+    warning: stockResult.warning,
+    items: items.map((item) => {
+      const itemId = String(item.id);
+      const stock = stocks.get(itemId);
+      return {
+        itemId,
+        title: item.title ?? item.name ?? `Avito ${itemId}`,
+        price: getPrice(item.price),
+        url: item.url ?? null,
+        status: item.status ?? null,
+        imageUrl: findFirstImageUrl(item),
+        quantity: typeof stock?.quantity === "number" ? stock.quantity : null,
+        isUnlimited: Boolean(stock?.is_unlimited),
+        isOutOfStock: Boolean(stock?.is_out_of_stock),
+        isMultiple: Boolean(stock?.is_multiple),
+      };
+    }),
+  };
+}
+
+export async function fetchAvitoStockItems(
+  credentials: AvitoCredentials,
+  options: StockOptions = {},
+): Promise<AvitoStockItem[]> {
+  return (await fetchAvitoStockItemsResult(credentials, options)).items;
 }
 
 export async function updateAvitoStocks(

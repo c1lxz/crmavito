@@ -106,7 +106,11 @@ export function StocksClient() {
           (data.items ?? []).map((item: StockItem) => [item.itemId, String(item.quantity ?? 0)]),
         ),
       );
-      toast({ title: "Объявления загружены", description: `Найдено: ${(data.items ?? []).length}` });
+      toast({
+        title: "Объявления загружены",
+        description: data.warning ?? `Найдено: ${(data.items ?? []).length}`,
+        variant: data.warning ? "destructive" : undefined,
+      });
     } catch (error) {
       toast({
         title: "Ошибка Avito",

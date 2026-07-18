@@ -28,6 +28,21 @@ interface Props {
   isAdmin: boolean;
 }
 
+async function readApiJson(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    const cleanText = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return {
+      error: cleanText
+        ? `Сервер вернул не JSON: ${cleanText.slice(0, 220)}`
+        : "Сервер вернул пустой некорректный ответ",
+    };
+  }
+}
+
 export function ProductsClient({ products: initial, isAdmin }: Props) {
   const router = useRouter();
   const [products, setProducts] = useState(initial);
@@ -46,7 +61,7 @@ export function ProductsClient({ products: initial, isAdmin }: Props) {
 
     try {
       const res = await fetch("/api/products/sync", { method: "POST" });
-      const data = await res.json();
+      const data = await readApiJson(res);
 
       if (!res.ok) {
         throw new Error(data.error ?? "Ошибка синхронизации");

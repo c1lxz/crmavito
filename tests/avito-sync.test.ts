@@ -46,6 +46,30 @@ describe("Avito synchronization transport", () => {
     expect(sleepFn).toHaveBeenCalledWith(2000);
   });
 
+  it("explains unauthorized_client token failures during product sync", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes("/token")) {
+        return Response.json({ error: "unauthorized_client" }, { status: 200 });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+    const prisma = {
+      product: {
+        findMany: vi.fn(),
+        upsert: vi.fn(),
+        updateMany: vi.fn(),
+      },
+    } as unknown as Parameters<typeof syncAvitoProducts>[0];
+
+    await expect(
+      syncAvitoProducts(
+        prisma,
+        { clientId: "client", clientSecret: "secret" },
+        { fetchFn, sleepFn: async () => undefined },
+      ),
+    ).rejects.toThrow("Avito не разрешил этим client_id/client_secret получать API-токен");
+  });
+
   it("continues after a short page and stops only on an empty page", async () => {
     const pages: Record<string, unknown> = {
       "1": { resources: [{ id: 1, title: "One", status: "active" }] },

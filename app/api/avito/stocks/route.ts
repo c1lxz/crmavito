@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { fetchAvitoStockItems } from "@/lib/avito/stocks";
+import { fetchAvitoStockItemsResult } from "@/lib/avito/stocks";
 import { getAvitoCredentials } from "@/lib/avito/profile-store";
 
 export const maxDuration = 300;
@@ -39,8 +39,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const items = await fetchAvitoStockItems(credentials);
-    return NextResponse.json({ items });
+    const result = await fetchAvitoStockItemsResult(credentials);
+    return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },

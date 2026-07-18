@@ -107,6 +107,44 @@ export async function fetchWithRetry(
   throw lastError instanceof Error ? lastError : new Error("Avito request failed");
 }
 
+function extractAvitoErrorText(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(extractAvitoErrorText).filter(Boolean).join("; ");
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return (
+      extractAvitoErrorText(record.message) ||
+      extractAvitoErrorText(record.error) ||
+      extractAvitoErrorText(record.errors) ||
+      JSON.stringify(value)
+    );
+  }
+  return String(value);
+}
+
+function formatAvitoAuthError(value: unknown): string {
+  const text = extractAvitoErrorText(value).slice(0, 300);
+  if (text.includes("unauthorized_client")) {
+    return [
+      "unauthorized_client.",
+      "Avito не разрешил этим client_id/client_secret получать API-токен.",
+      "Проверьте, что ключи взяты именно из нужного профиля Avito, на аккаунте подключен доступ к API/интеграциям и приложение допущено к client_credentials.",
+    ].join(" ");
+  }
+  return text || "Avito не вернул access_token";
+}
+
+async function readJsonResponse(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+}
+
 export async function fetchAllAvitoItems(
   token: string,
   options: {
@@ -231,14 +269,10 @@ export async function syncAvitoProducts(
     { fetchFn, sleepFn },
   );
 
-  if (!tokenResponse.ok) {
-    throw new Error(
-      `Авторизация Avito не прошла (${tokenResponse.status}): ${(await tokenResponse.text()).slice(0, 200)}`,
-    );
+  const tokenData = (await readJsonResponse(tokenResponse)) as { access_token?: string };
+  if (!tokenResponse.ok || !tokenData.access_token) {
+    throw new Error(`Авторизация Avito не прошла: ${formatAvitoAuthError(tokenData)}`);
   }
-
-  const tokenData = (await tokenResponse.json()) as { access_token?: string };
-  if (!tokenData.access_token) throw new Error("Avito не вернул access_token");
 
   const { items, statusCounts } = await fetchAllAvitoItems(tokenData.access_token, {
     fetchFn,
