@@ -241,7 +241,9 @@ export function StocksClient() {
         };
       }
 
-      lastError = new Error(`Avito pagination exceeded ${attempt.maxPages} pages`);
+      lastError = new Error(
+        `Avito не отдал конец списка объявлений за ${attempt.maxPages} страниц.`,
+      );
     }
 
     throw lastError instanceof Error ? lastError : new Error("Не удалось загрузить объявления Avito");
