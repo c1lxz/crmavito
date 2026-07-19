@@ -16,7 +16,7 @@ const PROFILE_CONTACT_PHONES: Array<{ match: RegExp; phone: string }> = [
   { match: /^KY(?:\s+|$)/i, phone: "+7 933 432-00-87" },
   { match: /^MU(?:\s+|$)/i, phone: "79082387103" },
   { match: /^LE(?:\s+|$)/i, phone: "79334205210" },
-  { match: /^GU(?:\s+|$)/i, phone: "79087693452" },
+  { match: /^GU(?:\s+|$)/i, phone: "79960199751" },
   { match: /^STROK(?:\s+|$)/i, phone: "79306840311" },
 ];
 

@@ -16,6 +16,6 @@ describe("Avito XML profile phones", () => {
     expect(avitoXmlPhoneForProfileName("KY STROK SHOP")).toBe("+79334320087");
     expect(avitoXmlPhoneForProfileName("MU STROK SHOP")).toBe("+79082387103");
     expect(avitoXmlPhoneForProfileName("LE STROK SHOP")).toBe("+79334205210");
-    expect(avitoXmlPhoneForProfileName("GU STROK SHOP")).toBe("+79087693452");
+    expect(avitoXmlPhoneForProfileName("GU STROK SHOP")).toBe("+79960199751");
   });
 });
