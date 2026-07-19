@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, FileUp, ImagePlus, Loader2, Play, RefreshCw, Store, UploadCloud } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileUp, ImagePlus, Loader2, Play, Store, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -136,10 +136,6 @@ export function WbResaleClient() {
   }
 
   async function saveAndPublish() {
-    if (agentStatus !== "online") {
-      await checkAgent();
-      return;
-    }
     if (!form.title.trim()) throw new Error("Укажите название.");
     if (photos.length < 3) throw new Error("Загрузите минимум 3 фото.");
     if (!sizes.length) throw new Error("Выберите хотя бы один размер.");
@@ -178,11 +174,6 @@ export function WbResaleClient() {
   }
 
   async function importXml(file: File) {
-    if (agentStatus !== "online") {
-      await checkAgent();
-      return;
-    }
-
     setImportingXml(true);
     try {
       const xml = await file.text();
@@ -232,13 +223,14 @@ export function WbResaleClient() {
               if (file) importXml(file).catch((error) => addError(error instanceof Error ? error.message : String(error)));
             }}
           />
-          <Button variant="outline" size="sm" disabled={agentStatus !== "online" || importingXml} onClick={() => xmlInputRef.current?.click()}>
+          <Button variant="outline" size="sm" disabled={importingXml} onClick={() => xmlInputRef.current?.click()}>
             {importingXml ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
             Импорт XML
           </Button>
-          <Button variant="outline" size="sm" onClick={checkAgent}>
-            <RefreshCw className="h-4 w-4" />
-            Проверить агент
+          <Button variant="outline" size="sm" asChild>
+            <a href="/downloads/install-wb-resale-agent.exe" download>
+              Скачать агент
+            </a>
           </Button>
         </div>
       </div>
@@ -359,7 +351,7 @@ export function WbResaleClient() {
                 <Input value={form.characteristics} onChange={(event) => setFormValue("characteristics", event.target.value)} placeholder="Цвет черный, плотность 180 г/м²" />
               </div>
 
-              <Button className="w-full" disabled={saving || agentStatus !== "online"} onClick={() => saveAndPublish().catch((error) => addError(error instanceof Error ? error.message : String(error)))}>
+              <Button className="w-full" disabled={saving} onClick={() => saveAndPublish().catch((error) => addError(error instanceof Error ? error.message : String(error)))}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                 Сохранить и опубликовать
               </Button>
@@ -462,7 +454,7 @@ function AgentBanner({ status, running }: { status: AgentStatus; running: boolea
         <div className="space-y-1">
           <p className="text-sm font-semibold">Локальный WB-агент не найден</p>
           <p className="text-sm text-muted-foreground">
-            Запустите на этом ПК файл <span className="font-semibold text-foreground">WB Resale CRM / Запустить CRM.bat</span>, затем нажмите “Проверить агент”.
+            Запустите на этом ПК файл <span className="font-semibold text-foreground">WB Resale CRM / Запустить CRM.bat</span>, затем обновите страницу.
             Без локального агента браузер WB нельзя открыть от имени сотрудника.
           </p>
           <div className="pt-2">
