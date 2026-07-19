@@ -38,7 +38,8 @@ type StopOptions = {
 
 export type AvitoXmlPublishResult = {
   feedUrl: string;
-  profileStatus: number;
+  profileStatus?: number;
+  profileWarning?: string;
   uploadStatus: number;
   upload: unknown;
 };
@@ -139,6 +140,18 @@ function buildStoppedProfilePayload(profile: AutoloadProfile | null, explicitEma
   };
 }
 
+function isAutoloadProfileUpdateUnavailable(status: number, data: unknown): boolean {
+  const errorText = extractAvitoErrorText(data);
+  return status === 403 && errorText.includes("Создание/обновление профиля недоступно");
+}
+
+function profileHasFeed(profile: AutoloadProfile | null, feedUrl: string): boolean {
+  return Boolean(
+    profile?.autoload_enabled &&
+      profile.feeds_data?.some((feed) => feed.feed_url?.trim() === feedUrl),
+  );
+}
+
 async function getAutoloadProfile(
   token: string,
   options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
@@ -170,7 +183,7 @@ async function upsertAutoloadProfile(
   profile: AutoloadProfile | null,
   feed: AutoloadFeed,
   options: PublishOptions,
-): Promise<number> {
+): Promise<{ status?: number; warning?: string }> {
   const response = await fetchAutoload(
     "https://api.avito.ru/autoload/v2/profile",
     {
@@ -187,9 +200,24 @@ async function upsertAutoloadProfile(
   );
   const data = await readJsonResponse(response);
   if (!response.ok) {
+    if (isAutoloadProfileUpdateUnavailable(response.status, data)) {
+      if (profileHasFeed(profile, feed.feed_url)) {
+        return {
+          warning: "Avito не разрешил обновить профиль автозагрузки через API, но нужный XML-фид уже указан в кабинете. Запускаю выгрузку по сохранённой ссылке.",
+        };
+      }
+      throw new Error(
+        [
+          "Настройка фида автозагрузки Avito не прошла: Avito не разрешил создать или обновить профиль через API.",
+          "Откройте Автозагрузку в кабинете Avito и добавьте эту ссылку на XML-фид:",
+          feed.feed_url,
+          "После сохранения ссылки снова нажмите публикацию в CRM.",
+        ].join(" "),
+      );
+    }
     throw new Error(`Настройка фида автозагрузки Avito не прошла: ${extractAvitoErrorText(data).slice(0, 500)}`);
   }
-  return response.status;
+  return { status: response.status };
 }
 
 async function startAutoloadUpload(
@@ -297,12 +325,13 @@ export async function publishAvitoXml(
     feed_url: feedUrl,
   };
   const profile = await getAutoloadProfile(token, options);
-  const profileStatus = await upsertAutoloadProfile(token, profile, feed, options);
+  const profileResult = await upsertAutoloadProfile(token, profile, feed, options);
   const upload = await startAutoloadUpload(token, options);
 
   return {
     feedUrl,
-    profileStatus,
+    profileStatus: profileResult.status,
+    profileWarning: profileResult.warning,
     uploadStatus: upload.status,
     upload: upload.data,
   };

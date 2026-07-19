@@ -46,6 +46,7 @@ type AvitoCredentialProfile = {
 type PublishResult = {
   feedUrl?: string;
   profileStatus?: number;
+  profileWarning?: string;
   uploadStatus?: number;
   adIds?: string[];
   legacyIds?: boolean;
@@ -890,6 +891,9 @@ export function BotvMiniApp() {
               <p className="mt-1 text-xs opacity-80">
                 Avito принял XML-фид в автозагрузку. Итог публикации появится в отчётах Автозагрузки Avito после обработки.
               </p>
+              {publishResult.profileWarning && (
+                <p className="mt-1 text-xs font-medium opacity-90">{publishResult.profileWarning}</p>
+              )}
               {publishResult.feedUrl && (
                 <a
                   href={publishResult.feedUrl}

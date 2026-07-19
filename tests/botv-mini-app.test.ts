@@ -121,6 +121,7 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("Публикация");
     expect(clientSource).toContain("publishXml");
     expect(clientSource).toContain("publishResult");
+    expect(clientSource).toContain("profileWarning");
     expect(clientSource).not.toContain("previousAds: Number(data.previousAds ?? 0)");
     expect(clientSource).toContain("Публикация Avito запущена");
     expect(clientSource).toContain("ID опубликованных объявлений");
