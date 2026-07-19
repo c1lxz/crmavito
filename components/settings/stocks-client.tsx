@@ -146,6 +146,11 @@ export function StocksClient() {
     return /abort|timeout/i.test(`${error.name} ${error.message}`);
   }
 
+  function isCredentialError(error: unknown) {
+    if (!(error instanceof Error)) return false;
+    return /unauthorized_client|client_id|client_secret|Авторизация Avito/i.test(error.message);
+  }
+
   async function loadListingPages(runId: number): Promise<{ items: StockItem[]; warning?: string }> {
     const attempts = [
       { perPage: 25, delayMs: 3_000, maxPages: 160 },
@@ -195,6 +200,9 @@ export function StocksClient() {
 
         if (!data || pageError) {
           lastError = pageError;
+          if (isCredentialError(pageError)) {
+            throw pageError;
+          }
           if (loadedItems.length > 0) {
             return {
               items: loadedItems,
