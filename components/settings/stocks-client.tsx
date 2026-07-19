@@ -132,6 +132,20 @@ export function StocksClient() {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  function timeoutSignal(ms: number) {
+    if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+      return AbortSignal.timeout(ms);
+    }
+    const controller = new AbortController();
+    window.setTimeout(() => controller.abort(), ms);
+    return controller.signal;
+  }
+
+  function isTimeoutError(error: unknown) {
+    if (!(error instanceof Error)) return false;
+    return /abort|timeout/i.test(`${error.name} ${error.message}`);
+  }
+
   async function loadListingPages(runId: number): Promise<{ items: StockItem[]; warning?: string }> {
     const attempts = [
       { perPage: 25, delayMs: 3_000, maxPages: 160 },
@@ -328,11 +342,20 @@ export function StocksClient() {
   }
 
   async function saveUpdates(updates: { itemId: string; quantity: number }[]) {
-    const response = await fetch("/api/avito/stocks/update", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...avitoAuthPayload(), updates }),
-    });
+    let response: Response;
+    try {
+      response = await fetch("/api/avito/stocks/update", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...avitoAuthPayload(), updates }),
+        signal: timeoutSignal(40_000),
+      });
+    } catch (error) {
+      if (isTimeoutError(error)) {
+        throw new Error("Avito слишком долго не отвечает на обновление остатков. Попробуйте ещё раз через пару минут.");
+      }
+      throw error;
+    }
     const data = await readApiJson(response);
     if (!response.ok) throw new Error(data.error ?? "Не удалось обновить остатки");
     const successful = new Set(

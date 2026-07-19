@@ -246,6 +246,33 @@ describe("Avito stock management", () => {
     );
   });
 
+  it("does not keep retrying stock updates for too long", async () => {
+    const stockStatuses = [429, 504, 200];
+    let stockCalls = 0;
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes("/token")) {
+        return Response.json({ access_token: "token", expires_in: 3600, token_type: "Bearer" });
+      }
+      if (String(url).includes("/stock-management/1/stocks")) {
+        stockCalls += 1;
+        const status = stockStatuses.shift() ?? 200;
+        if (status !== 200) return Response.json({ error: "busy" }, { status });
+        return Response.json({ stocks: [{ item_id: 101, success: true }] });
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      updateAvitoStocks(
+        credentials,
+        [{ itemId: "101", quantity: 5 }],
+        { fetchFn, sleepFn: async () => undefined, updateAttempts: 2 },
+      ),
+    ).rejects.toThrow("busy");
+
+    expect(stockCalls).toBe(2);
+  });
+
   it("loads items when Avito returns an empty stock info body", async () => {
     const fetchFn = vi.fn(async (url: string | URL | Request) => {
       const href = String(url);

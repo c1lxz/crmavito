@@ -44,6 +44,8 @@ type StockOptions = {
   listingAllowPartial?: boolean;
   listingRequestTimeoutMs?: number;
   listingMaxPages?: number;
+  updateAttempts?: number;
+  updateRequestTimeoutMs?: number;
 };
 
 export type StockInfo = {
@@ -286,6 +288,8 @@ export async function updateAvitoStocks(
 ): Promise<StockUpdateResult[]> {
   const token = await getAvitoStockToken(credentials, options);
   const chunkSize = 200;
+  const updateAttempts = options.updateAttempts ?? 2;
+  const updateRequestTimeoutMs = options.updateRequestTimeoutMs ?? 15_000;
   const result: StockUpdateResult[] = [];
 
   for (let i = 0; i < updates.length; i += chunkSize) {
@@ -305,9 +309,9 @@ export async function updateAvitoStocks(
           })),
         }),
         cache: "no-store",
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(updateRequestTimeoutMs),
       },
-      options,
+      { ...options, attempts: updateAttempts },
     );
 
     const data = (await readJsonResponse(response)) as { stocks?: StockUpdateResult[] };

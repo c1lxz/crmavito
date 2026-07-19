@@ -76,5 +76,7 @@ describe("Avito credential profiles", () => {
     expect(stocksUpdateRouteSource).toContain("profileId");
     expect(stocksUpdateRouteSource).toContain("clientId");
     expect(stocksUpdateRouteSource).toContain("clientSecret");
+    expect(stocksUpdateRouteSource).toContain("updateAttempts: 2");
+    expect(stocksUpdateRouteSource).toContain("updateRequestTimeoutMs: 15_000");
   });
 });

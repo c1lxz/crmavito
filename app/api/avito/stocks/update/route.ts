@@ -50,7 +50,10 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const result = await updateAvitoStocks(credentials, parsed.data.updates);
+    const result = await updateAvitoStocks(credentials, parsed.data.updates, {
+      updateAttempts: 2,
+      updateRequestTimeoutMs: 15_000,
+    });
     return NextResponse.json({ stocks: result });
   } catch (error) {
     return NextResponse.json(
