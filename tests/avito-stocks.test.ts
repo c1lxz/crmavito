@@ -50,6 +50,7 @@ describe("Avito stock management", () => {
     expect(stocksClientSource).toContain("const newItems = pageItems.filter");
     expect(stocksClientSource).toContain("if (newItems.length === 0)");
     expect(stocksClientSource).toContain("emptyPages >= 3");
+    expect(stocksClientSource).toContain("Avito не отдал конец списка объявлений");
     expect(stocksClientSource).toContain("const chunkSize = 10");
   });
 

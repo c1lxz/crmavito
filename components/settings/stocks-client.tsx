@@ -234,6 +234,13 @@ export function StocksClient() {
         if (page < attempt.maxPages) await wait(attempt.delayMs);
       }
 
+      if (loadedItems.length > 0) {
+        return {
+          items: loadedItems,
+          warning: `Avito не отдал конец списка объявлений. Загружено: ${loadedItems.length}; можно менять остатки по загруженным позициям.`,
+        };
+      }
+
       lastError = new Error(`Avito pagination exceeded ${attempt.maxPages} pages`);
     }
 
