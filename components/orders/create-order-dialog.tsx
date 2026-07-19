@@ -181,11 +181,19 @@ export function CreateOrderDialog({
         method: "POST",
       });
       const data = (await response.json()) as { imageUrl?: string | null; error?: string };
-      updateItem(index, {
-        productImageLoading: false,
-        imageUrls: data.imageUrl ? [data.imageUrl] : [],
-        productImageError: data.imageUrl ? null : data.error ?? "Фото не найдено",
-      });
+      setForm((current) => ({
+        ...current,
+        items: current.items.map((item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                productImageLoading: false,
+                ...(data.imageUrl ? { imageUrls: [data.imageUrl] } : {}),
+                productImageError: data.imageUrl ? null : data.error ?? "Фото не найдено",
+              }
+            : item,
+        ),
+      }));
     } catch (error) {
       updateItem(index, {
         productImageLoading: false,
@@ -205,7 +213,7 @@ export function CreateOrderDialog({
       productImageError: null,
       sourceReturnId: null,
     });
-    void fetchProductImage(index, productId);
+    if (!product.imageUrl) void fetchProductImage(index, productId);
   }
 
   async function uploadPhotos(index: number, files: FileList | null) {

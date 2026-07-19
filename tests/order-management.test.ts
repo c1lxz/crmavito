@@ -118,6 +118,12 @@ describe("order management UI/API", () => {
     expect(formSource).toContain('multiple');
     expect(formSource).toContain("/api/uploads");
   });
+
+  it("keeps a saved product photo when Avito re-import cannot fetch it", () => {
+    expect(formSource).toContain("...(data.imageUrl ? { imageUrls: [data.imageUrl] } : {})");
+    expect(formSource).toContain("if (!product.imageUrl) void fetchProductImage(index, productId)");
+  });
+
   it("supports assigning an Avito profile to an order", () => {
     expect(formSource).toContain("avitoProfileId");
     expect(formSource).toContain("Профиль Avito");
