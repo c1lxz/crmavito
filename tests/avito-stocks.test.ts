@@ -47,6 +47,8 @@ describe("Avito stock management", () => {
     expect(stocksClientSource).toContain("loadListingPages");
     expect(stocksClientSource).toContain("listingProgress");
     expect(stocksClientSource).toContain("timeoutSignal(35_000)");
+    expect(stocksClientSource).toContain("const newItems = pageItems.filter");
+    expect(stocksClientSource).toContain("if (newItems.length === 0)");
     expect(stocksClientSource).toContain("emptyPages >= 3");
     expect(stocksClientSource).toContain("const chunkSize = 10");
   });

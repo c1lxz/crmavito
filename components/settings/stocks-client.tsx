@@ -205,7 +205,8 @@ export function StocksClient() {
         }
 
         const pageItems = Array.isArray(data.items) ? data.items : [];
-        if (pageItems.length === 0) {
+        const newItems = pageItems.filter((item) => !seen.has(item.itemId));
+        if (newItems.length === 0) {
           emptyPages += 1;
           if (emptyPages >= 3) {
             return {
@@ -221,11 +222,9 @@ export function StocksClient() {
         }
 
         emptyPages = 0;
-        for (const item of pageItems) {
-          if (!seen.has(item.itemId)) {
-            seen.add(item.itemId);
-            loadedItems.push(item);
-          }
+        for (const item of newItems) {
+          seen.add(item.itemId);
+          loadedItems.push(item);
         }
 
         setItems([...loadedItems]);
