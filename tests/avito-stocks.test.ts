@@ -40,11 +40,35 @@ describe("Avito stock management", () => {
     expect(stocksPageRouteSource).toContain("fetchAvitoItemsPage");
     expect(stocksPageRouteSource).toContain("avitoListItemToStockItem");
     expect(stocksPageRouteSource).toContain("maxDuration = 60");
+    expect(stocksPageRouteSource).toContain("attempts: 1");
+    expect(stocksPageRouteSource).toContain("requestAttempts: 1");
+    expect(stocksPageRouteSource).toContain("requestTimeoutMs: 20_000");
     expect(stocksClientSource).toContain("/api/avito/stocks/page");
     expect(stocksClientSource).toContain("loadListingPages");
     expect(stocksClientSource).toContain("listingProgress");
+    expect(stocksClientSource).toContain("timeoutSignal(35_000)");
     expect(stocksClientSource).toContain("emptyPages >= 3");
     expect(stocksClientSource).toContain("const chunkSize = 10");
+  });
+
+  it("can skip listing page retries for the stock list UI", async () => {
+    let calls = 0;
+    const fetchFn = vi.fn(async () => {
+      calls += 1;
+      return Response.json({ error: "busy" }, { status: 504 });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchAvitoItemsPage("token", {
+        fetchFn,
+        sleepFn: async () => undefined,
+        page: 1,
+        perPage: 25,
+        requestAttempts: 1,
+      }),
+    ).rejects.toThrow("504");
+
+    expect(calls).toBe(1);
   });
 
   it("loads items and merges stock quantities by item id", async () => {

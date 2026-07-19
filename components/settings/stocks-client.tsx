@@ -167,15 +167,17 @@ export function StocksClient() {
 
       for (let page = 1; page <= attempt.maxPages; page++) {
         if (stockLoadRun.current !== runId) return { items: loadedItems };
+        setListingProgress({ loaded: loadedItems.length, page, perPage: attempt.perPage });
 
         let data: { items?: StockItem[]; error?: string } | null = null;
         let pageError: unknown;
-        for (let pageAttempt = 0; pageAttempt < 3; pageAttempt++) {
+        for (let pageAttempt = 0; pageAttempt < 2; pageAttempt++) {
           try {
             const response = await fetch("/api/avito/stocks/page", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ...avitoAuthPayload(), page, perPage: attempt.perPage }),
+              signal: timeoutSignal(35_000),
             });
             const parsedData = await readApiJson(response);
             if (!response.ok) throw new Error(parsedData.error ?? "Не удалось загрузить страницу объявлений");
@@ -183,9 +185,11 @@ export function StocksClient() {
             pageError = undefined;
             break;
           } catch (error) {
-            pageError = error;
+            pageError = isTimeoutError(error)
+              ? new Error("Avito слишком долго не отвечает на загрузку объявлений.")
+              : error;
             if (stockLoadRun.current !== runId) return { items: loadedItems };
-            if (pageAttempt < 2) await wait(20_000 * (pageAttempt + 1));
+            if (pageAttempt < 1) await wait(5_000);
           }
         }
 

@@ -32,6 +32,7 @@ export type AvitoStockUpdate = {
 type FetchFn = typeof fetch;
 type SleepFn = (ms: number) => Promise<void>;
 type StockOptions = {
+  attempts?: number;
   fetchFn?: FetchFn;
   sleepFn?: SleepFn;
   listingPerPage?: number;

@@ -115,6 +115,7 @@ export async function fetchAvitoItemsPage(
     page: number;
     perPage?: number;
     status?: string;
+    requestAttempts?: number;
     requestTimeoutMs?: number;
   },
 ): Promise<{ items: AvitoListItem[]; page: number; perPage: number }> {
@@ -122,6 +123,7 @@ export async function fetchAvitoItemsPage(
   const sleepFn = options.sleepFn ?? defaultSleep;
   const page = Math.max(1, Math.floor(options.page));
   const perPage = Math.max(1, Math.floor(options.perPage ?? 25));
+  const requestAttempts = options.requestAttempts ?? 5;
   const requestTimeoutMs = options.requestTimeoutMs ?? 45_000;
   const url = new URL("https://api.avito.ru/core/v1/items");
   url.searchParams.set("per_page", String(perPage));
@@ -135,7 +137,7 @@ export async function fetchAvitoItemsPage(
       cache: "no-store",
       signal: AbortSignal.timeout(requestTimeoutMs),
     },
-    { fetchFn, sleepFn },
+    { attempts: requestAttempts, fetchFn, sleepFn },
   );
 
   if (!response.ok) {

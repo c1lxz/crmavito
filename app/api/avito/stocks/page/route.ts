@@ -44,12 +44,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const token = await getAvitoStockToken(credentials);
+    const token = await getAvitoStockToken(credentials, { attempts: 1 });
     const result = await fetchAvitoItemsPage(token, {
       page: parsed.data.page,
       perPage: parsed.data.perPage,
       status: "active",
-      requestTimeoutMs: 45_000,
+      requestAttempts: 1,
+      requestTimeoutMs: 20_000,
     });
 
     return NextResponse.json({
