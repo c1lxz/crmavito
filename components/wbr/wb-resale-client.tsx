@@ -13,7 +13,7 @@ const AGENT_URL = "http://127.0.0.1:3017";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
 
-type AgentStatus = "checking" | "online" | "offline";
+type AgentStatus = "online" | "offline";
 
 interface Listing {
   sku: string;
@@ -54,7 +54,7 @@ const statusLabels: Record<string, string> = {
 export function WbResaleClient() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const xmlInputRef = useRef<HTMLInputElement>(null);
-  const [agentStatus, setAgentStatus] = useState<AgentStatus>("checking");
+  const [agentStatus, setAgentStatus] = useState<AgentStatus>("offline");
   const [rpaRunning, setRpaRunning] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
   const [events, setEvents] = useState<RpaEvent[]>([]);
@@ -78,7 +78,6 @@ export function WbResaleClient() {
   );
 
   const checkAgent = useCallback(async () => {
-    setAgentStatus("checking");
     try {
       const state = await agentFetch<{ running: boolean; events?: RpaEvent[] }>("/api/rpa/status");
       setAgentStatus("online");
@@ -431,17 +430,6 @@ function AgentBanner({ status, running }: { status: AgentStatus; running: boolea
             <p className="text-sm font-semibold">Локальный WB-агент подключён{running ? ", публикация идёт" : ""}</p>
             <p className="text-sm text-muted-foreground">Публикация выполняется на этом компьютере и использует его браузерный профиль Wildberries.</p>
           </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (status === "checking") {
-    return (
-      <Card>
-        <CardContent className="flex items-center gap-3 p-4 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Проверяю локальный WB-агент...
         </CardContent>
       </Card>
     );
