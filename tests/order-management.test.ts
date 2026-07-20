@@ -124,6 +124,19 @@ describe("order management UI/API", () => {
     expect(formSource).toContain("if (!product.imageUrl) void fetchProductImage(index, productId)");
   });
 
+  it("uses the selected Avito profile for product photo import", () => {
+    const fetchImageRouteSource = readFileSync(
+      path.resolve(__dirname, "../app/api/products/[id]/fetch-image/route.ts"),
+      "utf8"
+    );
+    expect(formSource).toContain("JSON.stringify({ avitoProfileId: avitoProfileId || null })");
+    expect(formSource).toContain("function handleAvitoProfileChange");
+    expect(formSource).toContain("void fetchProductImage(index, item.productId, nextProfileId)");
+    expect(fetchImageRouteSource).toContain("getAvitoCredentials({ profileId: avitoProfileId })");
+    expect(fetchImageRouteSource).toContain("fetchAvitoItemImageWithToken");
+    expect(fetchImageRouteSource).toContain("formatProductImageImportError(result.reason)");
+  });
+
   it("supports assigning an Avito profile to an order", () => {
     expect(formSource).toContain("avitoProfileId");
     expect(formSource).toContain("Профиль Avito");

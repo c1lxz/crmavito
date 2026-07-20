@@ -94,6 +94,7 @@ describe("Avito public market probe", () => {
   });
 
   it("checks listing pages and summarizes visible views", async () => {
+    const publishedAt = new Date().toISOString().slice(0, 10);
     const fetchFn = async (url: string | URL) => {
       const textUrl = String(url);
       if (textUrl.includes("rossiya")) {
@@ -105,12 +106,12 @@ describe("Avito public market probe", () => {
       }
       if (textUrl.includes("1234567890")) {
         return new Response(
-          `<title>Белая футболка</title><time datetime="2026-07-15"></time><span>1 248 просмотров</span>`,
+          `<title>Белая футболка</title><time datetime="${publishedAt}"></time><span>1 248 просмотров</span>`,
           { status: 200, headers: { "content-type": "text/html" } },
         );
       }
       return new Response(
-        `<title>Чёрная футболка</title><meta property="article:published_time" content="2026-07-15"><span>51 просмотр</span>`,
+        `<title>Чёрная футболка</title><meta property="article:published_time" content="${publishedAt}"><span>51 просмотр</span>`,
         { status: 200, headers: { "content-type": "text/html" } },
       );
     };

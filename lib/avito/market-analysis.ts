@@ -389,7 +389,9 @@ function getMarketProxyUrl(): string | null {
 
 function extractViews(html: string): number | null {
   const text = stripTags(html).replace(/\s+/g, " ");
-  const match = text.match(/(\d[\d\s\u00a0]{0,12})\s+(?:\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440(?:\u043e\u0432|\u0430)?|views?)/i);
+  const match = text.match(
+    /(\d[\d\s\u00a0]{0,12})\s+(?:\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440(?:\u043e\u0432|\u0430)?|РїСЂРѕСЃРјРѕС‚СЂ(?:РѕРІ|Р°)?|views?)/i,
+  );
   if (!match) return null;
   const value = Number(match[1].replace(/[^\d]/g, ""));
   return Number.isFinite(value) ? value : null;

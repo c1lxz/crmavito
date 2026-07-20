@@ -5,7 +5,11 @@ import {
   findFirstImageUrl,
   isLikelyImageUrl,
 } from "@/lib/avito/api";
-import { pickAvitoImage, resolveProductImage } from "@/lib/avito/fetch-image";
+import {
+  formatProductImageImportError,
+  pickAvitoImage,
+  resolveProductImage,
+} from "@/lib/avito/fetch-image";
 
 // Простой мок fetch с очередью ответов
 function mockFetchSequence(responses: Array<{ status: number; body: unknown }>) {
@@ -61,6 +65,16 @@ describe("isLikelyImageUrl", () => {
     expect(isLikelyImageUrl("not a url")).toBe(false);
     expect(isLikelyImageUrl("ftp://x.com/a.jpg")).toBe(false);
     expect(isLikelyImageUrl("https://example.com/page.html")).toBe(false);
+  });
+});
+
+describe("formatProductImageImportError", () => {
+  it("hides technical HTML abort details from order forms", () => {
+    expect(
+      formatProductImageImportError(
+        "HTML: HTML scrape error: fetch failed: Request was cancelled. | API: no photo | BOTV: no photo",
+      ),
+    ).toBe("Фото не найдено. Добавьте фото вручную или повторите импорт позже.");
   });
 });
 

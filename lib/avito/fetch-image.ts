@@ -179,6 +179,28 @@ export interface ProductImageSource {
   avitoListingUrl?: string | null;
 }
 
+export const PRODUCT_IMAGE_IMPORT_FALLBACK_MESSAGE =
+  "Фото не найдено. Добавьте фото вручную или повторите импорт позже.";
+
+export function formatProductImageImportError(reason?: string | null): string {
+  const cleanReason = reason?.trim();
+  if (!cleanReason) return PRODUCT_IMAGE_IMPORT_FALLBACK_MESSAGE;
+
+  if (/не связан|not linked|нет avitoItemId|нет avitoListingUrl/i.test(cleanReason)) {
+    return "Товар не связан с объявлением Avito.";
+  }
+
+  if (
+    /HTML scrape|fetch failed|Request was cancelled|aborted|abort|timeout|captcha|нет фото|no photo|no image|BOTV/i.test(
+      cleanReason,
+    )
+  ) {
+    return PRODUCT_IMAGE_IMPORT_FALLBACK_MESSAGE;
+  }
+
+  return cleanReason.length > 160 ? `${cleanReason.slice(0, 157)}...` : cleanReason;
+}
+
 export async function resolveProductImage(p: ProductImageSource): Promise<AvitoResult<string>> {
   const reasons: string[] = [];
 

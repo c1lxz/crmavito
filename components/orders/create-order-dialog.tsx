@@ -174,11 +174,13 @@ export function CreateOrderDialog({
     }));
   }
 
-  async function fetchProductImage(index: number, productId: string) {
+  async function fetchProductImage(index: number, productId: string, avitoProfileId = form.avitoProfileId) {
     updateItem(index, { productImageLoading: true, productImageError: null });
     try {
       const response = await fetch(`/api/products/${productId}/fetch-image`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avitoProfileId: avitoProfileId || null }),
       });
       const data = (await response.json()) as { imageUrl?: string | null; error?: string };
       setForm((current) => ({
@@ -214,6 +216,20 @@ export function CreateOrderDialog({
       sourceReturnId: null,
     });
     if (!product.imageUrl) void fetchProductImage(index, productId);
+  }
+
+  function handleAvitoProfileChange(value: string) {
+    const nextProfileId = value === "NONE" ? "" : value;
+    setForm((current) => ({
+      ...current,
+      avitoProfileId: nextProfileId,
+    }));
+    if (!nextProfileId) return;
+    form.items.forEach((item, index) => {
+      if (item.productId && item.imageUrls.length === 0) {
+        void fetchProductImage(index, item.productId, nextProfileId);
+      }
+    });
   }
 
   async function uploadPhotos(index: number, files: FileList | null) {
@@ -604,12 +620,7 @@ export function CreateOrderDialog({
                 <Label>Профиль Avito</Label>
                 <Select
                   value={form.avitoProfileId || "NONE"}
-                  onValueChange={(value) =>
-                    setForm((current) => ({
-                      ...current,
-                      avitoProfileId: value === "NONE" ? "" : value,
-                    }))
-                  }
+                  onValueChange={handleAvitoProfileChange}
                 >
                   <SelectTrigger><SelectValue placeholder="Выберите профиль" /></SelectTrigger>
                   <SelectContent>
