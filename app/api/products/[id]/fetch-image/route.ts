@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { fetchAvitoItemImageWithToken } from "@/lib/avito/api";
 import {
   downloadImageAsBuffer,
   formatProductImageImportError,
@@ -50,18 +49,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     });
   }
 
+  let avitoToken: string | null = null;
   if (avitoProfileId && product.avitoItemId) {
     try {
       const credentials = await getAvitoCredentials({ profileId: avitoProfileId });
-      const token = await getAvitoStockToken(credentials, { attempts: 2 });
-      const apiImage = await fetchAvitoItemImageWithToken(product.avitoItemId, token);
-      if (apiImage.ok) {
-        await prisma.product.update({ where: { id }, data: { imageUrl: apiImage.value } });
-        return NextResponse.json({ imageUrl: apiImage.value });
-      }
+      avitoToken = await getAvitoStockToken(credentials, { attempts: 2 });
     } catch (error) {
       console.warn(
-        `[avito] profile image fetch failed for ${id}: ${error instanceof Error ? error.message : String(error)}`,
+        `[avito] profile token fetch failed for ${id}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -70,14 +65,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     name: product.name,
     avitoItemId: product.avitoItemId,
     avitoListingUrl: product.avitoListingUrl,
-  });
+  }, { avitoToken });
   for (let attempt = 1; !result.ok && shouldRetryResolve(result.reason) && attempt < 3; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, attempt * 350));
     result = await resolveProductImage({
       name: product.name,
       avitoItemId: product.avitoItemId,
       avitoListingUrl: product.avitoListingUrl,
-    });
+    }, { avitoToken });
   }
 
   if (result.ok) {

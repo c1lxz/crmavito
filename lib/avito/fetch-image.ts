@@ -2,7 +2,7 @@ import { findBotvImageByTitle } from "@/lib/botv/avito-image-cache";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ProxyAgent } from "undici";
-import { fetchAvitoItemImage, isLikelyImageUrl, type AvitoResult } from "./api";
+import { fetchAvitoItemImage, fetchAvitoItemImageWithToken, isLikelyImageUrl, type AvitoResult } from "./api";
 
 type ProxyFetchInit = RequestInit & { dispatcher?: ProxyAgent };
 
@@ -201,7 +201,10 @@ export function formatProductImageImportError(reason?: string | null): string {
   return cleanReason.length > 160 ? `${cleanReason.slice(0, 157)}...` : cleanReason;
 }
 
-export async function resolveProductImage(p: ProductImageSource): Promise<AvitoResult<string>> {
+export async function resolveProductImage(
+  p: ProductImageSource,
+  options: { avitoToken?: string | null } = {},
+): Promise<AvitoResult<string>> {
   const reasons: string[] = [];
 
   if (p.avitoListingUrl) {
@@ -213,7 +216,9 @@ export async function resolveProductImage(p: ProductImageSource): Promise<AvitoR
   }
 
   if (p.avitoItemId) {
-    const fromApi = await fetchAvitoItemImage(p.avitoItemId);
+    const fromApi = options.avitoToken
+      ? await fetchAvitoItemImageWithToken(p.avitoItemId, options.avitoToken)
+      : await fetchAvitoItemImage(p.avitoItemId);
     if (fromApi.ok) return fromApi;
     reasons.push(`API: ${fromApi.reason}`);
   } else {

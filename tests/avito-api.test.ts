@@ -59,11 +59,15 @@ describe("resolveProductImage (smoke)", () => {
   it("tries HTML scrape before API fallback", () => {
     expect(fetcherSource).toContain("fetchAvitoListingImage");
     expect(fetcherSource).toContain("fetchAvitoItemImage");
+    expect(fetcherSource).toContain("fetchAvitoItemImageWithToken");
     const htmlIdx = fetcherSource.indexOf("fetchAvitoListingImage(p.avitoListingUrl)");
     const apiIdx = fetcherSource.indexOf("fetchAvitoItemImage(p.avitoItemId)");
+    const tokenApiIdx = fetcherSource.indexOf("fetchAvitoItemImageWithToken(p.avitoItemId");
     expect(apiIdx).toBeGreaterThan(-1);
+    expect(tokenApiIdx).toBeGreaterThan(-1);
     expect(htmlIdx).toBeGreaterThan(-1);
     expect(apiIdx).toBeGreaterThan(htmlIdx);
+    expect(tokenApiIdx).toBeGreaterThan(htmlIdx);
   });
 
   it("exports downloadImageAsBuffer for reuse", () => {

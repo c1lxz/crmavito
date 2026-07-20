@@ -133,7 +133,8 @@ describe("order management UI/API", () => {
     expect(formSource).toContain("function handleAvitoProfileChange");
     expect(formSource).toContain("void fetchProductImage(index, item.productId, nextProfileId)");
     expect(fetchImageRouteSource).toContain("getAvitoCredentials({ profileId: avitoProfileId })");
-    expect(fetchImageRouteSource).toContain("fetchAvitoItemImageWithToken");
+    expect(fetchImageRouteSource).toContain("avitoToken = await getAvitoStockToken");
+    expect(fetchImageRouteSource).toContain("}, { avitoToken })");
     expect(fetchImageRouteSource).toContain("formatProductImageImportError(result.reason)");
   });
 
