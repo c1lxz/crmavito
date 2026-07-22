@@ -84,4 +84,13 @@ describe("AI providers", () => {
     );
     expect(image).toMatchObject({ data: "aW1hZ2U=", mimeType: "image/png" });
   });
+
+  it("keeps a plain-text Claude gateway error in the user-facing message", async () => {
+    const fetchFn = vi.fn(async () => new Response("error code: 1101", { status: 500 })) as unknown as typeof fetch;
+    await expect(createClaudeAdsReport(analytics, {
+      fetchFn,
+      apiKey: "secret",
+      baseUrl: "https://claude.example",
+    })).rejects.toThrow("error code: 1101");
+  });
 });

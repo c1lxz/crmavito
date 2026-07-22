@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, BarChart3, CheckCircle2, ExternalLink, FileJson, Globe2, Heart, History, Loader2, MessageCircle, MousePointerClick, Search, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BarChart3, CheckCircle2, ExternalLink, FileJson, Globe2, Heart, KeyRound, Loader2, MessageCircle, MousePointerClick, Search, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/lib/hooks/use-toast";
 import { AiAnalysisReport } from "@/components/settings/ai-analysis-report";
 
@@ -105,7 +106,7 @@ export function MarketAnalysisClient() {
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [manualClientId, setManualClientId] = useState("");
   const [manualClientSecret, setManualClientSecret] = useState("");
-  const [profilesOpen, setProfilesOpen] = useState(true);
+  const [manualCredentialsOpen, setManualCredentialsOpen] = useState(false);
   const [ownPeriodDays, setOwnPeriodDays] = useState(3);
   const [ownLoading, setOwnLoading] = useState(false);
   const [ownResult, setOwnResult] = useState<OwnAnalyticsResult | null>(null);
@@ -238,54 +239,71 @@ export function MarketAnalysisClient() {
                   onChange={(event) => setOwnPeriodDays(Number(event.target.value))}
                 />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-muted-foreground">Профиль</p>
-                <p className="truncate text-sm font-semibold">{selectedProfile?.name ?? "Выберите профиль Avito"}</p>
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="own-avito-profile">Профиль Avito</Label>
+                <Select
+                  value={selectedProfileId}
+                  onValueChange={(value) => {
+                    setSelectedProfileId(value);
+                    setManualClientId("");
+                    setManualClientSecret("");
+                  }}
+                >
+                  <SelectTrigger id="own-avito-profile" disabled={credentialProfiles.length === 0}>
+                    <SelectValue placeholder={credentialProfiles.length ? "Выберите профиль" : "Нет сохранённых профилей"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {credentialProfiles.map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id}>
+                        {profile.name}{profile.accountId ? ` · ${profile.accountId}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="grid min-w-[280px] flex-1 gap-2 sm:grid-cols-2">
-                <Input
-                  placeholder="client_id вручную"
-                  value={manualClientId}
-                  onChange={(event) => setManualClientId(event.target.value)}
-                  autoComplete="off"
-                />
-                <Input
-                  placeholder="client_secret вручную"
-                  type="password"
-                  value={manualClientSecret}
-                  onChange={(event) => setManualClientSecret(event.target.value)}
-                  autoComplete="new-password"
-                />
-              </div>
-              {credentialProfiles.length > 0 && (
-                <Button size="sm" variant="outline" onClick={() => setProfilesOpen((value) => !value)}>
-                  <History className="mr-1 h-4 w-4" />
-                  Профили
-                </Button>
-              )}
-              <Button size="sm" onClick={loadOwnAnalytics} disabled={!canSubmitOwn}>
-                {ownLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <BarChart3 className="mr-1 h-4 w-4" />}
-                Загрузить
+              <Button
+                type="button"
+                variant={manualCredentialsOpen ? "secondary" : "outline"}
+                onClick={() => setManualCredentialsOpen((value) => !value)}
+                className="h-10"
+              >
+                <KeyRound className="h-4 w-4" />
+                Ручные ключи
+              </Button>
+              <Button className="h-10" onClick={loadOwnAnalytics} disabled={!canSubmitOwn}>
+                {ownLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BarChart3 className="h-4 w-4" />}
+                Загрузить аналитику
               </Button>
             </div>
 
-            {profilesOpen && credentialProfiles.length > 0 && (
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {credentialProfiles.map((profile) => (
-                  <button
-                    key={profile.id}
-                    type="button"
-                    onClick={() => setSelectedProfileId(profile.id)}
-                    className={`rounded-md border p-3 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${
-                      selectedProfileId === profile.id ? "border-primary/40 bg-accent" : "border-border"
-                    }`}
-                  >
-                    <p className="truncate text-sm font-semibold">{profile.name}</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {profile.accountId || profile.reportEmail || "Saved credentials"}
-                    </p>
-                  </button>
-                ))}
+            {manualCredentialsOpen && (
+              <div className="market-analysis-manual-credentials rounded-md border bg-secondary/35 p-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="manual-avito-client-id">client_id</Label>
+                    <Input
+                      id="manual-avito-client-id"
+                      placeholder="Введите client_id"
+                      value={manualClientId}
+                      onChange={(event) => setManualClientId(event.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="manual-avito-client-secret">client_secret</Label>
+                    <Input
+                      id="manual-avito-client-secret"
+                      placeholder="Введите client_secret"
+                      type="password"
+                      value={manualClientSecret}
+                      onChange={(event) => setManualClientSecret(event.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Ручные ключи временно заменяют выбранный профиль и не сохраняются в браузере.
+                </p>
               </div>
             )}
           </TabsContent>

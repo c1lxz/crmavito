@@ -4,7 +4,8 @@ type FetchFn = typeof fetch;
 
 type AnthropicResponse = {
   content?: Array<{ type?: string; text?: string }>;
-  error?: { message?: string };
+  message?: string;
+  error?: { message?: string } | string;
 };
 
 export function getClaudeStatus() {
@@ -39,33 +40,54 @@ export async function createClaudeAdsReport(
   const status = getClaudeStatus();
   const baseUrl = (options.baseUrl?.trim() || status.baseUrl).replace(/\/$/, "");
   const model = options.model?.trim() || status.model;
-  const response = await (options.fetchFn ?? fetch)(`${baseUrl}/v1/messages`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 6000,
-      temperature: 0.2,
-      messages: [{ role: "user", content: buildAdsAnalysisPrompt(input) }],
-    }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(90_000),
-  });
+  let response: Response;
+  try {
+    response = await (options.fetchFn ?? fetch)(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 6000,
+        temperature: 0.2,
+        messages: [{ role: "user", content: buildAdsAnalysisPrompt(input) }],
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+      throw new Error("Claude не ответил за 60 секунд. Шлюз провайдера временно перегружен.");
+    }
+    throw error;
+  }
 
-  const data = await response.json().catch(() => ({})) as AnthropicResponse;
+  const rawBody = await response.text();
+  let data: AnthropicResponse = {};
+  try {
+    data = rawBody ? JSON.parse(rawBody) as AnthropicResponse : {};
+  } catch {
+    data = {};
+  }
   if (!response.ok) {
-    const detail = data.error?.message?.trim();
+    const detail = (typeof data.error === "string" ? data.error : data.error?.message)?.trim()
+      || data.message?.trim()
+      || rawBody.trim().slice(0, 300);
     const endpointHint = response.status === 404
       ? " Провайдер не поддерживает Anthropic endpoint /v1/messages для этого ключа."
-      : "";
+      : response.status === 403
+        ? " Провайдер отклонил запрос: проверьте баланс и доступ ключа к Claude."
+        : response.status >= 500
+          ? " Шлюз Claude временно недоступен."
+          : "";
     throw new Error(`Claude API: HTTP ${response.status}.${detail ? ` ${detail}` : ""}${endpointHint}`);
   }
 
-  const text = data.content?.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
+  const parsedBody = data;
+  const text = parsedBody.content?.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
   if (!text) throw new Error("Claude вернул пустой отчёт.");
 
   const parsed = adsAnalysisReportSchema.safeParse(parseJsonObject(text));

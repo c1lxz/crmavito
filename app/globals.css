@@ -336,8 +336,13 @@
 
   .pc-shell .market-analysis-controls {
     display: grid;
-    grid-template-columns: 8rem minmax(10rem, 0.65fr) minmax(26rem, 1.35fr) auto auto;
+    grid-template-columns: 8rem minmax(18rem, 1fr) auto auto;
     align-items: end;
+    max-width: 72rem;
+  }
+
+  .pc-shell .market-analysis-manual-credentials {
+    max-width: 52rem;
   }
 
   .pc-shell .pc-analytics-workspace {
