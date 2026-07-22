@@ -336,7 +336,7 @@
 
   .pc-shell .market-analysis-controls {
     display: grid;
-    grid-template-columns: 8rem minmax(18rem, 1fr) auto auto;
+    grid-template-columns: 9rem minmax(18rem, 1fr) auto auto;
     align-items: end;
     max-width: 72rem;
   }

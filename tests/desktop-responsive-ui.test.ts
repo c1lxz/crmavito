@@ -107,6 +107,9 @@ describe("desktop responsive UI", () => {
     expect(reportsSource).toContain("pc-reports-kpi");
     expect(reportsSource).toContain("pc-donut-grid");
     expect(marketAnalysisSource).toContain("market-analysis-controls");
+    expect(marketAnalysisSource).toContain('className="w-full min-w-0 space-y-1 sm:w-auto"');
+    expect(marketAnalysisSource).toContain('inputMode="numeric"');
+    expect(globalsSource).toContain("grid-template-columns: 9rem minmax(18rem, 1fr) auto auto");
     expect(marketAnalysisSource).toContain("analytics-overview");
     expect(marketAnalysisSource).toContain("analytics-ranking-table");
     expect(marketAnalysisSource).toContain("pc-only hidden overflow-x-auto");

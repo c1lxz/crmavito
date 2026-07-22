@@ -232,15 +232,18 @@ export function MarketAnalysisClient() {
 
           <TabsContent value="own" className="space-y-3">
             <div className="market-analysis-controls flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="w-full space-y-1 sm:w-40">
+              <div className="w-full min-w-0 space-y-1 sm:w-auto">
                 <Label htmlFor="own-avito-period">Период, дней</Label>
                 <Input
                   id="own-avito-period"
-                  type="number"
-                  min={1}
-                  max={270}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={3}
                   value={ownPeriodDays}
-                  onChange={(event) => setOwnPeriodDays(Number(event.target.value))}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => setOwnPeriodDays(Number(event.target.value.replace(/\D/g, "")))}
+                  className="tabular-nums"
                 />
               </div>
               <div className="min-w-0 space-y-1">
@@ -318,11 +321,14 @@ export function MarketAnalysisClient() {
                 <Label htmlFor="avito-period">Период, дней</Label>
                 <Input
                   id="avito-period"
-                  type="number"
-                  min={1}
-                  max={30}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={2}
                   value={marketPeriodDays}
-                  onChange={(event) => setMarketPeriodDays(Number(event.target.value))}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => setMarketPeriodDays(Number(event.target.value.replace(/\D/g, "")))}
+                  className="tabular-nums"
                 />
               </div>
               <div className="space-y-1">
