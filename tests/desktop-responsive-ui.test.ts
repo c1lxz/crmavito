@@ -47,7 +47,7 @@ describe("desktop responsive UI", () => {
   it("splits explicit /pc and /m modes instead of relying on viewport width", () => {
     expect(middlewareSource).toContain('pathname.match(/^\\/(pc|m)');
     expect(middlewareSource).toContain('process.env.NEXTAUTH_URL || "https://crmavito.duckdns.org"');
-    expect(middlewareSource).toContain("NextResponse.redirect(appPath");
+    expect(middlewareSource).toContain("NextResponse.redirect(target)");
     expect(middlewareSource).not.toContain('req.headers.get("x-forwarded-proto")');
     expect(middlewareSource).not.toContain('req.headers.get("x-forwarded-host")');
     expect(middlewareSource).not.toContain(".replace(/:\\d+$/,");
@@ -55,8 +55,12 @@ describe("desktop responsive UI", () => {
     expect(middlewareSource).not.toContain('rewriteUrl.hostname = "localhost"');
     expect(middlewareSource).not.toContain('rewriteUrl.port = "3000"');
     expect(middlewareSource).toContain("crmavito-ui-mode");
+    expect(middlewareSource).toContain('target.searchParams.set("ui", mode)');
+    expect(middlewareSource).toContain('pathname === "/dashboard" ? "pc" : null');
+    expect(middlewareSource).toContain('requestHeaders.set("x-crmavito-ui-mode", forcedMode)');
     expect(appLayoutSource).toContain('cookieStore.get("crmavito-ui-mode")?.value');
-    expect(appLayoutSource).toContain('savedMode === "m" ? "m" : "pc"');
+    expect(appLayoutSource).toContain('requestHeaders.get("x-crmavito-ui-mode")');
+    expect(appLayoutSource).toContain('forcedMode === "m" || forcedMode === "pc"');
     expect(appLayoutSource).not.toContain("mobileDevice");
     expect(appLayoutSource).toContain("pc-shell");
     expect(appLayoutSource).toContain("mobile-shell");

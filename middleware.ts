@@ -18,9 +18,27 @@ export function middleware(req: NextRequest) {
   if (modeMatch) {
     const mode = modeMatch[1] === "pc" ? "pc" : "m";
     const targetPath = modeMatch[2] || "/dashboard";
-
-    const response = NextResponse.redirect(appPath(targetPath, search));
+    const target = appPath(targetPath, search);
+    target.searchParams.set("ui", mode);
+    const response = NextResponse.redirect(target);
     response.cookies.set("crmavito-ui-mode", mode, {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+    return response;
+  }
+
+  const queryMode = req.nextUrl.searchParams.get("ui");
+  const forcedMode = queryMode === "m" || queryMode === "pc"
+    ? queryMode
+    : pathname === "/dashboard" ? "pc" : null;
+
+  if (forcedMode) {
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-crmavito-ui-mode", forcedMode);
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.cookies.set("crmavito-ui-mode", forcedMode, {
       path: "/",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 365,
