@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildAdsAnalysisPrompt, type AdsAnalysisInput } from "@/lib/ai/ads-analysis";
 import { createClaudeAdsReport } from "@/lib/ai/claude";
-import { generateGeminiImage } from "@/lib/ai/gemini-images";
+import { buildProductPhotoPrompt, generateGeminiImage } from "@/lib/ai/gemini-images";
 
 const analytics: AdsAnalysisInput = {
   profileId: "profile-1",
@@ -75,14 +75,34 @@ describe("AI providers", () => {
       const body = JSON.parse(String(init?.body));
       expect(body.model).toBe("gemini-3.1-flash-image");
       expect(body.response_format.type).toBe("image");
+      expect(body.input).toEqual([
+        { type: "image", data: "cHJvZHVjdA==", mime_type: "image/jpeg" },
+        { type: "image", data: "YmFja2dyb3VuZA==", mime_type: "image/png" },
+        expect.objectContaining({ type: "text" }),
+      ]);
       return Response.json({ output_image: { data: "aW1hZ2U=", mime_type: "image/png" } });
     }) as unknown as typeof fetch;
 
     const image = await generateGeminiImage(
-      { prompt: "Создай принт для чёрной футболки в стиле линогравюры" },
+      {
+        prompt: buildProductPhotoPrompt(),
+        referenceImages: [
+          { data: "cHJvZHVjdA==", mimeType: "image/jpeg" },
+          { data: "YmFja2dyb3VuZA==", mimeType: "image/png" },
+        ],
+      },
       { fetchFn, apiKey: "gemini-secret" },
     );
     expect(image).toMatchObject({ data: "aW1hZ2U=", mimeType: "image/png" });
+  });
+
+  it("locks garment identity and background in the product photo prompt", () => {
+    const prompt = buildProductPhotoPrompt();
+    expect(prompt).toContain("immutable product identity");
+    expect(prompt).toContain("every letter, font, spacing");
+    expect(prompt).toContain("ONLY ALLOWED BACKGROUND");
+    expect(prompt).toContain("No props, hands, people");
+    expect(prompt).toContain("Create exactly ONE");
   });
 
   it("keeps a plain-text Claude gateway error in the user-facing message", async () => {

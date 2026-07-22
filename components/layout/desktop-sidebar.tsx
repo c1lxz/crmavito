@@ -10,6 +10,7 @@ import {
   PackageSearch,
   RotateCcw,
   Settings,
+  Sparkles,
   ShoppingBag,
   Store,
   Users,
@@ -27,6 +28,7 @@ const navItems = [
   { href: "/pc/expenses", match: "/expenses", label: "Расходы", icon: Wallet },
   { href: "/pc/counterparties", match: "/counterparties", label: "Поставщики", icon: Users },
   { href: "/pc/reports", match: "/reports", label: "Отчёты", icon: BarChart3 },
+  { href: "/pc/content-machine", match: "/content-machine", label: "Контент-машина", icon: Sparkles },
   { href: "/pc/settings", match: "/settings", label: "Настройки", icon: Settings },
 ];
 
