@@ -107,8 +107,11 @@ describe("desktop responsive UI", () => {
     expect(reportsSource).toContain("pc-reports-kpi");
     expect(reportsSource).toContain("pc-donut-grid");
     expect(marketAnalysisSource).toContain("market-analysis-controls");
-    expect(marketAnalysisSource).toContain("pc-analytics-workspace");
-    expect(marketAnalysisSource).toContain("pc-analytics-rankings");
-    expect(globalsSource).toContain("grid-template-columns: minmax(0, 1.65fr) minmax(20rem, 0.65fr)");
+    expect(marketAnalysisSource).toContain("analytics-overview");
+    expect(marketAnalysisSource).toContain("analytics-ranking-table");
+    expect(marketAnalysisSource).toContain("pc-only hidden overflow-x-auto");
+    expect(marketAnalysisSource).toContain("mobile-only space-y-1");
+    expect(globalsSource).toContain(".pc-shell .analytics-ranking-table");
+    expect(globalsSource).not.toContain("pc-analytics-workspace");
   });
 });

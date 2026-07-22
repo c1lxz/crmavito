@@ -96,6 +96,8 @@ type OwnAnalyticsResult = {
   items: OwnAnalyticsItem[];
 };
 
+type RankingMetric = "views" | "favorites" | "contacts";
+
 export function MarketAnalysisClient() {
   const [activeTab, setActiveTab] = useState<"own" | "market">("own");
   const [category, setCategory] = useState("футболки");
@@ -110,6 +112,7 @@ export function MarketAnalysisClient() {
   const [ownPeriodDays, setOwnPeriodDays] = useState(3);
   const [ownLoading, setOwnLoading] = useState(false);
   const [ownResult, setOwnResult] = useState<OwnAnalyticsResult | null>(null);
+  const [rankingMetric, setRankingMetric] = useState<RankingMetric>("views");
 
   const selectedProfile = credentialProfiles.find((profile) => profile.id === selectedProfileId) ?? null;
   const canSubmitMarket = category.trim().length > 0 && marketPeriodDays >= 1 && marketPeriodDays <= 30;
@@ -117,9 +120,10 @@ export function MarketAnalysisClient() {
   const manualCredentialsPartial = Boolean(manualClientId.trim() || manualClientSecret.trim()) && !manualCredentialsComplete;
   const canSubmitOwn = (manualCredentialsComplete || Boolean(selectedProfileId)) && !manualCredentialsPartial && ownPeriodDays >= 1 && ownPeriodDays <= 270 && !ownLoading;
 
-  const topViews = useMemo(() => rankBy(ownResult?.items ?? [], "views"), [ownResult]);
-  const topFavorites = useMemo(() => rankBy(ownResult?.items ?? [], "favorites"), [ownResult]);
-  const topContacts = useMemo(() => rankBy(ownResult?.items ?? [], "contacts"), [ownResult]);
+  const rankedItems = useMemo(
+    () => rankBy(ownResult?.items ?? [], rankingMetric),
+    [ownResult, rankingMetric],
+  );
 
   useEffect(() => {
     void refreshCredentialProfiles();
@@ -349,30 +353,34 @@ export function MarketAnalysisClient() {
 
         {activeTab === "own" && ownResult && (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard icon={<FileJson className="h-4 w-4" />} label="Объявлений" value={String(ownResult.total.ads)} />
-              <MetricCard icon={<MousePointerClick className="h-4 w-4" />} label="Просмотры" value={String(ownResult.total.views)} />
-              <MetricCard icon={<Heart className="h-4 w-4" />} label="Добавили в избранное" value={String(ownResult.total.favorites)} />
-              <MetricCard icon={<MessageCircle className="h-4 w-4" />} label="Написали / контакты" value={String(ownResult.total.contacts)} />
-            </div>
-
-            <Card>
-              <CardContent className="flex flex-wrap items-center gap-2 p-4 text-sm text-muted-foreground">
-                <Badge variant="secondary">{selectedProfile?.name ?? ownResult.accountId}</Badge>
-                <Badge variant="outline">{ownResult.dateFrom} - {ownResult.dateTo}</Badge>
-                <Badge variant="outline">{ownResult.periodDays} дн.</Badge>
-              </CardContent>
-            </Card>
-
-            <div className="pc-analytics-workspace">
-              <AiAnalysisReport key={`${ownResult.profileId}:${ownResult.dateFrom}:${ownResult.dateTo}`} analytics={ownResult} />
-
-              <div className="pc-analytics-rankings grid gap-3 xl:grid-cols-3">
-                <RankingCard title="Больше всего просмотров" icon={<MousePointerClick className="h-4 w-4" />} items={topViews} metric="views" metricLabel="просм." />
-                <RankingCard title="Больше добавили в избранное" icon={<Heart className="h-4 w-4" />} items={topFavorites} metric="favorites" metricLabel="избр." />
-                <RankingCard title="Больше написали" icon={<MessageCircle className="h-4 w-4" />} items={topContacts} metric="contacts" metricLabel="конт." />
+            <section className="analytics-overview space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Аналитика объявлений</p>
+                  <h2 className="mt-1 text-xl font-semibold tracking-tight">Сводка за период</h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">{selectedProfile?.name ?? ownResult.accountId}</Badge>
+                  <Badge variant="outline">{ownResult.dateFrom} — {ownResult.dateTo}</Badge>
+                  <Badge variant="outline">{ownResult.periodDays} дн.</Badge>
+                </div>
               </div>
-            </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <MetricCard icon={<FileJson className="h-4 w-4" />} label="Объявлений" value={formatNumber(ownResult.total.ads)} />
+                <MetricCard icon={<MousePointerClick className="h-4 w-4" />} label="Просмотры" value={formatNumber(ownResult.total.views)} />
+                <MetricCard icon={<Heart className="h-4 w-4" />} label="Добавили в избранное" value={formatNumber(ownResult.total.favorites)} />
+                <MetricCard icon={<MessageCircle className="h-4 w-4" />} label="Написали / контакты" value={formatNumber(ownResult.total.contacts)} />
+              </div>
+            </section>
+
+            <AiAnalysisReport key={`${ownResult.profileId}:${ownResult.dateFrom}:${ownResult.dateTo}`} analytics={ownResult} />
+
+            <AdsRankingSection
+              items={rankedItems}
+              metric={rankingMetric}
+              onMetricChange={setRankingMetric}
+            />
           </>
         )}
 
@@ -391,8 +399,8 @@ export function MarketAnalysisClient() {
   );
 }
 
-function rankBy(items: OwnAnalyticsItem[], metric: "views" | "favorites" | "contacts") {
-  return [...items].sort((a, b) => (b[metric] - a[metric]) || (b.views - a.views)).slice(0, 10);
+function rankBy(items: OwnAnalyticsItem[], metric: RankingMetric) {
+  return [...items].sort((a, b) => (b[metric] - a[metric]) || (b.views - a.views)).slice(0, 20);
 }
 
 async function waitForLocalAgent(timeoutMs = 15000) {
@@ -567,52 +575,138 @@ function MarketResult({ result }: { result: ProbeResult }) {
   );
 }
 
-function RankingCard({
-  title,
-  icon,
+function AdsRankingSection({
   items,
   metric,
-  metricLabel,
+  onMetricChange,
 }: {
-  title: string;
-  icon: ReactNode;
   items: OwnAnalyticsItem[];
-  metric: "views" | "favorites" | "contacts";
-  metricLabel: string;
+  metric: RankingMetric;
+  onMetricChange: (metric: RankingMetric) => void;
 }) {
+  const metricOptions: Array<{ value: RankingMetric; label: string; icon: ReactNode }> = [
+    { value: "views", label: "Просмотры", icon: <MousePointerClick className="h-4 w-4" /> },
+    { value: "favorites", label: "Избранное", icon: <Heart className="h-4 w-4" /> },
+    { value: "contacts", label: "Контакты", icon: <MessageCircle className="h-4 w-4" /> },
+  ];
+
   return (
-    <Card>
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          {icon}
-          {title}
-        </CardTitle>
+    <Card className="analytics-ranking-table overflow-hidden">
+      <CardHeader className="gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <CardTitle className="text-base">Рейтинг объявлений</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">Сравните лидеров по ключевым показателям</p>
+        </div>
+        <div className="grid grid-cols-3 gap-1 rounded-lg bg-secondary/70 p-1">
+          {metricOptions.map((option) => (
+            <Button
+              key={option.value}
+              type="button"
+              size="sm"
+              variant={metric === option.value ? "default" : "ghost"}
+              className="h-8 gap-1.5 px-2 sm:px-3"
+              onClick={() => onMetricChange(option.value)}
+            >
+              {option.icon}
+              <span className="hidden sm:inline">{option.label}</span>
+            </Button>
+          ))}
+        </div>
       </CardHeader>
-      <CardContent className="space-y-2 p-4 pt-0">
-        {items.length === 0 && (
-          <p className="py-8 text-center text-sm text-muted-foreground">Нет объявлений за период</p>
-        )}
-        {items.map((item, index) => (
-          <a
-            key={item.itemId}
-            href={item.url ?? "#"}
-            target={item.url ? "_blank" : undefined}
-            rel={item.url ? "noopener noreferrer" : undefined}
-            className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm hover:bg-secondary/70"
-          >
-            <span className="min-w-0">
-              <span className="block truncate font-medium">{index + 1}. {item.title}</span>
-              <span className="block text-xs text-muted-foreground">ID {item.itemId}{item.status ? ` · ${item.status}` : ""}</span>
-            </span>
-            <span className="shrink-0 text-right">
-              <span className="block text-sm font-semibold tabular-nums">{item[metric]}</span>
-              <span className="block text-xs text-muted-foreground">{metricLabel}</span>
-            </span>
-          </a>
-        ))}
-      </CardContent>
+      {items.length === 0 ? (
+        <CardContent className="py-14 text-center text-sm text-muted-foreground">Нет объявлений за период</CardContent>
+      ) : (
+        <>
+          <div className="pc-only hidden overflow-x-auto">
+            <table className="w-full table-fixed text-sm">
+              <thead className="bg-secondary/35 text-left text-xs font-medium text-muted-foreground">
+                <tr>
+                  <th className="w-14 px-5 py-3">№</th>
+                  <th className="px-3 py-3">Объявление</th>
+                  <th className="w-32 px-3 py-3">Статус</th>
+                  <th className={`w-28 px-3 py-3 text-right ${metric === "views" ? "text-primary" : ""}`}>Просмотры</th>
+                  <th className={`w-28 px-3 py-3 text-right ${metric === "favorites" ? "text-primary" : ""}`}>Избранное</th>
+                  <th className={`w-28 px-3 py-3 text-right ${metric === "contacts" ? "text-primary" : ""}`}>Контакты</th>
+                  <th className="w-28 px-5 py-3 text-right">Конверсия</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/70">
+                {items.map((item, index) => (
+                  <tr key={item.itemId} className="transition-colors hover:bg-secondary/30">
+                    <td className="px-5 py-3.5 font-semibold tabular-nums text-muted-foreground">{index + 1}</td>
+                    <td className="px-3 py-3.5">
+                      {item.url ? (
+                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="group block min-w-0">
+                          <span className="flex items-center gap-1.5 font-medium group-hover:text-primary">
+                            <span className="truncate">{item.title}</span>
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+                          </span>
+                          <span className="mt-0.5 block text-xs text-muted-foreground">ID {item.itemId}</span>
+                        </a>
+                      ) : (
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{item.title}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">ID {item.itemId}</p>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-3.5"><StatusBadge status={item.status} /></td>
+                    <MetricCell value={item.views} active={metric === "views"} />
+                    <MetricCell value={item.favorites} active={metric === "favorites"} />
+                    <MetricCell value={item.contacts} active={metric === "contacts"} />
+                    <td className="px-5 py-3.5 text-right font-medium tabular-nums">{formatConversion(item)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <CardContent className="mobile-only space-y-1 p-2">
+            {items.map((item, index) => (
+              <a
+                key={item.itemId}
+                href={item.url ?? "#"}
+                target={item.url ? "_blank" : undefined}
+                rel={item.url ? "noopener noreferrer" : undefined}
+                className="flex items-center gap-3 rounded-lg p-2.5 hover:bg-secondary/60"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-secondary text-xs font-semibold tabular-nums text-muted-foreground">{index + 1}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{item.title}</span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">ID {item.itemId}{item.status ? ` · ${item.status}` : ""}</span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block font-semibold tabular-nums">{formatNumber(item[metric])}</span>
+                  <span className="block text-[11px] text-muted-foreground">{metricOptions.find((option) => option.value === metric)?.label}</span>
+                </span>
+              </a>
+            ))}
+          </CardContent>
+        </>
+      )}
     </Card>
   );
+}
+
+function MetricCell({ value, active }: { value: number; active: boolean }) {
+  return (
+    <td className={`px-3 py-3.5 text-right font-semibold tabular-nums ${active ? "bg-primary/[0.06] text-primary" : ""}`}>
+      {formatNumber(value)}
+    </td>
+  );
+}
+
+function StatusBadge({ status }: { status: string | null }) {
+  return <Badge variant="outline" className="max-w-full truncate font-normal">{status || "—"}</Badge>;
+}
+
+function formatConversion(item: OwnAnalyticsItem): string {
+  if (item.views <= 0) return "—";
+  return `${((item.contacts / item.views) * 100).toFixed(1)}%`;
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat("ru-RU").format(value);
 }
 
 function ExternalItemLink({ href, title }: { href: string; title: string }) {
