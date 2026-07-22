@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { BACKGROUND_SLOTS, readBackground, validateImageFile, type BackgroundSlot } from "@/lib/ai/content-machine";
+import { buildProductPhotoPrompt } from "@/lib/ai/gemini-images";
 
 const mimeExtensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as const;
 const resultMimeTypes: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
@@ -12,6 +13,8 @@ type JobManifest = {
   id: string;
   createdAt: string;
   imageSize: "2K" | "4K";
+  qualityProfile?: "photorealistic-v2";
+  generationPrompt?: string;
   products: JobProduct[];
   backgrounds: JobBackground[];
 };
@@ -79,7 +82,15 @@ export async function createCodexJob(products: File[], imageSize: "2K" | "4K"): 
     storedBackgrounds.push({ slot, originalName: background.fileName, fileName, mimeType: background.mimeType });
   }
 
-  const manifest: JobManifest = { id, createdAt: now.toISOString(), imageSize, products: storedProducts, backgrounds: storedBackgrounds };
+  const manifest: JobManifest = {
+    id,
+    createdAt: now.toISOString(),
+    imageSize,
+    qualityProfile: "photorealistic-v2",
+    generationPrompt: buildProductPhotoPrompt(),
+    products: storedProducts,
+    backgrounds: storedBackgrounds,
+  };
   const temporary = path.join(directory, ".manifest.json");
   await writeFile(temporary, JSON.stringify(manifest, null, 2), "utf8");
   await rename(temporary, path.join(directory, "manifest.json"));

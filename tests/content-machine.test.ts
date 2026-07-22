@@ -52,6 +52,8 @@ describe("content machine", () => {
       const created = await createCodexJob([product], "2K");
       expect(created.status).toBe("waiting");
       expect(created.expectedResults).toBe(3);
+      expect(created.qualityProfile).toBe("photorealistic-v2");
+      expect(created.generationPrompt).toContain("tight contact shadow");
 
       const resultDirectory = path.join(directory, "codex-jobs", created.id, "results");
       await mkdir(resultDirectory, { recursive: true });

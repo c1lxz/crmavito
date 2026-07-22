@@ -107,6 +107,12 @@ describe("AI providers", () => {
     expect(prompt).toContain("ONLY ALLOWED BACKGROUND");
     expect(prompt).toContain("No props, hands, people");
     expect(prompt).toContain("Create exactly ONE");
+    expect(prompt).toContain("tight contact shadow");
+    expect(prompt).toContain("soft ambient occlusion");
+    expect(prompt).toContain("faint broad cast shadow");
+    expect(prompt).toContain("fabric thickness, fine weave, soft micro-wrinkles");
+    expect(prompt).toContain("never use a uniform dark outline");
+    expect(prompt).toContain("genuine marketplace photo rather than CGI");
   });
 
   it("explains when the Gemini image key has no paid quota", async () => {
