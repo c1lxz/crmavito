@@ -109,6 +109,17 @@ describe("AI providers", () => {
     expect(prompt).toContain("Create exactly ONE");
   });
 
+  it("explains when the Gemini image key has no paid quota", async () => {
+    const fetchFn = vi.fn(async () => Response.json({
+      error: { message: "Quota exceeded for generate_content_free_tier_requests, limit: 0" },
+    }, { status: 429 })) as unknown as typeof fetch;
+
+    await expect(generateGeminiImage({
+      prompt: buildProductPhotoPrompt(),
+      referenceImages: [],
+    }, { fetchFn, apiKey: "gemini-secret" })).rejects.toThrow("Подключите биллинг");
+  });
+
   it("keeps a plain-text Claude gateway error in the user-facing message", async () => {
     const fetchFn = vi.fn(async () => new Response("error code: 1101", { status: 500 })) as unknown as typeof fetch;
     await expect(createClaudeAdsReport(analytics, {

@@ -73,6 +73,9 @@ export async function generateGeminiImage(
   const data = parseGeminiResponse(raw);
   if (!response.ok) {
     const message = data.error?.message || raw.trim() || "Не удалось создать изображение.";
+    if (response.status === 429 && /quota|free_tier|billing/i.test(message)) {
+      throw new Error("У ключа Gemini нет доступной квоты на генерацию изображений. Подключите биллинг к Google AI Studio / Google Cloud и повторите попытку.");
+    }
     throw new Error(`Gemini API: HTTP ${response.status}. ${message}`);
   }
   if (!data.output_image?.data) throw new Error("Gemini не вернул изображение.");

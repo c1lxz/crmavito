@@ -156,8 +156,8 @@ export function ContentMachineClient() {
       if (!response.ok) throw new Error(data.error || "Gemini не создал изображение.");
       patchResult(job.id, {
         status: "ready",
-        dataUrl: `data:${data.mimeType || "image/png"};base64,${data.data}`,
-        mimeType: data.mimeType || "image/png",
+        dataUrl: `data:${data.mimeType || "image/jpeg"};base64,${data.data}`,
+        mimeType: data.mimeType || "image/jpeg",
         error: null,
         selected: true,
       });
