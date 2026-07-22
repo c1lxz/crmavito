@@ -246,7 +246,7 @@ export function ContentMachineClient() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-base font-semibold">Исходные фото товара</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Добавьте все ракурсы одной вещи. Принт, пошив, цвет и положение сохраняются.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Добавьте все ракурсы одной вещи. Принт, пошив, цвет и видимая сторона сохраняются, а композиция может быть улучшена.</p>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">{products.length} фото → {products.length * 3} результатов</span>

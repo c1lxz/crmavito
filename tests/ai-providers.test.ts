@@ -76,12 +76,13 @@ describe("AI providers", () => {
       const body = JSON.parse(String(init?.body));
       expect(body.model).toBe("gemini-3.1-flash-image");
       expect(body.response_format.type).toBe("image");
+      expect(body.response_format.mime_type).toBe("image/jpeg");
       expect(body.input).toEqual([
         { type: "image", data: "cHJvZHVjdA==", mime_type: "image/jpeg" },
         { type: "image", data: "YmFja2dyb3VuZA==", mime_type: "image/png" },
         expect.objectContaining({ type: "text" }),
       ]);
-      return Response.json({ output_image: { data: "aW1hZ2U=", mime_type: "image/png" } });
+      return Response.json({ output_image: { data: "aW1hZ2U=", mime_type: "image/jpeg" } });
     }) as unknown as typeof fetch;
 
     const image = await generateGeminiImage(
@@ -94,13 +95,15 @@ describe("AI providers", () => {
       },
       { fetchFn, apiKey: "gemini-secret" },
     );
-    expect(image).toMatchObject({ data: "aW1hZ2U=", mimeType: "image/png" });
+    expect(image).toMatchObject({ data: "aW1hZ2U=", mimeType: "image/jpeg" });
   });
 
   it("locks garment identity and background in the product photo prompt", () => {
     const prompt = buildProductPhotoPrompt();
     expect(prompt).toContain("immutable product identity");
     expect(prompt).toContain("every letter, font, spacing");
+    expect(prompt).toContain("may improve the garment's placement");
+    expect(prompt).toContain("same visible side");
     expect(prompt).toContain("ONLY ALLOWED BACKGROUND");
     expect(prompt).toContain("No props, hands, people");
     expect(prompt).toContain("Create exactly ONE");

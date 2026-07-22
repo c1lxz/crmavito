@@ -29,7 +29,8 @@ export function buildProductPhotoPrompt(additionalInstructions?: string): string
     "Create exactly ONE photorealistic e-commerce product photograph from the two reference images.",
     "REFERENCE IMAGE 1 is the PRODUCT PHOTO. REFERENCE IMAGE 2 is the ONLY ALLOWED BACKGROUND.",
     "The garment is an immutable product identity. Preserve it exactly: silhouette, cut, proportions, seams, stitching, fabric texture, folds, sleeves, collar, labels, wear, color, print artwork, every letter, font, spacing, print placement and print texture.",
-    "Preserve the product's camera angle, orientation, pose, crop and position from REFERENCE IMAGE 1. Do not redesign, retouch, simplify, rotate, refold, mirror, repair, invent, remove or add any part of the garment.",
+    "You may improve the garment's placement, camera angle, crop and fold arrangement to create a natural professional flat-lay composition. Keep the same visible side (front or back) and never mirror the image or reveal, hide or invent product details.",
+    "Do not redesign, retouch, simplify, repair, remove or add any part of the garment. A composition change must never change its product identity, construction or artwork.",
     "Replace only the original background. Use the actual texture and visual identity of REFERENCE IMAGE 2 across the entire background. Do not create a similar texture and do not introduce any other surface.",
     "The final frame must contain only the unchanged garment on that background. No props, hands, people, hangers, furniture, decorations, text overlays, borders, logos or objects not present in the references.",
     "Match realistic contact, scale, perspective, ambient light and a subtle natural contact shadow without changing the product or the background pattern.",
@@ -60,7 +61,7 @@ export async function generateGeminiImage(
       ],
       response_format: {
         type: "image",
-        mime_type: "image/png",
+        mime_type: "image/jpeg",
         aspect_ratio: input.aspectRatio,
         image_size: input.imageSize,
       },
@@ -75,7 +76,7 @@ export async function generateGeminiImage(
     throw new Error(`Gemini API: HTTP ${response.status}. ${message}`);
   }
   if (!data.output_image?.data) throw new Error("Gemini не вернул изображение.");
-  return { data: data.output_image.data, mimeType: data.output_image.mime_type || "image/png", model };
+  return { data: data.output_image.data, mimeType: data.output_image.mime_type || "image/jpeg", model };
 }
 
 function parseGeminiResponse(raw: string): {
