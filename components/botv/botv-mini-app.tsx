@@ -306,6 +306,7 @@ function ListingPreview({ product, sessionId }: { product: BotvProduct | null; s
 
 export function BotvMiniApp() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const customXmlRef = useRef<HTMLInputElement>(null);
   const [session, setSession] = useState<BotvSession | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
@@ -327,6 +328,9 @@ export function BotvMiniApp() {
   const [manualPublishReportEmail, setManualPublishReportEmail] = useState("");
   const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [publishingCustomXml, setPublishingCustomXml] = useState(false);
+  const [customXmlFile, setCustomXmlFile] = useState<File | null>(null);
+  const [customXmlAdIds, setCustomXmlAdIds] = useState<string[]>([]);
   const [stoppingAutoload, setStoppingAutoload] = useState(false);
   const [publishLegacyIds, setPublishLegacyIds] = useState(false);
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
@@ -631,6 +635,49 @@ export function BotvMiniApp() {
       setError("");
     } finally {
       setPublishing(false);
+    }
+  }
+
+  async function selectCustomXml(file: File) {
+    const xml = await file.text();
+    const adIds = parseAdIdsXml(xml);
+    if (!/^\s*(?:<\?xml\b[^>]*>\s*)?<Ads\b/i.test(xml) || adIds.length === 0) {
+      throw new Error("Выберите непустой XML-файл Avito.");
+    }
+    if (new Set(adIds).size !== adIds.length) {
+      throw new Error("В готовом XML есть повторяющиеся ID.");
+    }
+    setCustomXmlFile(file);
+    setCustomXmlAdIds(adIds);
+    setPublishResult(null);
+  }
+
+  async function publishCustomXml() {
+    if (!customXmlFile) throw new Error("Сначала выберите готовый XML.");
+    if (!hasPublishAuth || manualPublishCredentialsPartial) {
+      throw new Error("Выберите профиль Avito или полностью укажите client_id и client_secret.");
+    }
+    setPublishingCustomXml(true);
+    setError("");
+    try {
+      const form = new FormData();
+      form.append("file", customXmlFile);
+      const authPayload = publishAuthPayload();
+      for (const [key, value] of Object.entries(authPayload)) {
+        if (value) form.append(key, String(value));
+      }
+      const res = await apiFetch("/api/botv/custom-xml/publish", { method: "POST", body: form }, 1);
+      const data = await readJsonResponse(res, "Не удалось опубликовать готовый XML");
+      if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать готовый XML");
+      const adIds: string[] = Array.isArray(data.adIds) ? data.adIds.map(String).filter(Boolean) : [];
+      setPublishResult({ ...(data.publish ?? {}), adIds });
+      setLastXmlAdIds(adIds);
+      setAutoloadStopMessage("");
+      setCustomXmlFile(null);
+      setCustomXmlAdIds([]);
+      if (customXmlRef.current) customXmlRef.current.value = "";
+    } finally {
+      setPublishingCustomXml(false);
     }
   }
 
@@ -941,6 +988,16 @@ export function BotvMiniApp() {
           {session && (
             <Card className="sticky top-[132px] z-20 lg:top-[142px]"><CardContent className="space-y-3 p-3">
               <div className="flex flex-wrap gap-2">
+                <input
+                  ref={customXmlRef}
+                  type="file"
+                  accept=".xml,text/xml,application/xml"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) run(() => selectCustomXml(file));
+                  }}
+                />
                 <Button size="sm" variant="outline" onClick={() => setSelected(allVisibleSelected ? new Set() : new Set(filtered.map((p) => p.index)))}>{allVisibleSelected ? "Снять выбор" : "Выбрать видимые"}</Button>
                 <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, bulkOriginalTitle: true }))}><Check className="h-4 w-4" /> Название из папки</Button>
                 <Input className="h-8 w-28" placeholder="Цена" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} />
@@ -972,6 +1029,15 @@ export function BotvMiniApp() {
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={publishingCustomXml}
+                  onClick={() => customXmlRef.current?.click()}
+                >
+                  <UploadCloud className="h-4 w-4" />
+                  Готовый XML
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
                   disabled={!hasPublishAuth || manualPublishCredentialsPartial || publishStatusLoading}
                   onClick={() => run(checkAutoloadStatus)}
                 >
@@ -994,6 +1060,38 @@ export function BotvMiniApp() {
                   </Button>
                 )}
               </div>
+              {customXmlFile && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/25 bg-accent/60 p-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{customXmlFile.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Проверено: {customXmlAdIds.length} объявлений с уникальными ID. Будет опубликовано в выбранный профиль.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={publishingCustomXml}
+                      onClick={() => {
+                        setCustomXmlFile(null);
+                        setCustomXmlAdIds([]);
+                        if (customXmlRef.current) customXmlRef.current.value = "";
+                      }}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={!hasPublishAuth || manualPublishCredentialsPartial || publishingCustomXml}
+                      onClick={() => run(publishCustomXml)}
+                    >
+                      {publishingCustomXml ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      Опубликовать файл
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="grid gap-2 md:grid-cols-3">
                 <Input
                   placeholder="client_id вручную"

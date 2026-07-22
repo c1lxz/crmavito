@@ -8,6 +8,8 @@ const apiSource = readFileSync(path.resolve(__dirname, "../app/api/botv/session/
 const aliasSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/work/route.ts"), "utf8");
 const autoloadStatusRouteSource = readFileSync(path.resolve(__dirname, "../app/api/avito/autoload/status/route.ts"), "utf8");
 const autoloadStopRouteSource = readFileSync(path.resolve(__dirname, "../app/api/avito/autoload/stop/route.ts"), "utf8");
+const customXmlPublishRouteSource = readFileSync(path.resolve(__dirname, "../app/api/botv/custom-xml/publish/route.ts"), "utf8");
+const customXmlFeedRouteSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/custom-xml/[id]/route.ts"), "utf8");
 
 describe("botv mini app UI", () => {
   it("does not contain mojibake or replacement characters", () => {
@@ -195,6 +197,18 @@ describe("botv mini app UI", () => {
     expect(clientSource).not.toContain("Failed to fetch");
     expect(clientSource).not.toContain("await fetch(`/api/botv/session/${session.id}`");
     expect(clientSource).not.toContain('fetch("/api/botv/session');
+  });
+
+  it("publishes a checked ready-made XML through the selected Avito profile", () => {
+    expect(clientSource).toContain("Готовый XML");
+    expect(clientSource).toContain("Опубликовать файл");
+    expect(clientSource).toContain("selectCustomXml");
+    expect(clientSource).toContain("/api/botv/custom-xml/publish");
+    expect(customXmlPublishRouteSource).toContain("inspectAvitoXml");
+    expect(customXmlPublishRouteSource).toContain("saveCustomXmlFeed");
+    expect(customXmlPublishRouteSource).toContain("publishAvitoXml");
+    expect(customXmlFeedRouteSource).toContain("readCustomXmlFeed");
+    expect(customXmlFeedRouteSource).toContain("application/xml; charset=utf-8");
   });
 
   it("shows XML stock quantity save and generation status", () => {
