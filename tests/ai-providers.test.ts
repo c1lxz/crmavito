@@ -1,0 +1,87 @@
+import { describe, expect, it, vi } from "vitest";
+import { buildAdsAnalysisPrompt, type AdsAnalysisInput } from "@/lib/ai/ads-analysis";
+import { createClaudeAdsReport } from "@/lib/ai/claude";
+import { generateGeminiImage } from "@/lib/ai/gemini-images";
+
+const analytics: AdsAnalysisInput = {
+  profileId: "profile-1",
+  accountId: "42",
+  periodDays: 7,
+  dateFrom: "2026-07-16",
+  dateTo: "2026-07-22",
+  total: { ads: 1, views: 100, contacts: 2, favorites: 15 },
+  items: [{
+    itemId: "101",
+    title: "Футболка оверсайз",
+    url: "https://www.avito.ru/item_101",
+    status: "active",
+    views: 100,
+    contacts: 2,
+    favorites: 15,
+    price: 2500,
+    description: null,
+    imageCount: 4,
+  }],
+};
+
+describe("AI providers", () => {
+  it("adds conversion signals to the Claude prompt", () => {
+    const prompt = buildAdsAnalysisPrompt(analytics);
+    expect(prompt).toContain('"contactRate":2');
+    expect(prompt).toContain('"favoriteRate":15');
+    expect(prompt).toContain("Не выдумывай отсутствующие");
+  });
+
+  it("calls the Anthropic messages API and validates the report", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe("https://claude.example/v1/messages");
+      expect(new Headers(init?.headers).get("x-api-key")).toBe("secret");
+      return Response.json({
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            executiveSummary: "Есть спрос, но мало контактов.",
+            healthScore: 64,
+            opportunity: "Усилить оффер.",
+            actions: [{
+              id: "offer-101",
+              itemId: "101",
+              title: "Футболка оверсайз",
+              priority: "high",
+              field: "description",
+              diagnosis: "15% добавляют в избранное, но только 2% связываются.",
+              proposedValue: null,
+              expectedImpact: "Рост обращений.",
+              applyMode: "manual",
+            }],
+          }),
+        }],
+      });
+    }) as unknown as typeof fetch;
+
+    const report = await createClaudeAdsReport(analytics, {
+      fetchFn,
+      apiKey: "secret",
+      baseUrl: "https://claude.example/",
+      model: "claude-test",
+    });
+    expect(report.healthScore).toBe(64);
+    expect(report.actions[0].itemId).toBe("101");
+  });
+
+  it("uses Gemini only as an image provider", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toContain("/v1beta/interactions");
+      const body = JSON.parse(String(init?.body));
+      expect(body.model).toBe("gemini-3.1-flash-image");
+      expect(body.response_format.type).toBe("image");
+      return Response.json({ output_image: { data: "aW1hZ2U=", mime_type: "image/png" } });
+    }) as unknown as typeof fetch;
+
+    const image = await generateGeminiImage(
+      { prompt: "Создай принт для чёрной футболки в стиле линогравюры" },
+      { fetchFn, apiKey: "gemini-secret" },
+    );
+    expect(image).toMatchObject({ data: "aW1hZ2U=", mimeType: "image/png" });
+  });
+});

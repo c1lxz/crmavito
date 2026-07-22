@@ -326,6 +326,30 @@
     padding-left: 2rem;
     padding-right: 2rem;
   }
+
+  .pc-shell .market-analysis-content {
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    max-width: 96rem;
+  }
+
+  .pc-shell .market-analysis-controls {
+    display: grid;
+    grid-template-columns: 8rem minmax(10rem, 0.65fr) minmax(26rem, 1.35fr) auto auto;
+    align-items: end;
+  }
+
+  .pc-shell .pc-analytics-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(20rem, 0.65fr);
+    align-items: start;
+    gap: 0.75rem;
+  }
+
+  .pc-shell .pc-analytics-rankings {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .expense-month-chart-grid {

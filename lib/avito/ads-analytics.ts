@@ -23,6 +23,9 @@ export type AvitoAdAnalyticsItem = {
   views: number;
   contacts: number;
   favorites: number;
+  price: number | null;
+  description: string | null;
+  imageCount: number | null;
 };
 
 export type AvitoAdsAnalyticsResult = {
@@ -58,6 +61,28 @@ function numberFrom(value: unknown): number {
 
 function titleFrom(item: AvitoListItem): string {
   return item.title ?? item.name ?? `Avito ${String(item.id)}`;
+}
+
+function priceFrom(item: AvitoListItem): number | null {
+  const raw = typeof item.price === "object" && item.price ? item.price.value : item.price;
+  const value = typeof raw === "string" ? Number(raw.replace(/\s/g, "")) : raw;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function descriptionFrom(item: AvitoListItem): string | null {
+  for (const key of ["description", "description_text", "short_description"]) {
+    const value = item[key];
+    if (typeof value === "string" && value.trim()) return value.trim().slice(0, 6000);
+  }
+  return null;
+}
+
+function imageCountFrom(item: AvitoListItem): number | null {
+  for (const key of ["images", "photos", "image_urls"]) {
+    const value = item[key];
+    if (Array.isArray(value)) return value.length;
+  }
+  return null;
 }
 
 function countersFrom(value: unknown): AvitoStatsCounters {
@@ -187,6 +212,9 @@ export async function fetchAvitoAdsAnalytics(
       views: numberFrom(counters.uniqViews ?? counters.views),
       contacts: numberFrom(counters.uniqContacts ?? counters.contacts),
       favorites: numberFrom(counters.uniqFavorites ?? counters.favorites),
+      price: priceFrom(item),
+      description: descriptionFrom(item),
+      imageCount: imageCountFrom(item),
     };
   }).sort((a, b) => (b.views - a.views) || (b.contacts - a.contacts) || (b.favorites - a.favorites));
 

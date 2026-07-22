@@ -10,7 +10,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await auth();
   if (!session?.user) redirect("/login");
   const cookieStore = await cookies();
-  const mode = cookieStore.get("crmavito-ui-mode")?.value === "pc" ? "pc" : "m";
+  const savedMode = cookieStore.get("crmavito-ui-mode")?.value;
+  const mode = savedMode === "m" ? "m" : "pc";
   const isPc = mode === "pc";
 
   return (

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/lib/hooks/use-toast";
+import { AiAnalysisReport } from "@/components/settings/ai-analysis-report";
 
 const LOCAL_AGENT_URL = "http://127.0.0.1:3217/api/avito/market-analysis/probe";
 const LOCAL_AGENT_HEALTH_URL = "http://127.0.0.1:3217/health";
@@ -74,6 +75,9 @@ type OwnAnalyticsItem = {
   views: number;
   contacts: number;
   favorites: number;
+  price: number | null;
+  description: string | null;
+  imageCount: number | null;
 };
 
 type OwnAnalyticsResult = {
@@ -203,7 +207,7 @@ export function MarketAnalysisClient() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell market-analysis-shell">
       <div className="app-header">
         <div className="mb-3 flex items-center gap-3">
           <Link href="/settings" className="icon-tile h-9 w-9">
@@ -222,7 +226,7 @@ export function MarketAnalysisClient() {
           </TabsList>
 
           <TabsContent value="own" className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="market-analysis-controls flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="w-full space-y-1 sm:w-40">
                 <Label htmlFor="own-avito-period">Период, дней</Label>
                 <Input
@@ -317,7 +321,7 @@ export function MarketAnalysisClient() {
         </Tabs>
       </div>
 
-      <div className="app-content space-y-3">
+      <div className="app-content market-analysis-content space-y-3">
         {activeTab === "own" && !ownResult && !ownLoading && (
           <div className="py-12 text-center text-muted-foreground">
             <BarChart3 className="mx-auto mb-3 h-10 w-10 opacity-45" />
@@ -342,10 +346,14 @@ export function MarketAnalysisClient() {
               </CardContent>
             </Card>
 
-            <div className="grid gap-3 xl:grid-cols-3">
-              <RankingCard title="Больше всего просмотров" icon={<MousePointerClick className="h-4 w-4" />} items={topViews} metric="views" metricLabel="просм." />
-              <RankingCard title="Больше добавили в избранное" icon={<Heart className="h-4 w-4" />} items={topFavorites} metric="favorites" metricLabel="избр." />
-              <RankingCard title="Больше написали" icon={<MessageCircle className="h-4 w-4" />} items={topContacts} metric="contacts" metricLabel="конт." />
+            <div className="pc-analytics-workspace">
+              <AiAnalysisReport key={`${ownResult.profileId}:${ownResult.dateFrom}:${ownResult.dateTo}`} analytics={ownResult} />
+
+              <div className="pc-analytics-rankings grid gap-3 xl:grid-cols-3">
+                <RankingCard title="Больше всего просмотров" icon={<MousePointerClick className="h-4 w-4" />} items={topViews} metric="views" metricLabel="просм." />
+                <RankingCard title="Больше добавили в избранное" icon={<Heart className="h-4 w-4" />} items={topFavorites} metric="favorites" metricLabel="избр." />
+                <RankingCard title="Больше написали" icon={<MessageCircle className="h-4 w-4" />} items={topContacts} metric="contacts" metricLabel="конт." />
+              </div>
             </div>
           </>
         )}

@@ -38,6 +38,10 @@ const middlewareSource = readFileSync(
   path.resolve(__dirname, "../middleware.ts"),
   "utf8",
 );
+const marketAnalysisSource = readFileSync(
+  path.resolve(__dirname, "../components/settings/market-analysis-client.tsx"),
+  "utf8",
+);
 
 describe("desktop responsive UI", () => {
   it("splits explicit /pc and /m modes instead of relying on viewport width", () => {
@@ -51,7 +55,9 @@ describe("desktop responsive UI", () => {
     expect(middlewareSource).not.toContain('rewriteUrl.hostname = "localhost"');
     expect(middlewareSource).not.toContain('rewriteUrl.port = "3000"');
     expect(middlewareSource).toContain("crmavito-ui-mode");
-    expect(appLayoutSource).toContain('cookieStore.get("crmavito-ui-mode")?.value === "pc"');
+    expect(appLayoutSource).toContain('cookieStore.get("crmavito-ui-mode")?.value');
+    expect(appLayoutSource).toContain('savedMode === "m" ? "m" : "pc"');
+    expect(appLayoutSource).not.toContain("mobileDevice");
     expect(appLayoutSource).toContain("pc-shell");
     expect(appLayoutSource).toContain("mobile-shell");
     expect(appLayoutSource).toContain("ml-64");
@@ -96,5 +102,9 @@ describe("desktop responsive UI", () => {
     expect(productsSource).toContain("pc-products-grid");
     expect(reportsSource).toContain("pc-reports-kpi");
     expect(reportsSource).toContain("pc-donut-grid");
+    expect(marketAnalysisSource).toContain("market-analysis-controls");
+    expect(marketAnalysisSource).toContain("pc-analytics-workspace");
+    expect(marketAnalysisSource).toContain("pc-analytics-rankings");
+    expect(globalsSource).toContain("grid-template-columns: minmax(0, 1.65fr) minmax(20rem, 0.65fr)");
   });
 });
