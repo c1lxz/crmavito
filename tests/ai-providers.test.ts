@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { brotliCompressSync } from "node:zlib";
 import { buildAdsAnalysisPrompt, type AdsAnalysisInput } from "@/lib/ai/ads-analysis";
 import { createClaudeAdsReport } from "@/lib/ai/claude";
 import { buildProductPhotoPrompt, generateGeminiImage } from "@/lib/ai/gemini-images";
@@ -111,6 +112,57 @@ describe("AI providers", () => {
       fetchFn,
       apiKey: "secret",
       baseUrl: "https://claude.example",
+      maxAttempts: 1,
     })).rejects.toThrow("error code: 1101");
+  });
+
+  it("retries a successful HTTP response containing a gateway capacity error", async () => {
+    const fetchFn = vi.fn()
+      .mockResolvedValueOnce(new Response("Failed to start container: Maximum number of running container instances exceeded", { status: 200 }))
+      .mockResolvedValueOnce(Response.json({
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            executiveSummary: "Повторный запрос выполнен.",
+            healthScore: 70,
+            opportunity: "Улучшить карточки.",
+            actions: [],
+          }),
+        }],
+      }));
+
+    const report = await createClaudeAdsReport(analytics, {
+      fetchFn: fetchFn as unknown as typeof fetch,
+      apiKey: "secret",
+      baseUrl: "https://claude.example",
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(report.healthScore).toBe(70);
+  });
+
+  it("decodes an unlabelled Brotli response returned by the Claude gateway", async () => {
+    const payload = JSON.stringify({
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          executiveSummary: "Сжатый отчёт прочитан.",
+          healthScore: 81,
+          opportunity: "Улучшить конверсию.",
+          actions: [],
+        }),
+      }],
+    });
+    const compressed = brotliCompressSync(Buffer.from(payload));
+    const fetchFn = vi.fn(async () => new Response(new Uint8Array(compressed), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })) as unknown as typeof fetch;
+
+    const report = await createClaudeAdsReport(analytics, {
+      fetchFn,
+      apiKey: "secret",
+      baseUrl: "https://claude.example",
+    });
+    expect(report.healthScore).toBe(81);
   });
 });

@@ -22,6 +22,8 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
   const [report, setReport] = useState<AdsAnalysisReport | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
@@ -32,6 +34,13 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
       .catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    if (!loading) return;
+    setElapsedSeconds(0);
+    const timer = window.setInterval(() => setElapsedSeconds((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [loading]);
+
   const approvedCount = useMemo(
     () => Object.values(decisions).filter((decision) => decision === "approved").length,
     [decisions],
@@ -39,13 +48,15 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
 
   async function generateReport() {
     setLoading(true);
+    setRequestError(null);
     try {
       const response = await fetch("/api/avito/ads-analytics/ai-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(analytics),
       });
-      const data = await response.json();
+      const raw = await response.text();
+      const data = raw ? JSON.parse(raw) : {};
       if (!response.ok) throw new Error(data.error ?? "Не удалось получить отчёт Claude");
       setReport(data.report);
       setGeneratedAt(data.generatedAt);
@@ -53,7 +64,9 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
       setDrafts(Object.fromEntries(data.report.actions.map((action: AdsAnalysisAction) => [action.id, action.proposedValue ?? ""])));
       toast({ title: "AI-отчёт готов", description: `Claude подготовил действий: ${data.report.actions.length}` });
     } catch (error) {
-      toast({ title: "Claude не ответил", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+      const message = error instanceof Error ? error.message : String(error);
+      setRequestError(message);
+      toast({ title: "Claude не ответил", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -77,7 +90,7 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
             </p>
           </div>
         </div>
-        <Button onClick={generateReport} disabled={loading || analytics.items.length === 0} size="sm">
+        <Button type="button" onClick={() => void generateReport()} disabled={loading || analytics.items.length === 0} size="sm">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : report ? <RefreshCw className="h-4 w-4" /> : <WandSparkles className="h-4 w-4" />}
           {loading ? "Claude анализирует" : report ? "Обновить отчёт" : "Сформировать AI-отчёт"}
         </Button>
@@ -85,6 +98,24 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
 
       {!report ? (
         <CardContent className="p-4">
+          {loading && (
+            <div role="status" className="mb-4 flex items-center gap-3 rounded-lg border border-primary/25 bg-primary/[0.06] p-3">
+              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" />
+              <div>
+                <p className="text-sm font-semibold">Claude анализирует {analytics.items.length} объявлений</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Запрос выполняется · {elapsedSeconds} сек. При перегрузке CRM повторит его автоматически.</p>
+              </div>
+            </div>
+          )}
+          {requestError && !loading && (
+            <div role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+              <p className="text-sm font-semibold text-destructive">Не удалось сформировать отчёт</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{requestError}</p>
+              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void generateReport()}>
+                <RefreshCw className="h-4 w-4" />Повторить
+              </Button>
+            </div>
+          )}
           <div className="grid gap-4 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-center">
             <WorkflowStep icon={<Sparkles className="h-4 w-4" />} title="Находит проблему" text="Сравнивает просмотры, избранное и контакты по каждому объявлению." />
             <ChevronRight className="hidden h-4 w-4 text-muted-foreground/50 lg:block" />

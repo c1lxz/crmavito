@@ -66,6 +66,8 @@ export function buildAdsAnalysisPrompt(input: AdsAnalysisInput): string {
     "Логика воронки: мало просмотров — проблема охвата/обложки/заголовка/цены; просмотры и избранное без контактов — проблема оффера, доверия или цены; просмотры без избранного — проблема визуала или соответствия ожиданиям.",
     "Для заголовка или описания давай готовый proposedValue, только если исходных данных достаточно.",
     "Для новых изображений используй field=photos и applyMode=content_machine.",
+    "Выбери не более 5 самых важных действий: сначала высокий приоритет и наибольший ожидаемый эффект.",
+    "Пиши кратко: executiveSummary и opportunity до 2 предложений, diagnosis и expectedImpact до 1 предложения.",
     "Верни только JSON без markdown по схеме:",
     JSON.stringify({
       executiveSummary: "краткий итог",
@@ -87,4 +89,3 @@ export function buildAdsAnalysisPrompt(input: AdsAnalysisInput): string {
     JSON.stringify({ ...input, items }),
   ].join("\n");
 }
-
