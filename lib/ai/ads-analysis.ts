@@ -51,8 +51,8 @@ export type AdsAnalysisInput = z.infer<typeof adsAnalysisInputSchema>;
 export type AdsAnalysisReport = z.infer<typeof adsAnalysisReportSchema>;
 export type AdsAnalysisAction = z.infer<typeof adsAnalysisActionSchema>;
 
-const MAX_PROMPT_ITEMS = 80;
-const MAX_PROMPT_DESCRIPTION_LENGTH = 1200;
+const MAX_PROMPT_ITEMS = 50;
+const MAX_PROMPT_DESCRIPTION_LENGTH = 700;
 
 export function compactAdsAnalysisInput(input: AdsAnalysisInput) {
   const byViews = [...input.items].sort((left, right) => right.views - left.views);
@@ -63,9 +63,9 @@ export function compactAdsAnalysisInput(input: AdsAnalysisInput) {
   });
   const byContacts = [...input.items].sort((left, right) => right.contacts - left.contacts);
   const candidates = [
-    ...byViews.slice(0, 45),
-    ...byFavoritesWithoutContacts.slice(0, 25),
-    ...byContacts.slice(0, 10),
+    ...byViews.slice(0, 30),
+    ...byFavoritesWithoutContacts.slice(0, 15),
+    ...byContacts.slice(0, 5),
   ];
   const selected = Array.from(new Map(candidates.map((item) => [item.itemId, item])).values())
     .slice(0, MAX_PROMPT_ITEMS)

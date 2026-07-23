@@ -56,7 +56,7 @@ export async function createClaudeAdsReport(
   const baseUrl = (options.baseUrl?.trim() || status.baseUrl).replace(/\/$/, "");
   const model = options.model?.trim() || status.model;
   const fallbackModel = options.fallbackModel?.trim() || status.fallbackModel;
-  const maxTokens = readBoundedInteger(process.env.CLAUDE_MAX_TOKENS, 5000, 1000, 8000);
+  const maxTokens = readBoundedInteger(process.env.CLAUDE_MAX_TOKENS, 12000, 4000, 20000);
   const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 5, 5));
   const cacheKey = options.fetchFn || options.apiKey || options.baseUrl || options.model
     ? null
@@ -70,6 +70,8 @@ export async function createClaudeAdsReport(
   let lastResponse: Response | null = null;
   let rawBody = "";
   let data: AnthropicResponse = {};
+  let maxTokenRetryUsed = false;
+  let requestMaxTokens = maxTokens;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const attemptModel = attemptModels[attempt - 1];
@@ -84,7 +86,7 @@ export async function createClaudeAdsReport(
         },
         body: JSON.stringify({
           model: attemptModel,
-          max_tokens: maxTokens,
+          max_tokens: requestMaxTokens,
           messages: [{ role: "user", content: buildAdsAnalysisPrompt(input) }],
         }),
         cache: "no-store",
@@ -98,6 +100,11 @@ export async function createClaudeAdsReport(
       }
 
       const responseText = data.content?.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
+      if (lastResponse.ok && data.stop_reason === "max_tokens" && !maxTokenRetryUsed && attempt < maxAttempts) {
+        maxTokenRetryUsed = true;
+        requestMaxTokens = Math.min(20000, Math.max(requestMaxTokens + 4000, 16000));
+        continue;
+      }
       if (lastResponse.ok && responseText) break;
       if (!isRetryableClaudeFailure(lastResponse.status, rawBody) || attempt === maxAttempts) break;
       await delay(getRetryDelayMs(lastResponse, rawBody, attempt, options.retryDelaysMs));
@@ -129,11 +136,11 @@ export async function createClaudeAdsReport(
   }
 
   const parsedBody = data;
+  if (parsedBody.stop_reason === "max_tokens") {
+    throw new Error("Claude не смог завершить отчёт даже с расширенным лимитом ответа. Повторите запрос.");
+  }
   const text = parsedBody.content?.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
   if (!text) {
-    if (parsedBody.stop_reason === "max_tokens") {
-      throw new Error("Claude исчерпал лимит ответа до формирования отчёта. Увеличьте CLAUDE_MAX_TOKENS.");
-    }
     const detail = rawBody.trim().slice(0, 300);
     throw new Error(detail
       ? `Шлюз Claude не смог запустить анализ: ${detail}`

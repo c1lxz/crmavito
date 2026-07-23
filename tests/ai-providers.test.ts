@@ -44,15 +44,15 @@ describe("AI providers", () => {
     const compact = compactAdsAnalysisInput({ ...analytics, items: manyItems });
 
     expect(compact.sourceItemCount).toBe(120);
-    expect(compact.analyzedItemCount).toBeLessThanOrEqual(80);
-    expect(compact.items.every((item) => (item.description?.length ?? 0) <= 1200)).toBe(true);
+    expect(compact.analyzedItemCount).toBeLessThanOrEqual(50);
+    expect(compact.items.every((item) => (item.description?.length ?? 0) <= 700)).toBe(true);
   });
 
   it("calls the Anthropic messages API and validates the report", async () => {
     const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       expect(String(url)).toBe("https://claude.example/v1/messages");
       expect(new Headers(init?.headers).get("x-api-key")).toBe("secret");
-      expect(JSON.parse(String(init?.body)).max_tokens).toBe(5000);
+      expect(JSON.parse(String(init?.body)).max_tokens).toBe(12000);
       return Response.json({
         content: [{
           type: "text",
@@ -214,7 +214,42 @@ describe("AI providers", () => {
       apiKey: "secret",
       baseUrl: "https://customix.fun/api",
       model: "claude-opus-4-8",
-    })).rejects.toThrow("исчерпал лимит ответа");
+    })).rejects.toThrow("даже с расширенным лимитом");
+  });
+
+  it("retries once with a larger output budget when Customix exhausts the first one", async () => {
+    const requestedLimits: number[] = [];
+    const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      requestedLimits.push(JSON.parse(String(init?.body)).max_tokens);
+      if (requestedLimits.length === 1) {
+        return Response.json({
+          content: [{ type: "text", text: "" }],
+          stop_reason: "max_tokens",
+        });
+      }
+      return Response.json({
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            executiveSummary: "Расширенного лимита хватило для отчёта.",
+            healthScore: 76,
+            opportunity: "Улучшить конверсию объявлений.",
+            actions: [],
+          }),
+        }],
+        stop_reason: "end_turn",
+      });
+    }) as unknown as typeof fetch;
+
+    const report = await createClaudeAdsReport(analytics, {
+      fetchFn,
+      apiKey: "secret",
+      baseUrl: "https://customix.fun/api",
+      model: "claude-opus-4-8",
+    });
+
+    expect(requestedLimits).toEqual([12000, 16000]);
+    expect(report.healthScore).toBe(76);
   });
 
   it("retries a successful HTTP response containing a gateway capacity error", async () => {
