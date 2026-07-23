@@ -1,4 +1,5 @@
 import { brotliDecompressSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { adsAnalysisReportSchema, buildAdsAnalysisPrompt, type AdsAnalysisInput, type AdsAnalysisReport } from "@/lib/ai/ads-analysis";
 
 type FetchFn = typeof fetch;
@@ -8,6 +9,9 @@ type AnthropicResponse = {
   message?: string;
   error?: { message?: string } | string;
 };
+
+const reportCache = new Map<string, { expiresAt: number; report: AdsAnalysisReport }>();
+const REPORT_CACHE_TTL_MS = 30 * 60 * 1000;
 
 export function getClaudeStatus() {
   return {
@@ -43,7 +47,13 @@ export async function createClaudeAdsReport(
   const baseUrl = (options.baseUrl?.trim() || status.baseUrl).replace(/\/$/, "");
   const model = options.model?.trim() || status.model;
   const fallbackModel = options.fallbackModel?.trim() || status.fallbackModel;
+  const maxTokens = readBoundedInteger(process.env.CLAUDE_MAX_TOKENS, 1400, 600, 3000);
   const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 3, 3));
+  const cacheKey = options.fetchFn || options.apiKey || options.baseUrl || options.model
+    ? null
+    : createHash("sha256").update(JSON.stringify(input)).digest("hex");
+  const cached = cacheKey ? reportCache.get(cacheKey) : undefined;
+  if (cached && cached.expiresAt > Date.now()) return cached.report;
   const attemptModels = Array.from(
     { length: maxAttempts },
     (_, index) => maxAttempts > 1 && index === maxAttempts - 1 ? fallbackModel : model,
@@ -65,7 +75,7 @@ export async function createClaudeAdsReport(
         },
         body: JSON.stringify({
           model: attemptModel,
-          max_tokens: 3000,
+          max_tokens: maxTokens,
           messages: [{ role: "user", content: buildAdsAnalysisPrompt(input) }],
         }),
         cache: "no-store",
@@ -118,10 +128,17 @@ export async function createClaudeAdsReport(
 
   const parsed = adsAnalysisReportSchema.safeParse(parseJsonObject(text));
   if (!parsed.success) throw new Error("Claude вернул отчёт с неверной структурой.");
+  if (cacheKey) {
+    reportCache.set(cacheKey, {
+      expiresAt: Date.now() + REPORT_CACHE_TTL_MS,
+      report: parsed.data,
+    });
+  }
   return parsed.data;
 }
 
 function isRetryableClaudeFailure(status: number, body: string) {
+  if (status === 403 && /account tier is insufficient|insufficient for this service/i.test(body)) return false;
   return status === 403 || status === 429 || status >= 500 || /maximum number of running container|failed to start container|error code:\s*1101|overload|temporar/i.test(body);
 }
 
@@ -135,6 +152,12 @@ function getClaudeErrorDetail(data: AnthropicResponse, rawBody: string) {
 
 function delay(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function readBoundedInteger(value: string | undefined, fallback: number, minimum: number, maximum: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(minimum, Math.min(parsed, maximum));
 }
 
 async function readClaudeBody(response: Response) {

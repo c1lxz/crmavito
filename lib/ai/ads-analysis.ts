@@ -51,12 +51,41 @@ export type AdsAnalysisInput = z.infer<typeof adsAnalysisInputSchema>;
 export type AdsAnalysisReport = z.infer<typeof adsAnalysisReportSchema>;
 export type AdsAnalysisAction = z.infer<typeof adsAnalysisActionSchema>;
 
+const MAX_PROMPT_ITEMS = 80;
+const MAX_PROMPT_DESCRIPTION_LENGTH = 1200;
+
+export function compactAdsAnalysisInput(input: AdsAnalysisInput) {
+  const byViews = [...input.items].sort((left, right) => right.views - left.views);
+  const byFavoritesWithoutContacts = [...input.items].sort((left, right) => {
+    const leftOpportunity = left.favorites * 10 - left.contacts;
+    const rightOpportunity = right.favorites * 10 - right.contacts;
+    return rightOpportunity - leftOpportunity;
+  });
+  const byContacts = [...input.items].sort((left, right) => right.contacts - left.contacts);
+  const candidates = [
+    ...byViews.slice(0, 45),
+    ...byFavoritesWithoutContacts.slice(0, 25),
+    ...byContacts.slice(0, 10),
+  ];
+  const selected = Array.from(new Map(candidates.map((item) => [item.itemId, item])).values())
+    .slice(0, MAX_PROMPT_ITEMS)
+    .map((item) => ({
+      ...item,
+      description: item.description?.slice(0, MAX_PROMPT_DESCRIPTION_LENGTH) ?? item.description,
+      contactRate: item.views > 0 ? Number(((item.contacts / item.views) * 100).toFixed(2)) : 0,
+      favoriteRate: item.views > 0 ? Number(((item.favorites / item.views) * 100).toFixed(2)) : 0,
+    }));
+
+  return {
+    ...input,
+    sourceItemCount: input.items.length,
+    analyzedItemCount: selected.length,
+    items: selected,
+  };
+}
+
 export function buildAdsAnalysisPrompt(input: AdsAnalysisInput): string {
-  const items = input.items.map((item) => ({
-    ...item,
-    contactRate: item.views > 0 ? Number(((item.contacts / item.views) * 100).toFixed(2)) : 0,
-    favoriteRate: item.views > 0 ? Number(((item.favorites / item.views) * 100).toFixed(2)) : 0,
-  }));
+  const compactInput = compactAdsAnalysisInput(input);
 
   return [
     "Ты — ведущий аналитик объявлений Avito для магазина одежды.",
@@ -86,6 +115,6 @@ export function buildAdsAnalysisPrompt(input: AdsAnalysisInput): string {
       }],
     }),
     "Данные:",
-    JSON.stringify({ ...input, items }),
+    JSON.stringify(compactInput),
   ].join("\n");
 }

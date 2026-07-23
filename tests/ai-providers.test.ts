@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { brotliCompressSync } from "node:zlib";
-import { buildAdsAnalysisPrompt, type AdsAnalysisInput } from "@/lib/ai/ads-analysis";
+import { buildAdsAnalysisPrompt, compactAdsAnalysisInput, type AdsAnalysisInput } from "@/lib/ai/ads-analysis";
 import { createClaudeAdsReport } from "@/lib/ai/claude";
 import { buildProductPhotoPrompt, generateGeminiImage } from "@/lib/ai/gemini-images";
 
@@ -31,6 +31,21 @@ describe("AI providers", () => {
     expect(prompt).toContain('"contactRate":2');
     expect(prompt).toContain('"favoriteRate":15');
     expect(prompt).toContain("Не выдумывай отсутствующие");
+  });
+
+  it("keeps the Claude request compact for accounts with limited credits", () => {
+    const manyItems = Array.from({ length: 120 }, (_, index) => ({
+      ...analytics.items[0],
+      itemId: String(index + 1),
+      title: `Item ${index + 1}`,
+      views: 120 - index,
+      description: "x".repeat(3000),
+    }));
+    const compact = compactAdsAnalysisInput({ ...analytics, items: manyItems });
+
+    expect(compact.sourceItemCount).toBe(120);
+    expect(compact.analyzedItemCount).toBeLessThanOrEqual(80);
+    expect(compact.items.every((item) => (item.description?.length ?? 0) <= 1200)).toBe(true);
   });
 
   it("calls the Anthropic messages API and validates the report", async () => {
@@ -169,6 +184,19 @@ describe("AI providers", () => {
 
     expect(requestedModels).toEqual(["claude-sonnet-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"]);
     expect(report.healthScore).toBe(72);
+  });
+
+  it("does not retry a permanent FreeModel account-tier rejection", async () => {
+    const fetchFn = vi.fn(async () => Response.json({
+      error: "Your account tier is insufficient for this service.",
+    }, { status: 403 })) as unknown as typeof fetch;
+
+    await expect(createClaudeAdsReport(analytics, {
+      fetchFn,
+      apiKey: "secret",
+      baseUrl: "https://claude.example",
+    })).rejects.toThrow("account tier is insufficient");
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
   it("retries a successful HTTP response containing a gateway capacity error", async () => {
