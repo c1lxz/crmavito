@@ -180,3 +180,219 @@ export function buildAdsAnalysisPrompt(input: AdsAnalysisInput): string {
     JSON.stringify(compactInput),
   ].join("\n");
 }
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat("ru-RU").format(value);
+}
+
+function formatRate(value: number): string {
+  return `${value.toLocaleString("ru-RU", { maximumFractionDigits: 2 })}%`;
+}
+
+function actionId(field: AdsAnalysisAction["field"], itemId: string): string {
+  return `${field}-${itemId}`.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 100);
+}
+
+/**
+ * Produces an evidence-based report even when the external AI gateway is unavailable.
+ * It deliberately uses only fields returned by Avito and labels unprovable ideas as tests.
+ */
+export function createDataDrivenAdsReport(input: AdsAnalysisInput): AdsAnalysisReport {
+  const compact = compactAdsAnalysisInput(input);
+  const items = input.items;
+  const medianViews = compact.accountMetrics.medianViews ?? 0;
+  const contactRate = compact.accountMetrics.viewToContactRate;
+  const favoriteRate = compact.accountMetrics.viewToFavoriteRate;
+  const byViews = [...items].sort((a, b) => b.views - a.views);
+  const byContacts = [...items].sort((a, b) => b.contacts - a.contacts || b.views - a.views);
+  const topViewed = byViews[0];
+  const topContact = byContacts[0];
+  const favoriteNoContact = [...items]
+    .filter((item) => item.favorites > 0 && item.contacts === 0)
+    .sort((a, b) => b.favorites - a.favorites || b.views - a.views)[0];
+  const promotionCandidate = [...items]
+    .filter((item) => item.views >= medianViews && item.contacts > 0)
+    .sort((a, b) => (b.contacts / Math.max(b.views, 1)) - (a.contacts / Math.max(a.views, 1)))[0];
+  const lowReach = [...items]
+    .filter((item) => item.views < medianViews)
+    .sort((a, b) => a.views - b.views)[0];
+  const weakInterest = [...items]
+    .filter((item) => item.views >= medianViews && item.favorites === 0)
+    .sort((a, b) => b.views - a.views)[0];
+  const describedWeakConversion = [...items]
+    .filter((item) => Boolean(item.description?.trim()) && item.views >= medianViews && item.contacts === 0)
+    .sort((a, b) => b.views - a.views)[0];
+  const topTenCount = Math.min(10, items.length);
+  const topTenViews = byViews.slice(0, topTenCount).reduce((sum, item) => sum + item.views, 0);
+  const topTenShare = rate(topTenViews, input.total.views);
+  const actions: AdsAnalysisAction[] = [];
+
+  if (topViewed) {
+    actions.push({
+      id: actionId("video", topViewed.itemId),
+      itemId: topViewed.itemId,
+      title: `${topViewed.title}: Flow-видео для усиления лидера`,
+      priority: "high",
+      field: "video",
+      diagnosis: `Лидер по охвату: ${formatNumber(topViewed.views)} просмотров, ${formatNumber(topViewed.favorites)} добавлений в избранное и ${formatNumber(topViewed.contacts)} контактов за ${input.periodDays} дней. У позиции уже есть подтверждённый интерес, поэтому видео тестируется на тёплом спросе.`,
+      proposedValue: `Flow, вертикальное видео 9:16, 8 секунд. Использовать исходные фото товара как строгий референс: не менять принт, цвет, крой, надписи и пропорции. 0–2 сек: плавный наезд камеры на товар целиком. 2–5 сек: макро-проезд по принту и фактуре ткани с мягким боковым светом. 5–7 сек: лёгкий поворот ракурса, товар остаётся неизменным. 7–8 сек: чистый финальный кадр с текстом «Посмотрите детали в объявлении». Без людей, лишнего реквизита и выдуманных элементов.`,
+      expectedImpact: "Сравнить 7 дней до и после: долю избранного и контактов от просмотров. Оставить видео, если хотя бы одна конверсия вырастет на 15% без падения второй.",
+      applyMode: "manual",
+    });
+  }
+
+  if (promotionCandidate) {
+    const candidateRate = rate(promotionCandidate.contacts, promotionCandidate.views);
+    actions.push({
+      id: actionId("promotion", promotionCandidate.itemId),
+      itemId: promotionCandidate.itemId,
+      title: `${promotionCandidate.title}: тест продвижения`,
+      priority: "high",
+      field: "promotion",
+      diagnosis: `Карточка уже конвертирует трафик: ${formatNumber(promotionCandidate.contacts)} контактов из ${formatNumber(promotionCandidate.views)} просмотров (${formatRate(candidateRate)}), при медиане аккаунта ${formatNumber(medianViews)} просмотров. Это более безопасный кандидат на покупку охвата, чем карточки без контактов.`,
+      proposedValue: "Запустить минимальный доступный пакет продвижения на 3 дня без одновременной смены цены, заголовка и обложки. Зафиксировать просмотры и контакты до запуска. Остановить тест, если после первых 100 дополнительных просмотров нет контактов или стоимость контакта превышает допустимую маржу.",
+      expectedImpact: "Цель — масштабировать уже работающую конверсию; критерий успеха: прирост контактов пропорционально просмотрам без ухудшения view→contact более чем на 20%.",
+      applyMode: "manual",
+    });
+  }
+
+  if (favoriteNoContact) {
+    const discountPercent = 7;
+    const testedPrice = favoriteNoContact.price ? Math.round(favoriteNoContact.price * (1 - discountPercent / 100) / 10) * 10 : null;
+    actions.push({
+      id: actionId("price", favoriteNoContact.itemId),
+      itemId: favoriteNoContact.itemId,
+      title: `${favoriteNoContact.title}: проверить барьер покупки`,
+      priority: "high",
+      field: "price",
+      diagnosis: `${formatNumber(favoriteNoContact.favorites)} добавлений в избранное и 0 контактов при ${formatNumber(favoriteNoContact.views)} просмотрах: интерес есть, но решение откладывают. Цена — гипотеза, а не доказанный диагноз.`,
+      proposedValue: favoriteNoContact.price
+        ? `A/B-тест на 7 дней: снизить цену с ${formatNumber(favoriteNoContact.price)} ₽ до ${formatNumber(testedPrice!)} ₽ (−${discountPercent}%), не меняя остальные элементы карточки. До теста проверить минимальную маржу.`
+        : "Цена не получена API. Сначала зафиксировать текущую цену и допустимую маржу, затем провести 7-дневный тест −5–7% без других изменений.",
+      expectedImpact: "Главная метрика — появление контактов; дополнительная — рост view→contact. Если контактов нет, вернуть цену и тестировать оффер/доверие.",
+      applyMode: "manual",
+    });
+  }
+
+  if (topContact) {
+    actions.push({
+      id: actionId("duplicate", topContact.itemId),
+      itemId: topContact.itemId,
+      title: `${topContact.title}: масштабировать подтверждённый спрос`,
+      priority: "medium",
+      field: "duplicate",
+      diagnosis: `Один из лидеров по намерению: ${formatNumber(topContact.contacts)} контактов, ${formatNumber(topContact.favorites)} избранных и ${formatNumber(topContact.views)} просмотров. Это основание тестировать соседний спрос, а не делать идентичную копию.`,
+      proposedValue: "Создать отдельное объявление только для реально существующего отличия: другой размер/цвет либо отдельный поисковый оффер. Новая карточка должна иметь другую обложку и заголовок под конкретный вариант, но те же достоверные характеристики. Не публиковать идентичный дубль.",
+      expectedImpact: "За 7 дней сравнить просмотры и контакты нового варианта с исходным; сохранить вариант, если он даёт дополнительный спрос, а не просто перетягивает просмотры.",
+      applyMode: "autoload",
+    });
+  }
+
+  if (lowReach) {
+    actions.push({
+      id: actionId("title", lowReach.itemId),
+      itemId: lowReach.itemId,
+      title: `${lowReach.title}: тест охвата`,
+      priority: "medium",
+      field: "title",
+      diagnosis: `${formatNumber(lowReach.views)} просмотров против медианы аккаунта ${formatNumber(medianViews)}. Контактов: ${formatNumber(lowReach.contacts)}, избранных: ${formatNumber(lowReach.favorites)}. Проблема находится до конверсии — карточке не хватает входящего трафика или клика.`,
+      proposedValue: `Пересобрать заголовок по формуле «тип товара + бренд/стиль из текущего названия + ключевая отличительная характеристика, которая реально есть». Исходное название: «${lowReach.title}». Одновременно заголовок и обложку не менять: сначала 7 дней теста заголовка.`,
+      expectedImpact: `Цель — поднять просмотры минимум до медианы аккаунта (${formatNumber(medianViews)}) за сопоставимые 7 дней.`,
+      applyMode: "manual",
+    });
+  }
+
+  if (weakInterest) {
+    actions.push({
+      id: actionId("photos", weakInterest.itemId),
+      itemId: weakInterest.itemId,
+      title: `${weakInterest.title}: усилить визуальный оффер`,
+      priority: "medium",
+      field: "photos",
+      diagnosis: `${formatNumber(weakInterest.views)} просмотров (не ниже медианы ${formatNumber(medianViews)}), но 0 добавлений в избранное. Трафик приходит, однако карточка не создаёт желание сохранить товар.`,
+      proposedValue: "План фотосерии: 1) чистая контрастная обложка с товаром целиком; 2) крупно принт/главная деталь; 3) фактура ткани и швы; 4) вид сзади; 5) реальные замеры с линейкой; 6) посадка или масштаб без искажения товара; 7) комплектность и состояние. Если эти кадры уже есть, менять порядок и тестировать новую обложку, а не добавлять дубликаты.",
+      expectedImpact: "Сравнить 7 дней: целевая метрика — появление избранного и рост favorite rate минимум до средней по аккаунту.",
+      applyMode: "content_machine",
+    });
+  }
+
+  if (describedWeakConversion) {
+    actions.push({
+      id: actionId("description", describedWeakConversion.itemId),
+      itemId: describedWeakConversion.itemId,
+      title: `${describedWeakConversion.title}: переработать полученное описание`,
+      priority: "medium",
+      field: "description",
+      diagnosis: `API подтвердил наличие описания. При ${formatNumber(describedWeakConversion.views)} просмотрах карточка получила 0 контактов; можно тестировать структуру оффера, не утверждая, что описание отсутствует.`,
+      proposedValue: `Перестроить фактический текст без выдуманных свойств: первая строка — «${describedWeakConversion.title} — в наличии». Далее короткими блоками: состояние и особенности из текущего описания; точные замеры/размеры; условия примерки и доставки; призыв «Напишите — пришлю дополнительные замеры и помогу подобрать размер». Все характеристики сверить с исходным товаром.`,
+      expectedImpact: "Цель теста на 7 дней — получить первый контакт либо приблизить view→contact к средней ставке аккаунта.",
+      applyMode: "manual",
+    });
+  }
+
+  actions.push({
+    id: "assortment-account",
+    itemId: "account",
+    title: "Матрица похожих позиций по лидерам",
+    priority: "medium",
+    field: "assortment",
+    diagnosis: topContact
+      ? `Отталкиваться от лидера «${topContact.title}» (${formatNumber(topContact.contacts)} контактов), а не расширять ассортимент вслепую.`
+      : "В текущем периоде нет контактов, поэтому расширение ассортимента пока остаётся гипотезой и требует проверки спроса.",
+    proposedValue: "Собрать 3 соседних варианта вокруг лидирующей позиции: другой реально доступный цвет, соседний размер и близкий дизайн/стиль. Для каждого — отдельный поисковый заголовок и обложка. Публиковать по одному варианту каждые 2–3 дня, чтобы измерить вклад каждого.",
+    expectedImpact: "Через 7 дней ранжировать новые позиции по просмотрам, избранному и контактам; закупать/масштабировать только варианты выше медианы аккаунта.",
+    applyMode: "manual",
+  });
+
+  const portfolioInsights = [
+    {
+      title: "Конверсия аккаунта",
+      finding: `${formatNumber(input.total.views)} просмотров дали ${formatNumber(input.total.favorites)} избранных (${formatRate(favoriteRate)}) и ${formatNumber(input.total.contacts)} контактов (${formatRate(contactRate)}) за ${input.periodDays} дней.`,
+      recommendation: "Сначала улучшать карточки с просмотрами и без контактов; продвижение покупать только для объявлений с уже подтверждённой конверсией.",
+    },
+    {
+      title: "Концентрация спроса",
+      finding: `Топ-${topTenCount} объявлений собирают ${formatRate(topTenShare)} всех просмотров. Медиана — ${formatNumber(medianViews)} просмотров на объявление.`,
+      recommendation: "Масштабировать признаки лидеров и отдельно перезапускать карточки существенно ниже медианы.",
+    },
+    {
+      title: "Отложенный спрос",
+      finding: `${formatNumber(compact.accountMetrics.favoritesWithoutContacts)} объявлений имеют избранное, но не имеют контактов.`,
+      recommendation: "На этих карточках по одному тестировать цену, доверие и оффер; не смешивать несколько изменений в одном периоде.",
+    },
+    {
+      title: "Нулевая конверсия после просмотра",
+      finding: `${formatNumber(compact.accountMetrics.viewedWithoutContacts)} объявлений получили просмотры, но не получили контактов.`,
+      recommendation: "Разделить их на карточки с избранным (барьер решения) и без избранного (визуал/соответствие ожиданиям).",
+    },
+    {
+      title: "Качество контентных данных",
+      finding: `API вернул описание для ${formatNumber(compact.accountMetrics.descriptionReceivedFromApi)} из ${formatNumber(items.length)} объявлений; для остальных наличие описания не определено.`,
+      recommendation: "Не считать неизвестные описания пустыми. Оценивать и переписывать только текст, который фактически получен.",
+    },
+    {
+      title: "Временная динамика",
+      finding: `Отчёт использует один период ${input.dateFrom}—${input.dateTo}; фактического сравнения с предыдущими 7 днями в данных нет.`,
+      recommendation: "Сохранить текущие ставки как базу и сравнить с последующими 7 днями после внедрения изменений.",
+    },
+  ];
+
+  return {
+    executiveSummary: `Проанализировано ${formatNumber(items.length)} из ${formatNumber(input.total.ads)} объявлений за ${input.periodDays} дней. Аккаунт получил ${formatNumber(input.total.views)} просмотров, ${formatNumber(input.total.favorites)} добавлений в избранное и ${formatNumber(input.total.contacts)} контактов. Главный резерв — точечно улучшать карточки с уже существующим интересом и масштабировать лидеров, не оплачивая трафик для объявлений без доказанной конверсии.`,
+    opportunity: favoriteNoContact
+      ? `Самый явный резерв — «${favoriteNoContact.title}»: ${formatNumber(favoriteNoContact.favorites)} избранных при 0 контактов. Нужен изолированный тест цены/оффера на 7 дней.`
+      : topContact
+        ? `Масштабировать «${topContact.title}», которое принесло ${formatNumber(topContact.contacts)} контактов, через Flow-видео, продвижение и отличающиеся ассортиментные варианты.`
+        : "Сначала добиться первых контактов через последовательные тесты заголовков, обложек и оффера; затем подключать продвижение.",
+    accountMetrics: [
+      { label: "Просмотры", value: formatNumber(input.total.views), context: `${input.periodDays} дней · ${formatNumber(input.total.ads)} объявлений` },
+      { label: "Контакты", value: formatNumber(input.total.contacts), context: `Конверсия из просмотра: ${formatRate(contactRate)}` },
+      { label: "В избранном", value: formatNumber(input.total.favorites), context: `Доля от просмотров: ${formatRate(favoriteRate)}` },
+      { label: "Медиана просмотров", value: formatNumber(medianViews), context: "Половина объявлений выше, половина ниже этого уровня" },
+      { label: "Без контактов", value: formatNumber(compact.accountMetrics.viewedWithoutContacts), context: "Объявления с просмотрами, но без обращений" },
+      { label: `Доля топ-${topTenCount}`, value: formatRate(topTenShare), context: "Доля всех просмотров, которую собирают лидеры" },
+    ],
+    portfolioInsights,
+    actions: actions.slice(0, 12),
+  };
+}

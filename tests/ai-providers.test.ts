@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { brotliCompressSync } from "node:zlib";
-import { buildAdsAnalysisPrompt, compactAdsAnalysisInput, type AdsAnalysisInput } from "@/lib/ai/ads-analysis";
+import { buildAdsAnalysisPrompt, compactAdsAnalysisInput, createDataDrivenAdsReport, type AdsAnalysisInput } from "@/lib/ai/ads-analysis";
 import { createClaudeAdsReport } from "@/lib/ai/claude";
 import { buildProductPhotoPrompt, generateGeminiImage } from "@/lib/ai/gemini-images";
 
@@ -47,6 +47,25 @@ describe("AI providers", () => {
     expect(compact.analyzedItemCount).toBe(100);
     expect(compact.coveragePercent).toBe(83.33);
     expect(compact.items.every((item) => (item.description?.length ?? 0) <= 1200)).toBe(true);
+  });
+
+  it("builds a complete data-driven report when Claude is unavailable", () => {
+    const report = createDataDrivenAdsReport({
+      ...analytics,
+      total: { ads: 3, views: 190, contacts: 4, favorites: 20 },
+      items: [
+        { ...analytics.items[0], views: 100, contacts: 4, favorites: 5 },
+        { ...analytics.items[0], itemId: "102", title: "Футболка two", views: 80, contacts: 0, favorites: 15, price: 3000 },
+        { ...analytics.items[0], itemId: "103", title: "Футболка three", views: 10, contacts: 0, favorites: 0 },
+      ],
+    });
+
+    expect(report.accountMetrics.length).toBeGreaterThanOrEqual(6);
+    expect(report.portfolioInsights.length).toBeGreaterThanOrEqual(5);
+    expect(report.actions.some((action) => action.field === "video")).toBe(true);
+    expect(report.actions.some((action) => action.field === "price")).toBe(true);
+    expect(report.actions.some((action) => action.field === "promotion")).toBe(true);
+    expect(report.executiveSummary).toContain("190");
   });
 
   it("calls the Anthropic messages API and validates the report", async () => {

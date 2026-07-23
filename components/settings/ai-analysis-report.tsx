@@ -76,7 +76,10 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
       setGeneratedAt(data.generatedAt);
       setDecisions(Object.fromEntries(data.report.actions.map((action: AdsAnalysisAction) => [action.id, "pending"])));
       setDrafts(Object.fromEntries(data.report.actions.map((action: AdsAnalysisAction) => [action.id, action.proposedValue ?? ""])));
-      toast({ title: "AI-отчёт готов", description: `Claude подготовил действий: ${data.report.actions.length}` });
+      toast({
+        title: data.warning ? "Отчёт по данным готов" : "AI-отчёт готов",
+        description: data.warning ?? `Claude подготовил действий: ${data.report.actions.length}`,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRequestError(message);

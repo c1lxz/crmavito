@@ -47,6 +47,7 @@ export async function createClaudeAdsReport(
     fallbackModel?: string;
     maxAttempts?: number;
     retryDelaysMs?: number[];
+    requestTimeoutMs?: number;
   } = {},
 ): Promise<AdsAnalysisReport> {
   const apiKey = options.apiKey?.trim() || (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY)?.trim();
@@ -90,7 +91,7 @@ export async function createClaudeAdsReport(
           messages: [{ role: "user", content: buildAdsAnalysisPrompt(input) }],
         }),
         cache: "no-store",
-        signal: AbortSignal.timeout(75_000),
+        signal: AbortSignal.timeout(options.requestTimeoutMs ?? 75_000),
       });
       rawBody = await readClaudeBody(lastResponse);
       try {

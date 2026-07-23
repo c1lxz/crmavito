@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { adsAnalysisInputSchema } from "@/lib/ai/ads-analysis";
+import { adsAnalysisInputSchema, createDataDrivenAdsReport } from "@/lib/ai/ads-analysis";
 import { createClaudeAdsReport, getClaudeStatus } from "@/lib/ai/claude";
 import { getGeminiImageStatus } from "@/lib/ai/gemini-images";
 
@@ -22,10 +22,19 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Недостаточно данных для AI-анализа." }, { status: 400 });
 
   try {
-    const report = await createClaudeAdsReport(parsed.data);
+    const report = await createClaudeAdsReport(parsed.data, {
+      maxAttempts: 1,
+      requestTimeoutMs: 55_000,
+    });
     return NextResponse.json({ report, generatedAt: new Date().toISOString(), provider: "claude" });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 502 });
+    console.error("[ads-analysis] Claude failed, returning data-driven report:", error);
+    const report = createDataDrivenAdsReport(parsed.data);
+    return NextResponse.json({
+      report,
+      generatedAt: new Date().toISOString(),
+      provider: "data-driven-fallback",
+      warning: "Claude временно не ответил. Отчёт построен по фактическим метрикам Avito.",
+    });
   }
 }
-
