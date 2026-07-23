@@ -178,11 +178,11 @@ describe("AI providers", () => {
       fetchFn,
       apiKey: "secret",
       baseUrl: "https://claude.example",
-      model: "claude-sonnet-5",
+      model: "claude-sonnet-4-6",
       fallbackModel: "claude-haiku-4-5-20251001",
     });
 
-    expect(requestedModels).toEqual(["claude-sonnet-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"]);
+    expect(requestedModels).toEqual(["claude-sonnet-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]);
     expect(report.healthScore).toBe(72);
   });
 
@@ -195,7 +195,7 @@ describe("AI providers", () => {
       fetchFn,
       apiKey: "secret",
       baseUrl: "https://claude.example",
-    })).rejects.toThrow("account tier is insufficient");
+    })).rejects.toThrow("Новый ключ того же аккаунта не поможет");
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 

@@ -16,7 +16,7 @@ const REPORT_CACHE_TTL_MS = 30 * 60 * 1000;
 export function getClaudeStatus() {
   return {
     configured: Boolean((process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY)?.trim()),
-    model: (process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL)?.trim() || "claude-sonnet-5",
+    model: (process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL)?.trim() || "claude-sonnet-4-6",
     fallbackModel: (process.env.CLAUDE_FALLBACK_MODEL || process.env.ANTHROPIC_FALLBACK_MODEL)?.trim() || "claude-haiku-4-5-20251001",
     baseUrl: (process.env.CLAUDE_BASE_URL || process.env.ANTHROPIC_BASE_URL)?.trim().replace(/\/$/, "") || "https://cc.freemodel.dev",
   };
@@ -107,7 +107,9 @@ export async function createClaudeAdsReport(
   if (!lastResponse) throw new Error("Claude не ответил.");
   if (!lastResponse.ok) {
     const detail = getClaudeErrorDetail(data, rawBody);
-    const endpointHint = lastResponse.status === 404
+    const endpointHint = lastResponse.status === 403 && /account tier is insufficient|insufficient for this service/i.test(rawBody)
+      ? " FreeModel не разрешает Claude для текущего Tier аккаунта. Новый ключ того же аккаунта не поможет: разблокируйте T1+ пополнением и укажите его Anthropic endpoint."
+      : lastResponse.status === 404
       ? " Провайдер не поддерживает Anthropic endpoint /v1/messages для этого ключа."
       : lastResponse.status === 403
         ? " Провайдер отклонил запрос: проверьте баланс и доступ ключа к Claude."
