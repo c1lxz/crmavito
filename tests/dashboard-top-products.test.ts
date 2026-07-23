@@ -64,5 +64,8 @@ describe("mobile dashboard layout", () => {
     expect(source).toContain("grid-cols-[1.5rem_minmax(0,1fr)_minmax(4.5rem,auto)]");
     expect(source).toContain("const getOrderImageUrl");
     expect(source).toContain("item.imageUrls.length > 0");
+    expect(source).toMatch(
+      /alt=\{order\.productNameSnapshot\}[\s\S]*?width=\{44\}[\s\S]*?height=\{44\}[\s\S]*?unoptimized/,
+    );
   });
 });

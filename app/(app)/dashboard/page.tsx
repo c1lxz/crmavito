@@ -227,7 +227,7 @@ export default async function DashboardPage() {
                   <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_minmax(4.75rem,auto)] items-center gap-2 p-3 sm:gap-3">
                     <div className="h-11 w-11 shrink-0 overflow-hidden rounded-md bg-muted">
                       {imageUrl ? (
-                        <Image src={imageUrl} alt={order.productNameSnapshot} width={44} height={44} className="h-full w-full object-cover" />
+                        <Image src={imageUrl} alt={order.productNameSnapshot} width={44} height={44} unoptimized className="h-full w-full object-cover" />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-muted-foreground">
                           <Package className="h-5 w-5" />
