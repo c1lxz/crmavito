@@ -257,9 +257,19 @@ export function TasksClient({
         const data = await res.json().catch(() => null);
         throw new Error(typeof data?.error === "string" ? data.error : "Не удалось создать задачу");
       }
+      const savedTask = (await res.json()) as Task;
+      setTasks((current) => {
+        const updated = editingTask
+          ? current.map((task) => (task.id === savedTask.id ? savedTask : task))
+          : [...current, savedTask];
+        return updated.sort(
+          (left, right) =>
+            left.status.localeCompare(right.status) ||
+            new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime(),
+        );
+      });
       toast({ title: editingTask ? "Задача обновлена" : "Задача создана" });
       closeCreate();
-      await refreshTasks();
       router.refresh();
     } catch (error) {
       toast({
