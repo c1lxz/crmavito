@@ -52,6 +52,7 @@ describe("AI providers", () => {
     const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       expect(String(url)).toBe("https://claude.example/v1/messages");
       expect(new Headers(init?.headers).get("x-api-key")).toBe("secret");
+      expect(JSON.parse(String(init?.body)).max_tokens).toBe(5000);
       return Response.json({
         content: [{
           type: "text",
@@ -199,6 +200,21 @@ describe("AI providers", () => {
       baseUrl: "https://claude.example",
     })).rejects.toThrow("Новый ключ того же аккаунта не поможет");
     expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains when Customix spends the output budget before returning the report", async () => {
+    const fetchFn = vi.fn(async () => Response.json({
+      content: [{ type: "text", text: "" }],
+      stop_reason: "max_tokens",
+      model: "claude-opus-4-8",
+    })) as unknown as typeof fetch;
+
+    await expect(createClaudeAdsReport(analytics, {
+      fetchFn,
+      apiKey: "secret",
+      baseUrl: "https://customix.fun/api",
+      model: "claude-opus-4-8",
+    })).rejects.toThrow("исчерпал лимит ответа");
   });
 
   it("retries a successful HTTP response containing a gateway capacity error", async () => {

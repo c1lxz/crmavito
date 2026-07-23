@@ -8,6 +8,7 @@ type AnthropicResponse = {
   content?: Array<{ type?: string; text?: string }>;
   message?: string;
   error?: { message?: string } | string;
+  stop_reason?: string | null;
 };
 
 const reportCache = new Map<string, { expiresAt: number; report: AdsAnalysisReport }>();
@@ -55,7 +56,7 @@ export async function createClaudeAdsReport(
   const baseUrl = (options.baseUrl?.trim() || status.baseUrl).replace(/\/$/, "");
   const model = options.model?.trim() || status.model;
   const fallbackModel = options.fallbackModel?.trim() || status.fallbackModel;
-  const maxTokens = readBoundedInteger(process.env.CLAUDE_MAX_TOKENS, 1400, 600, 3000);
+  const maxTokens = readBoundedInteger(process.env.CLAUDE_MAX_TOKENS, 5000, 1000, 8000);
   const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 5, 5));
   const cacheKey = options.fetchFn || options.apiKey || options.baseUrl || options.model
     ? null
@@ -130,6 +131,9 @@ export async function createClaudeAdsReport(
   const parsedBody = data;
   const text = parsedBody.content?.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
   if (!text) {
+    if (parsedBody.stop_reason === "max_tokens") {
+      throw new Error("Claude исчерпал лимит ответа до формирования отчёта. Увеличьте CLAUDE_MAX_TOKENS.");
+    }
     const detail = rawBody.trim().slice(0, 300);
     throw new Error(detail
       ? `Шлюз Claude не смог запустить анализ: ${detail}`
