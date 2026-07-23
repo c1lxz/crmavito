@@ -17,6 +17,20 @@ type AiStatus = {
 
 type Decision = "pending" | "approved" | "rejected";
 
+function parseReportResponse(response: Response, raw: string) {
+  if (!raw.trim()) {
+    throw new Error("Сервис анализа вернул пустой ответ. Попробуйте ещё раз.");
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    if ([502, 503, 504].includes(response.status) || /^\s*</.test(raw)) {
+      throw new Error("Customix не успел завершить отчёт. Повторите запрос — загружать аналитику заново не нужно.");
+    }
+    throw new Error("Сервис анализа вернул некорректный ответ. Попробуйте ещё раз.");
+  }
+}
+
 export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput }) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [report, setReport] = useState<AdsAnalysisReport | null>(null);
@@ -56,7 +70,7 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
         body: JSON.stringify(analytics),
       });
       const raw = await response.text();
-      const data = raw ? JSON.parse(raw) : {};
+      const data = parseReportResponse(response, raw);
       if (!response.ok) throw new Error(data.error ?? "Не удалось получить отчёт Claude");
       setReport(data.report);
       setGeneratedAt(data.generatedAt);
