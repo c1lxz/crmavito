@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { BrainCircuit, Check, ChevronRight, ImageIcon, Loader2, PencilLine, RefreshCw, Sparkles, ThumbsDown, WandSparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BrainCircuit, Check, Copy, ExternalLink, ListChecks, Loader2, RefreshCw, ThumbsDown, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +15,7 @@ type AiStatus = {
   gemini: { configured: boolean; model: string };
 };
 
-type Decision = "pending" | "approved" | "rejected";
+type Decision = "pending" | "approved" | "rejected" | "queued";
 
 function parseReportResponse(response: Response, raw: string) {
   if (!raw.trim()) {
@@ -40,6 +40,7 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
   const [requestError, setRequestError] = useState<string | null>(null);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [handingOff, setHandingOff] = useState(false);
 
   useEffect(() => {
     void fetch("/api/avito/ads-analytics/ai-report", { cache: "no-store" })
@@ -57,6 +58,10 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
 
   const approvedCount = useMemo(
     () => Object.values(decisions).filter((decision) => decision === "approved").length,
+    [decisions],
+  );
+  const queuedCount = useMemo(
+    () => Object.values(decisions).filter((decision) => decision === "queued").length,
     [decisions],
   );
 
@@ -89,6 +94,44 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
     }
   }
 
+  async function handOffApproved() {
+    if (!report || !generatedAt) return;
+    const selected = report.actions
+      .filter((action) => decisions[action.id] === "approved")
+      .map((action) => ({
+        action: { ...action, proposedValue: drafts[action.id]?.trim() || action.proposedValue },
+        listingUrl: analytics.items.find((item) => item.itemId === action.itemId)?.url ?? null,
+      }));
+    if (!selected.length) return;
+
+    setHandingOff(true);
+    try {
+      const response = await fetch("/api/avito/ads-analytics/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generatedAt, actions: selected }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Не удалось создать задачи");
+      setDecisions((current) => ({
+        ...current,
+        ...Object.fromEntries(selected.map(({ action }) => [action.id, "queued"])),
+      }));
+      toast({
+        title: "Передано в работу",
+        description: `Создано задач: ${data.created}${data.skipped ? ` · уже существовало: ${data.skipped}` : ""}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Не удалось передать задачи",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setHandingOff(false);
+    }
+  }
+
   return (
     <Card className="overflow-hidden border-primary/20">
       <div className="flex flex-col gap-4 border-b bg-accent/40 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -98,12 +141,11 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-sm font-semibold">Умный анализ Claude</h2>
+              <h2 className="text-sm font-semibold">Анализ и план роста</h2>
               <ProviderBadge configured={status?.claude.configured} label="Claude" />
-              <ProviderBadge configured={status?.gemini.configured} label="Gemini Images" />
             </div>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-              Ищет потери в воронке, предлагает точные изменения и отдаёт каждую правку на подтверждение.
+              Сравнивает объявления по воронке и превращает выводы в конкретные задачи.
             </p>
           </div>
         </div>
@@ -133,19 +175,11 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
               </Button>
             </div>
           )}
-          <div className="grid gap-4 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-center">
-            <WorkflowStep icon={<Sparkles className="h-4 w-4" />} title="Находит проблему" text="Сравнивает просмотры, избранное и контакты по каждому объявлению." />
-            <ChevronRight className="hidden h-4 w-4 text-muted-foreground/50 lg:block" />
-            <WorkflowStep icon={<PencilLine className="h-4 w-4" />} title="Готовит правку" text="Пишет новый заголовок, описание или арт-дирекцию для изображения." />
-            <ChevronRight className="hidden h-4 w-4 text-muted-foreground/50 lg:block" />
-            <WorkflowStep icon={<Check className="h-4 w-4" />} title="Ждёт решения" text="Человек подтверждает, отклоняет или редактирует предложение." />
-          </div>
-          <div className="mt-4 flex items-center gap-3 rounded-md border border-dashed border-border bg-secondary/45 p-3">
-            <ImageIcon className="h-5 w-5 shrink-0 text-primary" />
-            <p className="text-xs leading-5 text-muted-foreground">
-              Контент-машина подготовлена: Claude будет формировать дизайн-бриф, а Gemini — создавать только изображения футболок и лонгсливов.
+          {!loading && !requestError && (
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+              Отчёт покажет ключевые цифры, главные закономерности и короткий приоритетный план без повторяющихся советов.
             </p>
-          </div>
+          )}
         </CardContent>
       ) : (
         <CardContent className="p-0">
@@ -159,7 +193,7 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
 
           {report.accountMetrics.length > 0 && (
             <div className="grid gap-px border-b bg-border sm:grid-cols-2 xl:grid-cols-3">
-              {report.accountMetrics.map((metric, index) => (
+              {report.accountMetrics.slice(0, 6).map((metric, index) => (
                 <div key={`${metric.label}-${index}`} className="bg-background p-4">
                   <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
                   <p className="mt-1 text-xl font-semibold tracking-tight">{metric.value}</p>
@@ -172,17 +206,29 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
           {report.portfolioInsights.length > 0 && (
             <div className="border-b p-4">
               <p className="mb-3 text-sm font-semibold">Выводы по аккаунту и ассортименту</p>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {report.portfolioInsights.map((insight, index) => (
-                  <div key={`${insight.title}-${index}`} className="rounded-lg border bg-secondary/25 p-3">
-                    <p className="text-sm font-semibold">{insight.title}</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{insight.finding}</p>
-                    <p className="mt-2 text-xs leading-5"><span className="font-semibold">Что делать:</span> {insight.recommendation}</p>
+              <div className="divide-y rounded-md border">
+                {report.portfolioInsights.slice(0, 5).map((insight, index) => (
+                  <div key={`${insight.title}-${index}`} className="p-3">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:gap-3">
+                      <p className="w-full shrink-0 text-sm font-semibold sm:w-48">{insight.title}</p>
+                      <div>
+                        <p className="text-xs leading-5 text-muted-foreground">{insight.finding}</p>
+                        <p className="mt-1 text-xs leading-5"><span className="font-semibold">Решение:</span> {insight.recommendation}</p>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
+
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold">Приоритетный план</p>
+              <p className="text-xs text-muted-foreground">Выберите нужное и передайте в задачи CRM.</p>
+            </div>
+            <Badge variant="secondary">{report.actions.length}</Badge>
+          </div>
 
           <div className="divide-y">
             {report.actions.map((action) => (
@@ -191,6 +237,7 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
                 action={action}
                 decision={decisions[action.id] ?? "pending"}
                 draft={drafts[action.id] ?? ""}
+                listingUrl={analytics.items.find((item) => item.itemId === action.itemId)?.url ?? null}
                 onDecision={(decision) => setDecisions((current) => ({ ...current, [action.id]: decision }))}
                 onDraft={(value) => setDrafts((current) => ({ ...current, [action.id]: value }))}
               />
@@ -199,10 +246,13 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
 
           <div className="flex flex-col gap-3 bg-secondary/35 p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
-              Одобрено: <span className="font-semibold text-foreground">{approvedCount}</span> · Автоприменение подключается отдельным безопасным шагом через Avito.
+              В плане: <span className="font-semibold text-foreground">{approvedCount}</span>
+              {queuedCount > 0 && <> · Создано задач: <span className="font-semibold text-foreground">{queuedCount}</span></>}
+              {" "}· Контент Avito меняется после выполнения задачи.
             </p>
-            <Button size="sm" disabled title="Станет доступно после подключения обновления объявлений Avito">
-              Применить одобренные
+            <Button size="sm" disabled={approvedCount === 0 || handingOff} onClick={() => void handOffApproved()}>
+              {handingOff ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListChecks className="h-4 w-4" />}
+              {handingOff ? "Создаю задачи" : `Передать в задачи${approvedCount ? ` (${approvedCount})` : ""}`}
             </Button>
           </div>
         </CardContent>
@@ -219,33 +269,23 @@ function ProviderBadge({ configured, label }: { configured: boolean | undefined;
   );
 }
 
-function WorkflowStep({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
-  return (
-    <div className="flex gap-3">
-      <div className="icon-tile h-8 w-8 bg-secondary">{icon}</div>
-      <div>
-        <p className="text-xs font-semibold">{title}</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p>
-      </div>
-    </div>
-  );
-}
-
 function ActionRow({
   action,
   decision,
   draft,
+  listingUrl,
   onDecision,
   onDraft,
 }: {
   action: AdsAnalysisAction;
   decision: Decision;
   draft: string;
+  listingUrl: string | null;
   onDecision: (decision: Decision) => void;
   onDraft: (value: string) => void;
 }) {
   return (
-    <div className={cn("p-4 transition-colors", decision === "approved" && "bg-emerald-50/60 dark:bg-emerald-950/15", decision === "rejected" && "bg-secondary/45 opacity-70")}>
+    <div className={cn("p-4 transition-colors", decision === "approved" && "bg-emerald-50/60 dark:bg-emerald-950/15", decision === "queued" && "bg-primary/[0.04]", decision === "rejected" && "bg-secondary/45 opacity-70")}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -254,6 +294,7 @@ function ActionRow({
             </Badge>
             <Badge variant="outline">{fieldLabel(action.field)}</Badge>
             {action.applyMode === "content_machine" && <Badge variant="secondary">Gemini Images</Badge>}
+            {decision === "queued" && <Badge variant="success">Задача создана</Badge>}
           </div>
           <p className="mt-2 text-sm font-semibold">{action.title}</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{action.diagnosis}</p>
@@ -266,12 +307,22 @@ function ActionRow({
           )}
         </div>
         <div className="flex shrink-0 gap-2 lg:flex-col">
-          <Button size="sm" variant={decision === "approved" ? "default" : "outline"} onClick={() => onDecision(decision === "approved" ? "pending" : "approved")}>
-            <Check className="h-4 w-4" /> Одобрить
+          <Button size="sm" variant={decision === "approved" ? "default" : "outline"} disabled={decision === "queued"} onClick={() => onDecision(decision === "approved" ? "pending" : "approved")}>
+            <Check className="h-4 w-4" /> {decision === "queued" ? "В работе" : "В план"}
           </Button>
-          <Button size="sm" variant={decision === "rejected" ? "secondary" : "ghost"} onClick={() => onDecision(decision === "rejected" ? "pending" : "rejected")}>
+          <Button size="sm" variant={decision === "rejected" ? "secondary" : "ghost"} disabled={decision === "queued"} onClick={() => onDecision(decision === "rejected" ? "pending" : "rejected")}>
             <ThumbsDown className="h-4 w-4" /> Отклонить
           </Button>
+          {draft && (
+            <Button size="sm" variant="ghost" onClick={() => void navigator.clipboard.writeText(draft).then(() => toast({ title: "Правка скопирована" }))}>
+              <Copy className="h-4 w-4" /> Копировать
+            </Button>
+          )}
+          {listingUrl && (
+            <Button size="sm" variant="ghost" asChild>
+              <a href={listingUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /> Открыть</a>
+            </Button>
+          )}
         </div>
       </div>
     </div>
