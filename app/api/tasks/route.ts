@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ensureTaskNotification } from "@/lib/telegram/task-notification-queue";
 import { createTaskSchema, readTaskRequest } from "@/lib/tasks/request";
 import { serializeTask } from "@/lib/tasks/serialize";
-import { removeTaskFiles, saveTaskFiles } from "@/lib/tasks/storage";
+import { removeTaskFiles } from "@/lib/tasks/storage";
 
 const taskInclude = {
   assignee: { select: { id: true, name: true, telegramId: true } },
@@ -66,10 +66,10 @@ export async function POST(req: NextRequest) {
       select: { id: true },
     });
     if (assignees.length !== assigneeUserIds.length) {
+      await removeTaskFiles(files.map((file) => file.storageKey));
       return NextResponse.json({ error: "Ответственный не найден" }, { status: 404 });
     }
 
-    const savedFiles = await saveTaskFiles(files);
     let task;
     try {
       task = await prisma.task.create({
@@ -83,12 +83,12 @@ export async function POST(req: NextRequest) {
           assignees: {
             create: assigneeUserIds.map((userId) => ({ userId })),
           },
-          attachments: { create: savedFiles },
+          attachments: { create: files },
         },
         include: taskInclude,
       });
     } catch (error) {
-      await removeTaskFiles(savedFiles.map((file) => file.storageKey));
+      await removeTaskFiles(files.map((file) => file.storageKey));
       throw error;
     }
 

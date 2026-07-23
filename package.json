@@ -38,6 +38,7 @@
     "@radix-ui/react-tooltip": "^1.1.8",
     "autoprefixer": "^10.5.1",
     "bcryptjs": "^2.4.3",
+    "busboy": "^1.6.0",
     "bwip-js": "^4.11.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -62,6 +63,7 @@
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@types/bcryptjs": "^2.4.6",
+    "@types/busboy": "^1.5.4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

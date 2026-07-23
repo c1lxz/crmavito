@@ -12,8 +12,6 @@ import { serializeTask } from "@/lib/tasks/serialize";
 import {
   MAX_TASK_FILES,
   removeTaskFiles,
-  saveTaskFiles,
-  validateTaskFiles,
 } from "@/lib/tasks/storage";
 
 const taskInclude = {
@@ -61,7 +59,10 @@ export async function PATCH(
       attachments: true,
     },
   });
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!existing) {
+    await removeTaskFiles(files.map((file) => file.storageKey));
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const keepAttachmentIds = payload.keepAttachmentIds
     ? new Set(payload.keepAttachmentIds)
@@ -78,19 +79,24 @@ export async function PATCH(
     payload.scheduledAt !== undefined;
   const adminEdit = detailsEdit || attachmentEdit;
   if (adminEdit && session.user.role !== "ADMIN") {
+    await removeTaskFiles(files.map((file) => file.storageKey));
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const completing = payload.status === "COMPLETED";
   const reopening = payload.status === "OPEN";
   if (reopening && session.user.role !== "ADMIN") {
+    await removeTaskFiles(files.map((file) => file.storageKey));
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (completing && session.user.role !== "ADMIN") {
     const assigned =
       existing.assigneeUserId === session.user.id ||
       existing.assignees.some((assignee) => assignee.user.id === session.user.id);
-    if (!assigned) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!assigned) {
+      await removeTaskFiles(files.map((file) => file.storageKey));
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const assigneeUserIds = payload.assigneeUserIds
@@ -102,32 +108,30 @@ export async function PATCH(
       select: { id: true },
     });
     if (assignees.length !== assigneeUserIds.length) {
+      await removeTaskFiles(files.map((file) => file.storageKey));
       return NextResponse.json({ error: "Ответственный не найден" }, { status: 404 });
     }
   }
 
   const keptAttachmentCount = existing.attachments.length - removedAttachments.length;
   if (keptAttachmentCount + files.length > MAX_TASK_FILES) {
+    await removeTaskFiles(files.map((file) => file.storageKey));
     return NextResponse.json(
       { error: `Можно прикрепить не больше ${MAX_TASK_FILES} файлов` },
-      { status: 400 },
-    );
-  }
-  try {
-    validateTaskFiles(files);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Проверьте выбранные файлы" },
       { status: 400 },
     );
   }
 
   const shouldRefreshNotification = !completing && existing.status === "OPEN" && detailsEdit;
   if (shouldRefreshNotification) {
-    await queueTaskNotificationReplacement(id);
+    try {
+      await queueTaskNotificationReplacement(id);
+    } catch (error) {
+      await removeTaskFiles(files.map((file) => file.storageKey));
+      throw error;
+    }
   }
 
-  const savedFiles = await saveTaskFiles(files);
   let task;
   try {
     task = await prisma.task.update({
@@ -163,7 +167,7 @@ export async function PATCH(
           ? {
               attachments: {
                 deleteMany: { id: { in: removedAttachments.map((item) => item.id) } },
-                create: savedFiles,
+                create: files,
               },
             }
           : {}),
@@ -171,7 +175,7 @@ export async function PATCH(
       include: taskInclude,
     });
   } catch (error) {
-    await removeTaskFiles(savedFiles.map((file) => file.storageKey));
+    await removeTaskFiles(files.map((file) => file.storageKey));
     throw error;
   }
   await removeTaskFiles(removedAttachments.map((attachment) => attachment.storageKey));

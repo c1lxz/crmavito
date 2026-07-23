@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createTaskSchema, readTaskRequest } from "@/lib/tasks/request";
 import {
   MAX_TASK_FILE_SIZE,
+  removeTaskFiles,
   validateTaskFiles,
 } from "@/lib/tasks/storage";
 
@@ -30,11 +31,15 @@ describe("task attachments", () => {
       createTaskSchema,
     );
 
-    expect(result.payload.title).toBe("Проверить документы");
-    expect(result.files.map((file) => file.name)).toEqual([
-      "photo.jpg",
-      "invoice.pdf",
-    ]);
+    try {
+      expect(result.payload.title).toBe("Проверить документы");
+      expect(result.files.map((file) => file.name)).toEqual([
+        "photo.jpg",
+        "invoice.pdf",
+      ]);
+    } finally {
+      await removeTaskFiles(result.files.map((file) => file.storageKey));
+    }
   });
 
   it("rejects unsupported and oversized files", () => {
@@ -52,7 +57,7 @@ describe("task attachments", () => {
     Object.defineProperty(oversized, "size", {
       value: MAX_TASK_FILE_SIZE + 1,
     });
-    expect(() => validateTaskFiles([oversized])).toThrow("до 15 МБ");
+    expect(() => validateTaskFiles([oversized])).toThrow("до 300 МБ");
   });
 
   it("serves attachments only to authenticated CRM users", () => {

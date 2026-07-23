@@ -219,11 +219,11 @@ export function TasksClient({
       });
       return;
     }
-    const oversized = incoming.find((file) => file.size > 15 * 1024 * 1024);
+    const oversized = incoming.find((file) => file.size > 300 * 1024 * 1024);
     if (oversized) {
       toast({
         title: "Файл слишком большой",
-        description: `${oversized.name}: максимальный размер — 15 МБ.`,
+        description: `${oversized.name}: максимальный размер — 300 МБ.`,
         variant: "destructive",
       });
       return;
@@ -497,7 +497,7 @@ export function TasksClient({
                 />
               </label>
               <p className="text-xs text-muted-foreground">
-                Фото, PDF, документы, таблицы или ZIP — до 15 МБ каждый.
+                Фото, PDF, документы, таблицы или ZIP — до 300 МБ каждый.
               </p>
               {editingTask?.attachments.length || form.files.length ? (
                 <div className="space-y-1.5">
