@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Boxes,
-  ClipboardList,
   Home,
+  NotebookPen,
   PackageSearch,
   RotateCcw,
   Settings,
@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/pc/dashboard", match: "/dashboard", label: "Главная", icon: Home },
   { href: "/pc/orders", match: "/orders", label: "Заказы", icon: ShoppingBag },
-  { href: "/pc/tasks", match: "/tasks", label: "Задачи", icon: ClipboardList },
+  { href: "/pc/tasks", match: "/tasks", label: "Блокнот", icon: NotebookPen },
   { href: "/pc/returns", match: "/returns", label: "Возвраты", icon: RotateCcw },
   { href: "/pc/products", match: "/products", label: "Товары", icon: Boxes },
   { href: "/pc/wbr", match: "/wbr", label: "WB Resale", icon: Store },

@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 import { prisma } from "@/lib/db/prisma";
 import { auth } from "@/lib/auth";
-import { TasksClient } from "@/components/tasks/tasks-client";
+import { NotebookClient } from "@/components/notebook/notebook-client";
 import { serializeTask } from "@/lib/tasks/serialize";
+import { noteInclude, serializeNote } from "@/lib/notes/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +42,42 @@ async function getUsers() {
 }
 
 export default async function TasksPage() {
-  const [session, tasks, users] = await Promise.all([auth(), getTasks(), getUsers()]);
+  const session = await auth();
+  const currentUserId = session?.user?.id ?? "";
+  const [tasks, users, notes, products] = await Promise.all([
+    getTasks(),
+    getUsers(),
+    prisma.note.findMany({
+      where: {
+        OR: [
+          { visibility: "ALL" },
+          { createdByUserId: currentUserId },
+          { viewers: { some: { userId: currentUserId } } },
+        ],
+      },
+      include: noteInclude,
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.product.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        imageUrl: true,
+        avitoListingUrl: true,
+        avitoItemId: true,
+      },
+    }),
+  ]);
 
   return (
     <Suspense fallback={<div className="p-4 text-center">Загрузка...</div>}>
-      <TasksClient
+      <NotebookClient
+        initialNotes={notes.map(serializeNote)}
         initialTasks={tasks}
         users={users}
+        products={products}
+        currentUserId={currentUserId}
         isAdmin={session?.user?.role === "ADMIN"}
       />
     </Suspense>

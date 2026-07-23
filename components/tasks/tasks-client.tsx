@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
@@ -63,6 +63,8 @@ interface Props {
   initialTasks: Task[];
   users: TaskUser[];
   isAdmin: boolean;
+  embedded?: boolean;
+  createSignal?: number;
 }
 
 const emptyForm = () => ({
@@ -101,7 +103,13 @@ function assigneeNames(task: Task) {
   return assignees.map((assignee) => assignee.user.name).join(", ");
 }
 
-export function TasksClient({ initialTasks, users, isAdmin }: Props) {
+export function TasksClient({
+  initialTasks,
+  users,
+  isAdmin,
+  embedded = false,
+  createSignal = 0,
+}: Props) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [showCreate, setShowCreate] = useState(false);
@@ -110,6 +118,14 @@ export function TasksClient({ initialTasks, users, isAdmin }: Props) {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(emptyForm);
+
+  useEffect(() => {
+    if (createSignal > 0 && isAdmin) {
+      setEditingTask(null);
+      setForm(emptyForm());
+      setShowCreate(true);
+    }
+  }, [createSignal, isAdmin]);
 
   const stats = useMemo(() => {
     return {
@@ -250,9 +266,9 @@ export function TasksClient({ initialTasks, users, isAdmin }: Props) {
   }
 
   return (
-    <div className="app-shell">
-      <div className="app-header">
-        <div className="mb-3 flex items-start justify-between gap-3">
+    <div className={embedded ? "min-h-0" : "app-shell"}>
+      <div className={embedded ? "notebook-task-toolbar border-b border-border/80 bg-background px-4 py-4" : "app-header"}>
+        <div className={embedded ? "hidden" : "mb-3 flex items-start justify-between gap-3"}>
           <div className="min-w-0">
             <h1 className="text-xl font-semibold tracking-tight">Задачи</h1>
             <p className="section-caption">Личные поручения, сроки и Telegram-напоминания</p>
@@ -301,7 +317,7 @@ export function TasksClient({ initialTasks, users, isAdmin }: Props) {
         </div>
       </div>
 
-      <div className="px-4 py-3 pb-24">
+      <div className={embedded ? "notebook-task-content px-4 py-4 pb-24" : "px-4 py-3 pb-24"}>
         <div className="pc-only hidden overflow-hidden rounded-lg border border-border bg-card">
           <table className="w-full table-fixed text-sm">
             <thead className="border-b bg-muted/55 text-xs text-muted-foreground">

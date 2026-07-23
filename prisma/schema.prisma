@@ -53,6 +53,11 @@ enum TaskStatus {
   COMPLETED
 }
 
+enum NoteVisibility {
+  ALL
+  SELECTED
+}
+
 model User {
   id           String    @id @default(uuid())
   name         String
@@ -74,6 +79,8 @@ model User {
   assignedTasks  Task[] @relation("TaskAssignedTo")
   taskAssignments TaskAssignee[]
   completedTasks Task[] @relation("TaskCompletedBy")
+  notesCreated   Note[] @relation("NoteCreatedBy")
+  noteAccess     NoteViewer[]
 
   @@map("users")
 }
@@ -175,9 +182,70 @@ model Product {
   orders   Order[]
   orderItems OrderItem[]
   returns  Return[]
+  notes    NoteProduct[]
 
   @@index([name])
   @@map("products")
+}
+
+model Note {
+  id              String         @id @default(uuid())
+  title           String
+  content         String
+  visibility      NoteVisibility @default(ALL)
+  createdByUserId String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  createdBy   User             @relation("NoteCreatedBy", fields: [createdByUserId], references: [id])
+  viewers     NoteViewer[]
+  attachments NoteAttachment[]
+  products    NoteProduct[]
+
+  @@index([createdByUserId])
+  @@index([visibility, updatedAt])
+  @@map("notes")
+}
+
+model NoteViewer {
+  id        String @id @default(uuid())
+  noteId    String
+  userId    String
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, userId])
+  @@index([userId])
+  @@map("note_viewers")
+}
+
+model NoteAttachment {
+  id         String   @id @default(uuid())
+  noteId     String
+  name       String
+  storageKey String   @unique
+  mimeType   String
+  size       Int
+  createdAt  DateTime @default(now())
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId])
+  @@map("note_attachments")
+}
+
+model NoteProduct {
+  id        String @id @default(uuid())
+  noteId    String
+  productId String
+
+  note    Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, productId])
+  @@index([productId])
+  @@map("note_products")
 }
 
 model Counterparty {

@@ -348,11 +348,66 @@
   .pc-shell .analytics-ranking-table {
     min-height: 28rem;
   }
+
+  .pc-shell .notebook-header {
+    padding-bottom: 1rem;
+  }
+
+  .pc-shell .notebook-header-row,
+  .pc-shell .notebook-content {
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    max-width: 96rem;
+  }
+
+  .pc-shell .notebook-header > [role="tablist"] {
+    margin-left: max(0px, calc((100% - 96rem) / 2));
+  }
+
+  .pc-shell .notebook-notes-grid {
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  }
+
+  .pc-shell .notebook-task-content {
+    padding: 1.5rem 2rem 2rem;
+  }
+
+  .pc-shell .notebook-task-toolbar {
+    padding: 1rem 2rem;
+  }
+
+  .pc-shell .notebook-task-toolbar > .grid {
+    max-width: 48rem;
+  }
+
+  .pc-shell .notebook-task-toolbar > .space-y-2 {
+    max-width: 64rem;
+  }
 }
 
 .expense-month-chart-grid {
   display: grid;
   gap: 1rem;
+}
+
+.notebook-notes-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 639px) {
+  .mobile-shell .notebook-editor {
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    max-height: calc(100dvh - var(--app-top-pad, 48px));
+    transform: translateX(-50%);
+    border-bottom: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
 }
 
 @media (min-width: 1536px) {
