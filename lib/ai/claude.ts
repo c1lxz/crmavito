@@ -16,9 +16,9 @@ const REPORT_CACHE_TTL_MS = 30 * 60 * 1000;
 export function getClaudeStatus() {
   return {
     configured: Boolean((process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY)?.trim()),
-    model: (process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL)?.trim() || "claude-sonnet-4-6",
-    fallbackModel: (process.env.CLAUDE_FALLBACK_MODEL || process.env.ANTHROPIC_FALLBACK_MODEL)?.trim() || "claude-haiku-4-5-20251001",
-    baseUrl: (process.env.CLAUDE_BASE_URL || process.env.ANTHROPIC_BASE_URL)?.trim().replace(/\/$/, "") || "https://cc.freemodel.dev",
+    model: (process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL)?.trim() || "claude-opus-4-8",
+    fallbackModel: (process.env.CLAUDE_FALLBACK_MODEL || process.env.ANTHROPIC_FALLBACK_MODEL)?.trim() || "claude-opus-4-8",
+    baseUrl: (process.env.CLAUDE_BASE_URL || process.env.ANTHROPIC_BASE_URL)?.trim().replace(/\/$/, "") || "https://customix.fun/api",
   };
 }
 
@@ -38,7 +38,15 @@ function parseJsonObject(text: string): unknown {
 
 export async function createClaudeAdsReport(
   input: AdsAnalysisInput,
-  options: { fetchFn?: FetchFn; apiKey?: string; baseUrl?: string; model?: string; fallbackModel?: string; maxAttempts?: number } = {},
+  options: {
+    fetchFn?: FetchFn;
+    apiKey?: string;
+    baseUrl?: string;
+    model?: string;
+    fallbackModel?: string;
+    maxAttempts?: number;
+    retryDelaysMs?: number[];
+  } = {},
 ): Promise<AdsAnalysisReport> {
   const apiKey = options.apiKey?.trim() || (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY)?.trim();
   if (!apiKey) throw new Error("Claude не настроен: добавьте CLAUDE_API_KEY или ANTHROPIC_API_KEY на сервере.");
@@ -48,7 +56,7 @@ export async function createClaudeAdsReport(
   const model = options.model?.trim() || status.model;
   const fallbackModel = options.fallbackModel?.trim() || status.fallbackModel;
   const maxTokens = readBoundedInteger(process.env.CLAUDE_MAX_TOKENS, 1400, 600, 3000);
-  const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 3, 3));
+  const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 5, 5));
   const cacheKey = options.fetchFn || options.apiKey || options.baseUrl || options.model
     ? null
     : createHash("sha256").update(JSON.stringify(input)).digest("hex");
@@ -91,7 +99,7 @@ export async function createClaudeAdsReport(
       const responseText = data.content?.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n").trim();
       if (lastResponse.ok && responseText) break;
       if (!isRetryableClaudeFailure(lastResponse.status, rawBody) || attempt === maxAttempts) break;
-      await delay(attempt * 1500);
+      await delay(getRetryDelayMs(lastResponse, rawBody, attempt, options.retryDelaysMs));
     } catch (error) {
       if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
         if (attempt < maxAttempts) {
@@ -154,6 +162,20 @@ function getClaudeErrorDetail(data: AnthropicResponse, rawBody: string) {
 
 function delay(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function getRetryDelayMs(response: Response, body: string, attempt: number, configured?: number[]) {
+  const configuredDelay = configured?.[attempt - 1];
+  if (configuredDelay !== undefined) return Math.max(0, configuredDelay);
+
+  const retryAfter = Number.parseFloat(response.headers.get("retry-after") ?? "");
+  if (Number.isFinite(retryAfter) && retryAfter > 0) {
+    return Math.min(25_000, Math.max(1_000, retryAfter * 1000));
+  }
+  if (response.status === 429 && /concurrency reached|limit:\s*\d+/i.test(body)) {
+    return [3_000, 7_000, 15_000, 25_000][attempt - 1] ?? 25_000;
+  }
+  return attempt * 1500;
 }
 
 function readBoundedInteger(value: string | undefined, fallback: number, minimum: number, maximum: number) {

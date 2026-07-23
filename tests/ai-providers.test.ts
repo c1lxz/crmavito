@@ -180,6 +180,8 @@ describe("AI providers", () => {
       baseUrl: "https://claude.example",
       model: "claude-sonnet-4-6",
       fallbackModel: "claude-haiku-4-5-20251001",
+      maxAttempts: 3,
+      retryDelaysMs: [0, 0],
     });
 
     expect(requestedModels).toEqual(["claude-sonnet-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]);
@@ -218,9 +220,38 @@ describe("AI providers", () => {
       fetchFn: fetchFn as unknown as typeof fetch,
       apiKey: "secret",
       baseUrl: "https://claude.example",
+      retryDelaysMs: [0],
     });
     expect(fetchFn).toHaveBeenCalledTimes(2);
     expect(report.healthScore).toBe(70);
+  });
+
+  it("waits and retries when Customix reaches its concurrency limit", async () => {
+    const fetchFn = vi.fn()
+      .mockResolvedValueOnce(Response.json({
+        error: { message: "concurrency reached, current: 20, limit: 20" },
+      }, { status: 429 }))
+      .mockResolvedValueOnce(Response.json({
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            executiveSummary: "Customix освободил слот и подготовил отчёт.",
+            healthScore: 74,
+            opportunity: "Улучшить конверсию.",
+            actions: [],
+          }),
+        }],
+      }));
+
+    const report = await createClaudeAdsReport(analytics, {
+      fetchFn: fetchFn as unknown as typeof fetch,
+      apiKey: "secret",
+      baseUrl: "https://customix.fun/api",
+      model: "claude-opus-4-8",
+      retryDelaysMs: [0],
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(report.healthScore).toBe(74);
   });
 
   it("decodes an unlabelled Brotli response returned by the Claude gateway", async () => {
