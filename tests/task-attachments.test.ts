@@ -84,6 +84,16 @@ describe("task attachments", () => {
     ).not.toThrow();
   });
 
+  it("accepts XML files from browsers with different MIME types", () => {
+    expect(() =>
+      validateTaskFiles([
+        new File(["<items />"], "feed.xml", { type: "application/xml" }),
+        new File(["<items />"], "legacy.xml", { type: "text/xml" }),
+        new File(["<items />"], "mobile.xml", { type: "" }),
+      ]),
+    ).not.toThrow();
+  });
+
   it("serves attachments only to authenticated CRM users", () => {
     const source = readFileSync(
       path.resolve(process.cwd(), "app/api/tasks/files/[id]/route.ts"),
@@ -105,5 +115,6 @@ describe("task attachments", () => {
     expect(source).toContain("<TaskAttachments attachments={task.attachments} />");
     expect(source).toContain("max-h-[90dvh]");
     expect(source).toContain("application/x-zip-compressed");
+    expect(source).toContain("application/xml,text/xml");
   });
 });

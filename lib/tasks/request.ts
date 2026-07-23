@@ -114,7 +114,7 @@ async function readMultipartTaskRequest(
     });
     stream.on("limit", () => {
       parseError = new Error(
-        "Разрешены изображения, PDF, документы, таблицы, TXT, CSV и ZIP до 300 МБ",
+        "Разрешены изображения, PDF, документы, таблицы, TXT, CSV, XML и ZIP до 300 МБ",
       );
     });
 
@@ -123,7 +123,7 @@ async function readMultipartTaskRequest(
         () => {
           if (stream.truncated || file.size > MAX_TASK_FILE_SIZE) {
             throw new Error(
-              "Разрешены изображения, PDF, документы, таблицы, TXT, CSV и ZIP до 300 МБ",
+              "Разрешены изображения, PDF, документы, таблицы, TXT, CSV, XML и ZIP до 300 МБ",
             );
           }
         },

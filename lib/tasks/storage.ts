@@ -13,6 +13,8 @@ const allowedTypes = new Set([
   "application/pdf",
   "text/plain",
   "text/csv",
+  "application/xml",
+  "text/xml",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
@@ -32,6 +34,7 @@ const allowedExtensions = new Set([
   "pdf",
   "txt",
   "csv",
+  "xml",
   "doc",
   "docx",
   "xls",
@@ -75,7 +78,7 @@ export function validateTaskFileMetadata({
     size > MAX_TASK_FILE_SIZE
   ) {
     throw new Error(
-      "Разрешены изображения, PDF, документы, таблицы, TXT, CSV и ZIP до 300 МБ",
+      "Разрешены изображения, PDF, документы, таблицы, TXT, CSV, XML и ZIP до 300 МБ",
     );
   }
 }

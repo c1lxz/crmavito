@@ -505,7 +505,7 @@ export function TasksClient({
                   type="file"
                   multiple
                   className="sr-only"
-                  accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.zip,application/zip,application/x-zip-compressed"
+                  accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.csv,.xml,.doc,.docx,.xls,.xlsx,.zip,application/xml,text/xml,application/zip,application/x-zip-compressed"
                   onChange={(event) => {
                     addFiles(event.target.files);
                     event.target.value = "";
@@ -513,7 +513,7 @@ export function TasksClient({
                 />
               </label>
               <p className="text-xs text-muted-foreground">
-                Фото, PDF, документы, таблицы или ZIP — до 300 МБ каждый.
+                Фото, PDF, документы, таблицы, XML или ZIP — до 300 МБ каждый.
               </p>
               {editingTask?.attachments.length || form.files.length ? (
                 <div className="space-y-1.5">
