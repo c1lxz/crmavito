@@ -12,7 +12,8 @@ type AnthropicResponse = {
 export function getClaudeStatus() {
   return {
     configured: Boolean((process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY)?.trim()),
-    model: (process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL)?.trim() || "claude-sonnet-4-6",
+    model: (process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL)?.trim() || "claude-sonnet-5",
+    fallbackModel: (process.env.CLAUDE_FALLBACK_MODEL || process.env.ANTHROPIC_FALLBACK_MODEL)?.trim() || "claude-haiku-4-5-20251001",
     baseUrl: (process.env.CLAUDE_BASE_URL || process.env.ANTHROPIC_BASE_URL)?.trim().replace(/\/$/, "") || "https://cc.freemodel.dev",
   };
 }
@@ -33,7 +34,7 @@ function parseJsonObject(text: string): unknown {
 
 export async function createClaudeAdsReport(
   input: AdsAnalysisInput,
-  options: { fetchFn?: FetchFn; apiKey?: string; baseUrl?: string; model?: string; maxAttempts?: number } = {},
+  options: { fetchFn?: FetchFn; apiKey?: string; baseUrl?: string; model?: string; fallbackModel?: string; maxAttempts?: number } = {},
 ): Promise<AdsAnalysisReport> {
   const apiKey = options.apiKey?.trim() || (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY)?.trim();
   if (!apiKey) throw new Error("Claude не настроен: добавьте CLAUDE_API_KEY или ANTHROPIC_API_KEY на сервере.");
@@ -41,12 +42,18 @@ export async function createClaudeAdsReport(
   const status = getClaudeStatus();
   const baseUrl = (options.baseUrl?.trim() || status.baseUrl).replace(/\/$/, "");
   const model = options.model?.trim() || status.model;
+  const fallbackModel = options.fallbackModel?.trim() || status.fallbackModel;
   const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 3, 3));
+  const attemptModels = Array.from(
+    { length: maxAttempts },
+    (_, index) => maxAttempts > 1 && index === maxAttempts - 1 ? fallbackModel : model,
+  );
   let lastResponse: Response | null = null;
   let rawBody = "";
   let data: AnthropicResponse = {};
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const attemptModel = attemptModels[attempt - 1];
     try {
       lastResponse = await (options.fetchFn ?? fetch)(`${baseUrl}/v1/messages`, {
         method: "POST",
@@ -57,9 +64,8 @@ export async function createClaudeAdsReport(
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model,
+          model: attemptModel,
           max_tokens: 3000,
-          temperature: 0.2,
           messages: [{ role: "user", content: buildAdsAnalysisPrompt(input) }],
         }),
         cache: "no-store",
@@ -90,9 +96,7 @@ export async function createClaudeAdsReport(
 
   if (!lastResponse) throw new Error("Claude не ответил.");
   if (!lastResponse.ok) {
-    const detail = (typeof data.error === "string" ? data.error : data.error?.message)?.trim()
-      || data.message?.trim()
-      || rawBody.trim().slice(0, 300);
+    const detail = getClaudeErrorDetail(data, rawBody);
     const endpointHint = lastResponse.status === 404
       ? " Провайдер не поддерживает Anthropic endpoint /v1/messages для этого ключа."
       : lastResponse.status === 403
@@ -118,7 +122,15 @@ export async function createClaudeAdsReport(
 }
 
 function isRetryableClaudeFailure(status: number, body: string) {
-  return status >= 500 || /maximum number of running container|failed to start container|error code:\s*1101|overload|temporar/i.test(body);
+  return status === 403 || status === 429 || status >= 500 || /maximum number of running container|failed to start container|error code:\s*1101|overload|temporar/i.test(body);
+}
+
+function getClaudeErrorDetail(data: AnthropicResponse, rawBody: string) {
+  const structured = (typeof data.error === "string" ? data.error : data.error?.message)?.trim() || data.message?.trim();
+  if (structured) return structured;
+  const plain = rawBody.trim();
+  if (/<!doctype\s+html|<html[\s>]/i.test(plain)) return "";
+  return plain.slice(0, 300);
 }
 
 function delay(milliseconds: number) {

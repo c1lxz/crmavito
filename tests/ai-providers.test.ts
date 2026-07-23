@@ -136,6 +136,41 @@ describe("AI providers", () => {
     })).rejects.toThrow("error code: 1101");
   });
 
+  it("falls back to Claude Haiku when the Sonnet gateway returns an HTML 403", async () => {
+    const requestedModels: string[] = [];
+    const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      requestedModels.push(JSON.parse(String(init?.body)).model);
+      if (requestedModels.length < 3) {
+        return new Response("<!doctype html><html><body>Forbidden</body></html>", {
+          status: 403,
+          headers: { "content-type": "text/html" },
+        });
+      }
+      return Response.json({
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            executiveSummary: "Резервная модель подготовила отчёт.",
+            healthScore: 72,
+            opportunity: "Улучшить конверсию объявлений.",
+            actions: [],
+          }),
+        }],
+      });
+    }) as unknown as typeof fetch;
+
+    const report = await createClaudeAdsReport(analytics, {
+      fetchFn,
+      apiKey: "secret",
+      baseUrl: "https://claude.example",
+      model: "claude-sonnet-5",
+      fallbackModel: "claude-haiku-4-5-20251001",
+    });
+
+    expect(requestedModels).toEqual(["claude-sonnet-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"]);
+    expect(report.healthScore).toBe(72);
+  });
+
   it("retries a successful HTTP response containing a gateway capacity error", async () => {
     const fetchFn = vi.fn()
       .mockResolvedValueOnce(new Response("Failed to start container: Maximum number of running container instances exceeded", { status: 200 }))
