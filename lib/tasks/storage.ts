@@ -19,6 +19,8 @@ const allowedTypes = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/zip",
   "application/x-zip-compressed",
+  "application/x-zip",
+  "application/x-compressed",
 ]);
 
 const allowedExtensions = new Set([

@@ -505,7 +505,7 @@ export function TasksClient({
                   type="file"
                   multiple
                   className="sr-only"
-                  accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.zip"
+                  accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.zip,application/zip,application/x-zip-compressed"
                   onChange={(event) => {
                     addFiles(event.target.files);
                     event.target.value = "";

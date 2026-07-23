@@ -74,6 +74,16 @@ describe("task attachments", () => {
     expect(() => validateTaskFiles([oversized])).toThrow("до 300 МБ");
   });
 
+  it("accepts ZIP archives from desktop and mobile clients", () => {
+    expect(() =>
+      validateTaskFiles([
+        new File(["zip"], "documents.zip", { type: "application/zip" }),
+        new File(["zip"], "windows.zip", { type: "application/x-zip-compressed" }),
+        new File(["zip"], "mobile.zip", { type: "" }),
+      ]),
+    ).not.toThrow();
+  });
+
   it("serves attachments only to authenticated CRM users", () => {
     const source = readFileSync(
       path.resolve(process.cwd(), "app/api/tasks/files/[id]/route.ts"),
@@ -94,5 +104,6 @@ describe("task attachments", () => {
     expect(source).toContain("form.keepAttachmentIds");
     expect(source).toContain("<TaskAttachments attachments={task.attachments} />");
     expect(source).toContain("max-h-[90dvh]");
+    expect(source).toContain("application/x-zip-compressed");
   });
 });
