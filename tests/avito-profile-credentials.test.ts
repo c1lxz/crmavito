@@ -18,6 +18,10 @@ const stocksUpdateRouteSource = readFileSync(
   path.resolve(__dirname, "../app/api/avito/stocks/update/route.ts"),
   "utf8",
 );
+const profileSelectSource = readFileSync(
+  path.resolve(__dirname, "../components/avito/avito-profile-select.tsx"),
+  "utf8",
+);
 
 describe("Avito credential profiles", () => {
   it("stores credentials and report email on Avito profiles", () => {
@@ -42,6 +46,8 @@ describe("Avito credential profiles", () => {
     expect(credentialsRouteSource).toContain("listAvitoProfilesWithCredentials");
     expect(storeSource).toContain("clientId: _clientId");
     expect(storeSource).toContain("clientSecret: _clientSecret");
+    expect(storeSource).toContain("hasCredentials: Boolean(_clientId && _clientSecret)");
+    expect(profileSelectSource).toContain("нужны API-ключи");
   });
 
   it("uses server profiles and optional manual keys in stock management", () => {

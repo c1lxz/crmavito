@@ -23,7 +23,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AvitoProfileSelect, type AvitoServiceProfile } from "@/components/avito/avito-profile-select";
 import type { BotvProduct, BotvSession, BotvSessionHistoryItem } from "@/lib/botv/session";
 
 type Status = "idle" | "uploading" | "ready" | "saving" | "generating";
@@ -33,14 +35,6 @@ type UploadProgress = {
   total: number;
   percent: number;
   phase: "uploading" | "processing";
-};
-
-type AvitoCredentialProfile = {
-  id: string;
-  name: string;
-  accountId: string | null;
-  reportEmail: string | null;
-  isActive: boolean;
 };
 
 type PublishResult = {
@@ -321,12 +315,11 @@ export function BotvMiniApp() {
   const [replacementXmlCount, setReplacementXmlCount] = useState(0);
   const [history, setHistory] = useState<BotvSessionHistoryItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(true);
-  const [publishProfiles, setPublishProfiles] = useState<AvitoCredentialProfile[]>([]);
+  const [publishProfiles, setPublishProfiles] = useState<AvitoServiceProfile[]>([]);
   const [selectedPublishProfileId, setSelectedPublishProfileId] = useState("");
   const [manualPublishClientId, setManualPublishClientId] = useState("");
   const [manualPublishClientSecret, setManualPublishClientSecret] = useState("");
   const [manualPublishReportEmail, setManualPublishReportEmail] = useState("");
-  const [publishProfilesOpen, setPublishProfilesOpen] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [publishingCustomXml, setPublishingCustomXml] = useState(false);
   const [customXmlFile, setCustomXmlFile] = useState<File | null>(null);
@@ -354,7 +347,8 @@ export function BotvMiniApp() {
   const allVisibleSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.index));
   const manualPublishCredentialsComplete = Boolean(manualPublishClientId.trim() && manualPublishClientSecret.trim());
   const manualPublishCredentialsPartial = Boolean(manualPublishClientId.trim() || manualPublishClientSecret.trim()) && !manualPublishCredentialsComplete;
-  const hasPublishAuth = manualPublishCredentialsComplete || Boolean(selectedPublishProfileId);
+  const selectedPublishProfile = publishProfiles.find((profile) => profile.id === selectedPublishProfileId) ?? null;
+  const hasPublishAuth = manualPublishCredentialsComplete || Boolean(selectedPublishProfile?.hasCredentials);
   useEffect(() => {
     runInitialLoad();
   }, []);
@@ -591,16 +585,16 @@ export function BotvMiniApp() {
     const response = await apiFetch("/api/avito-profiles/credentials");
     if (!response.ok) return;
     const data = await readJsonResponse(response, "Не удалось загрузить профили Avito");
-    const profiles: AvitoCredentialProfile[] = Array.isArray(data.profiles) ? data.profiles : [];
+    const profiles: AvitoServiceProfile[] = Array.isArray(data.profiles) ? data.profiles : [];
     setPublishProfiles(profiles);
 
     const selected =
       profiles.find((profile) => profile.id === (preferredId || selectedPublishProfileId)) ??
-      profiles[0];
+      profiles.find((profile) => profile.hasCredentials) ?? profiles[0];
     if (selected) applyPublishProfile(selected);
   }
 
-  function applyPublishProfile(profile: AvitoCredentialProfile) {
+  function applyPublishProfile(profile: AvitoServiceProfile) {
     setSelectedPublishProfileId(profile.id);
   }
 
@@ -1053,12 +1047,6 @@ export function BotvMiniApp() {
                   {stoppingAutoload ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                   Остановить
                 </Button>
-                {publishProfiles.length > 0 && (
-                  <Button size="sm" variant="outline" onClick={() => setPublishProfilesOpen((value) => !value)}>
-                    <History className="h-4 w-4" />
-                    Профили
-                  </Button>
-                )}
               </div>
               {customXmlFile && (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/25 bg-accent/60 p-3 text-sm">
@@ -1092,6 +1080,22 @@ export function BotvMiniApp() {
                   </div>
                 </div>
               )}
+              <div className="max-w-xl space-y-1">
+                <Label htmlFor="botv-avito-profile">Профиль Avito</Label>
+                <AvitoProfileSelect
+                  id="botv-avito-profile"
+                  profiles={publishProfiles}
+                  value={selectedPublishProfileId}
+                  onValueChange={(value) => {
+                    setSelectedPublishProfileId(value);
+                    setManualPublishClientId("");
+                    setManualPublishClientSecret("");
+                  }}
+                />
+                {selectedPublishProfile && !selectedPublishProfile.hasCredentials && !manualPublishCredentialsComplete && (
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Для публикации XML этому профилю нужны API-ключи Avito.</p>
+                )}
+              </div>
               <div className="grid gap-2 md:grid-cols-3">
                 <Input
                   placeholder="client_id вручную"
@@ -1113,25 +1117,6 @@ export function BotvMiniApp() {
                   onChange={(event) => setManualPublishReportEmail(event.target.value)}
                 />
               </div>
-              {publishProfilesOpen && publishProfiles.length > 0 && (
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  {publishProfiles.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => applyPublishProfile(item)}
-                      className={`rounded-md border p-2 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${
-                        selectedPublishProfileId === item.id ? "border-primary/40 bg-accent" : "border-border"
-                      }`}
-                    >
-                      <p className="truncate text-xs font-semibold">{item.name}</p>
-                      <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                        {item.accountId || item.reportEmail || "Saved credentials"}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              )}
               <label className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-950 dark:text-amber-100">
                 <input
                   type="checkbox"

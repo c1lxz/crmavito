@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AvitoProfileSelect, type AvitoServiceProfile } from "@/components/avito/avito-profile-select";
 import { toast } from "@/lib/hooks/use-toast";
 import { AiAnalysisReport } from "@/components/settings/ai-analysis-report";
 
@@ -60,14 +60,6 @@ type ProbeResult = {
   };
 };
 
-type AvitoCredentialProfile = {
-  id: string;
-  name: string;
-  accountId: string | null;
-  reportEmail: string | null;
-  isActive: boolean;
-};
-
 type OwnAnalyticsItem = {
   itemId: string;
   title: string;
@@ -104,7 +96,7 @@ export function MarketAnalysisClient() {
   const [marketPeriodDays, setMarketPeriodDays] = useState(3);
   const [marketLoading, setMarketLoading] = useState(false);
   const [marketResult, setMarketResult] = useState<ProbeResult | null>(null);
-  const [credentialProfiles, setCredentialProfiles] = useState<AvitoCredentialProfile[]>([]);
+  const [credentialProfiles, setCredentialProfiles] = useState<AvitoServiceProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [manualClientId, setManualClientId] = useState("");
   const [manualClientSecret, setManualClientSecret] = useState("");
@@ -118,7 +110,7 @@ export function MarketAnalysisClient() {
   const canSubmitMarket = category.trim().length > 0 && marketPeriodDays >= 1 && marketPeriodDays <= 30;
   const manualCredentialsComplete = Boolean(manualClientId.trim() && manualClientSecret.trim());
   const manualCredentialsPartial = Boolean(manualClientId.trim() || manualClientSecret.trim()) && !manualCredentialsComplete;
-  const canSubmitOwn = (manualCredentialsComplete || Boolean(selectedProfileId)) && !manualCredentialsPartial && ownPeriodDays >= 1 && ownPeriodDays <= 270 && !ownLoading;
+  const canSubmitOwn = (manualCredentialsComplete || Boolean(selectedProfile?.hasCredentials)) && !manualCredentialsPartial && ownPeriodDays >= 1 && ownPeriodDays <= 270 && !ownLoading;
 
   const rankedItems = useMemo(
     () => rankBy(ownResult?.items ?? [], rankingMetric),
@@ -133,12 +125,12 @@ export function MarketAnalysisClient() {
     const response = await fetch("/api/avito-profiles/credentials", { cache: "no-store" });
     if (!response.ok) return;
     const data = await response.json();
-    const profiles: AvitoCredentialProfile[] = Array.isArray(data.profiles) ? data.profiles : [];
+    const profiles: AvitoServiceProfile[] = Array.isArray(data.profiles) ? data.profiles : [];
     setCredentialProfiles(profiles);
 
     const selected =
       profiles.find((profile) => profile.id === (preferredId || selectedProfileId)) ??
-      profiles[0];
+      profiles.find((profile) => profile.hasCredentials) ?? profiles[0];
     if (selected) setSelectedProfileId(selected.id);
   }
 
@@ -248,25 +240,19 @@ export function MarketAnalysisClient() {
               </div>
               <div className="min-w-0 space-y-1">
                 <Label htmlFor="own-avito-profile">Профиль Avito</Label>
-                <Select
+                <AvitoProfileSelect
+                  id="own-avito-profile"
+                  profiles={credentialProfiles}
                   value={selectedProfileId}
                   onValueChange={(value) => {
                     setSelectedProfileId(value);
                     setManualClientId("");
                     setManualClientSecret("");
                   }}
-                >
-                  <SelectTrigger id="own-avito-profile" disabled={credentialProfiles.length === 0}>
-                    <SelectValue placeholder={credentialProfiles.length ? "Выберите профиль" : "Нет сохранённых профилей"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {credentialProfiles.map((profile) => (
-                      <SelectItem key={profile.id} value={profile.id}>
-                        {profile.name}{profile.accountId ? ` · ${profile.accountId}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
+                {selectedProfile && !selectedProfile.hasCredentials && !manualCredentialsComplete && (
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Для этого профиля добавьте API-ключи Avito или используйте ручные ключи.</p>
+                )}
               </div>
               <Button
                 type="button"

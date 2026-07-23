@@ -1,13 +1,15 @@
 "use client";
 
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, CheckSquare, ExternalLink, History, Package, RefreshCw, Save, Search, Square } from "lucide-react";
+import { ArrowLeft, Check, CheckSquare, ExternalLink, KeyRound, Package, RefreshCw, Save, Search, Square } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { AvitoProfileSelect, type AvitoServiceProfile } from "@/components/avito/avito-profile-select";
 import { toast } from "@/lib/hooks/use-toast";
 import { formatRub, matchesSearch } from "@/lib/utils";
 
@@ -32,14 +34,6 @@ type StockInfo = {
   is_multiple?: boolean;
 };
 
-type AvitoCredentialProfile = {
-  id: string;
-  name: string;
-  accountId: string | null;
-  reportEmail: string | null;
-  isActive: boolean;
-};
-
 async function readApiJson(response: Response) {
   const text = await response.text();
   if (!text) return {};
@@ -56,11 +50,11 @@ async function readApiJson(response: Response) {
 }
 
 export function StocksClient() {
-  const [credentialProfiles, setCredentialProfiles] = useState<AvitoCredentialProfile[]>([]);
+  const [credentialProfiles, setCredentialProfiles] = useState<AvitoServiceProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [manualClientId, setManualClientId] = useState("");
   const [manualClientSecret, setManualClientSecret] = useState("");
-  const [profilesOpen, setProfilesOpen] = useState(true);
+  const [manualCredentialsOpen, setManualCredentialsOpen] = useState(false);
   const [items, setItems] = useState<StockItem[]>([]);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -84,9 +78,10 @@ export function StocksClient() {
   );
 
   const selectedCount = selected.size;
+  const selectedProfile = credentialProfiles.find((profile) => profile.id === selectedProfileId) ?? null;
   const manualCredentialsComplete = Boolean(manualClientId.trim() && manualClientSecret.trim());
   const manualCredentialsPartial = Boolean(manualClientId.trim() || manualClientSecret.trim()) && !manualCredentialsComplete;
-  const canLoad = (manualCredentialsComplete || Boolean(selectedProfileId)) && !manualCredentialsPartial && !loading;
+  const canLoad = (manualCredentialsComplete || Boolean(selectedProfile?.hasCredentials)) && !manualCredentialsPartial && !loading;
 
   useEffect(() => {
     void refreshCredentialProfiles();
@@ -105,16 +100,16 @@ export function StocksClient() {
     const response = await fetch("/api/avito-profiles/credentials", { cache: "no-store" });
     if (!response.ok) return;
     const data = await response.json();
-    const profiles: AvitoCredentialProfile[] = Array.isArray(data.profiles) ? data.profiles : [];
+    const profiles: AvitoServiceProfile[] = Array.isArray(data.profiles) ? data.profiles : [];
     setCredentialProfiles(profiles);
 
     const selected =
       profiles.find((profile) => profile.id === (preferredId || selectedProfileId)) ??
-      profiles[0];
+      profiles.find((profile) => profile.hasCredentials) ?? profiles[0];
     if (selected) applyProfile(selected);
   }
 
-  function applyProfile(profile: AvitoCredentialProfile) {
+  function applyProfile(profile: AvitoServiceProfile) {
     setSelectedProfileId(profile.id);
   }
 
@@ -532,47 +527,44 @@ export function StocksClient() {
               Загружено {listingProgress.loaded} · стр. {listingProgress.page} · {listingProgress.perPage}/стр.
             </span>
           )}
-          {credentialProfiles.length > 0 && (
-            <Button size="sm" variant="outline" onClick={() => setProfilesOpen((value) => !value)}>
-              <History className="h-4 w-4" />
-              Profiles
-            </Button>
+          <Button size="sm" variant={manualCredentialsOpen ? "secondary" : "outline"} onClick={() => setManualCredentialsOpen((value) => !value)}>
+            <KeyRound className="h-4 w-4" />
+            Ручные ключи
+          </Button>
+        </div>
+
+        <div className="mb-3 max-w-xl space-y-1">
+          <Label htmlFor="stocks-avito-profile">Профиль Avito</Label>
+          <AvitoProfileSelect
+            id="stocks-avito-profile"
+            profiles={credentialProfiles}
+            value={selectedProfileId}
+            onValueChange={(value) => {
+              setSelectedProfileId(value);
+              setManualClientId("");
+              setManualClientSecret("");
+            }}
+          />
+          {selectedProfile && !selectedProfile.hasCredentials && !manualCredentialsComplete && (
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Для загрузки остатков этому профилю нужны API-ключи Avito.</p>
           )}
         </div>
 
-        <div className="mb-3 grid gap-2 md:grid-cols-2">
-          <Input
-            placeholder="client_id вручную"
-            value={manualClientId}
-            onChange={(event) => setManualClientId(event.target.value)}
-            autoComplete="off"
-          />
-          <Input
-            placeholder="client_secret вручную"
-            type="password"
-            value={manualClientSecret}
-            onChange={(event) => setManualClientSecret(event.target.value)}
-            autoComplete="new-password"
-          />
-        </div>
-
-        {profilesOpen && credentialProfiles.length > 0 && (
-          <div className="mb-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {credentialProfiles.map((profile) => (
-              <button
-                key={profile.id}
-                type="button"
-                onClick={() => applyProfile(profile)}
-                className={`rounded-md border p-3 text-left transition-colors hover:border-primary/30 hover:bg-accent/45 ${
-                  selectedProfileId === profile.id ? "border-primary/40 bg-accent" : "border-border"
-                }`}
-              >
-                <p className="truncate text-sm font-semibold">{profile.name}</p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {profile.accountId || profile.reportEmail || "Saved credentials"}
-                </p>
-              </button>
-            ))}
+        {manualCredentialsOpen && (
+          <div className="mb-3 grid gap-2 md:grid-cols-2">
+            <Input
+              placeholder="client_id вручную"
+              value={manualClientId}
+              onChange={(event) => setManualClientId(event.target.value)}
+              autoComplete="off"
+            />
+            <Input
+              placeholder="client_secret вручную"
+              type="password"
+              value={manualClientSecret}
+              onChange={(event) => setManualClientSecret(event.target.value)}
+              autoComplete="new-password"
+            />
           </div>
         )}
       </div>

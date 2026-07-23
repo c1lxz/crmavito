@@ -8,6 +8,7 @@ export type AvitoProfileWithCredentials = {
   accountId: string | null;
   reportEmail: string | null;
   isActive: boolean;
+  hasCredentials: boolean;
 };
 
 const PROFILE_CONTACT_PHONES: Array<{ match: RegExp; phone: string }> = [
@@ -42,8 +43,6 @@ export async function listAvitoProfilesWithCredentials(): Promise<AvitoProfileWi
   const profiles = await prisma.avitoProfile.findMany({
     where: {
       isActive: true,
-      clientId: { not: null },
-      clientSecret: { not: null },
     },
     orderBy: [{ name: "asc" }],
     select: {
@@ -57,9 +56,10 @@ export async function listAvitoProfilesWithCredentials(): Promise<AvitoProfileWi
     },
   });
 
-  return profiles
-    .filter((profile) => profile.clientId && profile.clientSecret)
-    .map(({ clientId: _clientId, clientSecret: _clientSecret, ...profile }) => profile);
+  return profiles.map(({ clientId: _clientId, clientSecret: _clientSecret, ...profile }) => ({
+    ...profile,
+    hasCredentials: Boolean(_clientId && _clientSecret),
+  }));
 }
 
 export async function getAvitoCredentials(input: {
@@ -177,6 +177,7 @@ export async function saveAvitoProfileCredentials(
 
   return {
     ...profile,
+    hasCredentials: Boolean(profile.clientId && profile.clientSecret),
     clientId: profile.clientId ?? "",
     clientSecret: profile.clientSecret ?? "",
   };
