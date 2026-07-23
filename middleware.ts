@@ -20,7 +20,11 @@ export function middleware(req: NextRequest) {
     const targetPath = modeMatch[2] || "/dashboard";
     const target = appPath(targetPath, search);
     target.searchParams.set("ui", mode);
-    const response = NextResponse.redirect(target);
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-crmavito-ui-mode", mode);
+    const response = NextResponse.rewrite(target, {
+      request: { headers: requestHeaders },
+    });
     response.cookies.set("crmavito-ui-mode", mode, {
       path: "/",
       sameSite: "lax",

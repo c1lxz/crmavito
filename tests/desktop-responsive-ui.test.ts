@@ -47,11 +47,11 @@ describe("desktop responsive UI", () => {
   it("splits explicit /pc and /m modes instead of relying on viewport width", () => {
     expect(middlewareSource).toContain('pathname.match(/^\\/(pc|m)');
     expect(middlewareSource).toContain('process.env.NEXTAUTH_URL || "https://crmavito.duckdns.org"');
-    expect(middlewareSource).toContain("NextResponse.redirect(target)");
+    expect(middlewareSource).toContain("NextResponse.rewrite(target");
+    expect(middlewareSource).not.toContain("NextResponse.redirect(target)");
     expect(middlewareSource).not.toContain('req.headers.get("x-forwarded-proto")');
     expect(middlewareSource).not.toContain('req.headers.get("x-forwarded-host")');
     expect(middlewareSource).not.toContain(".replace(/:\\d+$/,");
-    expect(middlewareSource).not.toContain("NextResponse.rewrite");
     expect(middlewareSource).not.toContain('rewriteUrl.hostname = "localhost"');
     expect(middlewareSource).not.toContain('rewriteUrl.port = "3000"');
     expect(middlewareSource).toContain("crmavito-ui-mode");
