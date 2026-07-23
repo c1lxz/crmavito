@@ -15,7 +15,10 @@ export async function PATCH(
 
   const existing = await prisma.note.findUnique({
     where: { id },
-    include: { attachments: true },
+    include: {
+      attachments: true,
+      mentions: { select: { userId: true } },
+    },
   });
   if (!existing) return NextResponse.json({ error: "Заметка не найдена" }, { status: 404 });
   if (existing.createdByUserId !== session.user.id) {
@@ -26,7 +29,15 @@ export async function PATCH(
     const formData = await request.formData();
     const payload = parseNoteFormData(formData);
     const files = formData.getAll("files").filter((value): value is File => value instanceof File);
-    const viewerUserIds = [...new Set(payload.viewerUserIds)].filter((userId) => userId !== session.user.id);
+    const requestedViewerUserIds = [...new Set(payload.viewerUserIds)].filter((userId) => userId !== session.user.id);
+    const mentionUserIds = [...new Set(payload.mentionUserIds)].filter((userId) => userId !== session.user.id);
+    const viewerUserIds = payload.visibility === "SELECTED"
+      ? [...new Set([...requestedViewerUserIds, ...mentionUserIds])]
+      : [];
+    const employeeUserIds = [...new Set([...viewerUserIds, ...mentionUserIds])];
+    const previousMentionIds = new Set(existing.mentions.map((mention) => mention.userId));
+    const addedMentionIds = mentionUserIds.filter((userId) => !previousMentionIds.has(userId));
+    const removedMentionIds = [...previousMentionIds].filter((userId) => !mentionUserIds.includes(userId));
     const productIds = [...new Set(payload.productIds)];
     const keepAttachmentIds = new Set(payload.keepAttachmentIds ?? []);
     const removedAttachments = existing.attachments.filter((item) => !keepAttachmentIds.has(item.id));
@@ -35,13 +46,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Можно прикрепить не больше 6 файлов" }, { status: 400 });
     }
 
-    const [viewerCount, productCount] = await Promise.all([
-      payload.visibility === "SELECTED"
-        ? prisma.user.count({ where: { id: { in: viewerUserIds }, isActive: true } })
-        : Promise.resolve(0),
+    const [employeeCount, productCount] = await Promise.all([
+      prisma.user.count({ where: { id: { in: employeeUserIds }, isActive: true } }),
       prisma.product.count({ where: { id: { in: productIds } } }),
     ]);
-    if (payload.visibility === "SELECTED" && viewerCount !== viewerUserIds.length) {
+    if (employeeCount !== employeeUserIds.length) {
       return NextResponse.json({ error: "Один из сотрудников не найден" }, { status: 400 });
     }
     if (productCount !== productIds.length) {
@@ -61,6 +70,10 @@ export async function PATCH(
             create: payload.visibility === "SELECTED"
               ? viewerUserIds.map((userId) => ({ userId }))
               : [],
+          },
+          mentions: {
+            deleteMany: { userId: { in: removedMentionIds } },
+            create: addedMentionIds.map((userId) => ({ userId })),
           },
           products: {
             deleteMany: {},

@@ -185,6 +185,32 @@ export async function sendTaskCompletedToAdmin(options: {
   });
 }
 
+export async function sendNoteMentionNotification(options: {
+  recipientTelegramId: string;
+  noteTitle: string;
+  authorName: string;
+}): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("TELEGRAM_BOT_TOKEN not set");
+
+  const baseUrl = (process.env.NEXTAUTH_URL || "https://crmavito.duckdns.org").replace(/\/$/, "");
+  const noteUrl = `${baseUrl}/m/tasks`;
+  await tgJsonFetch(token, "sendMessage", {
+    chat_id: options.recipientTelegramId,
+    text: [
+      "Вас отметили в заметке",
+      `«${options.noteTitle}»`,
+      `Автор: ${options.authorName}`,
+      "",
+      "Ознакомьтесь с заметкой в блокноте.",
+    ].join("\n"),
+    disable_web_page_preview: true,
+    reply_markup: {
+      inline_keyboard: [[{ text: "Открыть блокнот", url: noteUrl }]],
+    },
+  });
+}
+
 export async function answerTelegramCallback(
   callbackQueryId: string,
   text: string

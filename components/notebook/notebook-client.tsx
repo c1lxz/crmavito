@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
+  AtSign,
   Check,
   ChevronRight,
   ClipboardList,
@@ -55,6 +56,10 @@ type Note = {
   updatedAt: string;
   createdBy: { id: string; name: string };
   viewers: Array<{ user: { id: string; name: string } }>;
+  mentions: Array<{
+    user: { id: string; name: string };
+    status: string;
+  }>;
   attachments: Attachment[];
   products: Array<{ product: Product }>;
 };
@@ -75,6 +80,7 @@ const emptyNoteForm = () => ({
   content: "",
   visibility: "ALL" as "ALL" | "SELECTED",
   viewerUserIds: [] as string[],
+  mentionUserIds: [] as string[],
   productIds: [] as string[],
   keepAttachmentIds: [] as string[],
   files: [] as File[],
@@ -98,6 +104,7 @@ export function NotebookClient({
   const [taskCreateSignal, setTaskCreateSignal] = useState(0);
   const [saving, setSaving] = useState(false);
   const [showPeople, setShowPeople] = useState(false);
+  const [showMentions, setShowMentions] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const [form, setForm] = useState(emptyNoteForm);
@@ -128,6 +135,7 @@ export function NotebookClient({
     setEditingNote(null);
     setForm(emptyNoteForm());
     setShowPeople(false);
+    setShowMentions(false);
     setShowProducts(false);
     setEditorOpen(true);
   }
@@ -146,16 +154,18 @@ export function NotebookClient({
       content: note.content,
       visibility: note.visibility,
       viewerUserIds: note.viewers.map(({ user }) => user.id),
+      mentionUserIds: note.mentions.map(({ user }) => user.id),
       productIds: note.products.map(({ product }) => product.id),
       keepAttachmentIds: note.attachments.map((attachment) => attachment.id),
       files: [],
     });
     setShowPeople(note.visibility === "SELECTED");
+    setShowMentions(note.mentions.length > 0);
     setShowProducts(note.products.length > 0);
     setEditorOpen(true);
   }
 
-  function toggleId(key: "viewerUserIds" | "productIds", id: string) {
+  function toggleId(key: "viewerUserIds" | "mentionUserIds" | "productIds", id: string) {
     setForm((current) => ({
       ...current,
       [key]: current[key].includes(id)
@@ -184,7 +194,11 @@ export function NotebookClient({
 
   async function saveNote(event: React.FormEvent) {
     event.preventDefault();
-    if (form.visibility === "SELECTED" && form.viewerUserIds.length === 0) {
+    if (
+      form.visibility === "SELECTED" &&
+      form.viewerUserIds.length === 0 &&
+      form.mentionUserIds.length === 0
+    ) {
       setShowPeople(true);
       toast({ title: "Выберите, кому видна заметка", variant: "destructive" });
       return;
@@ -197,6 +211,7 @@ export function NotebookClient({
         content: form.content,
         visibility: form.visibility,
         viewerUserIds: form.viewerUserIds,
+        mentionUserIds: form.mentionUserIds,
         productIds: form.productIds,
         keepAttachmentIds: form.keepAttachmentIds,
       }));
@@ -212,7 +227,12 @@ export function NotebookClient({
       await refreshNotes();
       setEditorOpen(false);
       setEditingNote(null);
-      toast({ title: editingNote ? "Заметка обновлена" : "Заметка сохранена" });
+      toast({
+        title: editingNote ? "Заметка обновлена" : "Заметка сохранена",
+        description: form.mentionUserIds.length > 0
+          ? "Новые отмеченные сотрудники получат уведомление в Telegram."
+          : undefined,
+      });
     } catch (error) {
       toast({
         title: "Ошибка",
@@ -341,6 +361,12 @@ export function NotebookClient({
                       <Badge variant="secondary">
                         <Paperclip className="mr-1 h-3 w-3" />
                         {note.attachments.length}
+                      </Badge>
+                    ) : null}
+                    {note.mentions.length > 0 ? (
+                      <Badge variant="secondary">
+                        <AtSign className="mr-1 h-3 w-3" />
+                        {note.mentions.length}
                       </Badge>
                     ) : null}
                     {note.visibility === "SELECTED" ? (
@@ -477,6 +503,17 @@ export function NotebookClient({
                 <Button
                   type="button"
                   size="sm"
+                  variant={showMentions || form.mentionUserIds.length > 0 ? "secondary" : "outline"}
+                  onClick={() => setShowMentions((value) => !value)}
+                >
+                  <AtSign className="h-4 w-4" />
+                  {form.mentionUserIds.length > 0
+                    ? `Отмечены: ${form.mentionUserIds.length}`
+                    : "Отметить сотрудников"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
                   variant={showProducts || form.productIds.length > 0 ? "secondary" : "outline"}
                   onClick={() => setShowProducts((value) => !value)}
                 >
@@ -543,6 +580,39 @@ export function NotebookClient({
                       ))}
                     </div>
                   ) : null}
+                </section>
+              ) : null}
+
+              {showMentions ? (
+                <section className="rounded-lg border border-border bg-secondary/35 p-3">
+                  <div className="mb-2 flex items-start gap-2">
+                    <AtSign className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div>
+                      <p className="text-sm font-semibold">Кого уведомить</p>
+                      <p className="text-xs leading-5 text-muted-foreground">
+                        Бот сообщит сотрудникам, что их отметили. В закрытой заметке они автоматически получат доступ.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="max-h-44 space-y-1 overflow-y-auto">
+                    {users.filter((user) => user.id !== currentUserId).map((user) => (
+                      <label
+                        key={user.id}
+                        className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-2 text-sm hover:bg-card"
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-primary"
+                          checked={form.mentionUserIds.includes(user.id)}
+                          onChange={() => toggleId("mentionUserIds", user.id)}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{user.name}</span>
+                        {!user.telegramId ? (
+                          <span className="text-xs text-muted-foreground">нет Telegram ID</span>
+                        ) : null}
+                      </label>
+                    ))}
+                  </div>
                 </section>
               ) : null}
 
@@ -689,6 +759,15 @@ export function NotebookClient({
                     ))}
                   </div>
                 </section>
+              ) : null}
+
+              {viewingNote.mentions.length > 0 ? (
+                <div className="flex items-start gap-2 rounded-md bg-primary/10 px-3 py-2 text-xs text-foreground">
+                  <AtSign className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <span>
+                    Отмечены: {viewingNote.mentions.map(({ user }) => user.name).join(", ")}
+                  </span>
+                </div>
               ) : null}
 
               <div className="flex items-center gap-2 rounded-md bg-secondary/45 px-3 py-2 text-xs text-muted-foreground">

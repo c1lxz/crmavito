@@ -1,6 +1,7 @@
 import type {
   Note,
   NoteAttachment,
+  NoteMention,
   NoteProduct,
   NoteViewer,
   Product,
@@ -10,6 +11,7 @@ import type {
 export type NoteWithRelations = Note & {
   createdBy: Pick<User, "id" | "name">;
   viewers: Array<NoteViewer & { user: Pick<User, "id" | "name"> }>;
+  mentions: Array<NoteMention & { user: Pick<User, "id" | "name"> }>;
   attachments: NoteAttachment[];
   products: Array<NoteProduct & {
     product: Pick<Product, "id" | "name" | "imageUrl" | "avitoListingUrl" | "avitoItemId">;
@@ -19,6 +21,10 @@ export type NoteWithRelations = Note & {
 export const noteInclude = {
   createdBy: { select: { id: true, name: true } },
   viewers: {
+    include: { user: { select: { id: true, name: true } } },
+    orderBy: { user: { name: "asc" } },
+  },
+  mentions: {
     include: { user: { select: { id: true, name: true } } },
     orderBy: { user: { name: "asc" } },
   },

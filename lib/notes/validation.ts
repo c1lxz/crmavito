@@ -5,10 +5,15 @@ export const notePayloadSchema = z.object({
   content: z.string().trim().min(1, "Напишите текст заметки").max(50_000),
   visibility: z.enum(["ALL", "SELECTED"]),
   viewerUserIds: z.array(z.string().uuid()).max(100),
+  mentionUserIds: z.array(z.string().uuid()).max(100),
   productIds: z.array(z.string().uuid()).max(30),
   keepAttachmentIds: z.array(z.string().uuid()).max(30).optional(),
 }).superRefine((value, context) => {
-  if (value.visibility === "SELECTED" && value.viewerUserIds.length === 0) {
+  if (
+    value.visibility === "SELECTED" &&
+    value.viewerUserIds.length === 0 &&
+    value.mentionUserIds.length === 0
+  ) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["viewerUserIds"],

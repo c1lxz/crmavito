@@ -10,6 +10,7 @@ function payload(overrides: Record<string, unknown> = {}) {
     content: "Проверить условия и ссылку на объявление",
     visibility: "ALL",
     viewerUserIds: [],
+    mentionUserIds: [],
     productIds: [],
     ...overrides,
   };
@@ -29,6 +30,15 @@ describe("notebook notes", () => {
     const form = new FormData();
     form.set("payload", JSON.stringify(payload({ visibility: "SELECTED" })));
     expect(() => parseNoteFormData(form)).toThrow("Выберите хотя бы одного сотрудника");
+  });
+
+  it("allows an mentioned employee to provide access to a private note", () => {
+    const form = new FormData();
+    form.set("payload", JSON.stringify(payload({
+      visibility: "SELECTED",
+      mentionUserIds: ["11111111-1111-4111-8111-111111111111"],
+    })));
+    expect(parseNoteFormData(form).mentionUserIds).toHaveLength(1);
   });
 
   it("rejects unsupported or oversized attachments", () => {
@@ -61,5 +71,7 @@ describe("notebook notes", () => {
     expect(source).toContain("Написать заметку");
     expect(source).toContain("Поставить задачу");
     expect(source).toContain("Добавить товары");
+    expect(source).toContain("Отметить сотрудников");
+    expect(source).toContain("получат уведомление в Telegram");
   });
 });

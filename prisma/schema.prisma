@@ -81,6 +81,7 @@ model User {
   completedTasks Task[] @relation("TaskCompletedBy")
   notesCreated   Note[] @relation("NoteCreatedBy")
   noteAccess     NoteViewer[]
+  noteMentions   NoteMention[]
 
   @@map("users")
 }
@@ -199,6 +200,7 @@ model Note {
 
   createdBy   User             @relation("NoteCreatedBy", fields: [createdByUserId], references: [id])
   viewers     NoteViewer[]
+  mentions    NoteMention[]
   attachments NoteAttachment[]
   products    NoteProduct[]
 
@@ -218,6 +220,28 @@ model NoteViewer {
   @@unique([noteId, userId])
   @@index([userId])
   @@map("note_viewers")
+}
+
+model NoteMention {
+  id                  String   @id @default(uuid())
+  noteId              String
+  userId              String
+  status              String   @default("PENDING")
+  attempts            Int      @default(0)
+  nextAttemptAt       DateTime @default(now())
+  processingStartedAt DateTime?
+  lastError           String?
+  notifiedAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, userId])
+  @@index([status, nextAttemptAt])
+  @@index([userId])
+  @@map("note_mentions")
 }
 
 model NoteAttachment {

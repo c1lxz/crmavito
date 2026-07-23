@@ -32,16 +32,19 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const payload = parseNoteFormData(formData);
     const files = formData.getAll("files").filter((value): value is File => value instanceof File);
-    const viewerUserIds = [...new Set(payload.viewerUserIds)].filter((id) => id !== session.user.id);
+    const requestedViewerUserIds = [...new Set(payload.viewerUserIds)].filter((id) => id !== session.user.id);
+    const mentionUserIds = [...new Set(payload.mentionUserIds)].filter((id) => id !== session.user.id);
+    const viewerUserIds = payload.visibility === "SELECTED"
+      ? [...new Set([...requestedViewerUserIds, ...mentionUserIds])]
+      : [];
+    const employeeUserIds = [...new Set([...viewerUserIds, ...mentionUserIds])];
     const productIds = [...new Set(payload.productIds)];
 
-    const [viewerCount, productCount] = await Promise.all([
-      payload.visibility === "SELECTED"
-        ? prisma.user.count({ where: { id: { in: viewerUserIds }, isActive: true } })
-        : Promise.resolve(0),
+    const [employeeCount, productCount] = await Promise.all([
+      prisma.user.count({ where: { id: { in: employeeUserIds }, isActive: true } }),
       prisma.product.count({ where: { id: { in: productIds } } }),
     ]);
-    if (payload.visibility === "SELECTED" && viewerCount !== viewerUserIds.length) {
+    if (employeeCount !== employeeUserIds.length) {
       return NextResponse.json({ error: "Один из сотрудников не найден" }, { status: 400 });
     }
     if (productCount !== productIds.length) {
@@ -59,6 +62,7 @@ export async function POST(request: Request) {
           viewers: payload.visibility === "SELECTED"
             ? { create: viewerUserIds.map((userId) => ({ userId })) }
             : undefined,
+          mentions: { create: mentionUserIds.map((userId) => ({ userId })) },
           products: { create: productIds.map((productId) => ({ productId })) },
           attachments: { create: savedFiles },
         },
