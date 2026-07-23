@@ -236,22 +236,28 @@ export function TasksClient({
     if (!isAdmin) return;
     setLoading(true);
     try {
-      const body = new FormData();
-      body.set(
-        "payload",
-        JSON.stringify({
-          title: form.title,
-          description: form.description,
-          assigneeUserIds: form.assigneeUserIds,
-          dueAt: toApiDate(form.dueAt),
-          scheduledAt: form.scheduled ? toApiDate(form.scheduledAt) : null,
-          ...(editingTask ? { keepAttachmentIds: form.keepAttachmentIds } : {}),
-        }),
-      );
-      form.files.forEach((file) => body.append("files", file));
-      const res = await fetch(editingTask ? `/api/tasks/${editingTask.id}` : "/api/tasks", {
+      const payload = {
+        title: form.title,
+        description: form.description,
+        assigneeUserIds: form.assigneeUserIds,
+        dueAt: toApiDate(form.dueAt),
+        scheduledAt: form.scheduled ? toApiDate(form.scheduledAt) : null,
+        ...(editingTask ? { keepAttachmentIds: form.keepAttachmentIds } : {}),
+      };
+      const requestInit: RequestInit = {
         method: editingTask ? "PATCH" : "POST",
-        body,
+      };
+      if (form.files.length > 0) {
+        const body = new FormData();
+        body.set("payload", JSON.stringify(payload));
+        form.files.forEach((file) => body.append("files", file));
+        requestInit.body = body;
+      } else {
+        requestInit.headers = { "Content-Type": "application/json" };
+        requestInit.body = JSON.stringify(payload);
+      }
+      const res = await fetch(editingTask ? `/api/tasks/${editingTask.id}` : "/api/tasks", {
+        ...requestInit,
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);

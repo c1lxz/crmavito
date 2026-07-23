@@ -17,6 +17,20 @@ const payload = {
 };
 
 describe("task attachments", () => {
+  it("reads a regular task from JSON without multipart parsing", async () => {
+    const result = await readTaskRequest(
+      new Request("https://crmavito.example/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+      createTaskSchema,
+    );
+
+    expect(result.payload.title).toBe("Проверить документы");
+    expect(result.files).toEqual([]);
+  });
+
   it("reads task fields and multiple files from multipart form data", async () => {
     const formData = new FormData();
     formData.set("payload", JSON.stringify(payload));
