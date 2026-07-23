@@ -8,11 +8,15 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock3,
+  Download,
+  FileText,
+  Paperclip,
   Pencil,
   Plus,
   Search,
   Trash2,
   UserRound,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +55,13 @@ interface Task {
   }>;
   createdBy: { id: string; name: string };
   completedBy: { id: string; name: string } | null;
+  attachments: Array<{
+    id: string;
+    name: string;
+    mimeType: string;
+    size: number;
+    url: string;
+  }>;
   notification: {
     status: string;
     sentAt: Date | string | null;
@@ -74,6 +85,8 @@ const emptyForm = () => ({
   dueAt: toDateTimeLocal(new Date(Date.now() + 60 * 60_000)),
   scheduled: false,
   scheduledAt: toDateTimeLocal(new Date()),
+  keepAttachmentIds: [] as string[],
+  files: [] as File[],
 });
 
 function toDateTimeLocal(date: Date) {
@@ -101,6 +114,11 @@ function isPlanned(task: Task) {
 function assigneeNames(task: Task) {
   const assignees = task.assignees?.length ? task.assignees : [{ user: task.assignee }];
   return assignees.map((assignee) => assignee.user.name).join(", ");
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} КБ`;
+  return `${(size / (1024 * 1024)).toFixed(1)} МБ`;
 }
 
 export function TasksClient({
@@ -174,6 +192,8 @@ export function TasksClient({
       dueAt: toDateTimeLocal(new Date(task.dueAt)),
       scheduled: Boolean(task.scheduledAt),
       scheduledAt: toDateTimeLocal(task.scheduledAt ? new Date(task.scheduledAt) : new Date()),
+      keepAttachmentIds: task.attachments.map((attachment) => attachment.id),
+      files: [],
     });
     setShowCreate(true);
   }
@@ -187,21 +207,51 @@ export function TasksClient({
     }));
   }
 
+  function addFiles(fileList: FileList | null) {
+    if (!fileList) return;
+    const incoming = Array.from(fileList);
+    const total = form.keepAttachmentIds.length + form.files.length + incoming.length;
+    if (total > 6) {
+      toast({
+        title: "Слишком много файлов",
+        description: "К одной задаче можно прикрепить до 6 файлов.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const oversized = incoming.find((file) => file.size > 15 * 1024 * 1024);
+    if (oversized) {
+      toast({
+        title: "Файл слишком большой",
+        description: `${oversized.name}: максимальный размер — 15 МБ.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    setForm((current) => ({ ...current, files: [...current.files, ...incoming] }));
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!isAdmin) return;
     setLoading(true);
     try {
-      const res = await fetch(editingTask ? `/api/tasks/${editingTask.id}` : "/api/tasks", {
-        method: editingTask ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const body = new FormData();
+      body.set(
+        "payload",
+        JSON.stringify({
           title: form.title,
           description: form.description,
           assigneeUserIds: form.assigneeUserIds,
           dueAt: toApiDate(form.dueAt),
           scheduledAt: form.scheduled ? toApiDate(form.scheduledAt) : null,
+          ...(editingTask ? { keepAttachmentIds: form.keepAttachmentIds } : {}),
         }),
+      );
+      form.files.forEach((file) => body.append("files", file));
+      const res = await fetch(editingTask ? `/api/tasks/${editingTask.id}` : "/api/tasks", {
+        method: editingTask ? "PATCH" : "POST",
+        body,
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -336,6 +386,7 @@ export function TasksClient({
                     {task.description ? (
                       <p className="truncate text-xs text-muted-foreground">{task.description}</p>
                     ) : null}
+                    <TaskAttachments attachments={task.attachments} />
                   </td>
                   <td className="px-3 py-3">{assigneeNames(task)}</td>
                   <td className="px-3 py-3">
@@ -401,7 +452,7 @@ export function TasksClient({
       </div>
 
       <Dialog open={showCreate} onOpenChange={(open) => !open && closeCreate()}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-h-[90dvh] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTask ? "Редактировать задачу" : "Новая задача"}</DialogTitle>
           </DialogHeader>
@@ -423,6 +474,66 @@ export function TasksClient({
                 rows={3}
                 placeholder="Контекст, детали, ссылка на заказ..."
               />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label>Файлы</Label>
+                <span className="text-xs text-muted-foreground">
+                  {form.keepAttachmentIds.length + form.files.length}/6
+                </span>
+              </div>
+              <label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-secondary/60 hover:text-foreground focus-within:ring-2 focus-within:ring-ring">
+                <Paperclip className="h-4 w-4" />
+                Прикрепить файлы
+                <input
+                  type="file"
+                  multiple
+                  className="sr-only"
+                  accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx,.zip"
+                  onChange={(event) => {
+                    addFiles(event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Фото, PDF, документы, таблицы или ZIP — до 15 МБ каждый.
+              </p>
+              {editingTask?.attachments.length || form.files.length ? (
+                <div className="space-y-1.5">
+                  {editingTask?.attachments
+                    .filter((attachment) => form.keepAttachmentIds.includes(attachment.id))
+                    .map((attachment) => (
+                      <FileRow
+                        key={attachment.id}
+                        name={attachment.name}
+                        size={attachment.size}
+                        href={attachment.url}
+                        onRemove={() =>
+                          setForm((current) => ({
+                            ...current,
+                            keepAttachmentIds: current.keepAttachmentIds.filter(
+                              (id) => id !== attachment.id,
+                            ),
+                          }))
+                        }
+                      />
+                    ))}
+                  {form.files.map((file, index) => (
+                    <FileRow
+                      key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                      name={file.name}
+                      size={file.size}
+                      onRemove={() =>
+                        setForm((current) => ({
+                          ...current,
+                          files: current.files.filter((_, fileIndex) => fileIndex !== index),
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div className="space-y-1">
               <Label>Ответственные *</Label>
@@ -572,6 +683,7 @@ function TaskCard({
             </div>
           ) : null}
         </div>
+        <TaskAttachments attachments={task.attachments} />
         <div className="mt-3 flex items-center justify-end gap-2">
           {task.status === "OPEN" ? (
             <Button size="sm" disabled={loading} onClick={onComplete}>
@@ -594,5 +706,72 @@ function TaskCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function TaskAttachments({ attachments }: { attachments: Task["attachments"] }) {
+  if (attachments.length === 0) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {attachments.map((attachment) => (
+        <a
+          key={attachment.id}
+          href={attachment.url}
+          className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-secondary/45 px-2 py-1 text-xs text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title={`Скачать ${attachment.name}`}
+        >
+          <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <span className="max-w-48 truncate">{attachment.name}</span>
+          <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function FileRow({
+  name,
+  size,
+  href,
+  onRemove,
+}: {
+  name: string;
+  size: number;
+  href?: string;
+  onRemove: () => void;
+}) {
+  const content = (
+    <>
+      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
+      <span className="shrink-0 text-xs text-muted-foreground">
+        {formatFileSize(size)}
+      </span>
+    </>
+  );
+
+  return (
+    <div className="flex min-h-10 items-center gap-2 rounded-md border border-border bg-secondary/35 pl-2.5 pr-1.5">
+      {href ? (
+        <a
+          href={href}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title={`Скачать ${name}`}
+        >
+          {content}
+        </a>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-2">{content}</div>
+      )}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={`Убрать файл ${name}`}
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
   );
 }

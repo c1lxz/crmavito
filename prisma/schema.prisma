@@ -104,6 +104,7 @@ model Task {
   createdBy   User  @relation("TaskCreatedBy", fields: [createdByUserId], references: [id])
   completedBy User? @relation("TaskCompletedBy", fields: [completedByUserId], references: [id])
   assignees TaskAssignee[]
+  attachments TaskAttachment[]
   notification TaskNotification?
   notificationCleanups TaskNotificationCleanup[]
 
@@ -111,6 +112,21 @@ model Task {
   @@index([assigneeUserId])
   @@index([scheduledAt])
   @@map("tasks")
+}
+
+model TaskAttachment {
+  id         String   @id @default(uuid())
+  taskId     String
+  name       String
+  storageKey String   @unique
+  mimeType   String
+  size       Int
+  createdAt  DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("task_attachments")
 }
 
 model TaskAssignee {

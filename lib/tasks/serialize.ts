@@ -1,4 +1,10 @@
-import type { Task, TaskAssignee, TaskNotification, User } from "@prisma/client";
+import type {
+  Task,
+  TaskAssignee,
+  TaskAttachment,
+  TaskNotification,
+  User,
+} from "@prisma/client";
 
 export type TaskWithUsers = Task & {
   assignee: Pick<User, "id" | "name" | "telegramId">;
@@ -12,6 +18,7 @@ export type TaskWithUsers = Task & {
   >;
   createdBy: Pick<User, "id" | "name">;
   completedBy: Pick<User, "id" | "name"> | null;
+  attachments?: TaskAttachment[];
   notification: Pick<
     TaskNotification,
     "status" | "sentAt" | "lastError" | "telegramMessageId"
@@ -42,6 +49,13 @@ export function serializeTask(task: TaskWithUsers) {
     assignees,
     createdBy: task.createdBy,
     completedBy: task.completedBy,
+    attachments: (task.attachments ?? []).map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      url: `/api/tasks/files/${attachment.id}`,
+    })),
     notification: task.notification
       ? {
           ...task.notification,

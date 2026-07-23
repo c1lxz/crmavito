@@ -15,6 +15,7 @@ const taskInclude = {
   },
   createdBy: { select: { id: true, name: true } },
   completedBy: { select: { id: true, name: true } },
+  attachments: { orderBy: { createdAt: "asc" } },
   notification: {
     select: {
       status: true,
