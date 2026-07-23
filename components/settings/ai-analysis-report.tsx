@@ -146,17 +146,40 @@ export function AiAnalysisReport({ analytics }: { analytics: AdsAnalysisInput })
         </CardContent>
       ) : (
         <CardContent className="p-0">
-          <div className="grid gap-0 border-b sm:grid-cols-[120px_1fr]">
-            <div className="flex items-center gap-3 bg-secondary/55 p-4 sm:flex-col sm:items-start sm:justify-center">
-              <span className="text-3xl font-semibold tracking-tight">{report.healthScore}</span>
-              <span className="text-xs font-medium text-muted-foreground">здоровье / 100</span>
-            </div>
+          <div className="border-b">
             <div className="space-y-2 p-4">
               <p className="text-sm font-semibold leading-6">{report.executiveSummary}</p>
               <p className="text-xs leading-5 text-muted-foreground"><span className="font-semibold text-foreground">Главная возможность:</span> {report.opportunity}</p>
               {generatedAt && <p className="text-[11px] text-muted-foreground">Отчёт от {new Date(generatedAt).toLocaleString("ru-RU")}</p>}
             </div>
           </div>
+
+          {report.accountMetrics.length > 0 && (
+            <div className="grid gap-px border-b bg-border sm:grid-cols-2 xl:grid-cols-3">
+              {report.accountMetrics.map((metric, index) => (
+                <div key={`${metric.label}-${index}`} className="bg-background p-4">
+                  <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
+                  <p className="mt-1 text-xl font-semibold tracking-tight">{metric.value}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{metric.context}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {report.portfolioInsights.length > 0 && (
+            <div className="border-b p-4">
+              <p className="mb-3 text-sm font-semibold">Выводы по аккаунту и ассортименту</p>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {report.portfolioInsights.map((insight, index) => (
+                  <div key={`${insight.title}-${index}`} className="rounded-lg border bg-secondary/25 p-3">
+                    <p className="text-sm font-semibold">{insight.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{insight.finding}</p>
+                    <p className="mt-2 text-xs leading-5"><span className="font-semibold">Что делать:</span> {insight.recommendation}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="divide-y">
             {report.actions.map((action) => (
@@ -253,5 +276,5 @@ function ActionRow({
 }
 
 function fieldLabel(field: AdsAnalysisAction["field"]) {
-  return ({ title: "Заголовок", description: "Описание", photos: "Фотографии", price: "Цена", promotion: "Продвижение", other: "Другое" } as const)[field];
+  return ({ title: "Заголовок", description: "Описание", photos: "Фотографии", video: "Flow-видео", price: "Цена", promotion: "Продвижение", duplicate: "Дубли", assortment: "Ассортимент", other: "Другое" } as const)[field];
 }

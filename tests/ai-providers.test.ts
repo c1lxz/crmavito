@@ -30,7 +30,7 @@ describe("AI providers", () => {
     const prompt = buildAdsAnalysisPrompt(analytics);
     expect(prompt).toContain('"contactRate":2');
     expect(prompt).toContain('"favoriteRate":15');
-    expect(prompt).toContain("Не выдумывай отсутствующие");
+    expect(prompt).toContain("Это НЕ означает, что описания в объявлении нет");
   });
 
   it("keeps the Claude request compact for accounts with limited credits", () => {
@@ -44,8 +44,9 @@ describe("AI providers", () => {
     const compact = compactAdsAnalysisInput({ ...analytics, items: manyItems });
 
     expect(compact.sourceItemCount).toBe(120);
-    expect(compact.analyzedItemCount).toBeLessThanOrEqual(50);
-    expect(compact.items.every((item) => (item.description?.length ?? 0) <= 700)).toBe(true);
+    expect(compact.analyzedItemCount).toBe(100);
+    expect(compact.coveragePercent).toBe(83.33);
+    expect(compact.items.every((item) => (item.description?.length ?? 0) <= 1200)).toBe(true);
   });
 
   it("calls the Anthropic messages API and validates the report", async () => {
@@ -82,7 +83,7 @@ describe("AI providers", () => {
       baseUrl: "https://claude.example/",
       model: "claude-test",
     });
-    expect(report.healthScore).toBe(64);
+    expect(report.actions).toHaveLength(1);
     expect(report.actions[0].itemId).toBe("101");
   });
 
@@ -186,7 +187,7 @@ describe("AI providers", () => {
     });
 
     expect(requestedModels).toEqual(["claude-sonnet-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]);
-    expect(report.healthScore).toBe(72);
+    expect(report.executiveSummary).toBeTruthy();
   });
 
   it("does not retry a permanent FreeModel account-tier rejection", async () => {
@@ -249,7 +250,7 @@ describe("AI providers", () => {
     });
 
     expect(requestedLimits).toEqual([12000, 16000]);
-    expect(report.healthScore).toBe(76);
+    expect(report.executiveSummary).toBeTruthy();
   });
 
   it("retries a successful HTTP response containing a gateway capacity error", async () => {
@@ -274,7 +275,7 @@ describe("AI providers", () => {
       retryDelaysMs: [0],
     });
     expect(fetchFn).toHaveBeenCalledTimes(2);
-    expect(report.healthScore).toBe(70);
+    expect(report.executiveSummary).toBeTruthy();
   });
 
   it("waits and retries when Customix reaches its concurrency limit", async () => {
@@ -302,7 +303,7 @@ describe("AI providers", () => {
       retryDelaysMs: [0],
     });
     expect(fetchFn).toHaveBeenCalledTimes(2);
-    expect(report.healthScore).toBe(74);
+    expect(report.executiveSummary).toBeTruthy();
   });
 
   it("decodes an unlabelled Brotli response returned by the Claude gateway", async () => {
@@ -328,6 +329,6 @@ describe("AI providers", () => {
       apiKey: "secret",
       baseUrl: "https://claude.example",
     });
-    expect(report.healthScore).toBe(81);
+    expect(report.executiveSummary).toBeTruthy();
   });
 });
