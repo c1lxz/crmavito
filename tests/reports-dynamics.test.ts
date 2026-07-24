@@ -21,7 +21,7 @@ describe("reports dynamics chart", () => {
     expect(chartSource).toContain("Сред. в неделю");
     expect(chartSource).toContain("Сред. в месяц");
     expect(chartSource).toContain("TOOLTIP_CONTENT_STYLE");
-    expect(chartSource).toContain('color: "#111827"');
+    expect(chartSource).toContain('const FOREGROUND_COLOR = "hsl(var(--foreground))"');
     expect(chartSource).toContain("labelStyle={TOOLTIP_LABEL_STYLE}");
     expect(clientSource).toContain("OrdersDynamicsChart");
     expect(clientSource).not.toContain("<DynamicsChart");

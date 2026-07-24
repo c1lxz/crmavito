@@ -15,7 +15,7 @@ interface Props {
   total: number;
 }
 
-const EMPTY_DATA = [{ key: "empty", label: "", amount: 1, color: "#e5e7eb" }];
+const EMPTY_DATA = [{ key: "empty", label: "", amount: 1, color: "hsl(var(--muted))" }];
 
 export function ExpensesDonut({ data, total }: Props) {
   const fmt = (v: number) => v.toLocaleString("ru-RU") + " ₽";

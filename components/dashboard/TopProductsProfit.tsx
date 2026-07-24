@@ -48,8 +48,8 @@ export function TopProductsProfit({ products }: Props) {
                     <p className="text-xs font-medium truncate mb-1.5">{product.name}</p>
                     <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                       <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${pct}%`, backgroundColor: "#7F77DD" }}
+                        className="h-full rounded-full bg-primary transition-all duration-500"
+                        style={{ width: `${pct}%` }}
                       />
                     </div>
                   </div>

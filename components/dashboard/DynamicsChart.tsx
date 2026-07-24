@@ -26,15 +26,19 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: "week", label: "Недели" },
   { value: "month", label: "Месяцы" },
 ];
+const REVENUE_COLOR = "hsl(var(--primary))";
+const GRID_COLOR = "hsl(var(--border))";
+const MUTED_TEXT_COLOR = "hsl(var(--muted-foreground))";
+const FOREGROUND_COLOR = "hsl(var(--foreground))";
 const TOOLTIP_CONTENT_STYLE = {
-  backgroundColor: "#ffffff",
-  border: "1px solid #e5e7eb",
+  backgroundColor: "hsl(var(--popover))",
+  border: "1px solid hsl(var(--border))",
   borderRadius: 8,
-  color: "#111827",
+  color: FOREGROUND_COLOR,
   fontSize: 12,
 };
 const TOOLTIP_LABEL_STYLE = {
-  color: "#111827",
+  color: FOREGROUND_COLOR,
   fontWeight: 600,
 };
 
@@ -133,7 +137,7 @@ export function DynamicsChart({ data, period, onPeriodChange }: BaseProps) {
 
         <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2">
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#7F77DD" }} />
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: REVENUE_COLOR }} />
             Выручка
           </span>
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -149,10 +153,10 @@ export function DynamicsChart({ data, period, onPeriodChange }: BaseProps) {
         ) : (
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={chartData} margin={{ top: 6, right: 12, left: 2, bottom: 0 }}>
-              <CartesianGrid vertical={false} stroke="#e5e7eb" strokeDasharray="4 4" />
+              <CartesianGrid vertical={false} stroke={GRID_COLOR} strokeDasharray="4 4" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 10, fill: "#9ca3af" }}
+                tick={{ fontSize: 10, fill: MUTED_TEXT_COLOR }}
                 tickLine={false}
                 axisLine={false}
                 interval={tickInterval}
@@ -160,7 +164,7 @@ export function DynamicsChart({ data, period, onPeriodChange }: BaseProps) {
                 tickFormatter={fmtXDate}
               />
               <YAxis
-                tick={{ fontSize: 9, fill: "#9ca3af" }}
+                tick={{ fontSize: 9, fill: MUTED_TEXT_COLOR }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={fmtYTick}
@@ -169,7 +173,7 @@ export function DynamicsChart({ data, period, onPeriodChange }: BaseProps) {
               <Tooltip
                 contentStyle={TOOLTIP_CONTENT_STYLE}
                 labelStyle={TOOLTIP_LABEL_STYLE}
-                itemStyle={{ color: "#111827" }}
+                itemStyle={{ color: FOREGROUND_COLOR }}
                 formatter={(v: number, name: string) => [
                   v.toLocaleString("ru-RU") + " ₽",
                   name === "revenue" ? "Выручка" : "Прибыль",
@@ -179,10 +183,10 @@ export function DynamicsChart({ data, period, onPeriodChange }: BaseProps) {
               <Line
                 type="monotone"
                 dataKey="revenue"
-                stroke="#7F77DD"
+                stroke={REVENUE_COLOR}
                 strokeWidth={2}
-                dot={{ r: 3, fill: "#7F77DD", strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: "#7F77DD" }}
+                dot={{ r: 3, fill: REVENUE_COLOR, strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: REVENUE_COLOR }}
                 name="revenue"
               />
               <Line
@@ -239,10 +243,10 @@ export function OrdersDynamicsChart({ data, period, onPeriodChange }: BaseProps)
         ) : (
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={chartData} margin={{ top: 6, right: 12, left: 2, bottom: 0 }}>
-              <CartesianGrid vertical={false} stroke="#e5e7eb" strokeDasharray="4 4" />
+              <CartesianGrid vertical={false} stroke={GRID_COLOR} strokeDasharray="4 4" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 10, fill: "#9ca3af" }}
+                tick={{ fontSize: 10, fill: MUTED_TEXT_COLOR }}
                 tickLine={false}
                 axisLine={false}
                 interval={tickInterval}
@@ -251,7 +255,7 @@ export function OrdersDynamicsChart({ data, period, onPeriodChange }: BaseProps)
               />
               <YAxis
                 allowDecimals={false}
-                tick={{ fontSize: 9, fill: "#9ca3af" }}
+                tick={{ fontSize: 9, fill: MUTED_TEXT_COLOR }}
                 tickLine={false}
                 axisLine={false}
                 width={42}
@@ -259,7 +263,7 @@ export function OrdersDynamicsChart({ data, period, onPeriodChange }: BaseProps)
               <Tooltip
                 contentStyle={TOOLTIP_CONTENT_STYLE}
                 labelStyle={TOOLTIP_LABEL_STYLE}
-                itemStyle={{ color: "#111827" }}
+                itemStyle={{ color: FOREGROUND_COLOR }}
                 formatter={(v: number) => [v.toLocaleString("ru-RU"), "Заказы"]}
                 labelFormatter={fmtXDate}
               />

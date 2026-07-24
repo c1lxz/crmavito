@@ -19,7 +19,7 @@ interface Props {
   showSlicePercentLabels?: boolean;
 }
 
-const EMPTY_DATA = [{ status: "empty", label: "", count: 1, color: "#e5e7eb" }];
+const EMPTY_DATA = [{ status: "empty", label: "", count: 1, color: "hsl(var(--muted))" }];
 
 type PercentLabelProps = {
   cx?: number | string;
