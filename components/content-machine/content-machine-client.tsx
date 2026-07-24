@@ -6,7 +6,6 @@ import {
   Check,
   CircleCheck,
   Clock3,
-  Copy,
   Download,
   ImagePlus,
   Images,
@@ -19,7 +18,7 @@ import {
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/lib/hooks/use-toast";
@@ -34,7 +33,7 @@ type Background = {
   url: string | null;
 };
 type ProductPhoto = { id: string; file: File; previewUrl: string };
-type CodexResult = {
+type KlingResult = {
   id: string;
   productIndex: number;
   productName: string;
@@ -44,14 +43,14 @@ type CodexResult = {
   size: number;
   url: string;
 };
-type CodexJob = {
+type KlingJob = {
   id: string;
   createdAt: string;
   imageSize: "2K" | "4K";
-  status: "waiting" | "partial" | "ready";
+  status: "waiting" | "partial" | "ready" | "failed";
   expectedResults: number;
-  instruction: string;
-  results: CodexResult[];
+  failedResults: number;
+  results: KlingResult[];
 };
 
 const slots: BackgroundSlot[] = ["1", "2", "3"];
@@ -63,7 +62,7 @@ export function ContentMachineClient() {
   const [uploadingSlot, setUploadingSlot] = useState<BackgroundSlot | null>(null);
   const [products, setProducts] = useState<ProductPhoto[]>([]);
   const [imageSize, setImageSize] = useState<"2K" | "4K">("2K");
-  const [job, setJob] = useState<CodexJob | null>(null);
+  const [job, setJob] = useState<KlingJob | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
   const productInputRef = useRef<HTMLInputElement>(null);
@@ -71,14 +70,14 @@ export function ContentMachineClient() {
 
   useEffect(() => {
     void loadBackgrounds();
-    const savedJobId = window.localStorage.getItem("content-machine-codex-job");
+    const savedJobId = window.localStorage.getItem("content-machine-kling-job");
     if (savedJobId) void loadJob(savedJobId, false);
     return () => productUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
   }, []);
 
   useEffect(() => {
-    if (!job || job.status === "ready") return;
-    const timer = window.setInterval(() => void loadJob(job.id, false), 4000);
+    if (!job || job.status === "ready" || job.status === "failed") return;
+    const timer = window.setInterval(() => void loadJob(job.id, false), 8000);
     return () => window.clearInterval(timer);
   }, [job?.id, job?.status]);
 
@@ -149,13 +148,13 @@ export function ContentMachineClient() {
       const form = new FormData();
       products.forEach((product) => form.append("products", product.file));
       form.append("imageSize", imageSize);
-      const response = await fetch("/api/ai/content-machine/codex-jobs", { method: "POST", body: form });
+      const response = await fetch("/api/ai/content-machine/kling-jobs", { method: "POST", body: form });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Не удалось создать задание для Codex.");
+      if (!response.ok) throw new Error(data.error || "Не удалось создать задание Kling.");
       setJob(data.job);
       setSelectedIds([]);
-      window.localStorage.setItem("content-machine-codex-job", data.job.id);
-      toast({ title: `Задание ${data.job.id} создано`, description: "Скопируйте команду и отправьте её мне в чате Codex." });
+      window.localStorage.setItem("content-machine-kling-job", data.job.id);
+      toast({ title: `Задание ${data.job.id} запущено`, description: "Kling AI обрабатывает фотографии. Результаты появятся автоматически." });
     } catch (error) {
       toast({ title: "Задание не создано", description: errorMessage(error), variant: "destructive" });
     } finally {
@@ -165,11 +164,11 @@ export function ContentMachineClient() {
 
   async function loadJob(id: string, showError = true) {
     try {
-      const response = await fetch(`/api/ai/content-machine/codex-jobs/${encodeURIComponent(id)}`, { cache: "no-store" });
+      const response = await fetch(`/api/ai/content-machine/kling-jobs/${encodeURIComponent(id)}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Не удалось обновить задание.");
       setJob(data.job);
-      if (data.job.status === "ready") setSelectedIds((items) => items.length ? items : data.job.results.map((result: CodexResult) => result.id));
+      if (data.job.status === "ready") setSelectedIds((items) => items.length ? items : data.job.results.map((result: KlingResult) => result.id));
     } catch (error) {
       if (showError) toast({ title: "Задание не найдено", description: errorMessage(error), variant: "destructive" });
     }
@@ -179,13 +178,7 @@ export function ContentMachineClient() {
     setSelectedIds((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
   }
 
-  async function copyInstruction() {
-    if (!job) return;
-    await navigator.clipboard.writeText(job.instruction);
-    toast({ title: "Команда скопирована", description: "Вставьте её в этот чат Codex — остальное я сделаю сам." });
-  }
-
-  async function downloadResult(result: CodexResult) {
+  async function downloadResult(result: KlingResult) {
     const anchor = document.createElement("a");
     anchor.href = result.url;
     anchor.download = result.fileName;
@@ -215,7 +208,7 @@ export function ContentMachineClient() {
             <h1 className="truncate text-lg font-semibold tracking-tight">Контент-машина</h1>
             <p className="hidden text-xs text-muted-foreground sm:block">Фотореалистичные карточки товара на трёх утверждённых фонах</p>
           </div>
-          <Badge variant="outline" className="hidden sm:inline-flex">Codex · без API</Badge>
+          <Badge variant="outline" className="hidden sm:inline-flex">Kling AI · API</Badge>
           <Select value={imageSize} onValueChange={(value: "2K" | "4K") => setImageSize(value)} disabled={creatingJob}>
             <SelectTrigger className="h-9 w-24"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -305,13 +298,13 @@ export function ContentMachineClient() {
             <div className="flex items-start gap-3">
               <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
               <div>
-                <p className="text-sm font-semibold">Создать задание для Codex</p>
-                <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">CRM сохранит исходники и фоны под коротким кодом. Отправьте код мне в чате — готовые изображения появятся здесь автоматически.</p>
+                <p className="text-sm font-semibold">Запустить генерацию в Kling AI</p>
+                <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">CRM отправит каждое фото товара вместе с эталонным фоном в Kling Image 3.0 Omni и сохранит готовые изображения автоматически.</p>
               </div>
             </div>
             <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady} className="shrink-0">
               {creatingJob ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              {creatingJob ? "Сохраняю файлы…" : `Подготовить ${products.length * 3} фото`}
+              {creatingJob ? "Запускаю Kling AI…" : `Создать ${products.length * 3} фото`}
             </Button>
           </div>
           {!allBackgroundsReady && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Перед запуском загрузите все три эталонных фона.</p>}
@@ -329,11 +322,21 @@ export function ContentMachineClient() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="font-mono text-sm font-semibold">{job.id}</h2>
                       <Badge variant={job.status === "ready" ? "success" : "secondary"}>
-                        {job.status === "ready" ? "Готово" : job.status === "partial" ? `Готово ${job.results.length} из ${job.expectedResults}` : "Ожидает Codex"}
+                        {job.status === "ready"
+                          ? "Готово"
+                          : job.status === "failed"
+                            ? `Завершено с ошибками: ${job.failedResults}`
+                            : job.status === "partial"
+                              ? `Готово ${job.results.length} из ${job.expectedResults}`
+                              : "Kling AI генерирует"}
                       </Badge>
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {job.status === "ready" ? "Все изображения загружены в CRM." : "Скопируйте команду и отправьте её мне в текущем чате Codex."}
+                      {job.status === "ready"
+                        ? "Все изображения загружены в CRM."
+                        : job.status === "failed"
+                          ? `Готово ${job.results.length}, не удалось создать ${job.failedResults}. Проверьте баланс и журнал сервера.`
+                          : "Статус обновляется автоматически; страницу можно оставить открытой."}
                     </p>
                   </div>
                 </div>
@@ -341,12 +344,8 @@ export function ContentMachineClient() {
                   <Button variant="outline" size="sm" onClick={() => void loadJob(job.id)}>
                     <RefreshCw className="mr-1.5 h-4 w-4" />Обновить
                   </Button>
-                  <Button size="sm" onClick={() => void copyInstruction()}>
-                    <Copy className="mr-1.5 h-4 w-4" />Скопировать команду
-                  </Button>
                 </div>
               </div>
-              <div className="mt-4 rounded-md bg-secondary/55 px-3 py-2 font-mono text-xs text-secondary-foreground sm:text-sm">{job.instruction}</div>
             </div>
 
             {readyResults.length > 0 && <>
@@ -431,7 +430,7 @@ function BackgroundPanel({ background, loading, onFile }: { background: Backgrou
 }
 
 function ResultPanel({ result, selected, onToggle, onDownload }: {
-  result: CodexResult;
+  result: KlingResult;
   selected: boolean;
   onToggle: () => void;
   onDownload: () => void;

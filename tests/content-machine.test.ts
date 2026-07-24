@@ -13,6 +13,8 @@ const generateRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-
 const backgroundsRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-machine/backgrounds/route.ts"), "utf8");
 const storageSource = fs.readFileSync(path.join(root, "lib/ai/content-machine.ts"), "utf8");
 const jobsSource = fs.readFileSync(path.join(root, "lib/ai/content-machine-jobs.ts"), "utf8");
+const klingSource = fs.readFileSync(path.join(root, "lib/ai/kling-images.ts"), "utf8");
+const klingJobsSource = fs.readFileSync(path.join(root, "lib/ai/kling-content-machine-jobs.ts"), "utf8");
 
 const originalDataDirectory = process.env.CONTENT_MACHINE_DATA_DIR;
 afterEach(() => {
@@ -21,12 +23,17 @@ afterEach(() => {
 });
 
 describe("content machine", () => {
-  it("creates a Codex handoff instead of calling an image API", () => {
-    expect(clientSource).toContain('fetch("/api/ai/content-machine/codex-jobs"');
-    expect(clientSource).toContain("content-machine-codex-job");
-    expect(clientSource).toContain("Скопировать команду");
+  it("starts Kling API jobs directly from the content machine", () => {
+    expect(clientSource).toContain('fetch("/api/ai/content-machine/kling-jobs"');
+    expect(clientSource).toContain("content-machine-kling-job");
+    expect(clientSource).toContain("Kling AI · API");
     expect(clientSource).toContain("Скачать выбранные");
     expect(clientSource).not.toContain("generateGeminiImage");
+    expect(klingSource).toContain("https://api-singapore.klingai.com");
+    expect(klingSource).toContain("/v1/images/omni-image");
+    expect(klingSource).toContain("kling-v3-omni");
+    expect(klingJobsSource).toContain("createKlingImageTask");
+    expect(klingJobsSource).toContain('path.resolve(process.env.CONTENT_MACHINE_DATA_DIR, "kling-jobs")');
   });
 
   it("keeps exactly three persistent reference background slots", () => {
