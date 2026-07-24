@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Script from "next/script";
+import { useTheme } from "next-themes";
 
 interface TgWebApp {
   ready?: () => void;
@@ -34,6 +35,8 @@ function applyInsets() {
 }
 
 export function TelegramInit() {
+  const { resolvedTheme } = useTheme();
+
   useEffect(() => {
     const init = () => {
       const tg = window.Telegram?.WebApp;
@@ -64,6 +67,14 @@ export function TelegramInit() {
       tg?.offEvent?.("viewportChanged", applyInsets);
     };
   }, []);
+
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return;
+    const isDark = resolvedTheme === "dark";
+    tg.setHeaderColor?.(isDark ? "#172033" : "#eef2f7");
+    tg.setBackgroundColor?.(isDark ? "#101623" : "#eef2f7");
+  }, [resolvedTheme]);
 
   return (
     <Script

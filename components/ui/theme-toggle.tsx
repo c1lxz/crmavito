@@ -10,11 +10,15 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ variant = "icon", className }: ThemeToggleProps) {
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
+  if (!mounted) {
+    return variant === "icon"
+      ? <span aria-hidden className={cn("block h-11 w-11", className)} />
+      : <span aria-hidden className={cn("block h-[4.25rem] w-full", className)} />;
+  }
 
   if (variant === "buttons") {
     const options = [
@@ -23,19 +27,25 @@ export function ThemeToggle({ variant = "icon", className }: ThemeToggleProps) {
       { value: "dark", label: "Тёмная", icon: Moon },
     ];
     return (
-      <div className={cn("flex rounded-xl border border-border overflow-hidden", className)}>
+      <div
+        className={cn("grid grid-cols-3 overflow-hidden rounded-lg border border-border bg-secondary/55 p-1", className)}
+        role="group"
+        aria-label="Цветовая тема"
+      >
         {options.map(({ value, label, icon: Icon }) => (
           <button
             key={value}
+            type="button"
             onClick={() => setTheme(value)}
+            aria-pressed={theme === value}
             className={cn(
-              "flex-1 flex flex-col items-center gap-1.5 py-3 text-xs font-medium transition-colors",
+              "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md px-2 text-xs font-semibold transition-[background-color,color,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               theme === value
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
             )}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className={cn("h-4 w-4", theme === value && "text-primary")} />
             {label}
           </button>
         ))}
@@ -43,11 +53,17 @@ export function ThemeToggle({ variant = "icon", className }: ThemeToggleProps) {
     );
   }
 
-  const isDark = theme === "dark";
+  const isDark = resolvedTheme === "dark";
   return (
     <button
+      type="button"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className={cn("p-2 rounded-xl bg-card border border-border text-foreground", className)}
+      aria-label={isDark ? "Включить светлую тему" : "Включить тёмную тему"}
+      title={isDark ? "Светлая тема" : "Тёмная тема"}
+      className={cn(
+        "inline-flex h-11 w-11 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-sm transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-primary/35 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        className,
+      )}
     >
       {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
     </button>

@@ -17,6 +17,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const navItems = [
   { href: "/pc/dashboard", match: "/dashboard", label: "Главная", icon: Home },
@@ -72,6 +73,14 @@ export function DesktopSidebar() {
           );
         })}
       </nav>
+
+      <div className="flex items-center justify-between border-t border-sidebar-border px-4 py-3">
+        <div>
+          <p className="text-xs font-semibold text-sidebar-foreground">Оформление</p>
+          <p className="text-[11px] text-sidebar-foreground/55">Светлая / тёмная</p>
+        </div>
+        <ThemeToggle className="border-sidebar-border bg-sidebar-accent text-sidebar-foreground shadow-none hover:border-sidebar-primary/45 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring focus-visible:ring-offset-sidebar" />
+      </div>
     </aside>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Monitor, Smartphone, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const actions = [
   {
@@ -29,6 +30,9 @@ const actions = [
 export function OpenMenu() {
   return (
     <main className="min-h-screen bg-background px-4 py-[max(24px,env(safe-area-inset-top))] text-foreground">
+      <div className="fixed right-4 top-[max(16px,env(safe-area-inset-top))] z-10">
+        <ThemeToggle />
+      </div>
       <div className="mx-auto flex min-h-[calc(100svh-48px)] w-full max-w-md flex-col justify-center gap-6">
         <div className="space-y-2">
           <p className="text-sm font-semibold text-primary">CRM STROK SHOP</p>

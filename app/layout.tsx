@@ -27,8 +27,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ru" suppressHydrationWarning>
       <body className={`${inter.variable} overscroll-none`}>
-        <TelegramInit />
         <ThemeProvider>
+          <TelegramInit />
           {children}
         </ThemeProvider>
       </body>

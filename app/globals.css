@@ -6,73 +6,73 @@
   :root {
     --app-top-pad: 48px;
     --app-bottom-pad: 0px;
-    --background: 216 18% 94%;
-    --foreground: 220 18% 18%;
-    --card: 216 18% 97%;
-    --card-foreground: 220 18% 18%;
-    --popover: 216 18% 97%;
-    --popover-foreground: 220 18% 18%;
-    --primary: 216 56% 44%;
-    --primary-foreground: 216 20% 98%;
-    --secondary: 215 15% 88%;
-    --secondary-foreground: 220 17% 22%;
-    --muted: 215 15% 89%;
-    --muted-foreground: 216 12% 38%;
-    --accent: 216 32% 89%;
-    --accent-foreground: 219 46% 28%;
-    --destructive: 3 72% 48%;
+    --background: 216 28% 95%;
+    --foreground: 222 25% 17%;
+    --card: 216 25% 98%;
+    --card-foreground: 222 25% 17%;
+    --popover: 216 25% 99%;
+    --popover-foreground: 222 25% 17%;
+    --primary: 216 62% 44%;
+    --primary-foreground: 216 30% 98%;
+    --secondary: 215 22% 90%;
+    --secondary-foreground: 221 22% 22%;
+    --muted: 215 18% 91%;
+    --muted-foreground: 218 12% 40%;
+    --accent: 216 38% 90%;
+    --accent-foreground: 220 45% 27%;
+    --destructive: 3 65% 46%;
     --destructive-foreground: 0 0% 100%;
-    --border: 215 14% 79%;
-    --input: 215 14% 76%;
-    --ring: 216 56% 44%;
+    --border: 215 17% 83%;
+    --input: 215 18% 78%;
+    --ring: 216 62% 44%;
     --radius: 0.5rem;
-    --chart-1: 216 56% 44%;
-    --chart-2: 168 64% 34%;
-    --chart-3: 37 88% 50%;
-    --chart-4: 3 72% 48%;
-    --chart-5: 258 44% 48%;
-    --sidebar-background: 220 16% 18%;
-    --sidebar-foreground: 216 18% 91%;
-    --sidebar-primary: 216 53% 45%;
+    --chart-1: 216 62% 44%;
+    --chart-2: 168 48% 36%;
+    --chart-3: 35 72% 48%;
+    --chart-4: 3 62% 48%;
+    --chart-5: 251 42% 52%;
+    --sidebar-background: 220 28% 16%;
+    --sidebar-foreground: 216 20% 91%;
+    --sidebar-primary: 216 58% 46%;
     --sidebar-primary-foreground: 216 20% 98%;
-    --sidebar-accent: 220 14% 23%;
+    --sidebar-accent: 219 22% 22%;
     --sidebar-accent-foreground: 216 18% 94%;
-    --sidebar-border: 220 12% 27%;
-    --sidebar-ring: 216 53% 53%;
+    --sidebar-border: 218 18% 26%;
+    --sidebar-ring: 216 58% 54%;
   }
 
   .dark {
-    --background: 220 38% 10%;
-    --foreground: 215 20% 88%;
-    --card: 220 30% 14%;
-    --card-foreground: 215 20% 88%;
-    --popover: 220 30% 14%;
-    --popover-foreground: 215 20% 88%;
+    --background: 221 32% 9%;
+    --foreground: 215 19% 89%;
+    --card: 220 26% 13%;
+    --card-foreground: 215 19% 89%;
+    --popover: 220 26% 14%;
+    --popover-foreground: 215 19% 89%;
     --primary: 216 52% 48%;
     --primary-foreground: 216 20% 96%;
-    --secondary: 218 26% 19%;
-    --secondary-foreground: 215 20% 88%;
-    --muted: 218 22% 20%;
-    --muted-foreground: 215 14% 67%;
-    --accent: 216 32% 23%;
-    --accent-foreground: 215 32% 84%;
-    --destructive: 3 72% 54%;
+    --secondary: 219 22% 18%;
+    --secondary-foreground: 215 19% 89%;
+    --muted: 219 18% 19%;
+    --muted-foreground: 215 13% 68%;
+    --accent: 216 28% 22%;
+    --accent-foreground: 215 31% 85%;
+    --destructive: 3 62% 54%;
     --destructive-foreground: 0 0% 100%;
-    --border: 218 21% 25%;
-    --input: 218 21% 29%;
+    --border: 218 17% 25%;
+    --input: 218 18% 29%;
     --ring: 216 52% 54%;
     --chart-1: 216 52% 54%;
-    --chart-2: 166 60% 48%;
-    --chart-3: 39 88% 58%;
-    --chart-4: 3 72% 58%;
-    --chart-5: 258 54% 68%;
-    --sidebar-background: 218 38% 17%;
-    --sidebar-foreground: 215 18% 88%;
-    --sidebar-primary: 216 50% 46%;
+    --chart-2: 166 48% 49%;
+    --chart-3: 39 72% 58%;
+    --chart-4: 3 62% 60%;
+    --chart-5: 251 48% 69%;
+    --sidebar-background: 219 34% 15%;
+    --sidebar-foreground: 215 18% 89%;
+    --sidebar-primary: 216 54% 49%;
     --sidebar-primary-foreground: 216 20% 96%;
-    --sidebar-accent: 218 30% 22%;
+    --sidebar-accent: 218 26% 21%;
     --sidebar-accent-foreground: 215 18% 92%;
-    --sidebar-border: 216 25% 28%;
+    --sidebar-border: 216 21% 27%;
     --sidebar-ring: 216 52% 54%;
   }
 }
@@ -85,6 +85,11 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     text-rendering: optimizeLegibility;
+    color-scheme: light;
+  }
+
+  .dark body {
+    color-scheme: dark;
   }
 
   h1,
@@ -131,9 +136,7 @@
 @layer components {
   .app-shell {
     @apply min-h-screen bg-background text-foreground;
-    background-image:
-      linear-gradient(to bottom, hsl(var(--background)), hsl(var(--background))),
-      radial-gradient(circle at 15% -10%, hsl(var(--accent) / 0.8), transparent 28rem);
+    background-image: radial-gradient(circle at 15% -10%, hsl(var(--primary) / 0.09), transparent 28rem);
   }
 
   .app-header {

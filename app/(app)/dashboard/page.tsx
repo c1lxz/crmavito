@@ -13,6 +13,7 @@ import {
   subDays,
 } from "@/lib/utils";
 import { ChevronRight, Package, Plus, RotateCcw, Search, Settings, Wallet } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import Link from "next/link";
 import Image from "next/image";
@@ -170,9 +171,12 @@ export default async function DashboardPage() {
               Рабочая сводка для {session?.user?.name}
             </span>
           </div>
-          <Link href="/settings" className="icon-tile hover:border-primary/35 hover:text-primary">
-            <Settings className="h-5 w-5" />
-          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link href="/settings" className="icon-tile h-11 w-11 hover:border-primary/35 hover:text-primary" aria-label="Настройки">
+              <Settings className="h-5 w-5" />
+            </Link>
+          </div>
         </div>
       </div>
 

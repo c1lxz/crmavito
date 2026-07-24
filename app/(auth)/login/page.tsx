@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, X } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -107,6 +108,9 @@ export default function LoginPage() {
 
   return (
     <div className="app-shell flex min-h-screen items-center justify-center p-4">
+      <div className="fixed right-4 top-[max(16px,env(safe-area-inset-top))] z-10">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-sm rounded-lg border border-border/75 bg-card p-5 shadow-sm">
         <div className="mb-6 space-y-1">
           <p className="section-caption">Рабочий доступ</p>
