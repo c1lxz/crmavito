@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getKpiForRange, getPnL, getProductsReport, getCounterpartiesReport, getReturnsReport, getDynamicsChart, getOrderStatusCounts, getExpenseCategoryTotals, getAvitoProfileCounts } from "@/lib/db/reports";
-import { subDays } from "@/lib/utils";
-import { parseReportRange } from "@/lib/reports/range";
+import { getPreviousReportRange, parseReportRange } from "@/lib/reports/range";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -19,13 +18,11 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
   }
-  const { from: dateFrom, to: dateTo } = range;
-
   switch (type) {
     case "kpi": {
       const [current, prev] = await Promise.all([
         getKpiForRange(range),
-        getKpiForRange({ from: subDays(dateFrom, Math.ceil((dateTo.getTime() - dateFrom.getTime()) / 86400000)), to: subDays(dateTo, Math.ceil((dateTo.getTime() - dateFrom.getTime()) / 86400000)) }),
+        getKpiForRange(getPreviousReportRange(range)),
       ]);
       return NextResponse.json({ current, prev });
     }

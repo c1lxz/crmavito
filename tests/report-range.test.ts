@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseReportRange } from "@/lib/reports/range";
+import {
+  buildRecentReportRange,
+  getPreviousReportRange,
+  parseReportRange,
+} from "@/lib/reports/range";
 import {
   endOfDay,
   endOfDatabaseDate,
@@ -20,6 +24,25 @@ describe("report date range", () => {
   it("rejects reversed and invalid dates", () => {
     expect(() => parseReportRange("2026-07-01", "2026-06-30")).toThrow();
     expect(() => parseReportRange("2026-02-30", "2026-03-01")).toThrow();
+  });
+
+  it.each([
+    [30, "2026-06-19"],
+    [60, "2026-05-20"],
+    [90, "2026-04-20"],
+  ])("builds an inclusive %i-day preset", (days, dateFrom) => {
+    expect(buildRecentReportRange(days, new Date("2026-07-18T12:00:00Z"))).toEqual({
+      dateFrom,
+      dateTo: "2026-07-18",
+    });
+  });
+
+  it("builds an equally sized, non-overlapping previous period", () => {
+    const current = parseReportRange("2026-04-20", "2026-07-18");
+    const previous = getPreviousReportRange(current);
+
+    expect(previous.from.toISOString()).toBe("2026-01-19T21:00:00.000Z");
+    expect(previous.to.toISOString()).toBe("2026-04-19T20:59:59.999Z");
   });
 });
 

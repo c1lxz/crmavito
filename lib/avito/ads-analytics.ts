@@ -192,12 +192,13 @@ export async function fetchAvitoAdsAnalytics(
   input: { profileId: string; credentials: AvitoCredentials; periodDays: number },
   options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
 ): Promise<AvitoAdsAnalyticsResult> {
+  const periodDays = Math.min(270, Math.max(1, Math.round(Number.isFinite(input.periodDays) ? input.periodDays : 3)));
   const token = await getAvitoStockToken(input.credentials, options);
   const [accountProfile, listResult] = await Promise.all([
     fetchAvitoAccountProfile(input.credentials, options),
     fetchAllAvitoItems(token, options),
   ]);
-  const range = buildRecentDateRange(input.periodDays);
+  const range = buildRecentDateRange(periodDays);
   const ids = listResult.items.map((item) => String(item.id)).filter(Boolean);
   const stats = ids.length ? await fetchAvitoStats(token, accountProfile.id, ids, range, options) : new Map();
 
@@ -221,7 +222,7 @@ export async function fetchAvitoAdsAnalytics(
   return {
     profileId: input.profileId,
     accountId: accountProfile.id,
-    periodDays: input.periodDays,
+    periodDays,
     ...range,
     total: {
       ads: items.length,

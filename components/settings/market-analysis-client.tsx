@@ -16,6 +16,7 @@ import { AiAnalysisReport } from "@/components/settings/ai-analysis-report";
 
 const LOCAL_AGENT_URL = "http://127.0.0.1:3217/api/avito/market-analysis/probe";
 const LOCAL_AGENT_HEALTH_URL = "http://127.0.0.1:3217/health";
+const OWN_ANALYTICS_PERIODS = [30, 60, 90] as const;
 
 type ProbeResult = {
   requestedUrl: string;
@@ -101,7 +102,7 @@ export function MarketAnalysisClient() {
   const [manualClientId, setManualClientId] = useState("");
   const [manualClientSecret, setManualClientSecret] = useState("");
   const [manualCredentialsOpen, setManualCredentialsOpen] = useState(false);
-  const [ownPeriodDays, setOwnPeriodDays] = useState(3);
+  const [ownPeriodDays, setOwnPeriodDays] = useState(30);
   const [ownLoading, setOwnLoading] = useState(false);
   const [ownResult, setOwnResult] = useState<OwnAnalyticsResult | null>(null);
   const [rankingMetric, setRankingMetric] = useState<RankingMetric>("views");
@@ -237,6 +238,21 @@ export function MarketAnalysisClient() {
                   onChange={(event) => setOwnPeriodDays(Number(event.target.value.replace(/\D/g, "")))}
                   className="tabular-nums"
                 />
+                <div className="flex gap-1 pt-1" aria-label="Быстрый выбор периода аналитики">
+                  {OWN_ANALYTICS_PERIODS.map((days) => (
+                    <Button
+                      key={days}
+                      type="button"
+                      size="sm"
+                      variant={ownPeriodDays === days ? "secondary" : "outline"}
+                      aria-pressed={ownPeriodDays === days}
+                      onClick={() => setOwnPeriodDays(days)}
+                      className="h-7 px-2"
+                    >
+                      {days}
+                    </Button>
+                  ))}
+                </div>
               </div>
               <div className="min-w-0 space-y-1">
                 <Label htmlFor="own-avito-profile">Профиль Avito</Label>

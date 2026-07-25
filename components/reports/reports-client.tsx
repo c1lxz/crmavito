@@ -16,6 +16,7 @@ import {
   MOSCOW_DAY_CHANGED_EVENT,
   type MoscowDayChangedDetail,
 } from "@/lib/time/moscow-day";
+import { buildRecentReportRange } from "@/lib/reports/range";
 
 interface KpiData {
   revenue: number; costOfGoods: number; grossProfit: number; marginPercent: number; netProfit: number;
@@ -27,10 +28,12 @@ const AVITO_PROFILE_COLORS = ["#6366f1", "#22c55e", "#eab308", "#f97316", "#7c3a
 const EXPENSE_ORDER: string[] = [
   "PURCHASE", "LOGISTICS", "ADVERTISING", "AVITO_COMMISSION", "PACKAGING", "SALARY", "OTHER",
 ];
+const REPORT_PERIODS = [30, 60, 90] as const;
 
 export function ReportsClient() {
   const [dateFrom, setDateFrom] = useState(() => formatDateInput(startOfMonth(new Date())));
   const [dateTo, setDateTo] = useState(() => formatDateInput());
+  const [activePeriodDays, setActivePeriodDays] = useState<number | null>(null);
   const [kpi, setKpi] = useState<{ current: KpiData; prev: KpiData } | null>(null);
   const [pnl, setPnl] = useState<Record<string, number> | null>(null);
   const [products, setProducts] = useState<Array<{ productId: string; name: string; imageUrl: string | null; sold: number; revenue: number; profit: number }>>([]);
@@ -153,6 +156,13 @@ export function ReportsClient() {
   }));
   const avitoProfileTotal = avitoProfileData.reduce((s, d) => s + d.count, 0);
 
+  const applyRecentPeriod = (periodDays: number) => {
+    const range = buildRecentReportRange(periodDays);
+    setDateFrom(range.dateFrom);
+    setDateTo(range.dateTo);
+    setActivePeriodDays(periodDays);
+  };
+
   return (
     <div className="app-shell">
       <div className="app-header">
@@ -165,10 +175,44 @@ export function ReportsClient() {
             {loading ? "..." : "Обновить"}
           </Button>
         </div>
-        <div className="pc-reports-range flex gap-2 items-center">
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="text-sm" />
-          <span className="text-muted-foreground">—</span>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="text-sm" />
+        <div className="pc-reports-range space-y-2">
+          <div className="flex flex-wrap gap-2" aria-label="Быстрый выбор периода">
+            {REPORT_PERIODS.map((days) => (
+              <Button
+                key={days}
+                type="button"
+                size="sm"
+                variant={activePeriodDays === days ? "secondary" : "outline"}
+                aria-pressed={activePeriodDays === days}
+                onClick={() => applyRecentPeriod(days)}
+              >
+                {days} дней
+              </Button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => {
+                setDateFrom(event.target.value);
+                setActivePeriodDays(null);
+              }}
+              aria-label="Начало периода"
+              className="text-sm"
+            />
+            <span className="text-muted-foreground">—</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(event) => {
+                setDateTo(event.target.value);
+                setActivePeriodDays(null);
+              }}
+              aria-label="Конец периода"
+              className="text-sm"
+            />
+          </div>
         </div>
       </div>
 

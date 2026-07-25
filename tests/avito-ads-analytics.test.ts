@@ -15,6 +15,33 @@ describe("Avito ads analytics", () => {
     });
   });
 
+  it.each([
+    [30, "2026-06-19"],
+    [60, "2026-05-20"],
+    [90, "2026-04-20"],
+  ])("builds an inclusive %i-day Avito range", (days, dateFrom) => {
+    expect(buildRecentDateRange(days, new Date("2026-07-18T12:00:00Z"))).toEqual({
+      dateFrom,
+      dateTo: "2026-07-18",
+    });
+  });
+
+  it("sums a full 90-day response without losing daily rows", () => {
+    const rows = Array.from({ length: 90 }, (_, index) => ({
+      date: `day-${index + 1}`,
+      uniqViews: index + 1,
+      uniqContacts: 1,
+      uniqFavorites: 2,
+    }));
+    const stats = parseAvitoStatsItems({ result: { items: { 101: rows } } });
+
+    expect(stats.get("101")).toMatchObject({
+      uniqViews: 4095,
+      uniqContacts: 90,
+      uniqFavorites: 180,
+    });
+  });
+
   it("parses Avito stats keyed by item id and sums daily rows", () => {
     const stats = parseAvitoStatsItems({
       result: {
@@ -98,7 +125,7 @@ describe("Avito ads analytics", () => {
     }) as unknown as typeof fetch;
 
     const result = await fetchAvitoAdsAnalytics(
-      { profileId: "profile-1", credentials, periodDays: 3 },
+      { profileId: "profile-1", credentials, periodDays: 90 },
       { fetchFn, sleepFn: async () => undefined },
     );
 
@@ -109,6 +136,15 @@ describe("Avito ads analytics", () => {
       favorites: 5,
     });
     expect(result.items[0]).toMatchObject({ itemId: "202", views: 21, contacts: 5 });
-    expect(calls.find((call) => call.url.includes("/stats/v1/accounts/42/items"))?.init?.body).toContain("uniqViews");
+    const statsRequest = calls.find((call) => call.url.includes("/stats/v1/accounts/42/items"))?.init?.body;
+    expect(statsRequest).toContain("uniqViews");
+    expect(statsRequest).toContain('"dateFrom"');
+    expect(result.periodDays).toBe(90);
+    expect(
+      Math.round(
+        (Date.parse(`${result.dateTo}T00:00:00Z`) - Date.parse(`${result.dateFrom}T00:00:00Z`)) /
+          86_400_000,
+      ) + 1,
+    ).toBe(90);
   });
 });
