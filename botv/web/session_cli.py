@@ -481,6 +481,13 @@ def _public_photo_base_url() -> str:
     return "http://crmavito.duckdns.org"
 
 
+def _size_guide_url() -> str:
+    return os.getenv(
+        "BOTV_SIZE_GUIDE_URL",
+        "https://crmavito.duckdns.org/assets/ky-strok-size-guide.jpg",
+    ).strip()
+
+
 def _public_photo_ext(photo: Path) -> str:
     ext = photo.suffix.lower().lstrip(".")
     if ext in {"jpg", "jpeg", "png", "webp"}:
@@ -512,17 +519,23 @@ def _public_photo_urls(session_id: str, photos: list[Path]) -> list[str]:
 
 async def _image_urls(client: YandexDiskClient | None, session_id: str, product_name: str, photos: list[Path]) -> list[str]:
     if os.getenv("BOTV_WEB_LOCAL_IMAGES") == "1":
-        return [photo.resolve().as_uri() for photo in photos]
-    if os.getenv("BOTV_WEB_PUBLIC_IMAGES", "1").strip().lower() not in {"0", "false", "no", "off"}:
-        return _public_photo_urls(session_id, photos)
-    if client is None:
-        return _public_photo_urls(session_id, photos)
-    return await upload_product_photos(
-        client=client,
-        base_dir=config.yandex_disk_upload_dir,
-        product_name=product_name,
-        photos=photos,
-    )
+        images = [photo.resolve().as_uri() for photo in photos]
+    elif os.getenv("BOTV_WEB_PUBLIC_IMAGES", "1").strip().lower() not in {"0", "false", "no", "off"}:
+        images = _public_photo_urls(session_id, photos)
+    elif client is None:
+        images = _public_photo_urls(session_id, photos)
+    else:
+        images = await upload_product_photos(
+            client=client,
+            base_dir=config.yandex_disk_upload_dir,
+            product_name=product_name,
+            photos=photos,
+        )
+
+    size_guide = _size_guide_url()
+    if size_guide and size_guide not in images:
+        images.append(size_guide)
+    return images
 
 
 def _write_xml_file(session_id: str, xml_text: str, phone: str | None = None) -> Path:

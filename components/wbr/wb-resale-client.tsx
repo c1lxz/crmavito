@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 const AGENT_URL = "http://127.0.0.1:3017";
+const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
 
@@ -147,7 +148,7 @@ export function WbResaleClient() {
           sku: makeSku(form.title),
           title: form.title.trim(),
           category: form.category.trim(),
-          photos: photos.map((photo) => photo.path).join(","),
+          photos: [...photos.map((photo) => photo.path), SIZE_GUIDE_URL].join(","),
           price: Number(form.price || 0),
           allow_offers: true,
           quantity: 1,
