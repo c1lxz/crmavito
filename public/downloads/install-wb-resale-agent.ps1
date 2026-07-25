@@ -57,10 +57,9 @@ try {
     throw "WB Resale RPA was not extracted correctly."
   }
 
-  Write-Step "Installing RPA dependencies"
+  Write-Step "Installing RPA dependencies (Yandex Browser and Chrome are supported)"
   Push-Location $rpaDir
   npm install
-  npx playwright install chromium
   Pop-Location
 
   Write-Step "Creating Windows autostart task"

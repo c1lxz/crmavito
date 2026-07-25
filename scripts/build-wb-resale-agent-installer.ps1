@@ -12,6 +12,10 @@ if (-not (Test-Path $scriptSource)) {
   throw "Installer script was not found: $scriptSource"
 }
 
+if (Test-Path $exeTarget) {
+  Remove-Item -LiteralPath $exeTarget -Force
+}
+
 if (Test-Path $buildDir) {
   Remove-Item -LiteralPath $buildDir -Recurse -Force
 }
@@ -65,7 +69,10 @@ SourceFiles0=$sourceDir
 %FILE1%=
 "@ | Set-Content -LiteralPath $sedPath -Encoding ASCII
 
-& iexpress.exe /N /Q $sedPath
+$iexpress = Start-Process -FilePath "iexpress.exe" -ArgumentList "/N", "/Q", $sedPath -Wait -PassThru -WindowStyle Hidden
+if ($iexpress.ExitCode -ne 0) {
+  throw "IExpress failed with exit code $($iexpress.ExitCode)"
+}
 
 if (-not (Test-Path $exeTarget)) {
   throw "IExpress did not create the installer: $exeTarget"

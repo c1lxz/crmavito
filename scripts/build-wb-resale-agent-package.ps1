@@ -38,7 +38,7 @@ if ($LASTEXITCODE -gt 7) {
   throw "robocopy CRM failed: $LASTEXITCODE"
 }
 
-robocopy $rpaSrc $rpaDst /E /XD node_modules .browser-profile photos remote-photos logs test-results playwright-report /XF items.csv *.log | Out-Null
+robocopy $rpaSrc $rpaDst /E /XD node_modules .browser-profile .browser-profile-yandex .browser-profile-chrome photos remote-photos logs test-results playwright-report /XF items.csv *.log | Out-Null
 if ($LASTEXITCODE -gt 7) {
   throw "robocopy RPA failed: $LASTEXITCODE"
 }
