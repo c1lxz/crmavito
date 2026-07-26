@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const PUBLIC_APP_URL = process.env.NEXTAUTH_URL || "https://crmavito.duckdns.org";
+const MOBILE_USER_AGENT =
+  /Android|iPhone|iPad|iPod|Mobile|TelegramBot|Telegram-Android|Telegram-iOS/i;
 
 function appPath(pathname: string, search = "") {
   return new URL(`${pathname}${search}`, PUBLIC_APP_URL);
@@ -14,9 +16,15 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  const userAgent = req.headers.get("user-agent") || "";
+  const isMobileDevice = MOBILE_USER_AGENT.test(userAgent);
+  const isTelegramLaunch =
+    req.nextUrl.searchParams.has("tgWebAppData") ||
+    req.nextUrl.searchParams.has("tgWebAppVersion");
+  const forceMobileDevice = isMobileDevice || isTelegramLaunch;
   const modeMatch = pathname.match(/^\/(pc|m)(\/.*)?$/);
   if (modeMatch) {
-    const mode = modeMatch[1] === "pc" ? "pc" : "m";
+    const mode = forceMobileDevice ? "m" : modeMatch[1] === "pc" ? "pc" : "m";
     const targetPath = modeMatch[2] || "/dashboard";
     const target = appPath(targetPath, search);
     target.searchParams.set("ui", mode);
@@ -34,9 +42,14 @@ export function middleware(req: NextRequest) {
   }
 
   const queryMode = req.nextUrl.searchParams.get("ui");
-  const forcedMode = queryMode === "m" || queryMode === "pc"
-    ? queryMode
-    : pathname === "/dashboard" ? "pc" : null;
+  const savedMode = req.cookies.get("crmavito-ui-mode")?.value;
+  const forcedMode = forceMobileDevice
+    ? "m"
+    : queryMode === "m" || queryMode === "pc"
+      ? queryMode
+      : savedMode === "m" || savedMode === "pc"
+        ? savedMode
+        : null;
 
   if (forcedMode) {
     const requestHeaders = new Headers(req.headers);

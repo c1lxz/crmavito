@@ -11,6 +11,25 @@ describe("custom Avito XML feeds", () => {
 
     expect(result.ads).toBe(2);
     expect(result.adIds).toEqual(["SKU-one", "SKU-two"]);
+    expect(result.xml.match(/ky-strok-size-guide\.jpg/g)).toHaveLength(2);
+  });
+
+  it("keeps the size guide as the final image without duplicating it", () => {
+    const result = inspectAvitoXml(`<?xml version="1.0"?>
+      <Ads>
+        <Ad>
+          <Id>SKU-1</Id>
+          <Images>
+            <Image url="https://example.test/product.jpg"/>
+            <Image url="https://crmavito.duckdns.org/assets/ky-strok-size-guide.jpg"/>
+          </Images>
+        </Ad>
+      </Ads>`);
+
+    expect(result.xml.match(/ky-strok-size-guide\.jpg/g)).toHaveLength(1);
+    expect(result.xml.indexOf("product.jpg")).toBeLessThan(
+      result.xml.indexOf("ky-strok-size-guide.jpg"),
+    );
   });
 
   it("rejects duplicate IDs", () => {

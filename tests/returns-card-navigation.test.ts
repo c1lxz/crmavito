@@ -11,4 +11,15 @@ describe("returns card navigation", () => {
     expect(source).toContain('className="block"');
     expect(source).not.toContain(">Карточка<");
   });
+
+  it("uses the same compact searchable product picker as order creation", () => {
+    const source = readFileSync(path.resolve(__dirname, "../components/returns/returns-client.tsx"), "utf8");
+
+    expect(source).toContain('htmlFor="return-product-search"');
+    expect(source).toContain('placeholder="Начните вводить название..."');
+    expect(source).toContain("matchesSearch(product.name, query)");
+    expect(source).toContain('className="max-h-48 overflow-y-auto rounded-md border bg-card"');
+    expect(source).toContain('className="min-w-0 flex-1 truncate"');
+    expect(source).not.toContain('<SelectValue placeholder="Выберите товар"');
+  });
 });

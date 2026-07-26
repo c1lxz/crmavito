@@ -56,7 +56,8 @@ describe("desktop responsive UI", () => {
     expect(middlewareSource).not.toContain('rewriteUrl.port = "3000"');
     expect(middlewareSource).toContain("crmavito-ui-mode");
     expect(middlewareSource).toContain('target.searchParams.set("ui", mode)');
-    expect(middlewareSource).toContain('pathname === "/dashboard" ? "pc" : null');
+    expect(middlewareSource).toContain("const forceMobileDevice = isMobileDevice || isTelegramLaunch");
+    expect(middlewareSource).toContain('const savedMode = req.cookies.get("crmavito-ui-mode")?.value');
     expect(middlewareSource).toContain('requestHeaders.set("x-crmavito-ui-mode", forcedMode)');
     expect(appLayoutSource).toContain('cookieStore.get("crmavito-ui-mode")?.value');
     expect(appLayoutSource).toContain('requestHeaders.get("x-crmavito-ui-mode")');

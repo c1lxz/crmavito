@@ -1,7 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, FileUp, ImagePlus, Loader2, Play, Store, UploadCloud } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ExternalLink,
+  FileUp,
+  ImagePlus,
+  Loader2,
+  Octagon,
+  Play,
+  RefreshCw,
+  Store,
+  Trash2,
+  UploadCloud,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 const AGENT_URL = "http://127.0.0.1:3017";
+const AGENT_VERSION = "2026.07.27.1";
 const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
@@ -24,6 +38,7 @@ interface Listing {
   characteristics: string;
   status: string;
   note: string;
+  listing_url?: string;
 }
 
 interface RpaEvent {
@@ -57,6 +72,7 @@ export function WbResaleClient() {
   const xmlInputRef = useRef<HTMLInputElement>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("offline");
   const [rpaRunning, setRpaRunning] = useState(false);
+  const [agentVersion, setAgentVersion] = useState("");
   const [listings, setListings] = useState<Listing[]>([]);
   const [events, setEvents] = useState<RpaEvent[]>([]);
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
@@ -64,6 +80,7 @@ export function WbResaleClient() {
   const [saving, setSaving] = useState(false);
   const [importingXml, setImportingXml] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [deletingSku, setDeletingSku] = useState("");
   const [form, setForm] = useState({
     title: "",
     category: "Одежда / Футболки",
@@ -80,9 +97,10 @@ export function WbResaleClient() {
 
   const checkAgent = useCallback(async () => {
     try {
-      const state = await agentFetch<{ running: boolean; events?: RpaEvent[] }>("/api/rpa/status");
+      const state = await agentFetch<{ running: boolean; version?: string; events?: RpaEvent[] }>("/api/rpa/status");
       setAgentStatus("online");
       setRpaRunning(Boolean(state.running));
+      setAgentVersion(state.version ?? "");
       setEvents(state.events ?? []);
       const rows = await agentFetch<Listing[]>("/api/listings");
       setListings(rows);
@@ -94,6 +112,8 @@ export function WbResaleClient() {
 
   useEffect(() => {
     checkAgent();
+    const timer = window.setInterval(checkAgent, 10_000);
+    return () => window.clearInterval(timer);
   }, [checkAgent]);
 
   useEffect(() => {
@@ -173,6 +193,24 @@ export function WbResaleClient() {
     }
   }
 
+  async function stopAgent() {
+    await agentFetch("/api/rpa/stop", { method: "POST" });
+    await checkAgent();
+  }
+
+  async function deleteListing(item: Listing) {
+    if (!window.confirm(`Удалить объявление «${item.title}» из Wildberries и очереди?`)) return;
+    setDeletingSku(item.sku);
+    try {
+      await agentFetch(`/api/listings/${encodeURIComponent(item.sku)}/delete-wb`, {
+        method: "POST",
+      });
+      await checkAgent();
+    } finally {
+      setDeletingSku("");
+    }
+  }
+
   async function importXml(file: File) {
     setImportingXml(true);
     try {
@@ -236,7 +274,50 @@ export function WbResaleClient() {
       </div>
 
       <div className="app-content space-y-4">
-        <AgentBanner status={agentStatus} running={rpaRunning} />
+        <AgentBanner
+          status={agentStatus}
+          running={rpaRunning}
+          version={agentVersion}
+          updateAvailable={Boolean(agentVersion && agentVersion !== AGENT_VERSION)}
+          onCheck={checkAgent}
+        />
+
+        {rpaRunning ? (
+          <Card className="border-primary/25">
+            <CardContent className="space-y-3 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">Публикация выполняется</p>
+                  <p className="text-sm text-muted-foreground">
+                    {currentProgress(events, listings)}
+                  </p>
+                </div>
+                <Button variant="destructive" size="sm" onClick={() => stopAgent().catch((error) => addError(String(error)))}>
+                  <Octagon className="h-4 w-4" />
+                  Остановить
+                </Button>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-200"
+                  style={{ width: `${progressPercent(listings)}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {latestError(events) ? (
+          <Card className="border-destructive/35 bg-destructive/5">
+            <CardContent className="flex gap-3 p-4">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+              <div>
+                <p className="text-sm font-semibold">Агенту нужна помощь</p>
+                <p className="mt-1 text-sm text-muted-foreground">{latestError(events)}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <div className="grid gap-4 xl:grid-cols-[minmax(420px,0.85fr)_minmax(520px,1.15fr)]">
           <Card>
@@ -367,19 +448,46 @@ export function WbResaleClient() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
-                {listings.length ? listings.slice(0, 12).map((item) => (
-                  <div key={item.sku} className="rounded-md border border-border/80 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{item.title}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {item.sku} · {Number(item.price || 0).toLocaleString("ru-RU")} ₽ · {extractSize(item.characteristics) || "размер не указан"}
-                        </p>
-                        {item.note ? <p className="mt-1 truncate text-xs text-destructive">{item.note}</p> : null}
+                {listings.length ? listings.slice(0, 30).map((item) => (
+                  <div key={item.sku} className="flex gap-3 rounded-md border border-border/80 p-3">
+                    <img
+                      src={listingCover(item.photos)}
+                      alt=""
+                      className="h-16 w-16 shrink-0 rounded-md bg-secondary object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">{item.title}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {Number(item.price || 0).toLocaleString("ru-RU")} ₽ · {extractSize(item.characteristics) || "размер не указан"}
+                          </p>
+                        </div>
+                        <Badge className="shrink-0" variant={item.status === "error" ? "destructive" : "secondary"}>
+                          {statusLabels[item.status] ?? item.status}
+                        </Badge>
                       </div>
-                      <Badge className="shrink-0" variant={item.status === "error" ? "destructive" : "secondary"}>
-                        {statusLabels[item.status] ?? item.status}
-                      </Badge>
+                      {item.note ? <p className="mt-1 line-clamp-2 text-xs text-destructive">{item.note}</p> : null}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {item.listing_url ? (
+                          <Button asChild variant="outline" size="sm" className="h-8">
+                            <a href={item.listing_url} target="_blank" rel="noreferrer">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Открыть
+                            </a>
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-destructive hover:text-destructive"
+                          disabled={Boolean(deletingSku) || rpaRunning}
+                          onClick={() => deleteListing(item).catch((error) => addError(error instanceof Error ? error.message : String(error)))}
+                        >
+                          {deletingSku === item.sku ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          Удалить
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )) : (
@@ -390,22 +498,6 @@ export function WbResaleClient() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Журнал</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-72 overflow-auto rounded-md bg-slate-950 p-3 font-mono text-xs text-slate-200">
-                  {events.length ? events.slice(-120).map((event, index) => (
-                    <div key={`${event.time}-${index}`} className={event.level === "error" || event.status === "error" || event.status === "failed" ? "text-red-300" : ""}>
-                      [{event.time ? new Date(event.time).toLocaleTimeString("ru-RU") : new Date().toLocaleTimeString("ru-RU")}] {event.id ? `${event.id}: ` : ""}{event.message || event.status}
-                    </div>
-                  )) : (
-                    <span className="text-slate-500">Событий пока нет</span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>
@@ -421,15 +513,37 @@ export function WbResaleClient() {
   }
 }
 
-function AgentBanner({ status, running }: { status: AgentStatus; running: boolean }) {
+function AgentBanner({
+  status,
+  running,
+  version,
+  updateAvailable,
+  onCheck,
+}: {
+  status: AgentStatus;
+  running: boolean;
+  version: string;
+  updateAvailable: boolean;
+  onCheck: () => Promise<void>;
+}) {
   if (status === "online") {
     return (
       <Card className="border-emerald-500/25 bg-emerald-500/8">
         <CardContent className="flex items-start gap-3 p-4">
           <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Локальный WB-агент подключён{running ? ", публикация идёт" : ""}</p>
-            <p className="text-sm text-muted-foreground">Публикация выполняется на этом компьютере и использует его браузерный профиль Wildberries.</p>
+            <p className="text-sm text-muted-foreground">
+              Версия {version || "не определена"}. Публикация выполняется на этом компьютере.
+            </p>
+            {updateAvailable ? (
+              <Button asChild size="sm" className="mt-3">
+                <a href="/downloads/install-wb-resale-agent.exe" download>
+                  <RefreshCw className="h-4 w-4" />
+                  Обновить агент
+                </a>
+              </Button>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -446,7 +560,11 @@ function AgentBanner({ status, running }: { status: AgentStatus; running: boolea
             Запустите на этом ПК файл <span className="font-semibold text-foreground">WB Resale CRM / Запустить CRM.bat</span>, затем обновите страницу.
             Без локального агента браузер WB нельзя открыть от имени сотрудника.
           </p>
-          <div className="pt-2">
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => onCheck()}>
+              <RefreshCw className="h-4 w-4" />
+              Проверить снова
+            </Button>
             <Button asChild size="sm">
               <a href="/downloads/install-wb-resale-agent.exe" download>
                 Скачать установщик агента
@@ -491,4 +609,30 @@ function makeSku(value: string) {
 
 function extractSize(value: string) {
   return String(value || "").match(/размер\s+([^,;\n]+)/i)?.[1]?.trim() || "";
+}
+
+function listingCover(value: string) {
+  const first = String(value || "").split(",").map((item) => item.trim()).find(Boolean);
+  if (!first) return "/assets/ky-strok-size-guide.jpg";
+  if (/^https?:\/\//i.test(first)) return first;
+  return `${AGENT_URL}/api/photos/${first.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function progressPercent(listings: Listing[]) {
+  const total = listings.length || 1;
+  const completed = listings.filter((item) => ["moderation", "posted", "error"].includes(item.status)).length;
+  return Math.max(4, Math.min(100, Math.round((completed / total) * 100)));
+}
+
+function currentProgress(events: RpaEvent[], listings: Listing[]) {
+  const latest = [...events].reverse().find((event) => event.type === "item" || event.type === "run");
+  if (latest?.message) return latest.id ? `${latest.id}: ${latest.message}` : latest.message;
+  const active = listings.find((item) => item.status === "running");
+  return active ? `Обрабатывается: ${active.title}` : "Подготавливаю очередь";
+}
+
+function latestError(events: RpaEvent[]) {
+  return [...events].reverse().find((event) =>
+    event.level === "error" || event.status === "error" || event.status === "failed"
+  )?.message;
 }

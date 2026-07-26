@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDate, formatDateInput } from "@/lib/utils";
+import { formatDate, formatDateInput, matchesSearch } from "@/lib/utils";
 import { RETURN_STATUS_LABELS, RETURN_STATUS_COLORS } from "@/lib/constants";
 import { toast } from "@/lib/hooks/use-toast";
 import type { ReturnStatus } from "@prisma/client";
@@ -66,6 +66,7 @@ export function ReturnsClient({ initialData }: Props) {
   const [returnForm, setReturnForm] = useState({
     trackingNumber: "",
     productId: "",
+    productSearch: "",
     productNameSnapshot: "",
     variant: "",
     size: "",
@@ -95,6 +96,17 @@ export function ReturnsClient({ initialData }: Props) {
   }, [data.returns, search, statusFilter]);
 
   const filteredIds = useMemo(() => filtered.map((item) => item.id), [filtered]);
+  const selectedReturnProduct = useMemo(
+    () => data.products.find((product) => product.id === returnForm.productId),
+    [data.products, returnForm.productId],
+  );
+  const returnProductMatches = useMemo(() => {
+    const query = returnForm.productSearch.trim();
+    if (!query || selectedReturnProduct?.name === returnForm.productSearch) return [];
+    return data.products
+      .filter((product) => matchesSearch(product.name, query))
+      .slice(0, 50);
+  }, [data.products, returnForm.productSearch, selectedReturnProduct?.name]);
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
 
@@ -210,6 +222,8 @@ export function ReturnsClient({ initialData }: Props) {
       setReturnForm((current) => ({
         ...current,
         productId: item?.productId ?? order.productId,
+        productSearch:
+          item?.productNameSnapshot ?? order.productNameSnapshot ?? "",
         productNameSnapshot:
           item?.productNameSnapshot ?? order.productNameSnapshot,
         variant: item?.variant ?? order.variant ?? "",
@@ -254,6 +268,7 @@ export function ReturnsClient({ initialData }: Props) {
       setReturnForm({
         trackingNumber: "",
         productId: "",
+        productSearch: "",
         productNameSnapshot: "",
         variant: "",
         size: "",
@@ -646,31 +661,62 @@ export function ReturnsClient({ initialData }: Props) {
               )}
             </div>
             <div className="space-y-1">
-              <Label>Товар</Label>
-              <Select
-                required
-                value={returnForm.productId}
-                onValueChange={(productId) => {
-                  const product = data.products.find((item) => item.id === productId);
-                  setReturnForm((current) => ({
-                    ...current,
-                    productId,
-                    productNameSnapshot: product?.name ?? "",
-                    matchedOrder: "",
-                  }));
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите товар" />
-                </SelectTrigger>
-                <SelectContent>
-                  {data.products.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.name}
-                    </SelectItem>
+              <Label htmlFor="return-product-search">Поиск товара</Label>
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  id="return-product-search"
+                  value={returnForm.productSearch}
+                  placeholder="Начните вводить название..."
+                  autoComplete="off"
+                  className="pl-9"
+                  onChange={(event) => {
+                    const productSearch = event.target.value;
+                    setReturnForm((current) => ({
+                      ...current,
+                      productSearch,
+                      ...(productSearch !== selectedReturnProduct?.name
+                        ? {
+                            productId: "",
+                            productNameSnapshot: "",
+                            matchedOrder: "",
+                          }
+                        : {}),
+                    }));
+                  }}
+                />
+              </div>
+              {returnForm.productSearch.trim() &&
+              selectedReturnProduct?.name !== returnForm.productSearch ? (
+                <div className="max-h-48 overflow-y-auto rounded-md border bg-card">
+                  {returnProductMatches.map((product) => (
+                    <button
+                      key={product.id}
+                      type="button"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
+                      onClick={() =>
+                        setReturnForm((current) => ({
+                          ...current,
+                          productId: product.id,
+                          productSearch: product.name,
+                          productNameSnapshot: product.name,
+                          matchedOrder: "",
+                        }))
+                      }
+                    >
+                      <span className="min-w-0 flex-1 truncate">{product.name}</span>
+                    </button>
                   ))}
-                </SelectContent>
-              </Select>
+                  {returnProductMatches.length === 0 ? (
+                    <p className="px-3 py-3 text-sm text-muted-foreground">
+                      Товары не найдены
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">

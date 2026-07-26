@@ -4,6 +4,8 @@ import path from "node:path";
 
 const feedsDir = path.join(process.cwd(), "botv", "tmp", "custom_xml_feeds");
 const MAX_XML_BYTES = 50 * 1024 * 1024;
+export const SIZE_GUIDE_URL =
+  "https://crmavito.duckdns.org/assets/ky-strok-size-guide.jpg";
 
 export type AvitoXmlInspection = {
   xml: string;
@@ -31,7 +33,23 @@ export function inspectAvitoXml(value: string): AvitoXmlInspection {
     throw new Error("XML содержит повторяющиеся Id объявлений.");
   }
 
-  return { xml: `${xml}\n`, ads: openedAds, adIds };
+  return { xml: `${appendSizeGuideToAds(xml)}\n`, ads: openedAds, adIds };
+}
+
+export function appendSizeGuideToAds(xml: string): string {
+  return xml.replace(/<Ad\b[^>]*>[\s\S]*?<\/Ad>/gi, (ad) => {
+    if (ad.includes(SIZE_GUIDE_URL)) return ad;
+    if (/<\/Images>/i.test(ad)) {
+      return ad.replace(
+        /<\/Images>/i,
+        `  <Image url="${SIZE_GUIDE_URL}"/>\n</Images>`,
+      );
+    }
+    return ad.replace(
+      /<\/Ad>/i,
+      `<Images><Image url="${SIZE_GUIDE_URL}"/></Images>\n</Ad>`,
+    );
+  });
 }
 
 export async function saveCustomXmlFeed(xml: string): Promise<string> {

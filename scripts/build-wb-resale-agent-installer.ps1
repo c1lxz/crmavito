@@ -1,19 +1,14 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $downloadsDir = Join-Path $root "public\downloads"
 $buildDir = Join-Path $root ".wbr-installer-build"
-$sedPath = Join-Path $buildDir "installer.sed"
-$launcherPath = Join-Path $buildDir "run-installer.cmd"
 $scriptSource = Join-Path $downloadsDir "install-wb-resale-agent.ps1"
 $exeTarget = Join-Path $downloadsDir "install-wb-resale-agent.exe"
+$sourcePath = Join-Path $buildDir "Installer.cs"
 
 if (-not (Test-Path $scriptSource)) {
   throw "Installer script was not found: $scriptSource"
-}
-
-if (Test-Path $exeTarget) {
-  Remove-Item -LiteralPath $exeTarget -Force
 }
 
 if (Test-Path $buildDir) {
@@ -21,61 +16,135 @@ if (Test-Path $buildDir) {
 }
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 
-Copy-Item -LiteralPath $scriptSource -Destination (Join-Path $buildDir "install-wb-resale-agent.ps1") -Force
+$scriptBase64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($scriptSource))
+$source = @"
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Windows.Forms;
 
-@'
-@echo off
-chcp 65001 >nul
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-wb-resale-agent.ps1"
-exit /b %ERRORLEVEL%
-'@ | Set-Content -LiteralPath $launcherPath -Encoding ASCII
+internal static class InstallerProgram
+{
+    private const string ScriptBase64 = "$scriptBase64";
 
-$sourceDir = $buildDir.TrimEnd("\") + "\"
+    [STAThread]
+    private static void Main()
+    {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
 
-@"
-[Version]
-Class=IEXPRESS
-SEDVersion=3
+        var form = new Form {
+            Text = "WB Resale Agent",
+            ClientSize = new Size(540, 220),
+            StartPosition = FormStartPosition.CenterScreen,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+            BackColor = Color.FromArgb(247, 248, 250)
+        };
+        var title = new Label {
+            Text = "Установка WB Resale Agent",
+            Font = new Font("Segoe UI", 16, FontStyle.Bold),
+            AutoSize = true,
+            Location = new Point(28, 24)
+        };
+        var status = new Label {
+            Text = "Скачиваю и устанавливаю свежую версию агента...",
+            Font = new Font("Segoe UI", 10),
+            AutoSize = false,
+            Size = new Size(484, 44),
+            Location = new Point(30, 77)
+        };
+        var progress = new ProgressBar {
+            Style = ProgressBarStyle.Marquee,
+            MarqueeAnimationSpeed = 24,
+            Size = new Size(480, 18),
+            Location = new Point(30, 130)
+        };
+        var close = new Button {
+            Text = "Закрыть",
+            Enabled = false,
+            Size = new Size(110, 34),
+            Location = new Point(400, 166)
+        };
+        close.Click += (sender, args) => form.Close();
+        form.Controls.Add(title);
+        form.Controls.Add(status);
+        form.Controls.Add(progress);
+        form.Controls.Add(close);
 
-[Options]
-PackagePurpose=InstallApp
-ShowInstallProgramWindow=1
-HideExtractAnimation=0
-UseLongFileName=1
-InsideCompressed=0
-CAB_FixedSize=0
-CAB_ResvCodeSigning=0
-RebootMode=N
-InstallPrompt=This will install or update the WB Resale local agent.
-DisplayLicense=
-FinishMessage=WB Resale local agent installer finished.
-TargetName=$exeTarget
-FriendlyName=WB Resale Agent Installer
-AppLaunched=run-installer.cmd
-PostInstallCmd=<None>
-AdminQuietInstCmd=
-UserQuietInstCmd=
-SourceFiles=SourceFiles
+        var worker = new BackgroundWorker();
+        worker.DoWork += (sender, args) => args.Result = RunInstaller();
+        worker.RunWorkerCompleted += (sender, args) => {
+            progress.Style = ProgressBarStyle.Continuous;
+            progress.Value = 100;
+            close.Enabled = true;
+            if (args.Error != null || Convert.ToInt32(args.Result) != 0) {
+                status.Text = "Установка не завершена. Повторите запуск или обратитесь к администратору.";
+                status.ForeColor = Color.Firebrick;
+                progress.Value = 0;
+            } else {
+                status.Text = "Готово. Агент установлен, запущен и добавлен в автозапуск.";
+                status.ForeColor = Color.FromArgb(20, 115, 70);
+            }
+            close.Focus();
+        };
+        form.Shown += (sender, args) => worker.RunWorkerAsync();
+        Application.Run(form);
+    }
 
-[Strings]
-FILE0="install-wb-resale-agent.ps1"
-FILE1="run-installer.cmd"
+    private static int RunInstaller()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "wb-resale-installer-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var scriptPath = Path.Combine(tempDir, "install-wb-resale-agent.ps1");
+        File.WriteAllBytes(scriptPath, Convert.FromBase64String(ScriptBase64));
+        try {
+            var start = new ProcessStartInfo {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -ExecutionPolicy Bypass -File \"" + scriptPath + "\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+            start.EnvironmentVariables["WBR_HEADLESS"] = "1";
+            using (var process = Process.Start(start)) {
+                process.WaitForExit();
+                return process.ExitCode;
+            }
+        } finally {
+            try { Directory.Delete(tempDir, true); } catch {}
+        }
+    }
+}
+"@
 
-[SourceFiles]
-SourceFiles0=$sourceDir
+$source = [regex]::Replace($source, '[^\x00-\x7F]', {
+  param($match)
+  return "\u{0:X4}" -f [int][char]$match.Value
+})
+[IO.File]::WriteAllText($sourcePath, $source, (New-Object Text.UTF8Encoding($true)))
 
-[SourceFiles0]
-%FILE0%=
-%FILE1%=
-"@ | Set-Content -LiteralPath $sedPath -Encoding ASCII
-
-$iexpress = Start-Process -FilePath "iexpress.exe" -ArgumentList "/N", "/Q", $sedPath -Wait -PassThru -WindowStyle Hidden
-if ($iexpress.ExitCode -ne 0) {
-  throw "IExpress failed with exit code $($iexpress.ExitCode)"
+if (Test-Path $exeTarget) {
+  Remove-Item -LiteralPath $exeTarget -Force
 }
 
-if (-not (Test-Path $exeTarget)) {
-  throw "IExpress did not create the installer: $exeTarget"
+Add-Type -AssemblyName Microsoft.CSharp
+$provider = New-Object Microsoft.CSharp.CSharpCodeProvider
+$parameters = New-Object System.CodeDom.Compiler.CompilerParameters
+$parameters.GenerateExecutable = $true
+$parameters.GenerateInMemory = $false
+$parameters.OutputAssembly = $exeTarget
+$parameters.CompilerOptions = "/target:winexe /optimize+"
+$parameters.ReferencedAssemblies.Add("System.dll") | Out-Null
+$parameters.ReferencedAssemblies.Add("System.Drawing.dll") | Out-Null
+$parameters.ReferencedAssemblies.Add("System.Windows.Forms.dll") | Out-Null
+$results = $provider.CompileAssemblyFromSource($parameters, $source)
+if ($results.Errors.HasErrors) {
+  $messages = $results.Errors | ForEach-Object { $_.ToString() }
+  throw ($messages -join [Environment]::NewLine)
 }
 
 Remove-Item -LiteralPath $buildDir -Recurse -Force
