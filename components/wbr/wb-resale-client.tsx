@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ExternalLink,
   FileUp,
+  Globe2,
   ImagePlus,
   Loader2,
   Octagon,
@@ -23,12 +24,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 const AGENT_URL = "http://127.0.0.1:3017";
-const AGENT_VERSION = "2026.07.27.4";
+const AGENT_VERSION = "2026.07.27.5";
 const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
 
 type AgentStatus = "online" | "offline";
+type BrowserPreference = "chrome" | "yandex";
 
 interface Listing {
   sku: string;
@@ -73,6 +75,8 @@ export function WbResaleClient() {
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("offline");
   const [rpaRunning, setRpaRunning] = useState(false);
   const [agentVersion, setAgentVersion] = useState("");
+  const [browser, setBrowser] = useState<BrowserPreference>("chrome");
+  const [savingBrowser, setSavingBrowser] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
   const [events, setEvents] = useState<RpaEvent[]>([]);
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
@@ -97,10 +101,11 @@ export function WbResaleClient() {
 
   const checkAgent = useCallback(async () => {
     try {
-      const state = await agentFetch<{ running: boolean; version?: string; events?: RpaEvent[] }>("/api/rpa/status");
+      const state = await agentFetch<{ running: boolean; version?: string; browser?: BrowserPreference; events?: RpaEvent[] }>("/api/rpa/status");
       setAgentStatus("online");
       setRpaRunning(Boolean(state.running));
       setAgentVersion(state.version ?? "");
+      setBrowser(state.browser ?? "chrome");
       setEvents(state.events ?? []);
       const rows = await agentFetch<Listing[]>("/api/listings");
       setListings(rows);
@@ -198,6 +203,31 @@ export function WbResaleClient() {
     await checkAgent();
   }
 
+  async function changeBrowser(nextBrowser: BrowserPreference) {
+    const previousBrowser = browser;
+    setBrowser(nextBrowser);
+    setSavingBrowser(true);
+    try {
+      const result = await agentFetch<{ browser: BrowserPreference }>("/api/rpa/browser", {
+        method: "PATCH",
+        body: JSON.stringify({ browser: nextBrowser }),
+      });
+      setBrowser(result.browser);
+    } catch (error) {
+      setBrowser(previousBrowser);
+      setEvents((items) => [
+        ...items,
+        {
+          time: new Date().toISOString(),
+          level: "error",
+          message: error instanceof Error ? error.message : String(error),
+        },
+      ]);
+    } finally {
+      setSavingBrowser(false);
+    }
+  }
+
   async function deleteListing(item: Listing) {
     if (!window.confirm(`Удалить объявление «${item.title}» из Wildberries и очереди?`)) return;
     setDeletingSku(item.sku);
@@ -278,8 +308,11 @@ export function WbResaleClient() {
           status={agentStatus}
           running={rpaRunning}
           version={agentVersion}
+          browser={browser}
+          savingBrowser={savingBrowser}
           updateAvailable={Boolean(agentVersion && agentVersion !== AGENT_VERSION)}
           onCheck={checkAgent}
+          onBrowserChange={changeBrowser}
         />
 
         {rpaRunning ? (
@@ -517,19 +550,25 @@ function AgentBanner({
   status,
   running,
   version,
+  browser,
+  savingBrowser,
   updateAvailable,
   onCheck,
+  onBrowserChange,
 }: {
   status: AgentStatus;
   running: boolean;
   version: string;
+  browser: BrowserPreference;
+  savingBrowser: boolean;
   updateAvailable: boolean;
   onCheck: () => Promise<void>;
+  onBrowserChange: (browser: BrowserPreference) => Promise<void>;
 }) {
   if (status === "online") {
     return (
       <Card className="border-emerald-500/25 bg-emerald-500/8">
-        <CardContent className="flex items-start gap-3 p-4">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start">
           <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Локальный WB-агент подключён{running ? ", публикация идёт" : ""}</p>
@@ -544,6 +583,27 @@ function AgentBanner({
                 </a>
               </Button>
             ) : null}
+          </div>
+          <div className="w-full shrink-0 space-y-1.5 sm:w-56">
+            <Label htmlFor="wb-agent-browser" className="flex items-center gap-2 text-xs font-semibold text-foreground">
+              <Globe2 className="h-3.5 w-3.5" />
+              Браузер агента
+            </Label>
+            <select
+              id="wb-agent-browser"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              value={browser}
+              disabled={running || savingBrowser}
+              onChange={(event) => {
+                void onBrowserChange(event.target.value as BrowserPreference);
+              }}
+            >
+              <option value="chrome">Google Chrome</option>
+              <option value="yandex">Яндекс.Браузер</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              {running ? "Нельзя изменить во время работы." : "Выбор сохранится на этом ПК."}
+            </p>
           </div>
         </CardContent>
       </Card>
