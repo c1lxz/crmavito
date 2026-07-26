@@ -5,7 +5,7 @@ if (!previousPath || !latestPath || !outputPath) {
   throw new Error("Usage: node scripts/merge-ky-strok-feeds.mjs <previous.xml> <latest.xml> <output.xml>");
 }
 
-const guideUrl = "https://crmavito.duckdns.org/assets/ky-strok-size-guide.jpg";
+const guideUrl = "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 const kyContactPhone = "+79334320087";
 const readXml = (file) => fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "").trim();
 const previous = readXml(previousPath);
@@ -26,8 +26,11 @@ combined = combined.replace(
   `<ContactPhone>${kyContactPhone}</ContactPhone>`,
 );
 combined = combined.replace(/<Ad\b[\s\S]*?<\/Ad>/g, (ad) => {
-  if (ad.includes(guideUrl)) return ad;
-  return ad.replace(
+  const withoutPreviousGuides = ad.replace(
+    /\s*<Image\b[^>]*url=["'][^"']*\/ky-strok-size-guide(?:-v\d+)?\.jpg[^"']*["'][^>]*\/?>/gi,
+    "",
+  );
+  return withoutPreviousGuides.replace(
     /<\/Images>/i,
     `      <Image url="${guideUrl}"/>\n    </Images>`,
   );

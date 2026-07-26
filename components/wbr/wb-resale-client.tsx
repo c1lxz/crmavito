@@ -23,8 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 const AGENT_URL = "http://127.0.0.1:3017";
-const AGENT_VERSION = "2026.07.27.1";
-const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide.jpg";
+const AGENT_VERSION = "2026.07.27.2";
+const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
 
@@ -613,7 +613,7 @@ function extractSize(value: string) {
 
 function listingCover(value: string) {
   const first = String(value || "").split(",").map((item) => item.trim()).find(Boolean);
-  if (!first) return "/assets/ky-strok-size-guide.jpg";
+  if (!first) return "/assets/ky-strok-size-guide-v2.jpg";
   if (/^https?:\/\//i.test(first)) return first;
   return `${AGENT_URL}/api/photos/${first.split("/").map(encodeURIComponent).join("/")}`;
 }

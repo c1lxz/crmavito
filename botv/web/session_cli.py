@@ -484,7 +484,7 @@ def _public_photo_base_url() -> str:
 def _size_guide_url() -> str:
     return os.getenv(
         "BOTV_SIZE_GUIDE_URL",
-        "https://crmavito.duckdns.org/assets/ky-strok-size-guide.jpg",
+        "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg",
     ).strip()
 
 
@@ -533,7 +533,12 @@ async def _image_urls(client: YandexDiskClient | None, session_id: str, product_
         )
 
     size_guide = _size_guide_url()
-    if size_guide and size_guide not in images:
+    images = [
+        image
+        for image in images
+        if "ky-strok-size-guide" not in image.lower()
+    ]
+    if size_guide:
         images.append(size_guide)
     return images
 

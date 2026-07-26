@@ -5,7 +5,7 @@ import path from "node:path";
 const feedsDir = path.join(process.cwd(), "botv", "tmp", "custom_xml_feeds");
 const MAX_XML_BYTES = 50 * 1024 * 1024;
 export const SIZE_GUIDE_URL =
-  "https://crmavito.duckdns.org/assets/ky-strok-size-guide.jpg";
+  "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 
 export type AvitoXmlInspection = {
   xml: string;
@@ -38,14 +38,17 @@ export function inspectAvitoXml(value: string): AvitoXmlInspection {
 
 export function appendSizeGuideToAds(xml: string): string {
   return xml.replace(/<Ad\b[^>]*>[\s\S]*?<\/Ad>/gi, (ad) => {
-    if (ad.includes(SIZE_GUIDE_URL)) return ad;
-    if (/<\/Images>/i.test(ad)) {
-      return ad.replace(
+    const withoutPreviousGuides = ad.replace(
+      /\s*<Image\b[^>]*url=["'][^"']*\/ky-strok-size-guide(?:-v\d+)?\.jpg[^"']*["'][^>]*\/?>/gi,
+      "",
+    );
+    if (/<\/Images>/i.test(withoutPreviousGuides)) {
+      return withoutPreviousGuides.replace(
         /<\/Images>/i,
         `  <Image url="${SIZE_GUIDE_URL}"/>\n</Images>`,
       );
     }
-    return ad.replace(
+    return withoutPreviousGuides.replace(
       /<\/Ad>/i,
       `<Images><Image url="${SIZE_GUIDE_URL}"/></Images>\n</Ad>`,
     );

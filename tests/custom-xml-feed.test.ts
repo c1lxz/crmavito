@@ -11,7 +11,7 @@ describe("custom Avito XML feeds", () => {
 
     expect(result.ads).toBe(2);
     expect(result.adIds).toEqual(["SKU-one", "SKU-two"]);
-    expect(result.xml.match(/ky-strok-size-guide\.jpg/g)).toHaveLength(2);
+    expect(result.xml.match(/ky-strok-size-guide-v2\.jpg/g)).toHaveLength(2);
   });
 
   it("keeps the size guide as the final image without duplicating it", () => {
@@ -26,9 +26,10 @@ describe("custom Avito XML feeds", () => {
         </Ad>
       </Ads>`);
 
-    expect(result.xml.match(/ky-strok-size-guide\.jpg/g)).toHaveLength(1);
+    expect(result.xml.match(/ky-strok-size-guide(?:-v2)?\.jpg/g)).toHaveLength(1);
+    expect(result.xml).toContain("ky-strok-size-guide-v2.jpg");
     expect(result.xml.indexOf("product.jpg")).toBeLessThan(
-      result.xml.indexOf("ky-strok-size-guide.jpg"),
+      result.xml.indexOf("ky-strok-size-guide-v2.jpg"),
     );
   });
 
