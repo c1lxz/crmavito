@@ -111,7 +111,21 @@ try {
   if (Test-Path -LiteralPath $agentUrl) {
     Copy-Item -LiteralPath $agentUrl -Destination $zipPath -Force
   } else {
-    Invoke-WebRequest -Uri $agentUrl -OutFile $zipPath -UseBasicParsing
+    $downloadError = $null
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+      try {
+        Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
+        Invoke-WebRequest -Uri $agentUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 90
+        $downloadError = $null
+        break
+      } catch {
+        $downloadError = $_.Exception.Message
+        if ($attempt -lt 3) { Start-Sleep -Seconds 2 }
+      }
+    }
+    if ($downloadError) {
+      throw "Не удалось скачать агент после трёх попыток: $downloadError"
+    }
   }
 
   Set-Progress 42 "Распаковываю файлы..."
@@ -133,9 +147,15 @@ try {
   Set-Progress 70 "Устанавливаю компоненты агента..."
   $npm = (Get-Command "npm.cmd" -ErrorAction SilentlyContinue).Source
   if (-not $npm) { $npm = (Get-Command "npm" -ErrorAction Stop).Source }
-  $npmProcess = Start-Process -FilePath $npm -ArgumentList @("install", "--omit=dev") -WorkingDirectory $rpaDir -Wait -PassThru -WindowStyle Hidden
-  if ($npmProcess.ExitCode -ne 0) {
-    throw "Не удалось установить компоненты агента (код $($npmProcess.ExitCode))."
+  $npmExitCode = -1
+  for ($attempt = 1; $attempt -le 2; $attempt++) {
+    $npmProcess = Start-Process -FilePath $npm -ArgumentList @("install", "--omit=dev", "--no-audit", "--no-fund") -WorkingDirectory $rpaDir -Wait -PassThru -WindowStyle Hidden
+    $npmExitCode = $npmProcess.ExitCode
+    if ($npmExitCode -eq 0) { break }
+    if ($attempt -lt 2) { Start-Sleep -Seconds 2 }
+  }
+  if ($npmExitCode -ne 0) {
+    throw "Не удалось установить компоненты агента после двух попыток (код $npmExitCode). Проверьте интернет и повторите запуск."
   }
 
   Set-Progress 84 "Настраиваю тихий автозапуск..."
@@ -157,7 +177,7 @@ try {
   Start-Process -FilePath $nodePath -ArgumentList @("server.js") -WorkingDirectory $crmDir -WindowStyle Hidden
 
   $online = $false
-  for ($attempt = 0; $attempt -lt 10; $attempt++) {
+  for ($attempt = 0; $attempt -lt 20; $attempt++) {
     Start-Sleep -Milliseconds 500
     try {
       $health = Invoke-RestMethod -Uri "http://127.0.0.1:3017/api/rpa/status" -Method Get -TimeoutSec 2
@@ -175,13 +195,16 @@ try {
   $closeButton.Enabled = $true
   $closeButton.Focus()
 } catch {
+  $errorMessage = $_.Exception.Message
   $progress.Value = 0
-  $status.Text = "Установка не завершена: $($_.Exception.Message)"
+  $status.Text = "Установка не завершена: $errorMessage"
   $status.ForeColor = [Drawing.Color]::Firebrick
   $closeButton.Enabled = $true
   $installFailed = $true
-  if (-not $headless) {
-    $null = [Windows.Forms.MessageBox]::Show($_.Exception.Message)
+  if ($headless) {
+    [Console]::Error.WriteLine($errorMessage)
+  } else {
+    $null = [Windows.Forms.MessageBox]::Show($errorMessage)
   }
 } finally {
   if (Test-Path $tempDir) {

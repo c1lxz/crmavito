@@ -28,6 +28,7 @@ using System.Windows.Forms;
 internal static class InstallerProgram
 {
     private const string ScriptBase64 = "$scriptBase64";
+    private static string installerDetails = "";
 
     [STAThread]
     private static void Main()
@@ -69,10 +70,23 @@ internal static class InstallerProgram
             Size = new Size(110, 34),
             Location = new Point(400, 166)
         };
+        var details = new Button {
+            Text = "Показать ошибку",
+            Visible = false,
+            Size = new Size(150, 34),
+            Location = new Point(30, 166)
+        };
+        details.Click += (sender, args) => MessageBox.Show(
+            installerDetails,
+            "Ошибка установки WB Resale Agent",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error
+        );
         close.Click += (sender, args) => form.Close();
         form.Controls.Add(title);
         form.Controls.Add(status);
         form.Controls.Add(progress);
+        form.Controls.Add(details);
         form.Controls.Add(close);
 
         var worker = new BackgroundWorker();
@@ -81,10 +95,14 @@ internal static class InstallerProgram
             progress.Style = ProgressBarStyle.Continuous;
             progress.Value = 100;
             close.Enabled = true;
-            if (args.Error != null || Convert.ToInt32(args.Result) != 0) {
-                status.Text = "Установка не завершена. Повторите запуск или обратитесь к администратору.";
+            installerDetails = args.Error != null
+                ? args.Error.Message
+                : Convert.ToString(args.Result);
+            if (!String.IsNullOrWhiteSpace(installerDetails)) {
+                status.Text = "Установка не завершена: " + ShortMessage(installerDetails);
                 status.ForeColor = Color.Firebrick;
                 progress.Value = 0;
+                details.Visible = true;
             } else {
                 status.Text = "Готово. Агент установлен, запущен и добавлен в автозапуск.";
                 status.ForeColor = Color.FromArgb(20, 115, 70);
@@ -95,7 +113,13 @@ internal static class InstallerProgram
         Application.Run(form);
     }
 
-    private static int RunInstaller()
+    private static string ShortMessage(string value)
+    {
+        var singleLine = (value ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
+        return singleLine.Length <= 150 ? singleLine : singleLine.Substring(0, 147) + "...";
+    }
+
+    private static string RunInstaller()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "wb-resale-installer-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -107,12 +131,27 @@ internal static class InstallerProgram
                 Arguments = "-NoProfile -ExecutionPolicy Bypass -File \"" + scriptPath + "\"",
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
+                WindowStyle = ProcessWindowStyle.Hidden,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
             start.EnvironmentVariables["WBR_HEADLESS"] = "1";
             using (var process = Process.Start(start)) {
+                var stdout = process.StandardOutput.ReadToEnd();
+                var stderr = process.StandardError.ReadToEnd();
                 process.WaitForExit();
-                return process.ExitCode;
+                if (process.ExitCode == 0) return "";
+                var message = String.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
+                if (String.IsNullOrWhiteSpace(message)) {
+                    message = "PowerShell завершился с кодом " + process.ExitCode + ".";
+                }
+                var logDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "WB Resale Agent"
+                );
+                Directory.CreateDirectory(logDir);
+                File.WriteAllText(Path.Combine(logDir, "install.log"), message);
+                return message.Trim();
             }
         } finally {
             try { Directory.Delete(tempDir, true); } catch {}
