@@ -20,6 +20,7 @@ import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { OrderStatus } from "@prisma/client";
 import { buildTopProductsByOrders } from "@/lib/dashboard/top-products";
+import { getArchivedSourceOrderExclusion } from "@/lib/orders/warehouse-match";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -37,13 +38,28 @@ async function getDashboardData() {
   const [todayOrders, weekOrders, monthOrders, monthExpenses, lastOrders, topProducts, todayCreatedOrders, weekCreatedOrders] =
     await Promise.all([
       prisma.order.findMany({
-        where: { status: "RECEIVED", receivedAt: { gte: todayStart, lte: todayEnd }, isDeleted: false },
+        where: {
+          status: "RECEIVED",
+          receivedAt: { gte: todayStart, lte: todayEnd },
+          isDeleted: false,
+          ...getArchivedSourceOrderExclusion(),
+        },
       }),
       prisma.order.findMany({
-        where: { status: "RECEIVED", receivedAt: { gte: weekStart, lte: todayEnd }, isDeleted: false },
+        where: {
+          status: "RECEIVED",
+          receivedAt: { gte: weekStart, lte: todayEnd },
+          isDeleted: false,
+          ...getArchivedSourceOrderExclusion(),
+        },
       }),
       prisma.order.findMany({
-        where: { status: "RECEIVED", receivedAt: { gte: monthStart, lte: monthEnd }, isDeleted: false },
+        where: {
+          status: "RECEIVED",
+          receivedAt: { gte: monthStart, lte: monthEnd },
+          isDeleted: false,
+          ...getArchivedSourceOrderExclusion(),
+        },
         include: { product: true },
       }),
       prisma.expense.findMany({
@@ -59,7 +75,11 @@ async function getDashboardData() {
         },
       }),
       prisma.order.findMany({
-        where: { isDeleted: false, status: { not: "CANCELLED" } },
+        where: {
+          isDeleted: false,
+          status: { not: "CANCELLED" },
+          ...getArchivedSourceOrderExclusion(),
+        },
         include: {
           product: true,
           items: { include: { product: true }, orderBy: { position: "asc" } },
@@ -69,6 +89,7 @@ async function getDashboardData() {
         where: {
           isDeleted: false,
           status: { not: "CANCELLED" },
+          ...getArchivedSourceOrderExclusion(),
           createdAt: { gte: todayStart, lte: todayEnd },
         },
       }),
@@ -76,6 +97,7 @@ async function getDashboardData() {
         where: {
           isDeleted: false,
           status: { not: "CANCELLED" },
+          ...getArchivedSourceOrderExclusion(),
           createdAt: { gte: weekStart, lte: todayEnd },
         },
       }),

@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 export interface WarehouseReturnMatch {
   id: string;
   productId: string;
@@ -43,9 +45,28 @@ export function findWarehouseReturn<T extends WarehouseReturnMatch>(
 export function getWarehouseBlockingOrderWhere(): Prisma.OrderWhereInput {
   return {
     OR: [
-      { status: { in: ["SHIPPED", "RECEIVED", "RETURNING", "RETURNED"] } },
+      { status: { in: ["SHIPPED", "RECEIVED", "RETURNING", "RETURNED", "CANCELLED"] } },
       { status: "ACCEPTED", isDeleted: false },
     ],
   };
 }
-import type { Prisma } from "@prisma/client";
+
+export function getArchivedReturnExclusion(): Prisma.ReturnWhereInput {
+  return {
+    usedByOrderItems: {
+      none: {},
+    },
+  };
+}
+
+export function getArchivedSourceOrderExclusion(): Prisma.OrderWhereInput {
+  return {
+    returns: {
+      none: {
+        usedByOrderItems: {
+          some: {},
+        },
+      },
+    },
+  };
+}

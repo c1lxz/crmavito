@@ -4,13 +4,18 @@ import { redirect } from "next/navigation";
 import { CounterpartiesClient } from "@/components/counterparties/counterparties-client";
 import { calcOrderFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "@/lib/db/orders";
+import { getArchivedSourceOrderExclusion } from "@/lib/orders/warehouse-match";
 
 async function getCounterpartiesWithStats() {
   const counterparties = await prisma.counterparty.findMany({
     orderBy: { name: "asc" },
     include: {
       orders: {
-        where: { isDeleted: false, status: { not: "CANCELLED" } },
+        where: {
+          isDeleted: false,
+          status: { not: "CANCELLED" },
+          ...getArchivedSourceOrderExclusion(),
+        },
         select: {
           status: true,
           salePriceAtOrder: true,

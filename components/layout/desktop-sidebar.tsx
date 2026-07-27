@@ -15,6 +15,7 @@ import {
   Store,
   Users,
   Wallet,
+  Warehouse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/pc/orders", match: "/orders", label: "Заказы", icon: ShoppingBag },
   { href: "/pc/tasks", match: "/tasks", label: "Блокнот", icon: NotebookPen },
   { href: "/pc/returns", match: "/returns", label: "Возвраты", icon: RotateCcw },
+  { href: "/pc/warehouse", match: "/warehouse", label: "Склад", icon: Warehouse },
   { href: "/pc/products", match: "/products", label: "Товары", icon: Boxes },
   { href: "/pc/wbr", match: "/wbr", label: "WB Resale", icon: Store },
   { href: "/pc/expenses", match: "/expenses", label: "Расходы", icon: Wallet },

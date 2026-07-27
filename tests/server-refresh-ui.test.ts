@@ -67,8 +67,8 @@ describe("server refresh propagation", () => {
 
   it("separates created orders from received sales in dashboard widgets", () => {
     const contents = source("app/(app)/dashboard/page.tsx");
-    expect(contents).toContain(
-      'where: { status: "RECEIVED", receivedAt: { gte: todayStart, lte: todayEnd }, isDeleted: false }',
+    expect(contents).toMatch(
+      /where:\s*\{\s*status: "RECEIVED",\s*receivedAt: \{ gte: todayStart, lte: todayEnd \},\s*isDeleted: false,\s*\.\.\.getArchivedSourceOrderExclusion\(\)/,
     );
     expect(contents).toContain('label: "Получено сегодня"');
     expect(contents).toContain('label: "Получено за 7 дней"');
@@ -79,7 +79,7 @@ describe("server refresh propagation", () => {
     expect(contents).toContain("buildTopProductsByOrders(topProducts)");
     expect(contents).toContain("formatOrderCount(p.orders)");
     expect(contents).toMatch(
-      /prisma\.order\.findMany\(\{\s*where: \{ isDeleted: false, status: \{ not: "CANCELLED" \} \},\s*include: \{\s*product: true,\s*items:/,
+      /prisma\.order\.findMany\(\{\s*where: \{\s*isDeleted: false,\s*status: \{ not: "CANCELLED" \},\s*\.\.\.getArchivedSourceOrderExclusion\(\),\s*\},\s*include: \{\s*product: true,\s*items:/,
     );
   });
 });

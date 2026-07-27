@@ -7,6 +7,10 @@ import {
   startOfDatabaseDate,
 } from "@/lib/utils";
 import type { Marketplace, Prisma } from "@prisma/client";
+import {
+  getArchivedReturnExclusion,
+  getArchivedSourceOrderExclusion,
+} from "@/lib/orders/warehouse-match";
 
 export interface DateRange {
   from: Date;
@@ -36,6 +40,7 @@ function getReportReturnWhere(
   return {
     status: "RETURNED",
     returnDate: { gte: dateRange.from, lte: dateRange.to },
+    ...getArchivedReturnExclusion(),
     ...(marketplace || city
       ? { order: validOrder }
       : { OR: [{ orderId: null }, { order: validOrder }] }),
@@ -48,6 +53,7 @@ async function getActiveOrders(range: DateRange, city?: string, marketplace?: Ma
     where: {
       isDeleted: false,
       status: { not: "CANCELLED" },
+      ...getArchivedSourceOrderExclusion(),
       orderDate: { gte: dateRange.from, lte: dateRange.to },
       ...(city ? { destinationCity: city } : {}),
       ...(marketplace ? { marketplace } : {}),
@@ -65,6 +71,7 @@ async function getReceivedOrders(range: DateRange, city?: string, marketplace?: 
     where: {
       status: "RECEIVED",
       isDeleted: false,
+      ...getArchivedSourceOrderExclusion(),
       receivedAt: { gte: range.from, lte: range.to },
       ...(city ? { destinationCity: city } : {}),
       ...(marketplace ? { marketplace } : {}),
@@ -99,6 +106,7 @@ export async function getKpiForRange(range: DateRange, city?: string, marketplac
     where: {
       status: "RECEIVED",
       isDeleted: false,
+      ...getArchivedSourceOrderExclusion(),
       receivedAt: { gte: range.from, lte: range.to },
       ...(city ? { destinationCity: city } : {}),
       ...(marketplace ? { marketplace } : {}),
@@ -237,6 +245,7 @@ export async function getCounterpartiesReport(range: DateRange, marketplace?: Ma
     where: {
       isDeleted: false,
       status: { not: "CANCELLED" },
+      ...getArchivedSourceOrderExclusion(),
       orderDate: { gte: dateRange.from, lte: dateRange.to },
       ...(marketplace ? { marketplace } : {}),
     },
@@ -331,6 +340,7 @@ export async function getOrderStatusCounts(range: DateRange, marketplace?: Marke
     where: {
       isDeleted: false,
       status: { not: "CANCELLED" },
+      ...getArchivedSourceOrderExclusion(),
       orderDate: { gte: dateRange.from, lte: dateRange.to },
       ...(marketplace ? { marketplace } : {}),
     },
@@ -362,6 +372,7 @@ export async function getAvitoProfileCounts(range: DateRange, marketplace?: Mark
     where: {
       isDeleted: false,
       status: { not: "CANCELLED" },
+      ...getArchivedSourceOrderExclusion(),
       orderDate: { gte: dateRange.from, lte: dateRange.to },
       marketplace: "AVITO",
     },

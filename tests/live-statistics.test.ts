@@ -106,6 +106,13 @@ describe("live statistics calculations", () => {
       where: {
         status: "RECEIVED",
         isDeleted: false,
+        returns: {
+          none: {
+            usedByOrderItems: {
+              some: {},
+            },
+          },
+        },
         receivedAt: { gte: range.from, lte: range.to },
       },
     });
@@ -122,6 +129,13 @@ describe("live statistics calculations", () => {
         where: {
           isDeleted: false,
           status: { not: "CANCELLED" },
+          returns: {
+            none: {
+              usedByOrderItems: {
+                some: {},
+              },
+            },
+          },
           orderDate: { gte: databaseDateRange.from, lte: databaseDateRange.to },
         },
       })

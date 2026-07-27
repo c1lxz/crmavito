@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/db/prisma";
 import { ReturnsClient } from "@/components/returns/returns-client";
 import { toDecimalNumber } from "@/lib/db/orders";
+import { getArchivedReturnExclusion } from "@/lib/orders/warehouse-match";
 
 async function getReturns() {
   const visibleReturnWhere = {
+    ...getArchivedReturnExclusion(),
     OR: [
       { orderId: null },
       { order: { isDeleted: false, status: { not: "CANCELLED" as const } } },

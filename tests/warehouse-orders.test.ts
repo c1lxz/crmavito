@@ -3,6 +3,8 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   findWarehouseReturn,
+  getArchivedReturnExclusion,
+  getArchivedSourceOrderExclusion,
   getWarehouseBlockingOrderWhere,
   isExactWarehouseMatch,
 } from "@/lib/orders/warehouse-match";
@@ -78,9 +80,26 @@ describe("warehouse accounting for returned goods", () => {
   it("keeps cancelled and deleted unshipped reservations from blocking stock", () => {
     expect(getWarehouseBlockingOrderWhere()).toEqual({
       OR: [
-        { status: { in: ["SHIPPED", "RECEIVED", "RETURNING", "RETURNED"] } },
+        { status: { in: ["SHIPPED", "RECEIVED", "RETURNING", "RETURNED", "CANCELLED"] } },
         { status: "ACCEPTED", isDeleted: false },
       ],
+    });
+  });
+
+  it("archives a returned item as soon as it is selected for another order", () => {
+    expect(getArchivedReturnExclusion()).toEqual({
+      usedByOrderItems: {
+        none: {},
+      },
+    });
+    expect(getArchivedSourceOrderExclusion()).toEqual({
+      returns: {
+        none: {
+          usedByOrderItems: {
+            some: {},
+          },
+        },
+      },
     });
   });
 

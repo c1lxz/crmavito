@@ -45,6 +45,9 @@ describe("report widget consistency", () => {
           gte: databaseDateRange.from,
           lte: databaseDateRange.to,
         },
+        usedByOrderItems: {
+          none: {},
+        },
         OR: [
           { orderId: null },
           {

@@ -352,6 +352,14 @@ export function ReturnsClient({ initialData }: Props) {
             <p className="section-caption">Товары в обратной логистике</p>
           </div>
           <div className="flex items-center gap-2">
+            {!selectionMode && (
+              <Button asChild size="sm" variant="outline">
+                <Link href="/warehouse">
+                  <Warehouse className="h-4 w-4" />
+                  <span className="hidden sm:inline">Склад</span>
+                </Link>
+              </Button>
+            )}
             <Button
               size="sm"
               variant={selectionMode ? "secondary" : "outline"}
