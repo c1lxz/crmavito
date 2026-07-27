@@ -33,7 +33,7 @@ type Background = {
   url: string | null;
 };
 type ProductPhoto = { id: string; file: File; previewUrl: string };
-type KlingResult = {
+type FlowResult = {
   id: string;
   productIndex: number;
   productName: string;
@@ -43,14 +43,20 @@ type KlingResult = {
   size: number;
   url: string;
 };
-type KlingJob = {
+type FlowJob = {
   id: string;
   createdAt: string;
   imageSize: "2K" | "4K";
   status: "waiting" | "partial" | "ready" | "failed";
   expectedResults: number;
-  failedResults: number;
-  results: KlingResult[];
+  failedResults?: number;
+  results: FlowResult[];
+  error?: string;
+  metrics?: {
+    totalDurationMs?: number;
+    averageGenerationMs?: number;
+    generations: Array<{ durationMs: number; uploadMs: number; generationMs: number }>;
+  };
 };
 
 const slots: BackgroundSlot[] = ["1", "2", "3"];
@@ -62,7 +68,7 @@ export function ContentMachineClient() {
   const [uploadingSlot, setUploadingSlot] = useState<BackgroundSlot | null>(null);
   const [products, setProducts] = useState<ProductPhoto[]>([]);
   const [imageSize, setImageSize] = useState<"2K" | "4K">("2K");
-  const [job, setJob] = useState<KlingJob | null>(null);
+  const [job, setJob] = useState<FlowJob | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
   const productInputRef = useRef<HTMLInputElement>(null);
@@ -70,14 +76,14 @@ export function ContentMachineClient() {
 
   useEffect(() => {
     void loadBackgrounds();
-    const savedJobId = window.localStorage.getItem("content-machine-kling-job");
+    const savedJobId = window.localStorage.getItem("content-machine-flow-job");
     if (savedJobId) void loadJob(savedJobId, false);
     return () => productUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
   }, []);
 
   useEffect(() => {
     if (!job || job.status === "ready" || job.status === "failed") return;
-    const timer = window.setInterval(() => void loadJob(job.id, false), 8000);
+    const timer = window.setInterval(() => void loadJob(job.id, false), 2000);
     return () => window.clearInterval(timer);
   }, [job?.id, job?.status]);
 
@@ -148,13 +154,13 @@ export function ContentMachineClient() {
       const form = new FormData();
       products.forEach((product) => form.append("products", product.file));
       form.append("imageSize", imageSize);
-      const response = await fetch("/api/ai/content-machine/kling-jobs", { method: "POST", body: form });
+      const response = await fetch("/api/ai/content-machine/codex-jobs", { method: "POST", body: form });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Не удалось создать задание Kling.");
+      if (!response.ok) throw new Error(data.error || "Не удалось создать задание Flow.");
       setJob(data.job);
       setSelectedIds([]);
-      window.localStorage.setItem("content-machine-kling-job", data.job.id);
-      toast({ title: `Задание ${data.job.id} запущено`, description: "Kling AI обрабатывает фотографии. Результаты появятся автоматически." });
+      window.localStorage.setItem("content-machine-flow-job", data.job.id);
+      toast({ title: `Задание ${data.job.id} запущено`, description: "Локальный агент создаёт новые проекты Flow и автоматически забирает результаты." });
     } catch (error) {
       toast({ title: "Задание не создано", description: errorMessage(error), variant: "destructive" });
     } finally {
@@ -164,11 +170,11 @@ export function ContentMachineClient() {
 
   async function loadJob(id: string, showError = true) {
     try {
-      const response = await fetch(`/api/ai/content-machine/kling-jobs/${encodeURIComponent(id)}`, { cache: "no-store" });
+      const response = await fetch(`/api/ai/content-machine/codex-jobs/${encodeURIComponent(id)}`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Не удалось обновить задание.");
       setJob(data.job);
-      if (data.job.status === "ready") setSelectedIds((items) => items.length ? items : data.job.results.map((result: KlingResult) => result.id));
+      if (data.job.status === "ready") setSelectedIds((items) => items.length ? items : data.job.results.map((result: FlowResult) => result.id));
     } catch (error) {
       if (showError) toast({ title: "Задание не найдено", description: errorMessage(error), variant: "destructive" });
     }
@@ -178,7 +184,7 @@ export function ContentMachineClient() {
     setSelectedIds((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
   }
 
-  async function downloadResult(result: KlingResult) {
+  async function downloadResult(result: FlowResult) {
     const anchor = document.createElement("a");
     anchor.href = result.url;
     anchor.download = result.fileName;
@@ -208,7 +214,7 @@ export function ContentMachineClient() {
             <h1 className="truncate text-lg font-semibold tracking-tight">Контент-машина</h1>
             <p className="hidden text-xs text-muted-foreground sm:block">Фотореалистичные карточки товара на трёх утверждённых фонах</p>
           </div>
-          <Badge variant="outline" className="hidden sm:inline-flex">Kling AI · API</Badge>
+          <Badge variant="outline" className="hidden sm:inline-flex">Google Flow · локальный агент</Badge>
           <Select value={imageSize} onValueChange={(value: "2K" | "4K") => setImageSize(value)} disabled={creatingJob}>
             <SelectTrigger className="h-9 w-24"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -298,13 +304,13 @@ export function ContentMachineClient() {
             <div className="flex items-start gap-3">
               <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
               <div>
-                <p className="text-sm font-semibold">Запустить генерацию в Kling AI</p>
-                <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">CRM отправит каждое фото товара вместе с эталонным фоном в Kling Image 3.0 Omni и сохранит готовые изображения автоматически.</p>
+                <p className="text-sm font-semibold">Запустить быстрый локальный агент Flow</p>
+                <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">Агент сам откроет отдельный проект Flow для каждого результата, загрузит оба референса, вставит промпт и сохранит готовое фото в CRM.</p>
               </div>
             </div>
             <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady} className="shrink-0">
               {creatingJob ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              {creatingJob ? "Запускаю Kling AI…" : `Создать ${products.length * 3} фото`}
+              {creatingJob ? "Ставлю в очередь Flow…" : `Создать ${products.length * 3} фото`}
             </Button>
           </div>
           {!allBackgroundsReady && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Перед запуском загрузите все три эталонных фона.</p>}
@@ -325,19 +331,25 @@ export function ContentMachineClient() {
                         {job.status === "ready"
                           ? "Готово"
                           : job.status === "failed"
-                            ? `Завершено с ошибками: ${job.failedResults}`
+                            ? "Ошибка агента"
                             : job.status === "partial"
                               ? `Готово ${job.results.length} из ${job.expectedResults}`
-                              : "Kling AI генерирует"}
+                              : "Локальный агент Flow работает"}
                       </Badge>
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {job.status === "ready"
                         ? "Все изображения загружены в CRM."
                         : job.status === "failed"
-                          ? `Готово ${job.results.length}, не удалось создать ${job.failedResults}. Проверьте баланс и журнал сервера.`
-                          : "Статус обновляется автоматически; страницу можно оставить открытой."}
+                          ? job.error || `Готово ${job.results.length} из ${job.expectedResults}. Проверьте журнал локального агента.`
+                          : "Статус обновляется автоматически; каждое фото создаётся в новом проекте Flow."}
                     </p>
+                    {job.metrics?.generations.length ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Среднее фото: {formatDuration(job.metrics.averageGenerationMs || average(job.metrics.generations.map((item) => item.durationMs)))}
+                        {job.metrics.totalDurationMs ? ` · всё за ${formatDuration(job.metrics.totalDurationMs)}` : ""}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -430,7 +442,7 @@ function BackgroundPanel({ background, loading, onFile }: { background: Backgrou
 }
 
 function ResultPanel({ result, selected, onToggle, onDownload }: {
-  result: KlingResult;
+  result: FlowResult;
   selected: boolean;
   onToggle: () => void;
   onDownload: () => void;
@@ -458,6 +470,15 @@ function emptyBackground(slot: BackgroundSlot): Background {
 
 function formatBytes(bytes: number) {
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} КБ` : `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+}
+
+function average(values: number[]) {
+  return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+}
+
+function formatDuration(ms: number) {
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} сек`;
+  return `${Math.floor(ms / 60_000)} мин ${Math.round((ms % 60_000) / 1000)} сек`;
 }
 
 function errorMessage(error: unknown) {

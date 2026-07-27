@@ -9,6 +9,8 @@
     "avito:local-agent": "tsx scripts/avito-local-agent.ts",
     "avito:local-browser-agent": "cross-env AVITO_LOCAL_AGENT_BROWSER=1 tsx scripts/avito-local-agent.ts",
     "avito:install-local-agent": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-avito-local-agent-task.ps1",
+    "content-machine:flow-agent": "tsx scripts/flow-local-agent.ts",
+    "content-machine:install-flow-agent": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-flow-local-agent-task.ps1",
     "avito:sync-worker": "node scripts/avito-sync-worker.js",
     "telegram:notify-worker": "node scripts/telegram-notify-worker.js",
     "users:provision-credentials": "node scripts/provision-user-credentials.js",

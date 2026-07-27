@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <body>
+    <button data-testid="new-project">New project</button>
+    <input data-testid="upload-references" type="file" multiple>
+    <textarea data-testid="prompt"></textarea>
+    <button data-testid="generate">Generate</button>
+    <div id="result"></div>
+    <script>
+      const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAATElEQVR4nO3PQQ0AIBDAsAP/nuGNAvZoFSzZOjNnyNi1dwfgUQCeBOBJAB4F4EkAngTgSQAeBeBJAB4F4EkAngTgSQAeBeBJAB4F4EkAHgUNAn6QyKsGAAAAAElFTkSuQmCC";
+      document.querySelector("[data-testid=generate]").addEventListener("click", () => {
+        setTimeout(() => {
+          document.querySelector("#result").innerHTML = `<img data-testid="result-image" alt="Generated image" src="${png}">`;
+        }, 180);
+      });
+    </script>
+  </body>
+</html>

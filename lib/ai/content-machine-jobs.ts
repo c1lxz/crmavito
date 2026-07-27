@@ -6,6 +6,7 @@ import { buildProductPhotoPrompt } from "@/lib/ai/gemini-images";
 
 const mimeExtensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as const;
 const resultMimeTypes: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+let mutationQueue: Promise<unknown> = Promise.resolve();
 
 type JobProduct = { index: number; originalName: string; fileName: string; mimeType: string };
 type JobBackground = { slot: BackgroundSlot; originalName: string; fileName: string; mimeType: string };
@@ -13,6 +14,13 @@ type JobManifest = {
   id: string;
   createdAt: string;
   imageSize: "2K" | "4K";
+  provider: "google-flow";
+  agentStatus: "queued" | "processing" | "complete" | "failed";
+  agentId?: string;
+  claimedAt?: string;
+  completedAt?: string;
+  error?: string;
+  metrics?: FlowJobMetrics;
   qualityProfile?: "photorealistic-v2";
   generationPrompt?: string;
   products: JobProduct[];
@@ -31,10 +39,28 @@ export type CodexJobResult = {
 };
 
 export type CodexJob = JobManifest & {
-  status: "waiting" | "partial" | "ready";
+  status: "waiting" | "partial" | "ready" | "failed";
   expectedResults: number;
   results: CodexJobResult[];
   instruction: string;
+};
+
+export type FlowGenerationMetric = {
+  productIndex: number;
+  backgroundSlot: BackgroundSlot;
+  startedAt: string;
+  durationMs: number;
+  uploadMs: number;
+  generationMs: number;
+};
+
+export type FlowJobMetrics = {
+  agentId: string;
+  startedAt: string;
+  completedAt?: string;
+  totalDurationMs?: number;
+  averageGenerationMs?: number;
+  generations: FlowGenerationMetric[];
 };
 
 function jobsDirectory() {
@@ -86,6 +112,8 @@ export async function createCodexJob(products: File[], imageSize: "2K" | "4K"): 
     id,
     createdAt: now.toISOString(),
     imageSize,
+    provider: "google-flow",
+    agentStatus: "queued",
     qualityProfile: "photorealistic-v2",
     generationPrompt: buildProductPhotoPrompt(),
     products: storedProducts,
@@ -127,7 +155,13 @@ async function hydrateJob(manifest: JobManifest): Promise<CodexJob> {
     });
   }
   const expectedResults = manifest.products.length * BACKGROUND_SLOTS.length;
-  const status = results.length === 0 ? "waiting" : results.length >= expectedResults ? "ready" : "partial";
+  const status = results.length >= expectedResults
+    ? "ready"
+    : manifest.agentStatus === "failed"
+      ? "failed"
+      : results.length === 0
+        ? "waiting"
+        : "partial";
   return {
     ...manifest,
     status,
@@ -135,6 +169,105 @@ async function hydrateJob(manifest: JobManifest): Promise<CodexJob> {
     results,
     instruction: `Обработай задание ${manifest.id} из контент-машины CRM`,
   };
+}
+
+export async function claimNextFlowJob(agentId: string): Promise<CodexJob | null> {
+  return withMutation(async () => {
+    await mkdir(jobsDirectory(), { recursive: true });
+    const ids = (await readdir(jobsDirectory())).filter((id) => /^CM-[0-9]{8}-[A-Z0-9]{6}$/.test(id)).sort();
+    for (const id of ids) {
+      const manifestPath = path.join(jobDirectory(id), "manifest.json");
+      const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as JobManifest;
+      const resumable = manifest.agentStatus === "processing" && manifest.agentId === agentId;
+      if (manifest.agentStatus !== "queued" && !resumable) continue;
+      if (!resumable) {
+        const now = new Date().toISOString();
+        manifest.agentStatus = "processing";
+        manifest.agentId = agentId;
+        manifest.claimedAt = now;
+        manifest.metrics = { agentId, startedAt: now, generations: [] };
+        await saveManifest(manifest);
+      }
+      return hydrateJob(manifest);
+    }
+    return null;
+  });
+}
+
+export async function saveFlowJobResult(
+  id: string,
+  input: {
+    agentId: string;
+    productIndex: number;
+    backgroundSlot: BackgroundSlot;
+    file: File;
+    metric: Omit<FlowGenerationMetric, "productIndex" | "backgroundSlot">;
+  },
+) {
+  return withMutation(async () => {
+    const manifest = await readManifest(id);
+    if (manifest.agentStatus !== "processing" || manifest.agentId !== input.agentId) {
+      throw new Error("Задание назначено другому локальному агенту.");
+    }
+    const product = manifest.products.find((item) => item.index === input.productIndex);
+    if (!product) throw new Error("Некорректный номер исходного фото.");
+    if (!BACKGROUND_SLOTS.includes(input.backgroundSlot)) throw new Error("Некорректный номер фона.");
+    validateImageFile(input.file);
+    const extension = mimeExtensions[input.file.type as keyof typeof mimeExtensions];
+    const fileName = `product-${String(input.productIndex).padStart(2, "0")}-background-${input.backgroundSlot}.${extension}`;
+    await writeFile(path.join(jobDirectory(id), "results", fileName), Buffer.from(await input.file.arrayBuffer()));
+    const metric = { productIndex: input.productIndex, backgroundSlot: input.backgroundSlot, ...input.metric };
+    manifest.metrics ??= { agentId: input.agentId, startedAt: manifest.claimedAt || new Date().toISOString(), generations: [] };
+    manifest.metrics.generations = manifest.metrics.generations.filter(
+      (item) => item.productIndex !== input.productIndex || item.backgroundSlot !== input.backgroundSlot,
+    );
+    manifest.metrics.generations.push(metric);
+    if (manifest.metrics.generations.length >= manifest.products.length * BACKGROUND_SLOTS.length) {
+      const completedAt = new Date().toISOString();
+      manifest.agentStatus = "complete";
+      manifest.completedAt = completedAt;
+      manifest.metrics.completedAt = completedAt;
+      manifest.metrics.totalDurationMs = Date.parse(completedAt) - Date.parse(manifest.metrics.startedAt);
+      manifest.metrics.averageGenerationMs = Math.round(
+        manifest.metrics.generations.reduce((sum, item) => sum + item.durationMs, 0) / manifest.metrics.generations.length,
+      );
+    }
+    await saveManifest(manifest);
+    return hydrateJob(manifest);
+  });
+}
+
+export async function failFlowJob(id: string, agentId: string, error: string) {
+  return withMutation(async () => {
+    const manifest = await readManifest(id);
+    if (manifest.agentId !== agentId) throw new Error("Задание назначено другому локальному агенту.");
+    manifest.agentStatus = "failed";
+    manifest.error = error.slice(0, 2000);
+    manifest.completedAt = new Date().toISOString();
+    if (manifest.metrics) {
+      manifest.metrics.completedAt = manifest.completedAt;
+      manifest.metrics.totalDurationMs = Date.parse(manifest.completedAt) - Date.parse(manifest.metrics.startedAt);
+    }
+    await saveManifest(manifest);
+    return hydrateJob(manifest);
+  });
+}
+
+async function readManifest(id: string) {
+  return JSON.parse(await readFile(path.join(jobDirectory(id), "manifest.json"), "utf8")) as JobManifest;
+}
+
+async function saveManifest(manifest: JobManifest) {
+  const manifestPath = path.join(jobDirectory(manifest.id), "manifest.json");
+  const temporary = `${manifestPath}.${process.pid}.tmp`;
+  await writeFile(temporary, JSON.stringify(manifest, null, 2), "utf8");
+  await rename(temporary, manifestPath);
+}
+
+function withMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = mutationQueue.then(operation, operation);
+  mutationQueue = result.then(() => undefined, () => undefined);
+  return result;
 }
 
 export async function readCodexJobFile(id: string, kind: string, fileName: string) {
