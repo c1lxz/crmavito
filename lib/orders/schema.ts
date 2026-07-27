@@ -12,6 +12,7 @@ export const orderItemInputSchema = z.object({
 });
 
 export const orderFieldsSchema = z.object({
+  marketplace: z.enum(["AVITO", "WB"]).default("AVITO"),
   counterpartyId: z.string().uuid(),
   avitoProfileId: z.string().uuid().nullable().optional(),
   purchaseComment: z.string().trim().optional(),

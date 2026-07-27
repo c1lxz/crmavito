@@ -24,6 +24,7 @@ interface Order {
   trackingNumber: string;
   quantity: number;
   status: OrderStatus;
+  marketplace: "AVITO" | "WB";
   orderDate: string | Date;
   destinationCity: string | null;
   revenue: number;
@@ -63,6 +64,7 @@ interface Props {
   initialStatusFilter?: string;
   initialCounterpartyFilter?: string;
   initialAvitoProfileFilter?: string;
+  initialMarketplaceFilter?: string;
   initialDateFrom?: string;
   initialDateTo?: string;
 }
@@ -109,6 +111,7 @@ export function OrdersClient({
   initialStatusFilter = "ALL",
   initialCounterpartyFilter = "ALL",
   initialAvitoProfileFilter = "ALL",
+  initialMarketplaceFilter = "ALL",
   initialDateFrom = "",
   initialDateTo = "",
 }: Props) {
@@ -129,9 +132,15 @@ export function OrdersClient({
       ? initialAvitoProfileFilter
       : "ALL",
   );
+  const [marketplaceFilter, setMarketplaceFilter] = useState(
+    initialMarketplaceFilter === "AVITO" || initialMarketplaceFilter === "WB"
+      ? initialMarketplaceFilter
+      : "ALL",
+  );
   const [dateFrom, setDateFrom] = useState(initialDateFrom);
   const [dateTo, setDateTo] = useState(initialDateTo);
   const [showCreate, setShowCreate] = useState(initialOpen);
+  const [createMarketplace, setCreateMarketplace] = useState<"AVITO" | "WB">("AVITO");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkStatus, setBulkStatus] = useState<OrderStatus | "">("");
@@ -248,6 +257,7 @@ export function OrdersClient({
       if (avitoProfileFilter !== "ALL" && o.avitoProfile?.id !== avitoProfileFilter) {
         return false;
       }
+      if (marketplaceFilter !== "ALL" && o.marketplace !== marketplaceFilter) return false;
       const orderDay = new Date(o.orderDate).toISOString().slice(0, 10);
       if (dateFrom && orderDay < dateFrom) return false;
       if (dateTo && orderDay > dateTo) return false;
@@ -261,7 +271,7 @@ export function OrdersClient({
       }
       return true;
     });
-  }, [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, orders, search, statusFilter]);
+  }, [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, marketplaceFilter, orders, search, statusFilter]);
 
   const statuses: Array<{ value: string; label: string }> = [
     { value: "ALL", label: "Все статусы" },
@@ -276,10 +286,11 @@ export function OrdersClient({
         status: statusFilter,
         counterpartyId: counterpartyFilter,
         avitoProfileId: avitoProfileFilter,
+        marketplace: marketplaceFilter,
         dateFrom,
         dateTo,
       }),
-    [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, search, statusFilter],
+    [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, marketplaceFilter, search, statusFilter],
   );
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
@@ -515,10 +526,31 @@ export function OrdersClient({
               {selectionMode ? "Отмена" : "Выбрать"}
             </Button>
             {!selectionMode && (
-              <Button size="sm" onClick={() => setShowCreate(true)}>
-                <Plus className="h-4 w-4" />
-                Новый заказ
-              </Button>
+              <div className="flex">
+                <Button
+                  size="sm"
+                  className="rounded-r-none"
+                  onClick={() => {
+                    setCreateMarketplace("AVITO");
+                    setShowCreate(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Новый заказ
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-l-none border-l-0 px-2.5 text-violet-700 dark:text-violet-300"
+                  onClick={() => {
+                    setCreateMarketplace("WB");
+                    setShowCreate(true);
+                  }}
+                  aria-label="Создать заказ Wildberries"
+                >
+                  WB
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -564,6 +596,17 @@ export function OrdersClient({
               <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
             </label>
           </div>
+          <label className="block space-y-1 text-xs font-medium text-muted-foreground">
+            Площадка
+            <Select value={marketplaceFilter} onValueChange={setMarketplaceFilter}>
+              <SelectTrigger><SelectValue placeholder="Все площадки" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Все площадки</SelectItem>
+                <SelectItem value="AVITO">Авито</SelectItem>
+                <SelectItem value="WB">Wildberries</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
           <label className="pc-inline-half block space-y-1 text-xs font-medium text-muted-foreground">
             Контрагент
             <Select value={counterpartyFilter} onValueChange={setCounterpartyFilter}>
@@ -810,7 +853,7 @@ export function OrdersClient({
                           <p className="truncate text-xs text-muted-foreground">
                             {order.variant ? `${order.variant} · ` : ""}
                             {order.quantity} шт.
-                            {order.avitoProfile ? ` · ${order.avitoProfile.name}` : ""}
+                            {order.marketplace === "WB" ? " · WB" : order.avitoProfile ? ` · ${order.avitoProfile.name}` : ""}
                           </p>
                         </div>
                       </div>
@@ -935,6 +978,9 @@ export function OrdersClient({
                     {order.avitoProfile && (
                       <p className="text-xs text-muted-foreground">Avito: {order.avitoProfile.name}</p>
                     )}
+                    {order.marketplace === "WB" && (
+                      <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">Wildberries</p>
+                    )}
                     <div className="flex items-center justify-between mt-1">
                       <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
                         <span className="truncate">Трек: {order.trackingNumber}</span>
@@ -1006,6 +1052,7 @@ export function OrdersClient({
       <CreateOrderDialog
         open={showCreate}
         onClose={() => setShowCreate(false)}
+        defaultMarketplace={createMarketplace}
         counterparties={counterparties}
         avitoProfiles={avitoProfiles}
         products={products.map((p) => ({ ...p, salePrice: typeof p.salePrice === 'string' ? parseFloat(p.salePrice) : p.salePrice }))}

@@ -19,7 +19,7 @@ function getDatabaseDateRange(range: DateRange): DateRange {
   };
 }
 
-async function getActiveOrders(range: DateRange, city?: string) {
+async function getActiveOrders(range: DateRange, city?: string, marketplace?: import("@prisma/client").Marketplace) {
   const dateRange = getDatabaseDateRange(range);
   return prisma.order.findMany({
     where: {
@@ -27,6 +27,7 @@ async function getActiveOrders(range: DateRange, city?: string) {
       status: { not: "CANCELLED" },
       orderDate: { gte: dateRange.from, lte: dateRange.to },
       ...(city ? { destinationCity: city } : {}),
+      ...(marketplace ? { marketplace } : {}),
     },
     include: {
       product: true,
@@ -36,13 +37,14 @@ async function getActiveOrders(range: DateRange, city?: string) {
   });
 }
 
-async function getReceivedOrders(range: DateRange, city?: string) {
+async function getReceivedOrders(range: DateRange, city?: string, marketplace?: import("@prisma/client").Marketplace) {
   return prisma.order.findMany({
     where: {
       status: "RECEIVED",
       isDeleted: false,
       receivedAt: { gte: range.from, lte: range.to },
       ...(city ? { destinationCity: city } : {}),
+      ...(marketplace ? { marketplace } : {}),
     },
     include: {
       product: true,
@@ -52,8 +54,8 @@ async function getReceivedOrders(range: DateRange, city?: string) {
   });
 }
 
-export async function getKpiForRange(range: DateRange, city?: string) {
-  const orders = await getActiveOrders(range, city);
+export async function getKpiForRange(range: DateRange, city?: string, marketplace?: import("@prisma/client").Marketplace) {
+  const orders = await getActiveOrders(range, city, marketplace);
   const financials = orders.map((o) =>
     calcOrderFinancials({
       salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
@@ -71,7 +73,11 @@ export async function getKpiForRange(range: DateRange, city?: string) {
     where: {
       status: "RETURNED",
       createdAt: { gte: range.from, lte: range.to },
-      order: { isDeleted: false, status: { not: "CANCELLED" } },
+      order: {
+        isDeleted: false,
+        status: { not: "CANCELLED" },
+        ...(marketplace ? { marketplace } : {}),
+      },
     },
   });
   const receivedOrdersCount = await prisma.order.count({
@@ -80,6 +86,7 @@ export async function getKpiForRange(range: DateRange, city?: string) {
       isDeleted: false,
       receivedAt: { gte: range.from, lte: range.to },
       ...(city ? { destinationCity: city } : {}),
+      ...(marketplace ? { marketplace } : {}),
     },
   });
 
@@ -93,9 +100,9 @@ export async function getKpiForRange(range: DateRange, city?: string) {
   };
 }
 
-export async function getPnL(range: DateRange) {
+export async function getPnL(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
   const dateRange = getDatabaseDateRange(range);
-  const orders = await getReceivedOrders(range);
+  const orders = await getReceivedOrders(range, undefined, marketplace);
   const financials = orders.map((o) =>
     calcOrderFinancials({
       salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
@@ -117,7 +124,7 @@ export async function getPnL(range: DateRange) {
     0
   );
 
-  const expenses = await prisma.expense.findMany({
+  const expenses = marketplace ? [] : await prisma.expense.findMany({
     where: { date: { gte: dateRange.from, lte: dateRange.to } },
   });
 
@@ -158,8 +165,8 @@ export async function getPnL(range: DateRange) {
   };
 }
 
-export async function getProductsReport(range: DateRange) {
-  const orders = await getReceivedOrders(range);
+export async function getProductsReport(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
+  const orders = await getReceivedOrders(range, undefined, marketplace);
   const byProduct: Record<
     string,
     { name: string; imageUrl: string | null; sold: number; revenue: number; profit: number }
@@ -209,13 +216,14 @@ export async function getProductsReport(range: DateRange) {
     .sort((a, b) => b.profit - a.profit);
 }
 
-export async function getCounterpartiesReport(range: DateRange) {
+export async function getCounterpartiesReport(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
   const dateRange = getDatabaseDateRange(range);
   const orders = await prisma.order.findMany({
     where: {
       isDeleted: false,
       status: { not: "CANCELLED" },
       orderDate: { gte: dateRange.from, lte: dateRange.to },
+      ...(marketplace ? { marketplace } : {}),
     },
     include: { counterparty: true },
   });
@@ -262,11 +270,15 @@ export async function getCounterpartiesReport(range: DateRange) {
   }));
 }
 
-export async function getReturnsReport(range: DateRange) {
+export async function getReturnsReport(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
   const returns = await prisma.return.findMany({
     where: {
       createdAt: { gte: range.from, lte: range.to },
-      order: { isDeleted: false, status: { not: "CANCELLED" } },
+      order: {
+        isDeleted: false,
+        status: { not: "CANCELLED" },
+        ...(marketplace ? { marketplace } : {}),
+      },
     },
     include: { product: true },
   });
@@ -285,6 +297,7 @@ export async function getReturnsReport(range: DateRange) {
       isDeleted: false,
       status: { not: "CANCELLED" },
       receivedAt: { gte: range.from, lte: range.to },
+      ...(marketplace ? { marketplace } : {}),
     },
     _count: true,
   });
@@ -301,7 +314,7 @@ export async function getReturnsReport(range: DateRange) {
   });
 }
 
-export async function getOrderStatusCounts(range: DateRange) {
+export async function getOrderStatusCounts(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
   const dateRange = getDatabaseDateRange(range);
   const counts = await prisma.order.groupBy({
     by: ["status"],
@@ -309,6 +322,7 @@ export async function getOrderStatusCounts(range: DateRange) {
       isDeleted: false,
       status: { not: "CANCELLED" },
       orderDate: { gte: dateRange.from, lte: dateRange.to },
+      ...(marketplace ? { marketplace } : {}),
     },
     _count: { _all: true },
   });
@@ -330,7 +344,8 @@ export async function getExpenseCategoryTotals(range: DateRange) {
   return result;
 }
 
-export async function getAvitoProfileCounts(range: DateRange) {
+export async function getAvitoProfileCounts(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
+  if (marketplace === "WB") return [];
   const dateRange = getDatabaseDateRange(range);
   const orders = await prisma.order.groupBy({
     by: ["avitoProfileId"],
@@ -338,6 +353,7 @@ export async function getAvitoProfileCounts(range: DateRange) {
       isDeleted: false,
       status: { not: "CANCELLED" },
       orderDate: { gte: dateRange.from, lte: dateRange.to },
+      marketplace: "AVITO",
     },
     _count: { _all: true },
   });
@@ -352,10 +368,10 @@ export async function getAvitoProfileCounts(range: DateRange) {
   }));
 }
 
-export async function getDynamicsChart(range: DateRange) {
+export async function getDynamicsChart(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
   const [receivedOrders, activeOrders] = await Promise.all([
-    getReceivedOrders(range),
-    getActiveOrders(range),
+    getReceivedOrders(range, undefined, marketplace),
+    getActiveOrders(range, undefined, marketplace),
   ]);
   const byDay: Record<string, { revenue: number; profit: number; orders: number }> = {};
 
@@ -386,4 +402,64 @@ export async function getDynamicsChart(range: DateRange) {
   return Object.entries(byDay)
     .map(([date, d]) => ({ date, ...d }))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export async function getMarketplaceReport(range: DateRange) {
+  const orders = await getActiveOrders(range);
+  const summary = (["AVITO", "WB"] as const).map((marketplace) => {
+    const selected = orders.filter((order) => order.marketplace === marketplace);
+    const totals = sumFinancials(
+      selected.map((order) =>
+        calcOrderFinancials({
+          salePriceAtOrder: toDecimalNumber(order.salePriceAtOrder),
+          quantity: order.quantity,
+          purchasePricePerUnit: toDecimalNumber(order.purchasePricePerUnit),
+          logisticsCost: toDecimalNumber(order.logisticsCost),
+          commissionCost: toDecimalNumber(order.commissionCost),
+          otherCosts: toDecimalNumber(order.otherCosts),
+        }),
+      ),
+    );
+    return {
+      marketplace,
+      orders: selected.length,
+      revenue: totals.revenue,
+      profit: totals.netProfit,
+    };
+  });
+
+  const dynamics: Record<
+    string,
+    { date: string; avitoOrders: number; wbOrders: number; avitoProfit: number; wbProfit: number }
+  > = {};
+  for (const order of orders) {
+    const date = formatDateInput(order.orderDate);
+    dynamics[date] ??= {
+      date,
+      avitoOrders: 0,
+      wbOrders: 0,
+      avitoProfit: 0,
+      wbProfit: 0,
+    };
+    const financials = calcOrderFinancials({
+      salePriceAtOrder: toDecimalNumber(order.salePriceAtOrder),
+      quantity: order.quantity,
+      purchasePricePerUnit: toDecimalNumber(order.purchasePricePerUnit),
+      logisticsCost: toDecimalNumber(order.logisticsCost),
+      commissionCost: toDecimalNumber(order.commissionCost),
+      otherCosts: toDecimalNumber(order.otherCosts),
+    });
+    if (order.marketplace === "WB") {
+      dynamics[date].wbOrders += 1;
+      dynamics[date].wbProfit += financials.netProfit;
+    } else {
+      dynamics[date].avitoOrders += 1;
+      dynamics[date].avitoProfit += financials.netProfit;
+    }
+  }
+
+  return {
+    summary,
+    dynamics: Object.values(dynamics).sort((left, right) => left.date.localeCompare(right.date)),
+  };
 }

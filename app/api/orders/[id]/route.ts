@@ -145,6 +145,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   };
 
   setField("counterpartyId", data.counterpartyId, order.counterpartyId);
+  setField("marketplace", data.marketplace, order.marketplace);
   setField("avitoProfileId", data.avitoProfileId, order.avitoProfileId);
   setField("purchaseComment", data.purchaseComment, order.purchaseComment);
   setField("trackingNumber", data.trackingNumber, order.trackingNumber);

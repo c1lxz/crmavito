@@ -12,6 +12,8 @@ import { OrdersDynamicsChart, type Period } from "@/components/dashboard/Dynamic
 import { ExpensesDonut, type ExpenseItem } from "@/components/dashboard/ExpensesDonut";
 import { OrdersStatusDonut, type OrderStatusItem } from "@/components/dashboard/OrdersStatusDonut";
 import { TopProductsProfit } from "@/components/dashboard/TopProductsProfit";
+import { MarketplaceComparison, type MarketplaceReport } from "@/components/dashboard/MarketplaceCharts";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   MOSCOW_DAY_CHANGED_EVENT,
   type MoscowDayChangedDetail,
@@ -34,6 +36,7 @@ export function ReportsClient() {
   const [dateFrom, setDateFrom] = useState(() => formatDateInput(startOfMonth(new Date())));
   const [dateTo, setDateTo] = useState(() => formatDateInput());
   const [activePeriodDays, setActivePeriodDays] = useState<number | null>(null);
+  const [marketplace, setMarketplace] = useState<"ALL" | "AVITO" | "WB">("ALL");
   const [kpi, setKpi] = useState<{ current: KpiData; prev: KpiData } | null>(null);
   const [pnl, setPnl] = useState<Record<string, number> | null>(null);
   const [products, setProducts] = useState<Array<{ productId: string; name: string; imageUrl: string | null; sold: number; revenue: number; profit: number }>>([]);
@@ -42,6 +45,7 @@ export function ReportsClient() {
   const [dynamics, setDynamics] = useState<Array<{ date: string; revenue: number; profit: number; orders: number }>>([]);
   const [avitoProfiles, setAvitoProfiles] = useState<Array<{ id: string; label: string; count: number }>>([]);
   const [expenseCategories, setExpenseCategories] = useState<Record<string, number>>({});
+  const [marketplaceReport, setMarketplaceReport] = useState<MarketplaceReport>({ summary: [], dynamics: [] });
   const [period, setPeriod] = useState<Period>("day");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +56,8 @@ export function ReportsClient() {
     setLoading(true);
     setError(null);
     try {
-      const params = `dateFrom=${dateFrom}&dateTo=${dateTo}`;
+      const params = `dateFrom=${dateFrom}&dateTo=${dateTo}${marketplace === "ALL" ? "" : `&marketplace=${marketplace}`}`;
+      const comparisonParams = `dateFrom=${dateFrom}&dateTo=${dateTo}`;
       const fetchReport = async <T,>(type: string): Promise<T> => {
         const response = await fetch(`/api/reports?type=${type}&${params}`, {
           cache: "no-store",
@@ -65,7 +70,7 @@ export function ReportsClient() {
         }
         return body as T;
       };
-      const [kpiRes, pnlRes, prodRes, cpRes, returnsRes, dynRes, avitoProfilesRes, expCatRes] = await Promise.all([
+      const [kpiRes, pnlRes, prodRes, cpRes, returnsRes, dynRes, avitoProfilesRes, expCatRes, marketplaceRes] = await Promise.all([
         fetchReport<{ current: KpiData; prev: KpiData }>("kpi"),
         fetchReport<Record<string, number>>("pnl"),
         fetchReport<typeof products>("products"),
@@ -74,6 +79,11 @@ export function ReportsClient() {
         fetchReport<typeof dynamics>("dynamics"),
         fetchReport<Array<{ id: string; label: string; count: number }>>("avito-profiles"),
         fetchReport<Record<string, number>>("expense-categories"),
+        fetch(`/api/reports?type=marketplaces&${comparisonParams}`, { cache: "no-store" }).then(async (response) => {
+          const body = await response.json();
+          if (!response.ok) throw new Error(body?.error ?? "Ошибка статистики площадок");
+          return body as MarketplaceReport;
+        }),
       ]);
       if (requestId !== requestIdRef.current) return;
       setKpi(kpiRes);
@@ -83,7 +93,8 @@ export function ReportsClient() {
       setReturns(returnsRes);
       setDynamics(dynRes);
       setAvitoProfiles(avitoProfilesRes);
-      setExpenseCategories(expCatRes);
+      setExpenseCategories(marketplace === "ALL" ? expCatRes : {});
+      setMarketplaceReport(marketplaceRes);
     } catch (loadError) {
       if (requestId === requestIdRef.current) {
         setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить отчёты");
@@ -91,7 +102,7 @@ export function ReportsClient() {
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, marketplace]);
 
   useEffect(() => {
     void load();
@@ -155,6 +166,13 @@ export function ReportsClient() {
     color: AVITO_PROFILE_COLORS[index % AVITO_PROFILE_COLORS.length],
   }));
   const avitoProfileTotal = avitoProfileData.reduce((s, d) => s + d.count, 0);
+  const marketplaceData: OrderStatusItem[] = marketplaceReport.summary.map((item) => ({
+    status: item.marketplace,
+    label: item.marketplace === "AVITO" ? "Авито" : "Wildberries",
+    count: item.orders,
+    color: item.marketplace === "AVITO" ? "#2563eb" : "#7c3aed",
+  }));
+  const marketplaceTotal = marketplaceData.reduce((sum, item) => sum + item.count, 0);
 
   const applyRecentPeriod = (periodDays: number) => {
     const range = buildRecentReportRange(periodDays);
@@ -176,6 +194,16 @@ export function ReportsClient() {
           </Button>
         </div>
         <div className="pc-reports-range space-y-2">
+          <Select value={marketplace} onValueChange={(value) => setMarketplace(value as "ALL" | "AVITO" | "WB")}>
+            <SelectTrigger aria-label="Площадка">
+              <SelectValue placeholder="Все площадки" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Все площадки</SelectItem>
+              <SelectItem value="AVITO">Авито</SelectItem>
+              <SelectItem value="WB">Wildberries</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="flex flex-wrap gap-2" aria-label="Быстрый выбор периода">
             {REPORT_PERIODS.map((days) => (
               <Button
@@ -257,8 +285,17 @@ export function ReportsClient() {
               total={ordersReturnsTotal}
               showSlicePercentLabels
             />
-            <OrdersStatusDonut title="Заказы по профилям Avito" data={avitoProfileData} total={avitoProfileTotal} />
+            <OrdersStatusDonut
+              title="Заказы Авито / WB"
+              data={marketplaceData}
+              total={marketplaceTotal}
+              showSlicePercentLabels
+            />
+            {marketplace !== "WB" ? (
+              <OrdersStatusDonut title="Заказы по профилям Avito" data={avitoProfileData} total={avitoProfileTotal} />
+            ) : null}
             </div>
+            <MarketplaceComparison report={marketplaceReport} />
 
             {/* Top products */}
             <TopProductsProfit products={products.slice(0, 5)} />
@@ -275,7 +312,16 @@ export function ReportsClient() {
                       { label: "Выручка", value: pnl.revenue, sign: 1 },
                       { label: "− Себестоимость", value: pnl.costOfGoods, sign: -1 },
                       { label: "− Логистика", value: pnl.logistics, sign: -1 },
-                      { label: "− Комиссии Avito", value: pnl.commission, sign: -1 },
+                      {
+                        label:
+                          marketplace === "WB"
+                            ? "− Комиссии WB"
+                            : marketplace === "AVITO"
+                              ? "− Комиссии Авито"
+                              : "− Комиссии площадок",
+                        value: pnl.commission,
+                        sign: -1,
+                      },
                       { label: "− Реклама", value: pnl.advertising, sign: -1 },
                       { label: "− Прочие расходы", value: pnl.otherExpenses, sign: -1 },
                     ].map(({ label, value, sign }) => (

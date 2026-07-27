@@ -50,6 +50,7 @@ export interface OrderFormItem {
 
 export interface OrderFormInitialValue {
   id: string;
+  marketplace: "AVITO" | "WB";
   counterpartyId: string;
   avitoProfileId: string;
   purchaseComment: string;
@@ -72,6 +73,7 @@ interface Props {
   avitoProfiles: AvitoProfile[];
   initialValue?: OrderFormInitialValue;
   depositedReturns?: DepositedReturn[];
+  defaultMarketplace?: "AVITO" | "WB";
 }
 
 export interface DepositedReturn {
@@ -96,7 +98,8 @@ const emptyItem = (): OrderFormItem => ({
   productImageError: null,
 });
 
-const blankOrderForm = () => ({
+const blankOrderForm = (marketplace: "AVITO" | "WB" = "AVITO") => ({
+  marketplace,
   counterpartyId: "",
   avitoProfileId: "",
   purchaseComment: "",
@@ -124,10 +127,11 @@ export function CreateOrderDialog({
   avitoProfiles,
   initialValue,
   depositedReturns = [],
+  defaultMarketplace = "AVITO",
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState(blankOrderForm);
+  const [form, setForm] = useState(() => blankOrderForm(defaultMarketplace));
   const [carrierTouched, setCarrierTouched] = useState(false);
   const [initializedKey, setInitializedKey] = useState<string | null>(null);
   const productsById = useMemo(
@@ -146,6 +150,7 @@ export function CreateOrderDialog({
     setForm(
       initialValue
         ? {
+            marketplace: initialValue.marketplace,
             counterpartyId: initialValue.counterpartyId,
             avitoProfileId: initialValue.avitoProfileId,
             purchaseComment: initialValue.purchaseComment,
@@ -159,11 +164,11 @@ export function CreateOrderDialog({
             otherCosts: initialValue.otherCosts,
             items: initialValue.items,
           }
-        : blankOrderForm()
+        : blankOrderForm(defaultMarketplace)
     );
     setCarrierTouched(Boolean(initialValue?.carrier));
     setInitializedKey(nextKey);
-  }, [initialValue, initializedKey, open]);
+  }, [defaultMarketplace, initialValue, initializedKey, open]);
 
   function updateItem(index: number, patch: Partial<OrderFormItem>) {
     setForm((current) => ({
@@ -291,8 +296,9 @@ export function CreateOrderDialog({
           method: isEditing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            marketplace: form.marketplace,
             counterpartyId: form.counterpartyId,
-            avitoProfileId: form.avitoProfileId || null,
+            avitoProfileId: form.marketplace === "AVITO" ? form.avitoProfileId || null : null,
             purchaseComment: form.purchaseComment || undefined,
             trackingNumber: form.trackingNumber,
             carrier: form.carrier || undefined,
@@ -340,7 +346,13 @@ export function CreateOrderDialog({
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="top-[calc((100dvh+var(--app-top-pad,48px)+2rem-var(--app-bottom-pad,0px))/2)] max-h-[calc(100dvh-var(--app-top-pad,48px)-var(--app-bottom-pad,0px)-3rem)] max-w-lg overflow-hidden p-0">
         <DialogHeader className="border-b border-border/70 px-4 py-4 pr-12 text-left">
-          <DialogTitle>{isEditing ? "Редактирование заказа" : "Новый заказ"}</DialogTitle>
+          <DialogTitle>
+            {isEditing
+              ? "Редактирование заказа"
+              : form.marketplace === "WB"
+                ? "Новый заказ WB"
+                : "Новый заказ Авито"}
+          </DialogTitle>
         </DialogHeader>
         <form
           onSubmit={handleSubmit}
@@ -616,6 +628,7 @@ export function CreateOrderDialog({
                   Справочник контрагентов <ExternalLink className="h-3 w-3" />
                 </Link>
               </div>
+              {form.marketplace === "AVITO" ? (
               <div className="space-y-1">
                 <Label>Профиль Avito</Label>
                 <Select
@@ -635,6 +648,11 @@ export function CreateOrderDialog({
                   </SelectContent>
                 </Select>
               </div>
+              ) : (
+                <div className="rounded-md border border-violet-500/25 bg-violet-500/8 px-3 py-2 text-xs text-muted-foreground">
+                  Заказ будет учтён в статистике Wildberries.
+                </div>
+              )}
               <div className="space-y-1">
                 <Label>Трек-номер / штрихкод</Label>
                 <Input

@@ -22,6 +22,11 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum Marketplace {
+  AVITO
+  WB
+}
+
 enum ReturnStatus {
   RETURNING
   RETURNED
@@ -320,6 +325,7 @@ model Order {
   receivedAt           DateTime?
   destinationCity      String?
   status               OrderStatus @default(ACCEPTED)
+  marketplace          Marketplace @default(AVITO)
   logisticsCost        Decimal     @default(0) @db.Decimal(12, 2)
   commissionCost       Decimal     @default(0) @db.Decimal(12, 2)
   otherCosts           Decimal     @default(0) @db.Decimal(12, 2)
@@ -338,6 +344,7 @@ model Order {
   notification OrderNotification?
 
   @@index([status])
+  @@index([marketplace])
   @@index([orderDate])
   @@index([avitoProfileId])
   @@index([receivedAt])

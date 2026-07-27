@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   const tracking = searchParams.get("tracking");
   const counterpartyId = searchParams.get("counterpartyId");
   const avitoProfileId = searchParams.get("avitoProfileId");
+  const marketplace = searchParams.get("marketplace");
   const productId = searchParams.get("productId");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
@@ -43,6 +44,13 @@ export async function GET(req: NextRequest) {
   if (tracking) where.trackingNumber = { contains: tracking, mode: "insensitive" };
   if (counterpartyId) where.counterpartyId = counterpartyId;
   if (avitoProfileId) where.avitoProfileId = avitoProfileId;
+  if (marketplace) {
+    const parsedMarketplace = z.enum(["AVITO", "WB"]).safeParse(marketplace);
+    if (!parsedMarketplace.success) {
+      return NextResponse.json({ error: "Некорректная площадка" }, { status: 400 });
+    }
+    where.marketplace = parsedMarketplace.data;
+  }
   if (productId) {
     where.OR = [{ productId }, { items: { some: { productId } } }];
   }
@@ -150,13 +158,13 @@ export async function POST(req: NextRequest) {
   const counterparty = await prisma.counterparty.findUnique({
     where: { id: data.counterpartyId },
   });
-  const avitoProfile = data.avitoProfileId
+  const avitoProfile = data.marketplace === "AVITO" && data.avitoProfileId
     ? await prisma.avitoProfile.findUnique({ where: { id: data.avitoProfileId } })
     : null;
   if (!counterparty) {
     return NextResponse.json({ error: "Контрагент не найден" }, { status: 404 });
   }
-  if (data.avitoProfileId && (!avitoProfile || !avitoProfile.isActive)) {
+  if (data.marketplace === "AVITO" && data.avitoProfileId && (!avitoProfile || !avitoProfile.isActive)) {
     return NextResponse.json({ error: "Avito profile not found" }, { status: 404 });
   }
 
@@ -174,6 +182,7 @@ export async function POST(req: NextRequest) {
         const created = await tx.order.create({
           data: {
             orderNumber,
+            marketplace: data.marketplace,
             productId: firstProduct.id,
             productNameSnapshot:
               normalizedItems.length === 1
@@ -184,7 +193,7 @@ export async function POST(req: NextRequest) {
             quantity: totals.quantity,
             salePriceAtOrder: totals.salePriceAtOrder,
             counterpartyId: data.counterpartyId,
-            avitoProfileId: data.avitoProfileId ?? null,
+            avitoProfileId: data.marketplace === "AVITO" ? data.avitoProfileId ?? null : null,
             purchasePricePerUnit: totals.purchasePricePerUnit,
             purchaseComment: data.purchaseComment,
             trackingNumber: data.trackingNumber,

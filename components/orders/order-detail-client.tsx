@@ -59,6 +59,7 @@ interface OrderDetail {
   commissionCost: number;
   otherCosts: number;
   status: OrderStatus;
+  marketplace: "AVITO" | "WB";
   orderDate: string;
   shippingDate: string | null;
   receivedAt: string | null;
@@ -143,6 +144,7 @@ export function OrderDetailClient({ order, financials, products, counterparties,
 
   const editInitialValue: OrderFormInitialValue = {
     id: order.id,
+    marketplace: order.marketplace,
     counterpartyId: order.counterpartyId,
     avitoProfileId: order.avitoProfileId ?? "",
     purchaseComment: order.purchaseComment ?? "",
@@ -224,7 +226,9 @@ export function OrderDetailClient({ order, financials, products, counterparties,
           </Link>
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold">№{order.orderNumber}</h1>
-            <p className="text-xs text-muted-foreground">{formatDate(order.orderDate)}</p>
+            <p className="text-xs text-muted-foreground">
+              {formatDate(order.orderDate)} · {order.marketplace === "WB" ? "Wildberries" : "Авито"}
+            </p>
           </div>
           <Button size="icon" variant="outline" onClick={() => setShowEdit(true)}>
             <Pencil className="h-4 w-4" />

@@ -123,6 +123,7 @@ export default async function OrdersPage({
     status?: string;
     counterpartyId?: string;
     avitoProfileId?: string;
+    marketplace?: string;
     dateFrom?: string;
     dateTo?: string;
   }>;
@@ -155,6 +156,7 @@ export default async function OrdersPage({
         initialStatusFilter={query.status}
         initialCounterpartyFilter={query.counterpartyId}
         initialAvitoProfileFilter={query.avitoProfileId}
+        initialMarketplaceFilter={query.marketplace}
         initialDateFrom={query.dateFrom}
         initialDateTo={query.dateTo}
       />

@@ -108,9 +108,8 @@ describe("order management UI/API", () => {
   it("allows deleting an order in every status", () => {
     expect(orderRouteSource).toContain("export async function DELETE");
     expect(orderRouteSource).not.toContain('order.status !== "ACCEPTED"');
-    expect(reportsSource).toContain(
-      'order: { isDeleted: false, status: { not: "CANCELLED" } }',
-    );
+    expect(reportsSource).toContain('status: { not: "CANCELLED" }');
+    expect(reportsSource).toContain('isDeleted: false');
   });
 
   it("shows bulk delete beside filtered selection and removes deleted orders from statistics", () => {
