@@ -95,7 +95,11 @@ async function getAvitoProfiles() {
 
 async function getDepositedReturns() {
   const returns = await prisma.return.findMany({
-    where: { status: "RETURNED", usedByOrderItems: { none: {} } },
+    where: {
+      status: "RETURNED",
+      usedByOrderItems: { none: {} },
+      OR: [{ orderId: null }, { order: { isDeleted: false } }],
+    },
     select: {
       id: true,
       productId: true,

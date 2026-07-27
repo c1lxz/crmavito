@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Check, CheckSquare, ChevronRight, Loader2, Package, Plus, RotateCcw, Search, Square, Warehouse, X } from "lucide-react";
+import { Check, CheckSquare, ChevronRight, Loader2, Package, Plus, RotateCcw, Search, Square, Trash2, Warehouse, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -201,6 +201,60 @@ export function ReturnsClient({ initialData }: Props) {
     }
   }
 
+  async function deleteSelectedReturns() {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (!window.confirm(`Удалить выбранные возвраты (${count})? Они будут полностью удалены и перестанут учитываться в статистике.`)) return;
+
+    setBulkUpdating(true);
+    try {
+      const response = await fetch("/api/returns/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnIds: [...selectedIds] }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось удалить выбранные возвраты");
+      }
+
+      const deletedIds = new Set(selectedIds);
+      setData((current) => {
+        const deletedReturns = current.returns.filter((item) => deletedIds.has(item.id));
+        return {
+          ...current,
+          returns: current.returns.filter((item) => !deletedIds.has(item.id)),
+          totalReturning: Math.max(
+            0,
+            current.totalReturning - deletedReturns.filter((item) => item.status === "RETURNING").length,
+          ),
+          totalReturned: Math.max(
+            0,
+            current.totalReturned - deletedReturns.filter(
+              (item) => item.status === "RETURNED" && item.usedByOrderItems.length === 0,
+            ).length,
+          ),
+        };
+      });
+      toast({
+        title: "Возвраты удалены",
+        description: `${result.deletedCount ?? count} шт. Больше не учитываются в статистике.`,
+      });
+      setSelectedIds(new Set());
+      setBulkStatus("");
+      setSelectionMode(false);
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Не удалось удалить возвраты",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setBulkUpdating(false);
+    }
+  }
+
   async function lookupOrder(trackingNumber: string) {
     const tracking = trackingNumber.trim();
     if (!tracking) return;
@@ -345,14 +399,27 @@ export function ReturnsClient({ initialData }: Props) {
               <p className="text-xs font-semibold">
                 Выбрано: <span className="tabular-nums text-primary">{selectedIds.size}</span>
               </p>
-              <button
-                type="button"
-                onClick={toggleFiltered}
-                disabled={filteredIds.length === 0}
-                className="text-xs font-semibold text-primary hover:underline disabled:pointer-events-none disabled:opacity-50"
-              >
-                {allFilteredSelected ? "Снять найденные" : `Выбрать найденные (${filteredIds.length})`}
-              </button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={toggleFiltered}
+                  disabled={filteredIds.length === 0 || bulkUpdating}
+                  className="text-xs font-semibold text-primary hover:underline disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {allFilteredSelected ? "Снять найденные" : `Выбрать найденные (${filteredIds.length})`}
+                </button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="h-8"
+                  disabled={selectedIds.size === 0 || bulkUpdating}
+                  onClick={deleteSelectedReturns}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Удалить{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+                </Button>
+              </div>
             </div>
           )}
         </div>

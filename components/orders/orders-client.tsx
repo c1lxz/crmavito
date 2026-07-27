@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Check, ChevronRight, Clipboard, Copy, Package, PackageOpen, Plus, Search, X } from "lucide-react";
+import { Check, ChevronRight, Clipboard, Copy, Package, PackageOpen, Plus, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -419,6 +419,46 @@ export function OrdersClient({
     );
   }
 
+  async function deleteSelectedOrders() {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (!window.confirm(`Удалить выбранные заказы (${count})? Они исчезнут из всех списков, отчётов и статистики.`)) return;
+
+    setIsUpdating(true);
+    try {
+      const response = await fetch("/api/orders/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds: [...selectedIds] }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Не удалось удалить выбранные заказы");
+      }
+
+      const deletedIds = new Set(selectedIds);
+      setOrders((current) => current.filter((order) => !deletedIds.has(order.id)));
+      toast({
+        title: "Заказы удалены",
+        description: `${result.deletedCount ?? count} шт. Больше не учитываются в статистике.`,
+      });
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      setBulkStatus("");
+      setBulkCounterpartyId("");
+      setBulkPurchasePrice("");
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Не удалось удалить заказы",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
   async function copyTrackingNumbers(trackingNumbers: string[]) {
     const text = trackingNumbers.filter(Boolean).join("\n");
     if (!text) return;
@@ -561,14 +601,27 @@ export function OrdersClient({
               <p className="text-xs font-semibold">
                 Выбрано: <span className="tabular-nums text-primary">{selectedIds.size}</span>
               </p>
-              <button
-                type="button"
-                onClick={toggleFiltered}
-                disabled={filteredIds.length === 0}
-                className="text-xs font-semibold text-primary hover:underline disabled:pointer-events-none disabled:opacity-50"
-              >
-                {allFilteredSelected ? "Снять найденные" : `Выбрать найденные (${filteredIds.length})`}
-              </button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={toggleFiltered}
+                  disabled={filteredIds.length === 0 || isUpdating}
+                  className="text-xs font-semibold text-primary hover:underline disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {allFilteredSelected ? "Снять найденные" : `Выбрать найденные (${filteredIds.length})`}
+                </button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="h-8"
+                  disabled={selectedIds.size === 0 || isUpdating}
+                  onClick={deleteSelectedOrders}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Удалить{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+                </Button>
+              </div>
             </div>
           )}
         </div>

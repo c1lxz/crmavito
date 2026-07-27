@@ -113,6 +113,19 @@ describe("order management UI/API", () => {
     );
   });
 
+  it("shows bulk delete beside filtered selection and removes deleted orders from statistics", () => {
+    const bulkDeleteRouteSource = readFileSync(
+      path.resolve(__dirname, "../app/api/orders/bulk-delete/route.ts"),
+      "utf8",
+    );
+    expect(ordersClientSource).toContain("/api/orders/bulk-delete");
+    expect(ordersClientSource).toContain("deleteSelectedOrders");
+    expect(ordersClientSource).toContain("Больше не учитываются в статистике");
+    expect(bulkDeleteRouteSource).toContain("isDeleted: true");
+    expect(reportsSource).toContain("isDeleted: false");
+    expect(ordersPageSource).toContain('OR: [{ orderId: null }, { order: { isDeleted: false } }]');
+  });
+
   it("supports adding products and uploading multiple photos", () => {
     expect(formSource).toContain("Добавить товар");
     expect(formSource).toContain('multiple');

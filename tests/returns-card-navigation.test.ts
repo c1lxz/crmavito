@@ -22,4 +22,17 @@ describe("returns card navigation", () => {
     expect(source).toContain('className="min-w-0 flex-1 truncate"');
     expect(source).not.toContain('<SelectValue placeholder="Выберите товар"');
   });
+
+  it("supports bulk deletion that removes returns from statistics", () => {
+    const source = readFileSync(path.resolve(__dirname, "../components/returns/returns-client.tsx"), "utf8");
+    const route = readFileSync(path.resolve(__dirname, "../app/api/returns/bulk-delete/route.ts"), "utf8");
+
+    expect(source).toContain("/api/returns/bulk-delete");
+    expect(source).toContain("deleteSelectedReturns");
+    expect(source).toContain("Больше не учитываются в статистике");
+    expect(source).toContain("current.totalReturning - deletedReturns.filter");
+    expect(source).toContain("current.totalReturned - deletedReturns.filter");
+    expect(route).toContain("tx.return.deleteMany");
+    expect(route).toContain("sourceReturnId: null");
+  });
 });

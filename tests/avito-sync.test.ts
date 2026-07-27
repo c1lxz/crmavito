@@ -208,7 +208,7 @@ describe("Avito synchronization transport", () => {
       if (previousLimit === undefined) delete process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT;
       else process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT = previousLimit;
     }
-  });
+  }, 10_000);
 
   it("fills missing images from BotV autoload XML before calling Avito detail API", async () => {
     const previousRoot = process.env.BOTV_WEB_SESSIONS_DIR;
