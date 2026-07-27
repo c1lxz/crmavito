@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { authorizeFlowAgent } from "@/lib/ai/flow-agent-auth";
 
 const originalToken = process.env.FLOW_LOCAL_AGENT_TOKEN;
@@ -15,5 +17,15 @@ describe("Flow agent authentication", () => {
     process.env.FLOW_LOCAL_AGENT_TOKEN = "secret-token";
     expect(authorizeFlowAgent(new Request("http://localhost", { headers: { authorization: "Bearer wrong" } }))).toBe(false);
     expect(authorizeFlowAgent(new Request("http://localhost", { headers: { authorization: "Bearer secret-token" } }))).toBe(true);
+  });
+
+  it("installs a non-admin autostart fallback and detects only Node agent processes", () => {
+    const root = path.resolve(__dirname, "..");
+    const installer = readFileSync(path.join(root, "scripts/install-flow-local-agent-task.ps1"), "utf8");
+    const ensure = readFileSync(path.join(root, "scripts/ensure-flow-local-agent.ps1"), "utf8");
+    expect(installer).toContain("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+    expect(installer).toContain("RunLevel Limited");
+    expect(ensure).toContain('$_.Name -eq "node.exe"');
+    expect(ensure).toContain("*scripts/flow-local-agent.ts*");
   });
 });

@@ -6,7 +6,7 @@ $errorLogPath = Join-Path $logDir "agent-error.log"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $running = Get-CimInstance Win32_Process | Where-Object {
-  $_.CommandLine -like "*scripts/flow-local-agent.ts*" -and $_.ProcessId -ne $PID
+  $_.Name -eq "node.exe" -and $_.CommandLine -like "*scripts/flow-local-agent.ts*"
 }
 if ($running) {
   "[$(Get-Date -Format o)] Flow local agent is already running." | Add-Content -Path $logPath
