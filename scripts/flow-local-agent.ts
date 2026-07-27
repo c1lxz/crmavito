@@ -39,7 +39,14 @@ async function main() {
   console.log(`[flow-agent] ${agentId}; параллельность ${concurrency}; CRM ${baseUrl}`);
   try {
     while (true) {
-      const job = await claimJob();
+      let job: AgentJob | null;
+      try {
+        job = await claimJob();
+      } catch (error) {
+        console.error(`[flow-agent] CRM poll failed: ${error instanceof Error ? error.message : String(error)}`);
+        await delay(Math.max(2_000, pollMs));
+        continue;
+      }
       if (!job) {
         await delay(pollMs);
         continue;
@@ -65,7 +72,13 @@ async function claimJob(): Promise<AgentJob | null> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ agentId }),
   });
-  const data = await response.json() as { job: AgentJob | null; error?: string };
+  const text = await response.text();
+  let data: { job: AgentJob | null; error?: string };
+  try {
+    data = JSON.parse(text) as typeof data;
+  } catch {
+    throw new Error(`CRM вернула не-JSON ответ, HTTP ${response.status}.`);
+  }
   if (!response.ok) throw new Error(data.error || `CRM вернула HTTP ${response.status}.`);
   return data.job;
 }

@@ -23,9 +23,12 @@ describe("Flow agent authentication", () => {
     const root = path.resolve(__dirname, "..");
     const installer = readFileSync(path.join(root, "scripts/install-flow-local-agent-task.ps1"), "utf8");
     const ensure = readFileSync(path.join(root, "scripts/ensure-flow-local-agent.ps1"), "utf8");
+    const agent = readFileSync(path.join(root, "scripts/flow-local-agent.ts"), "utf8");
     expect(installer).toContain("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run");
     expect(installer).toContain("RunLevel Limited");
     expect(ensure).toContain('$_.Name -eq "node.exe"');
     expect(ensure).toContain("*scripts/flow-local-agent.ts*");
+    expect(agent).toContain("CRM poll failed");
+    expect(agent).toContain("CRM вернула не-JSON ответ");
   });
 });
