@@ -6,6 +6,7 @@ import {
   formatDateInput,
   startOfDatabaseDate,
 } from "@/lib/utils";
+import type { Marketplace, Prisma } from "@prisma/client";
 
 export interface DateRange {
   from: Date;
@@ -19,7 +20,29 @@ function getDatabaseDateRange(range: DateRange): DateRange {
   };
 }
 
-async function getActiveOrders(range: DateRange, city?: string, marketplace?: import("@prisma/client").Marketplace) {
+function getReportReturnWhere(
+  range: DateRange,
+  marketplace?: Marketplace,
+  city?: string,
+): Prisma.ReturnWhereInput {
+  const dateRange = getDatabaseDateRange(range);
+  const validOrder: Prisma.OrderWhereInput = {
+    isDeleted: false,
+    status: { not: "CANCELLED" },
+    ...(marketplace ? { marketplace } : {}),
+    ...(city ? { destinationCity: city } : {}),
+  };
+
+  return {
+    status: "RETURNED",
+    returnDate: { gte: dateRange.from, lte: dateRange.to },
+    ...(marketplace || city
+      ? { order: validOrder }
+      : { OR: [{ orderId: null }, { order: validOrder }] }),
+  };
+}
+
+async function getActiveOrders(range: DateRange, city?: string, marketplace?: Marketplace) {
   const dateRange = getDatabaseDateRange(range);
   return prisma.order.findMany({
     where: {
@@ -37,7 +60,7 @@ async function getActiveOrders(range: DateRange, city?: string, marketplace?: im
   });
 }
 
-async function getReceivedOrders(range: DateRange, city?: string, marketplace?: import("@prisma/client").Marketplace) {
+async function getReceivedOrders(range: DateRange, city?: string, marketplace?: Marketplace) {
   return prisma.order.findMany({
     where: {
       status: "RECEIVED",
@@ -54,7 +77,7 @@ async function getReceivedOrders(range: DateRange, city?: string, marketplace?: 
   });
 }
 
-export async function getKpiForRange(range: DateRange, city?: string, marketplace?: import("@prisma/client").Marketplace) {
+export async function getKpiForRange(range: DateRange, city?: string, marketplace?: Marketplace) {
   const orders = await getActiveOrders(range, city, marketplace);
   const financials = orders.map((o) =>
     calcOrderFinancials({
@@ -70,15 +93,7 @@ export async function getKpiForRange(range: DateRange, city?: string, marketplac
   const avgCheck = orders.length > 0 ? totals.revenue / orders.length : 0;
 
   const returns = await prisma.return.count({
-    where: {
-      status: "RETURNED",
-      createdAt: { gte: range.from, lte: range.to },
-      order: {
-        isDeleted: false,
-        status: { not: "CANCELLED" },
-        ...(marketplace ? { marketplace } : {}),
-      },
-    },
+    where: getReportReturnWhere(range, marketplace, city),
   });
   const receivedOrdersCount = await prisma.order.count({
     where: {
@@ -100,7 +115,7 @@ export async function getKpiForRange(range: DateRange, city?: string, marketplac
   };
 }
 
-export async function getPnL(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
+export async function getPnL(range: DateRange, marketplace?: Marketplace) {
   const dateRange = getDatabaseDateRange(range);
   const orders = await getReceivedOrders(range, undefined, marketplace);
   const financials = orders.map((o) =>
@@ -165,7 +180,7 @@ export async function getPnL(range: DateRange, marketplace?: import("@prisma/cli
   };
 }
 
-export async function getProductsReport(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
+export async function getProductsReport(range: DateRange, marketplace?: Marketplace) {
   const orders = await getReceivedOrders(range, undefined, marketplace);
   const byProduct: Record<
     string,
@@ -216,7 +231,7 @@ export async function getProductsReport(range: DateRange, marketplace?: import("
     .sort((a, b) => b.profit - a.profit);
 }
 
-export async function getCounterpartiesReport(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
+export async function getCounterpartiesReport(range: DateRange, marketplace?: Marketplace) {
   const dateRange = getDatabaseDateRange(range);
   const orders = await prisma.order.findMany({
     where: {
@@ -270,18 +285,14 @@ export async function getCounterpartiesReport(range: DateRange, marketplace?: im
   }));
 }
 
-export async function getReturnsReport(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
-  const returns = await prisma.return.findMany({
-    where: {
-      createdAt: { gte: range.from, lte: range.to },
-      order: {
-        isDeleted: false,
-        status: { not: "CANCELLED" },
-        ...(marketplace ? { marketplace } : {}),
-      },
-    },
-    include: { product: true },
-  });
+export async function getReturnsReport(range: DateRange, marketplace?: Marketplace) {
+  const [returns, receivedOrders] = await Promise.all([
+    prisma.return.findMany({
+      where: getReportReturnWhere(range, marketplace),
+      include: { product: true },
+    }),
+    getReceivedOrders(range, undefined, marketplace),
+  ]);
 
   const totalByProduct: Record<string, { name: string; returns: number }> = {};
   for (const r of returns) {
@@ -291,30 +302,29 @@ export async function getReturnsReport(range: DateRange, marketplace?: import("@
     totalByProduct[r.productId].returns += 1;
   }
 
-  const totalOrdersByProduct = await prisma.order.groupBy({
-    by: ["productId", "productNameSnapshot"],
-    where: {
-      isDeleted: false,
-      status: { not: "CANCELLED" },
-      receivedAt: { gte: range.from, lte: range.to },
-      ...(marketplace ? { marketplace } : {}),
-    },
-    _count: true,
-  });
+  const soldByProduct: Record<string, number> = {};
+  for (const order of receivedOrders) {
+    const items = order.items.length
+      ? order.items
+      : [{ productId: order.productId, quantity: order.quantity }];
+    for (const item of items) {
+      soldByProduct[item.productId] =
+        (soldByProduct[item.productId] ?? 0) + item.quantity;
+    }
+  }
 
   return Object.entries(totalByProduct).map(([productId, d]) => {
-    const totalOrders =
-      totalOrdersByProduct.find((o) => o.productId === productId)?._count ?? 0;
+    const sold = soldByProduct[productId] ?? 0;
     return {
       productId,
       name: d.name,
       returns: d.returns,
-      returnPercent: totalOrders > 0 ? (d.returns / totalOrders) * 100 : 0,
+      returnPercent: sold > 0 ? (d.returns / sold) * 100 : 0,
     };
   });
 }
 
-export async function getOrderStatusCounts(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
+export async function getOrderStatusCounts(range: DateRange, marketplace?: Marketplace) {
   const dateRange = getDatabaseDateRange(range);
   const counts = await prisma.order.groupBy({
     by: ["status"],
@@ -344,7 +354,7 @@ export async function getExpenseCategoryTotals(range: DateRange) {
   return result;
 }
 
-export async function getAvitoProfileCounts(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
+export async function getAvitoProfileCounts(range: DateRange, marketplace?: Marketplace) {
   if (marketplace === "WB") return [];
   const dateRange = getDatabaseDateRange(range);
   const orders = await prisma.order.groupBy({
@@ -368,7 +378,7 @@ export async function getAvitoProfileCounts(range: DateRange, marketplace?: impo
   }));
 }
 
-export async function getDynamicsChart(range: DateRange, marketplace?: import("@prisma/client").Marketplace) {
+export async function getDynamicsChart(range: DateRange, marketplace?: Marketplace) {
   const [receivedOrders, activeOrders] = await Promise.all([
     getReceivedOrders(range, undefined, marketplace),
     getActiveOrders(range, undefined, marketplace),

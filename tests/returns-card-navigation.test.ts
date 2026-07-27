@@ -38,4 +38,13 @@ describe("returns card navigation", () => {
     expect(route).toContain("tx.return.deleteMany");
     expect(route).toContain("sourceReturnId: null");
   });
+
+  it("uses the same visibility rules as reports and keeps returned history after warehouse reuse", () => {
+    const page = readFileSync(path.resolve(__dirname, "../app/(app)/returns/page.tsx"), "utf8");
+
+    expect(page).toContain('status: { not: "CANCELLED" as const }');
+    expect(page).not.toMatch(
+      /status:\s*"RETURNED",\s*usedByOrderItems:\s*\{\s*none:\s*\{\s*\}\s*\}/,
+    );
+  });
 });

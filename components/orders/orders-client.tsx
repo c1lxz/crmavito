@@ -57,8 +57,6 @@ interface Props {
     variant: string | null;
     trackingNumber: string;
   }>;
-  totalRevenue: number;
-  totalProfit: number;
   initialOpen?: boolean;
   focusSearch?: boolean;
   initialSearch?: string;
@@ -112,8 +110,6 @@ export function OrdersClient({
   products,
   avitoProfiles,
   depositedReturns,
-  totalRevenue,
-  totalProfit,
   initialOpen = false,
   focusSearch = false,
   initialSearch = "",
@@ -291,6 +287,20 @@ export function OrdersClient({
   ];
 
   const filteredIds = useMemo(() => filtered.map((order) => order.id), [filtered]);
+  const filteredReceivedTotals = useMemo(
+    () =>
+      filtered.reduce(
+        (totals, order) => {
+          if (order.status === "RECEIVED") {
+            totals.revenue += order.revenue;
+            totals.profit += order.netProfit;
+          }
+          return totals;
+        },
+        { revenue: 0, profit: 0 },
+      ),
+    [filtered],
+  );
   const returnQuery = useMemo(
     () =>
       buildOrderFilterQuery({
@@ -804,13 +814,13 @@ export function OrdersClient({
           <Card>
             <CardContent className="p-3">
               <p className="text-[11px] font-semibold text-muted-foreground">Выручка</p>
-              <p className="mt-1 text-sm font-semibold tabular-nums">{formatRub(totalRevenue)}</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums">{formatRub(filteredReceivedTotals.revenue)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-3">
               <p className="text-[11px] font-semibold text-muted-foreground">Прибыль</p>
-              <p className="mt-1 text-sm font-semibold tabular-nums money-positive">{formatRub(totalProfit)}</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums money-positive">{formatRub(filteredReceivedTotals.profit)}</p>
             </CardContent>
           </Card>
           <Card>

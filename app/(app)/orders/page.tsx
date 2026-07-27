@@ -1,10 +1,9 @@
 import { Suspense } from "react";
 import { prisma } from "@/lib/db/prisma";
 import { OrdersClient } from "@/components/orders/orders-client";
-import { calcOrderFinancials, sumFinancials } from "@/lib/finance/calculations";
+import { calcOrderFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "@/lib/db/orders";
 import { getWarehouseBlockingOrderWhere } from "@/lib/orders/warehouse-match";
-import type { OrderStatus } from "@prisma/client";
 
 async function getOrders() {
   const orders = await prisma.order.findMany({
@@ -142,9 +141,6 @@ export default async function OrdersPage({
     getAvitoProfiles(),
   ]);
 
-  const receivedOrders = orders.filter((o) => o.status === "RECEIVED" as OrderStatus);
-  const totals = sumFinancials(receivedOrders);
-
   return (
     <Suspense fallback={<div className="p-4 text-center">Загрузка...</div>}>
       <OrdersClient
@@ -153,8 +149,6 @@ export default async function OrdersPage({
         products={products}
         avitoProfiles={avitoProfiles}
         depositedReturns={depositedReturns}
-        totalRevenue={totals.revenue}
-        totalProfit={totals.netProfit}
         initialOpen={query.new === "1"}
         focusSearch={query.search === "1"}
         initialSearch={query.q}

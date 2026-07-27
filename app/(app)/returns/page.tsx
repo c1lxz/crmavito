@@ -4,7 +4,10 @@ import { toDecimalNumber } from "@/lib/db/orders";
 
 async function getReturns() {
   const visibleReturnWhere = {
-    OR: [{ orderId: null }, { order: { isDeleted: false } }],
+    OR: [
+      { orderId: null },
+      { order: { isDeleted: false, status: { not: "CANCELLED" as const } } },
+    ],
   };
   const [returns, totalReturning, totalReturned, products] = await Promise.all([
     prisma.return.findMany({
@@ -23,7 +26,6 @@ async function getReturns() {
     prisma.return.count({
       where: {
         status: "RETURNED",
-        usedByOrderItems: { none: {} },
         ...visibleReturnWhere,
       },
     }),

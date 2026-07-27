@@ -127,7 +127,7 @@ describe("cancelled orders", () => {
     );
 
     expect(dashboard.match(/status: \{ not: "CANCELLED" \}/g)?.length).toBeGreaterThanOrEqual(3);
-    expect(reports.match(/status: \{ not: "CANCELLED" \}/g)?.length).toBeGreaterThanOrEqual(6);
+    expect(reports.match(/status: \{ not: "CANCELLED" \}/g)?.length).toBeGreaterThanOrEqual(5);
     expect(counterparties).toContain('status: { not: "CANCELLED" }');
   });
 });
