@@ -4,6 +4,7 @@ const ORDER_FILTER_KEYS = [
   "counterpartyId",
   "avitoProfileId",
   "marketplace",
+  "warehouse",
   "dateFrom",
   "dateTo",
 ] as const;
@@ -14,6 +15,7 @@ export interface OrderFilterValues {
   counterpartyId?: string;
   avitoProfileId?: string;
   marketplace?: string;
+  warehouse?: string;
   dateFrom?: string;
   dateTo?: string;
 }
@@ -22,6 +24,7 @@ export function buildOrderFilterQuery(filters: OrderFilterValues): string {
   const params = new URLSearchParams();
   for (const key of ORDER_FILTER_KEYS) {
     const value = filters[key]?.trim();
+    if (key === "warehouse" && value !== "1") continue;
     const isInactiveChoice =
       (key === "status" || key === "counterpartyId" || key === "avitoProfileId" || key === "marketplace") &&
       value === "ALL";

@@ -159,5 +159,8 @@ describe("warehouse accounting for returned goods", () => {
     expect(dialog).toContain("будет использован автоматически");
     expect(dialog).not.toContain("Товар присутствует на депозите");
     expect(list).toContain("Есть на складе");
+    expect(list).toContain("warehouseOnly && !hasWarehouseItem(o)");
+    expect(list).toContain("aria-pressed={warehouseOnly}");
+    expect(list).toContain('warehouse: warehouseOnly ? "1" : undefined');
   });
 });

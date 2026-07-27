@@ -11,6 +11,7 @@ describe("order filter navigation", () => {
       status: "RETURNING",
       counterpartyId: "counterparty-1",
       avitoProfileId: "profile-1",
+      warehouse: "1",
       dateFrom: "2026-07-01",
       dateTo: "2026-07-05",
     });
@@ -21,6 +22,7 @@ describe("order filter navigation", () => {
         status: "RETURNING",
         counterpartyId: "counterparty-1",
         avitoProfileId: "profile-1",
+        warehouse: "1",
         dateFrom: "2026-07-01",
         dateTo: "2026-07-05",
       }),
@@ -34,5 +36,6 @@ describe("order filter navigation", () => {
     expect(sanitizeOrderFilterQuery("q=test&admin=true&status=SHIPPED")).toBe(
       "q=test&status=SHIPPED",
     );
+    expect(sanitizeOrderFilterQuery("warehouse=yes")).toBe("");
   });
 });

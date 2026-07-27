@@ -128,6 +128,7 @@ export default async function OrdersPage({
     counterpartyId?: string;
     avitoProfileId?: string;
     marketplace?: string;
+    warehouse?: string;
     dateFrom?: string;
     dateTo?: string;
   }>;
@@ -161,6 +162,7 @@ export default async function OrdersPage({
         initialCounterpartyFilter={query.counterpartyId}
         initialAvitoProfileFilter={query.avitoProfileId}
         initialMarketplaceFilter={query.marketplace}
+        initialWarehouseOnly={query.warehouse === "1"}
         initialDateFrom={query.dateFrom}
         initialDateTo={query.dateTo}
       />

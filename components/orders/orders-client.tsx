@@ -66,6 +66,7 @@ interface Props {
   initialCounterpartyFilter?: string;
   initialAvitoProfileFilter?: string;
   initialMarketplaceFilter?: string;
+  initialWarehouseOnly?: boolean;
   initialDateFrom?: string;
   initialDateTo?: string;
 }
@@ -120,6 +121,7 @@ export function OrdersClient({
   initialCounterpartyFilter = "ALL",
   initialAvitoProfileFilter = "ALL",
   initialMarketplaceFilter = "ALL",
+  initialWarehouseOnly = false,
   initialDateFrom = "",
   initialDateTo = "",
 }: Props) {
@@ -145,6 +147,7 @@ export function OrdersClient({
       ? initialMarketplaceFilter
       : "ALL",
   );
+  const [warehouseOnly, setWarehouseOnly] = useState(initialWarehouseOnly);
   const [dateFrom, setDateFrom] = useState(initialDateFrom);
   const [dateTo, setDateTo] = useState(initialDateTo);
   const [showCreate, setShowCreate] = useState(initialOpen);
@@ -266,6 +269,7 @@ export function OrdersClient({
         return false;
       }
       if (marketplaceFilter !== "ALL" && o.marketplace !== marketplaceFilter) return false;
+      if (warehouseOnly && !hasWarehouseItem(o)) return false;
       const orderDay = new Date(o.orderDate).toISOString().slice(0, 10);
       if (dateFrom && orderDay < dateFrom) return false;
       if (dateTo && orderDay > dateTo) return false;
@@ -279,7 +283,7 @@ export function OrdersClient({
       }
       return true;
     });
-  }, [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, marketplaceFilter, orders, search, statusFilter]);
+  }, [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, marketplaceFilter, orders, search, statusFilter, warehouseOnly]);
 
   const statuses: Array<{ value: string; label: string }> = [
     { value: "ALL", label: "Все статусы" },
@@ -295,10 +299,11 @@ export function OrdersClient({
         counterpartyId: counterpartyFilter,
         avitoProfileId: avitoProfileFilter,
         marketplace: marketplaceFilter,
+        warehouse: warehouseOnly ? "1" : undefined,
         dateFrom,
         dateTo,
       }),
-    [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, marketplaceFilter, search, statusFilter],
+    [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, marketplaceFilter, search, statusFilter, warehouseOnly],
   );
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
@@ -582,7 +587,9 @@ export function OrdersClient({
           <div className="pc-chip-wrap flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             {statuses.map((s) => (
               <button
+                type="button"
                 key={s.value}
+                aria-pressed={statusFilter === s.value}
                 onClick={() => setStatusFilter(s.value)}
                 className={`filter-chip ${
                   statusFilter === s.value
@@ -593,6 +600,19 @@ export function OrdersClient({
                 {s.label}
               </button>
             ))}
+            <button
+              type="button"
+              aria-pressed={warehouseOnly}
+              onClick={() => setWarehouseOnly((current) => !current)}
+              className={`filter-chip gap-1.5 ${
+                warehouseOnly
+                  ? "border-emerald-600/25 bg-emerald-600 text-white shadow-sm shadow-emerald-900/10 hover:bg-emerald-700 hover:text-white dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                  : ""
+              }`}
+            >
+              <PackageOpen className="h-3.5 w-3.5" />
+              Есть на складе
+            </button>
           </div>
           <div className="pc-orders-date-grid grid grid-cols-2 gap-2">
             <label className="space-y-1 text-xs font-medium text-muted-foreground">
