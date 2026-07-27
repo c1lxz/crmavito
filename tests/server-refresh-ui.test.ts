@@ -59,8 +59,19 @@ describe("server refresh propagation", () => {
     const contents = source("app/(app)/dashboard/page.tsx");
     expect(contents).toContain("todayOrderAmount");
     expect(contents).toContain("weekOrderAmount");
+    expect(contents).toContain("createdAt: { gte: todayStart, lte: todayEnd }");
+    expect(contents).toContain("createdAt: { gte: weekStart, lte: todayEnd }");
     expect(contents).not.toContain('"создано за день"');
     expect(contents).not.toContain('"создано за период"');
+  });
+
+  it("separates created orders from received sales in dashboard widgets", () => {
+    const contents = source("app/(app)/dashboard/page.tsx");
+    expect(contents).toContain(
+      'where: { status: "RECEIVED", receivedAt: { gte: todayStart, lte: todayEnd }, isDeleted: false }',
+    );
+    expect(contents).toContain('label: "Получено сегодня"');
+    expect(contents).toContain('label: "Получено за 7 дней"');
   });
 
   it("ranks top products by active orders instead of received sales", () => {

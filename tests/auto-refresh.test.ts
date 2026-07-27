@@ -55,7 +55,7 @@ describe("authenticated page auto-refresh", () => {
   it("forces fresh server calculations for the main dashboard", () => {
     expect(dashboardSource).toContain('dynamic = "force-dynamic"');
     expect(dashboardSource).toContain("revalidate = 0");
-    expect(dashboardSource).toContain("todayDateStart");
+    expect(dashboardSource).toContain("createdAt: { gte: todayStart, lte: todayEnd }");
     expect(dashboardSource).toContain("startOfDatabaseDate");
   });
 });

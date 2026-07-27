@@ -31,9 +31,6 @@ async function getDashboardData() {
   const weekStart = startOfDay(subDays(now, 6));
   const monthStart = startOfMonth(now);
   const monthEnd = endOfMonth(now);
-  const todayDateStart = startOfDatabaseDate(now);
-  const todayDateEnd = endOfDatabaseDate(now);
-  const weekDateStart = startOfDatabaseDate(subDays(now, 6));
   const monthDateStart = startOfDatabaseDate(monthStart);
   const monthDateEnd = endOfDatabaseDate(monthEnd);
 
@@ -72,14 +69,14 @@ async function getDashboardData() {
         where: {
           isDeleted: false,
           status: { not: "CANCELLED" },
-          orderDate: { gte: todayDateStart, lte: todayDateEnd },
+          createdAt: { gte: todayStart, lte: todayEnd },
         },
       }),
       prisma.order.findMany({
         where: {
           isDeleted: false,
           status: { not: "CANCELLED" },
-          orderDate: { gte: weekDateStart, lte: todayDateEnd },
+          createdAt: { gte: weekStart, lte: todayEnd },
         },
       }),
     ]);
@@ -132,9 +129,9 @@ export default async function DashboardPage() {
 
   const kpiCards = [
     { label: "Заказы сегодня", value: `${data.todayOrders}`, sub: formatRub(data.todayOrderAmount) },
-    { label: "Продажи сегодня", value: `${data.todaySales}`, sub: formatRub(data.todayRevenue) },
+    { label: "Получено сегодня", value: `${data.todaySales}`, sub: formatRub(data.todayRevenue) },
     { label: "Заказы за 7 дней", value: `${data.weekOrders}`, sub: formatRub(data.weekOrderAmount) },
-    { label: "Продажи за 7 дней", value: `${data.weekSales}`, sub: `${formatRub(data.weekProfit)} прибыли` },
+    { label: "Получено за 7 дней", value: `${data.weekSales}`, sub: `${formatRub(data.weekProfit)} прибыли` },
   ];
 
   const formatOrderCount = (count: number) => {
