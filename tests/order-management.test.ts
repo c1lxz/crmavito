@@ -120,6 +120,9 @@ describe("order management UI/API", () => {
     );
     expect(ordersClientSource).toContain("/api/orders/bulk-delete");
     expect(ordersClientSource).toContain("deleteSelectedOrders");
+    expect(ordersClientSource).toMatch(
+      /\{selectedIds\.size > 0 && \(\s*<Button[\s\S]*?onClick=\{deleteSelectedOrders\}/,
+    );
     expect(ordersClientSource).toContain("Больше не учитываются в статистике");
     expect(bulkDeleteRouteSource).toContain("isDeleted: true");
     expect(reportsSource).toContain("isDeleted: false");

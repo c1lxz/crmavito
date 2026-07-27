@@ -610,17 +610,19 @@ export function OrdersClient({
                 >
                   {allFilteredSelected ? "Снять найденные" : `Выбрать найденные (${filteredIds.length})`}
                 </button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="h-8"
-                  disabled={selectedIds.size === 0 || isUpdating}
-                  onClick={deleteSelectedOrders}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Удалить{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
-                </Button>
+                {selectedIds.size > 0 && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="h-8"
+                    disabled={isUpdating}
+                    onClick={deleteSelectedOrders}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Удалить ({selectedIds.size})
+                  </Button>
+                )}
               </div>
             </div>
           )}

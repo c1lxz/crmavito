@@ -29,6 +29,9 @@ describe("returns card navigation", () => {
 
     expect(source).toContain("/api/returns/bulk-delete");
     expect(source).toContain("deleteSelectedReturns");
+    expect(source).toMatch(
+      /\{selectedIds\.size > 0 && \(\s*<Button[\s\S]*?onClick=\{deleteSelectedReturns\}/,
+    );
     expect(source).toContain("Больше не учитываются в статистике");
     expect(source).toContain("current.totalReturning - deletedReturns.filter");
     expect(source).toContain("current.totalReturned - deletedReturns.filter");
