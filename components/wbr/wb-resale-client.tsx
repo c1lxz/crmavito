@@ -24,13 +24,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 const AGENT_URL = "http://127.0.0.1:3017";
-const AGENT_VERSION = "2026.07.27.5";
+const AGENT_VERSION = "2026.07.27.6";
 const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
 
 type AgentStatus = "online" | "offline";
-type BrowserPreference = "chrome" | "yandex";
+type BrowserPreference = "chrome" | "yandex" | "edge" | "firefox";
 
 interface Listing {
   sku: string;
@@ -600,9 +600,13 @@ function AgentBanner({
             >
               <option value="chrome">Google Chrome</option>
               <option value="yandex">Яндекс.Браузер</option>
+              <option value="edge">Microsoft Edge</option>
+              <option value="firefox">Mozilla Firefox</option>
             </select>
             <p className="text-xs text-muted-foreground">
-              {running ? "Нельзя изменить во время работы." : "Выбор сохранится на этом ПК."}
+              {running
+                ? "Нельзя изменить во время работы."
+                : "Агент устанавливается один раз. Браузер можно менять здесь перед каждой выгрузкой."}
             </p>
           </div>
         </CardContent>

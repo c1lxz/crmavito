@@ -158,6 +158,13 @@ try {
     throw "Не удалось установить компоненты агента после двух попыток (код $npmExitCode). Проверьте интернет и повторите запуск."
   }
 
+  Set-Progress 78 "Устанавливаю поддержку Mozilla Firefox..."
+  $playwright = Join-Path $rpaDir "node_modules\.bin\playwright.cmd"
+  $firefoxProcess = Start-Process -FilePath $playwright -ArgumentList @("install", "firefox") -WorkingDirectory $rpaDir -Wait -PassThru -WindowStyle Hidden
+  if ($firefoxProcess.ExitCode -ne 0) {
+    throw "Не удалось установить поддержку Mozilla Firefox (код $($firefoxProcess.ExitCode)). Проверьте интернет и повторите запуск."
+  }
+
   Set-Progress 84 "Настраиваю тихий автозапуск..."
   $nodePath = (Get-Command "node.exe" -ErrorAction Stop).Source
   $shell = New-Object -ComObject WScript.Shell
