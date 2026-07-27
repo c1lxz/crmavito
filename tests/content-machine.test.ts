@@ -26,7 +26,8 @@ describe("content machine", () => {
   it("starts local Google Flow jobs from the content machine", () => {
     expect(clientSource).toContain('fetch("/api/ai/content-machine/codex-jobs"');
     expect(clientSource).toContain("content-machine-flow-job");
-    expect(clientSource).toContain("Google Flow · локальный агент");
+    expect(clientSource).toContain("Flow онлайн");
+    expect(clientSource).toContain("/api/ai/content-machine/flow-agent/status");
     expect(clientSource).toContain("Скачать выбранные");
     expect(clientSource).not.toContain("generateGeminiImage");
     expect(jobsSource).toContain('provider: "google-flow"');

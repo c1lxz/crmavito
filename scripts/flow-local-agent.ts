@@ -15,6 +15,7 @@ type AgentJob = {
   backgrounds: Array<{ slot: BackgroundSlot; fileName: string }>;
   results: Array<{ productIndex: number; backgroundSlot: BackgroundSlot }>;
 };
+type FlowAvailability = { state: "ready" | "blocked" | "auth_required" | "error"; message: string };
 
 const baseUrl = (process.env.FLOW_AGENT_CRM_URL || "https://crmavito.duckdns.org").replace(/\/+$/, "");
 const token = process.env.FLOW_LOCAL_AGENT_TOKEN?.trim() || "";
@@ -36,9 +37,34 @@ async function main() {
     viewport: { width: 1440, height: 1000 },
     args: ["--disable-background-timer-throttling", "--disable-renderer-backgrounding"],
   });
+  if (process.env.FLOW_AGENT_PREFLIGHT === "1") {
+    const page = context.pages()[0] || await context.newPage();
+    await page.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const summary = (await page.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 500);
+    console.log(JSON.stringify({ url: page.url(), title: await page.title(), summary }));
+    await context.close();
+    return;
+  }
   console.log(`[flow-agent] ${agentId}; параллельность ${concurrency}; CRM ${baseUrl}`);
   try {
+    let availability = await probeFlow(context);
+    let nextProbeAt = Date.now() + 5 * 60_000;
+    let nextHeartbeatAt = 0;
     while (true) {
+      if (Date.now() >= nextProbeAt) {
+        availability = await probeFlow(context);
+        nextProbeAt = Date.now() + 5 * 60_000;
+      }
+      if (Date.now() >= nextHeartbeatAt) {
+        await reportStatus(availability).catch((error) => {
+          console.error(`[flow-agent] heartbeat failed: ${error instanceof Error ? error.message : String(error)}`);
+        });
+        nextHeartbeatAt = Date.now() + 15_000;
+      }
+      if (availability.state !== "ready") {
+        await delay(5_000);
+        continue;
+      }
       let job: AgentJob | null;
       try {
         job = await claimJob();
@@ -64,6 +90,40 @@ async function main() {
   } finally {
     await context.close();
   }
+}
+
+async function probeFlow(context: Awaited<ReturnType<typeof chromium.launchPersistentContext>>): Promise<FlowAvailability> {
+  const page = await context.newPage();
+  try {
+    await page.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const url = page.url();
+    const body = (await page.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 1000);
+    if (url.includes("/unsupported-country") || body.includes("Flow is not available in your country")) {
+      return { state: "blocked", message: "Google Flow отклоняет регион или профиль аккаунта." };
+    }
+    if (url.includes("accounts.google.") || /\bSign in\b/i.test(body)) {
+      return { state: "auth_required", message: "В профиле локального агента требуется вход в Google." };
+    }
+    return { state: "ready", message: "Google Flow доступен; агент готов к генерации." };
+  } catch (error) {
+    return { state: "error", message: error instanceof Error ? error.message : String(error) };
+  } finally {
+    await page.close();
+  }
+}
+
+async function reportStatus(availability: FlowAvailability) {
+  const response = await agentFetch("/api/ai/content-machine/flow-agent/status", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      agentId,
+      ...availability,
+      checkedAt: new Date().toISOString(),
+      concurrency,
+    }),
+  });
+  if (!response.ok) throw new Error(`CRM вернула HTTP ${response.status}.`);
 }
 
 async function claimJob(): Promise<AgentJob | null> {

@@ -33,6 +33,12 @@ type Background = {
   url: string | null;
 };
 type ProductPhoto = { id: string; file: File; previewUrl: string };
+type FlowAgentStatus = {
+  state: "ready" | "blocked" | "auth_required" | "error";
+  message: string;
+  online: boolean;
+  concurrency: number;
+};
 type FlowResult = {
   id: string;
   productIndex: number;
@@ -71,14 +77,20 @@ export function ContentMachineClient() {
   const [job, setJob] = useState<FlowJob | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<FlowAgentStatus | null>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
   const productUrlsRef = useRef<string[]>([]);
 
   useEffect(() => {
     void loadBackgrounds();
+    void loadAgentStatus();
+    const statusTimer = window.setInterval(() => void loadAgentStatus(), 5000);
     const savedJobId = window.localStorage.getItem("content-machine-flow-job");
     if (savedJobId) void loadJob(savedJobId, false);
-    return () => productUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    return () => {
+      window.clearInterval(statusTimer);
+      productUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    };
   }, []);
 
   useEffect(() => {
@@ -98,6 +110,17 @@ export function ContentMachineClient() {
       toast({ title: "Фоны не загружены", description: errorMessage(error), variant: "destructive" });
     } finally {
       setBackgroundsLoading(false);
+    }
+  }
+
+  async function loadAgentStatus() {
+    try {
+      const response = await fetch("/api/ai/content-machine/flow-agent/status", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      setAgentStatus(data.status);
+    } catch {
+      setAgentStatus(null);
     }
   }
 
@@ -200,6 +223,7 @@ export function ContentMachineClient() {
   }
 
   const allBackgroundsReady = backgrounds.every((background) => Boolean(background.url));
+  const agentReady = Boolean(agentStatus?.online && agentStatus.state === "ready");
   const readyResults = job?.results || [];
   const selectedCount = selectedIds.length;
 
@@ -214,7 +238,19 @@ export function ContentMachineClient() {
             <h1 className="truncate text-lg font-semibold tracking-tight">Контент-машина</h1>
             <p className="hidden text-xs text-muted-foreground sm:block">Фотореалистичные карточки товара на трёх утверждённых фонах</p>
           </div>
-          <Badge variant="outline" className="hidden sm:inline-flex">Google Flow · локальный агент</Badge>
+          <Badge
+            variant={agentStatus?.online && agentStatus.state === "ready" ? "success" : "outline"}
+            className="hidden sm:inline-flex"
+            title={agentStatus?.message}
+          >
+            {agentStatus?.online && agentStatus.state === "ready"
+              ? `Flow онлайн · ${agentStatus.concurrency} потока`
+              : agentStatus?.state === "blocked"
+                ? "Flow: регион заблокирован"
+                : agentStatus?.state === "auth_required"
+                  ? "Flow: нужен вход"
+                  : "Flow-агент офлайн"}
+          </Badge>
           <Select value={imageSize} onValueChange={(value: "2K" | "4K") => setImageSize(value)} disabled={creatingJob}>
             <SelectTrigger className="h-9 w-24"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -308,11 +344,14 @@ export function ContentMachineClient() {
                 <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">Агент сам откроет отдельный проект Flow для каждого результата, загрузит оба референса, вставит промпт и сохранит готовое фото в CRM.</p>
               </div>
             </div>
-            <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady} className="shrink-0">
+            <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady || (agentStatus !== null && !agentReady)} className="shrink-0">
               {creatingJob ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               {creatingJob ? "Ставлю в очередь Flow…" : `Создать ${products.length * 3} фото`}
             </Button>
           </div>
+          {agentStatus && (!agentStatus.online || agentStatus.state !== "ready") && (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{agentStatus.message}</p>
+          )}
           {!allBackgroundsReady && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Перед запуском загрузите все три эталонных фона.</p>}
         </section>
 
