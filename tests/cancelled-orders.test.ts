@@ -84,6 +84,34 @@ describe("cancelled orders", () => {
     );
   });
 
+  it("releases a reserved warehouse item when an accepted order is cancelled", async () => {
+    mocks.findUnique.mockResolvedValueOnce({
+      id: "order-warehouse",
+      status: "ACCEPTED",
+      productId: "product-1",
+      trackingNumber: "TRACK-WAREHOUSE",
+      shippingDate: null,
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/orders/order-warehouse/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      }),
+      { params: Promise.resolve({ id: "order-warehouse" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.orderItemUpdateMany).toHaveBeenCalledWith({
+      where: {
+        orderId: "order-warehouse",
+        sourceReturnId: { not: null },
+      },
+      data: { sourceReturnId: null },
+    });
+  });
+
   it("excludes cancelled orders from every financial dashboard source", () => {
     const dashboard = readFileSync(
       path.resolve(__dirname, "../app/(app)/dashboard/page.tsx"),

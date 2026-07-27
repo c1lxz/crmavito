@@ -37,6 +37,7 @@ interface Order {
   product: { imageUrl: string | null };
   items?: Array<{
     imageUrls: string[];
+    sourceReturnId?: string | null;
     product?: { imageUrl: string | null };
   }>;
   counterparty: { id: string; name: string };
@@ -95,6 +96,13 @@ function getOrderThumbnailUrl(order: Order, size: number): string | null {
   const filename = imageUrl.split("/").pop();
   if (!filename) return imageUrl;
   return `/api/uploads/orders/${encodeURIComponent(filename)}?thumb=1&size=${size}`;
+}
+
+function hasWarehouseItem(order: Order) {
+  return (
+    order.status === "ACCEPTED" &&
+    order.items?.some((item) => Boolean(item.sourceReturnId))
+  );
 }
 
 export function OrdersClient({
@@ -878,9 +886,17 @@ export function OrdersClient({
                       </div>
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
-                        {ORDER_STATUS_LABELS[order.status]}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
+                          {ORDER_STATUS_LABELS[order.status]}
+                        </span>
+                        {hasWarehouseItem(order) ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                            <PackageOpen className="h-3 w-3" />
+                            Есть на складе
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right align-top font-semibold tabular-nums">
                       {formatRub(order.salePriceAtOrder * order.quantity)}
@@ -967,11 +983,19 @@ export function OrdersClient({
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-start justify-between gap-2">
                       <span className="text-xs text-muted-foreground">№{order.orderNumber} · {formatDate(order.orderDate)}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
-                        {ORDER_STATUS_LABELS[order.status]}
-                      </span>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
+                          {ORDER_STATUS_LABELS[order.status]}
+                        </span>
+                        {hasWarehouseItem(order) ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                            <PackageOpen className="h-3 w-3" />
+                            Есть на складе
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     <p className="font-medium text-sm mt-0.5 truncate">{order.productNameSnapshot}</p>
                     {order.variant && <p className="text-xs text-muted-foreground">Цвет: {order.variant}</p>}

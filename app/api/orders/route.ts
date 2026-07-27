@@ -8,6 +8,10 @@ import { createAuditLog } from "@/lib/db/audit";
 import { detectCarrier } from "@/lib/tracking";
 import { processOrderNotificationByOrderId } from "@/lib/telegram/order-notification-queue";
 import { createOrderSchema, getLegacyOrderTotals } from "@/lib/orders/schema";
+import {
+  isExactWarehouseMatch,
+  getWarehouseBlockingOrderWhere,
+} from "@/lib/orders/warehouse-match";
 import { parseDatabaseDateInput } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
@@ -120,7 +124,9 @@ export async function POST(req: NextRequest) {
           where: {
             id: { in: sourceReturnIds },
             status: "RETURNED",
-            usedByOrderItems: { none: {} },
+            usedByOrderItems: {
+              none: { order: getWarehouseBlockingOrderWhere() },
+            },
           },
         })
       : Promise.resolve([]),
@@ -130,7 +136,7 @@ export async function POST(req: NextRequest) {
   }
   if (sourceReturns.length !== sourceReturnIds.length) {
     return NextResponse.json(
-      { error: "Один из товаров с депозита уже использован или недоступен" },
+      { error: "Один из товаров со склада уже используется в другом заказе или недоступен" },
       { status: 409 },
     );
   }
@@ -138,15 +144,11 @@ export async function POST(req: NextRequest) {
   const sourceMismatch = data.items.some((item) => {
     if (!item.sourceReturnId) return false;
     const ret = sourceReturnsById.get(item.sourceReturnId);
-    return (
-      !ret ||
-      ret.productId !== item.productId ||
-      (ret.size ?? "").trim().toLowerCase() !== (item.size ?? "").trim().toLowerCase()
-    );
+    return !ret || !isExactWarehouseMatch(ret, item);
   });
   if (sourceMismatch) {
     return NextResponse.json(
-      { error: "Товар с депозита не совпадает с выбранной позицией и размером" },
+      { error: "Товар со склада не совпадает по товару, цвету или размеру" },
       { status: 400 },
     );
   }
@@ -175,6 +177,7 @@ export async function POST(req: NextRequest) {
     data.carrier?.trim() || detectCarrier(data.trackingNumber)?.carrier || "";
 
   let order: Order | null = null;
+  let warehouseConflict = false;
   for (let attempt = 0; attempt < 3 && !order; attempt++) {
     const orderNumber = await generateOrderNumber();
     try {
@@ -236,12 +239,26 @@ export async function POST(req: NextRequest) {
         return created;
       });
     } catch (error) {
+      const duplicateWarehouseItem =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002" &&
+        String(error.meta?.target ?? "").includes("sourceReturnId");
+      if (duplicateWarehouseItem) {
+        warehouseConflict = true;
+        break;
+      }
       const duplicateOrderNumber =
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002" &&
         String(error.meta?.target ?? "").includes("orderNumber");
       if (!duplicateOrderNumber || attempt === 2) throw error;
     }
+  }
+  if (warehouseConflict) {
+    return NextResponse.json(
+      { error: "Этот товар со склада только что был использован в другом заказе" },
+      { status: 409 },
+    );
   }
   if (!order) {
     return NextResponse.json(

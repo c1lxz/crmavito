@@ -23,10 +23,22 @@ export async function POST(req: NextRequest) {
   const deletedCount = await prisma.$transaction(async (tx) => {
     const orders = await tx.order.findMany({
       where: { id: { in: orderIds }, isDeleted: false },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (orders.length !== orderIds.length) return null;
 
+    const reservedOrderIds = orders
+      .filter((order) => order.status === "ACCEPTED")
+      .map((order) => order.id);
+    if (reservedOrderIds.length > 0) {
+      await tx.orderItem.updateMany({
+        where: {
+          orderId: { in: reservedOrderIds },
+          sourceReturnId: { not: null },
+        },
+        data: { sourceReturnId: null },
+      });
+    }
     await tx.order.updateMany({
       where: { id: { in: orderIds }, isDeleted: false },
       data: { isDeleted: true },

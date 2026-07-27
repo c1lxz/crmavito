@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { createAuditLog } from "@/lib/db/audit";
 import { getStatusFinancialUpdate } from "@/lib/orders/status";
+import { transferWarehouseCostsOnShipment } from "@/lib/orders/warehouse";
 
 const orderIdsSchema = z.array(z.string().min(1)).min(1).max(500);
 const schema = z.discriminatedUnion("action", [
@@ -140,6 +141,15 @@ export async function POST(req: NextRequest) {
           where: { orderId: order.id },
           data: financialUpdate.items,
         });
+      }
+      if (status === "CANCELLED" && order.status === "ACCEPTED") {
+        await tx.orderItem.updateMany({
+          where: { orderId: order.id, sourceReturnId: { not: null } },
+          data: { sourceReturnId: null },
+        });
+      }
+      if (status === "SHIPPED") {
+        await transferWarehouseCostsOnShipment(tx, order.id);
       }
 
       if (status === "RETURNING" || status === "RETURNED") {

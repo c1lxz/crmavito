@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { OrdersClient } from "@/components/orders/orders-client";
 import { calcOrderFinancials, sumFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "@/lib/db/orders";
+import { getWarehouseBlockingOrderWhere } from "@/lib/orders/warehouse-match";
 import type { OrderStatus } from "@prisma/client";
 
 async function getOrders() {
@@ -53,6 +54,7 @@ async function getOrders() {
     items: o.items.map((item) => ({
       id: item.id,
       imageUrls: item.imageUrls,
+      sourceReturnId: item.sourceReturnId,
       product: {
         imageUrl: item.product.imageUrl,
       },
@@ -97,7 +99,9 @@ async function getDepositedReturns() {
   const returns = await prisma.return.findMany({
     where: {
       status: "RETURNED",
-      usedByOrderItems: { none: {} },
+      usedByOrderItems: {
+        none: { order: getWarehouseBlockingOrderWhere() },
+      },
       OR: [{ orderId: null }, { order: { isDeleted: false } }],
     },
     select: {
@@ -108,7 +112,7 @@ async function getDepositedReturns() {
       variant: true,
       trackingNumber: true,
     },
-    orderBy: { returnDate: "desc" },
+    orderBy: [{ returnDate: "asc" }, { createdAt: "asc" }],
   });
   return returns;
 }

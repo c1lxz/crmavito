@@ -402,7 +402,7 @@ model OrderItem {
   salePriceAtOrder     Decimal  @db.Decimal(12, 2)
   purchasePricePerUnit Decimal  @db.Decimal(12, 2)
   imageUrls            String[] @default([])
-  sourceReturnId       String?
+  sourceReturnId       String?  @unique
   position             Int      @default(0)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -413,7 +413,6 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
-  @@index([sourceReturnId])
   @@map("order_items")
 }
 

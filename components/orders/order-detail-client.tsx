@@ -174,6 +174,9 @@ export function OrderDetailClient({ order, financials, products, counterparties,
       sourceReturnId: item.sourceReturnId,
     })),
   };
+  const hasWarehouseItem =
+    order.status === "ACCEPTED" &&
+    displayedItems.some((item) => Boolean(item.sourceReturnId));
 
   async function changeStatus(status: OrderStatus) {
     setLoading(true);
@@ -265,6 +268,12 @@ export function OrderDetailClient({ order, financials, products, counterparties,
                 ))}
               </SelectContent>
             </Select>
+            {hasWarehouseItem ? (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/12 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                <Package className="h-3.5 w-3.5" />
+                Есть на складе
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -285,9 +294,9 @@ export function OrderDetailClient({ order, financials, products, counterparties,
                       {item.size ? `${item.size} · ` : ""}
                       {item.quantity} шт. × {formatRub(item.salePriceAtOrder)}
                     </p>
-                    {item.sourceReturn ? (
+                    {item.sourceReturn && order.status === "ACCEPTED" ? (
                       <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                        Взят с депозита · возврат {item.sourceReturn.trackingNumber}
+                        Есть на складе · возврат {item.sourceReturn.trackingNumber}
                       </p>
                     ) : null}
                   </div>

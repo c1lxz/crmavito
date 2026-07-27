@@ -66,6 +66,30 @@ describe("bulk deletion", () => {
     expect(mocks.createAuditLog).toHaveBeenCalledTimes(2);
   });
 
+  it("returns reserved warehouse goods when an unshipped order is deleted", async () => {
+    mocks.tx.order.findMany.mockResolvedValue([
+      { id: ORDER_1, status: "ACCEPTED" },
+      { id: ORDER_2, status: "SHIPPED" },
+    ]);
+
+    const response = await deleteOrders(
+      new NextRequest("http://localhost/api/orders/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds: [ORDER_1, ORDER_2] }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.tx.orderItem.updateMany).toHaveBeenCalledWith({
+      where: {
+        orderId: { in: [ORDER_1] },
+        sourceReturnId: { not: null },
+      },
+      data: { sourceReturnId: null },
+    });
+  });
+
   it("does not partially delete orders when one selection is missing", async () => {
     mocks.tx.order.findMany.mockResolvedValue([{ id: ORDER_1 }]);
 

@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDateInput, formatRub, matchesSearch } from "@/lib/utils";
 import { detectCarrier, KNOWN_CARRIERS } from "@/lib/tracking";
 import { toast } from "@/lib/hooks/use-toast";
+import { findWarehouseReturn } from "@/lib/orders/warehouse-match";
 
 export interface OrderFormProduct {
   id: string;
@@ -179,6 +180,48 @@ export function CreateOrderDialog({
     }));
   }
 
+  function updateItemWithWarehouse(index: number, patch: Partial<OrderFormItem>) {
+    setForm((current) => {
+      const currentItem = current.items[index];
+      const nextItem = { ...currentItem, ...patch };
+      if (isEditing) {
+        return {
+          ...current,
+          items: current.items.map((item, itemIndex) =>
+            itemIndex === index ? nextItem : item
+          ),
+        };
+      }
+
+      const excludedIds = new Set(
+        current.items.flatMap((item, itemIndex) =>
+          itemIndex !== index && item.sourceReturnId ? [item.sourceReturnId] : []
+        ),
+      );
+      const warehouseReturn = findWarehouseReturn(
+        depositedReturns,
+        nextItem,
+        excludedIds,
+      );
+      const matchedItem = {
+        ...nextItem,
+        sourceReturnId: warehouseReturn?.id ?? null,
+        purchasePricePerUnit: warehouseReturn
+          ? "0"
+          : currentItem.sourceReturnId
+            ? ""
+            : nextItem.purchasePricePerUnit,
+      };
+
+      return {
+        ...current,
+        items: current.items.map((item, itemIndex) =>
+          itemIndex === index ? matchedItem : item
+        ),
+      };
+    });
+  }
+
   async function fetchProductImage(index: number, productId: string, avitoProfileId = form.avitoProfileId) {
     updateItem(index, { productImageLoading: true, productImageError: null });
     try {
@@ -212,13 +255,12 @@ export function CreateOrderDialog({
   function selectProduct(index: number, productId: string) {
     const product = productsById.get(productId);
     if (!product) return;
-    updateItem(index, {
+    updateItemWithWarehouse(index, {
       productId,
       productSearch: product.name,
       salePriceAtOrder: String(product.salePrice),
       imageUrls: product.imageUrl ? [product.imageUrl] : [],
       productImageError: null,
-      sourceReturnId: null,
     });
     if (!product.imageUrl) void fetchProductImage(index, productId);
   }
@@ -367,14 +409,9 @@ export function CreateOrderDialog({
                       .filter((product) => matchesSearch(product.name, item.productSearch))
                       .slice(0, 50)
                   : [];
-              const matchingDeposits = item.productId
-                ? depositedReturns.filter(
-                    (ret) =>
-                      ret.productId === item.productId &&
-                      (ret.size ?? "").trim().toLowerCase() ===
-                        item.size.trim().toLowerCase(),
-                  )
-                : [];
+              const warehouseReturn = item.sourceReturnId
+                ? depositedReturns.find((returnedItem) => returnedItem.id === item.sourceReturnId)
+                : null;
               return (
                 <section
                   key={index}
@@ -404,7 +441,7 @@ export function CreateOrderDialog({
                       value={item.productSearch}
                       placeholder="Начните вводить название..."
                       onChange={(event) =>
-                        updateItem(index, {
+                        updateItemWithWarehouse(index, {
                           productSearch: event.target.value,
                           ...(event.target.value !== selectedProduct?.name
                             ? { productId: "", imageUrls: [] }
@@ -435,7 +472,9 @@ export function CreateOrderDialog({
                       <Label>Цвет / вариант</Label>
                       <Input
                         value={item.variant}
-                        onChange={(event) => updateItem(index, { variant: event.target.value })}
+                        onChange={(event) =>
+                          updateItemWithWarehouse(index, { variant: event.target.value })
+                        }
                       />
                     </div>
                     <div className="space-y-1">
@@ -443,9 +482,8 @@ export function CreateOrderDialog({
                       <Input
                         value={item.size}
                         onChange={(event) =>
-                          updateItem(index, {
+                          updateItemWithWarehouse(index, {
                             size: event.target.value,
-                            sourceReturnId: null,
                           })
                         }
                       />
@@ -457,7 +495,9 @@ export function CreateOrderDialog({
                         min={1}
                         value={item.quantity}
                         onChange={(event) =>
-                          updateItem(index, { quantity: Math.max(1, Number(event.target.value)) })
+                          updateItemWithWarehouse(index, {
+                            quantity: Math.max(1, Number(event.target.value)),
+                          })
                         }
                       />
                     </div>
@@ -475,36 +515,15 @@ export function CreateOrderDialog({
                       />
                     </div>
                   </div>
-                  {matchingDeposits.length > 0 ? (
+                  {warehouseReturn ? (
                     <div className="space-y-2 rounded-md border border-emerald-500/35 bg-emerald-500/10 p-3">
                       <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
                         <Warehouse className="h-4 w-4" />
-                        Товар присутствует на депозите
+                        Есть на складе
                       </div>
-                      {matchingDeposits.map((ret) => (
-                        <label
-                          key={ret.id}
-                          className="flex cursor-pointer items-start gap-2 text-xs"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={item.sourceReturnId === ret.id}
-                            onChange={(event) =>
-                              updateItem(index, {
-                                sourceReturnId: event.target.checked ? ret.id : null,
-                                ...(event.target.checked
-                                  ? { purchasePricePerUnit: "0" }
-                                  : {}),
-                              })
-                            }
-                            className="mt-0.5 h-4 w-4 accent-emerald-600"
-                          />
-                          <span>
-                            Взять с возврата — трек <strong>{ret.trackingNumber}</strong>
-                            {ret.variant ? `, ${ret.variant}` : ""}
-                          </span>
-                        </label>
-                      ))}
+                      <p className="text-xs text-emerald-900/80 dark:text-emerald-100/80">
+                        Возврат {warehouseReturn.trackingNumber} будет использован автоматически.
+                      </p>
                     </div>
                   ) : null}
                   <div className="space-y-1">

@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { createAuditLog } from "@/lib/db/audit";
 import { detectCarrier } from "@/lib/tracking";
 import { getLegacyOrderTotals, updateOrderSchema } from "@/lib/orders/schema";
+import {
+  isExactWarehouseMatch,
+  getWarehouseBlockingOrderWhere,
+} from "@/lib/orders/warehouse-match";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -63,7 +68,11 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
             id: { in: sourceReturnIds },
             status: "RETURNED",
             OR: [
-              { usedByOrderItems: { none: {} } },
+              {
+                usedByOrderItems: {
+                  none: { order: getWarehouseBlockingOrderWhere() },
+                },
+              },
               { usedByOrderItems: { some: { orderId: id } } },
             ],
           },
@@ -75,7 +84,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   }
   if (sourceReturns.length !== sourceReturnIds.length) {
     return NextResponse.json(
-      { error: "Один из товаров с депозита уже использован или недоступен" },
+      { error: "Один из товаров со склада уже используется в другом заказе или недоступен" },
       { status: 409 },
     );
   }
@@ -88,15 +97,11 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     normalizedItems?.some((item) => {
       if (!item.sourceReturnId) return false;
       const ret = sourceReturnsById.get(item.sourceReturnId);
-      return (
-        !ret ||
-        ret.productId !== item.productId ||
-        (ret.size ?? "").trim().toLowerCase() !== (item.size ?? "").trim().toLowerCase()
-      );
+      return !ret || !isExactWarehouseMatch(ret, item);
     })
   ) {
     return NextResponse.json(
-      { error: "Товар с депозита не совпадает с выбранной позицией и размером" },
+      { error: "Товар со склада не совпадает по товару, цвету или размеру" },
       { status: 400 },
     );
   }
@@ -196,41 +201,55 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     });
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    if (normalizedItems) {
-      await tx.orderItem.deleteMany({ where: { orderId: id } });
-      await tx.orderItem.createMany({
-        data: normalizedItems.map((item, position) => ({
-          orderId: id,
-          productId: item.productId,
-          productNameSnapshot: productsById.get(item.productId)!.name,
-          variant: item.variant || null,
-          size: item.size || null,
-          quantity: item.quantity,
-          salePriceAtOrder: item.salePriceAtOrder,
-          purchasePricePerUnit: item.purchasePricePerUnit,
-          imageUrls: item.imageUrls,
-          sourceReturnId: item.sourceReturnId ?? null,
-          position,
-        })),
-      });
-    }
-    const result = await tx.order.update({ where: { id }, data: updateData });
-    for (const entry of auditEntries) {
-      await createAuditLog(
-        {
-          entityType: "ORDER",
-          entityId: id,
-          userId: session.user.id,
-          ...entry,
-        },
-        tx
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      if (normalizedItems) {
+        await tx.orderItem.deleteMany({ where: { orderId: id } });
+        await tx.orderItem.createMany({
+          data: normalizedItems.map((item, position) => ({
+            orderId: id,
+            productId: item.productId,
+            productNameSnapshot: productsById.get(item.productId)!.name,
+            variant: item.variant || null,
+            size: item.size || null,
+            quantity: item.quantity,
+            salePriceAtOrder: item.salePriceAtOrder,
+            purchasePricePerUnit: item.purchasePricePerUnit,
+            imageUrls: item.imageUrls,
+            sourceReturnId: item.sourceReturnId ?? null,
+            position,
+          })),
+        });
+      }
+      const result = await tx.order.update({ where: { id }, data: updateData });
+      for (const entry of auditEntries) {
+        await createAuditLog(
+          {
+            entityType: "ORDER",
+            entityId: id,
+            userId: session.user.id,
+            ...entry,
+          },
+          tx
+        );
+      }
+      return result;
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    const duplicateWarehouseItem =
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002" &&
+      String(error.meta?.target ?? "").includes("sourceReturnId");
+    if (duplicateWarehouseItem) {
+      return NextResponse.json(
+        { error: "Этот товар со склада только что был использован в другом заказе" },
+        { status: 409 },
       );
     }
-    return result;
-  });
-
-  return NextResponse.json(updated);
+    throw error;
+  }
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteContext) {
@@ -242,6 +261,12 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
   if (!order) return NextResponse.json({ error: "Заказ не найден" }, { status: 404 });
 
   await prisma.$transaction(async (tx) => {
+    if (order.status === "ACCEPTED") {
+      await tx.orderItem.updateMany({
+        where: { orderId: id, sourceReturnId: { not: null } },
+        data: { sourceReturnId: null },
+      });
+    }
     await tx.order.update({ where: { id }, data: { isDeleted: true } });
     await createAuditLog(
       {
