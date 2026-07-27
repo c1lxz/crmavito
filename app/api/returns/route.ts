@@ -107,18 +107,25 @@ export async function POST(req: NextRequest) {
   }
 
   const orderItem = matchingOrder?.items[0];
-  const existing = matchingOrder
-    ? await prisma.return.findFirst({
-        where: {
-          orderId: matchingOrder.id,
-          status: { in: ["RETURNING", "RETURNED"] },
+  const existing = await prisma.return.findFirst({
+    where: {
+      status: { in: ["RETURNING", "RETURNED"] },
+      OR: [
+        ...(matchingOrder ? [{ orderId: matchingOrder.id }] : []),
+        {
+          trackingNumber: {
+            equals: data.trackingNumber,
+            mode: "insensitive",
+          },
         },
-      })
-    : null;
+      ],
+    },
+  });
   if (existing) {
     return NextResponse.json({ error: "Возврат для этого заказа уже оформлен" }, { status: 409 });
   }
 
+  const returnedAt = new Date();
   const created = await prisma.$transaction(async (tx) => {
     const ret = await tx.return.create({
       data: {
@@ -131,18 +138,19 @@ export async function POST(req: NextRequest) {
         variant: orderItem?.variant ?? matchingOrder?.variant ?? data.variant ?? null,
         size: orderItem?.size ?? matchingOrder?.size ?? data.size ?? null,
         trackingNumber: data.trackingNumber,
-        status: "RETURNING",
+        status: "RETURNED",
         shippingDate: data.shippingDate ? new Date(data.shippingDate) : null,
+        returnDate: returnedAt,
         reason: data.reason,
         comment: data.comment,
       },
     });
 
-    if (matchingOrder) {
-      const financialUpdate = getStatusFinancialUpdate("RETURNING");
+    if (matchingOrder && matchingOrder.status !== "RETURNED") {
+      const financialUpdate = getStatusFinancialUpdate("RETURNED");
       await tx.order.update({
         where: { id: matchingOrder.id },
-        data: { status: "RETURNING", receivedAt: null, ...financialUpdate.order },
+        data: { status: "RETURNED", ...financialUpdate.order },
       });
       await tx.orderItem.updateMany({
         where: { orderId: matchingOrder.id },
@@ -155,7 +163,7 @@ export async function POST(req: NextRequest) {
           userId: session.user.id,
           fieldName: "status",
           oldValue: matchingOrder.status,
-          newValue: "RETURNING",
+          newValue: "RETURNED",
         },
         tx,
       );
