@@ -4,6 +4,7 @@ node_modules/
 .env.*
 .avito-local-browser/
 .avito-local-agent/
+.flow-local-agent/
 *.tsbuildinfo
 
 # Bot
