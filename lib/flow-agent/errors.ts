@@ -11,7 +11,7 @@ export function sanitizeFlowAgentError(error: unknown, maxLength = 2_000) {
 
 export function publicFlowAgentError(error: unknown) {
   const sanitized = sanitizeFlowAgentError(error);
-  if (/apiRequestContext\.get: Timeout|download.*timed out|Timeout \d+ms exceeded/i.test(sanitized)) {
+  if (/apiRequestContext\.get: Timeout|download.*timed out|Timeout \d+ms exceeded|не скачано после трёх попыток/i.test(sanitized)) {
     return "Flow сгенерировал изображение, но агент не успел скачать результат. Загрузка будет повторена.";
   }
   return sanitized.split("\n").slice(0, 4).join("\n");

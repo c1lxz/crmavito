@@ -111,6 +111,12 @@ export async function generateFlowImage(input: {
 }
 
 async function downloadResultImage(page: Page, sourceUrl: string) {
+  try {
+    return await downloadResultInsideBrowser(page, sourceUrl);
+  } catch {
+    // Fall back to resolving the signed CDN URL outside the page.
+  }
+
   let downloadUrl = sourceUrl;
   const redirect = await page.request.get(sourceUrl, {
     maxRedirects: 0,
@@ -148,6 +154,32 @@ async function downloadResultImage(page: Page, sourceUrl: string) {
   throw new Error(`Flow: готовое изображение не скачано после трёх попыток. ${
     lastError instanceof Error ? lastError.message : String(lastError)
   }`);
+}
+
+async function downloadResultInsideBrowser(page: Page, sourceUrl: string) {
+  const base64 = await page.evaluate(async (url) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 90_000);
+    try {
+      const response = await fetch(url, {
+        cache: "force-cache",
+        credentials: "include",
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      let binary = "";
+      for (let offset = 0; offset < bytes.length; offset += 32_768) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + 32_768));
+      }
+      return btoa(binary);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }, sourceUrl);
+  const result = Buffer.from(base64, "base64");
+  if (!result.length) throw new Error("Flow: браузер вернул пустое изображение.");
+  return result;
 }
 
 async function acceptRightsNotice(page: Page) {
