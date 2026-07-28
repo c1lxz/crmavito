@@ -24,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 const AGENT_URL = "http://127.0.0.1:3017";
-const AGENT_VERSION = "2026.07.28.5";
+const AGENT_VERSION = "2026.07.28.6";
 const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
@@ -77,6 +77,7 @@ export function WbResaleClient() {
   const [agentVersion, setAgentVersion] = useState("");
   const [browser, setBrowser] = useState<BrowserPreference>("chrome");
   const [savingBrowser, setSavingBrowser] = useState(false);
+  const [stoppingAgent, setStoppingAgent] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
   const [events, setEvents] = useState<RpaEvent[]>([]);
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
@@ -199,8 +200,14 @@ export function WbResaleClient() {
   }
 
   async function stopAgent() {
-    await agentFetch("/api/rpa/stop", { method: "POST" });
-    await checkAgent();
+    setStoppingAgent(true);
+    try {
+      await agentFetch("/api/rpa/stop", { method: "POST" });
+      setRpaRunning(false);
+      await checkAgent();
+    } finally {
+      setStoppingAgent(false);
+    }
   }
 
   async function changeBrowser(nextBrowser: BrowserPreference) {
@@ -310,8 +317,10 @@ export function WbResaleClient() {
           version={agentVersion}
           browser={browser}
           savingBrowser={savingBrowser}
+          stopping={stoppingAgent}
           updateAvailable={Boolean(agentVersion && agentVersion !== AGENT_VERSION)}
           onCheck={checkAgent}
+          onStop={stopAgent}
           onBrowserChange={changeBrowser}
         />
 
@@ -325,9 +334,14 @@ export function WbResaleClient() {
                     {currentProgress(events, listings)}
                   </p>
                 </div>
-                <Button variant="destructive" size="sm" onClick={() => stopAgent().catch((error) => addError(String(error)))}>
-                  <Octagon className="h-4 w-4" />
-                  Остановить
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={stoppingAgent}
+                  onClick={() => stopAgent().catch((error) => addError(String(error)))}
+                >
+                  {stoppingAgent ? <Loader2 className="h-4 w-4 animate-spin" /> : <Octagon className="h-4 w-4" />}
+                  {stoppingAgent ? "Останавливаю…" : "Остановить агента"}
                 </Button>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-secondary">
@@ -552,8 +566,10 @@ function AgentBanner({
   version,
   browser,
   savingBrowser,
+  stopping,
   updateAvailable,
   onCheck,
+  onStop,
   onBrowserChange,
 }: {
   status: AgentStatus;
@@ -561,8 +577,10 @@ function AgentBanner({
   version: string;
   browser: BrowserPreference;
   savingBrowser: boolean;
+  stopping: boolean;
   updateAvailable: boolean;
   onCheck: () => Promise<void>;
+  onStop: () => Promise<void>;
   onBrowserChange: (browser: BrowserPreference) => Promise<void>;
 }) {
   if (status === "online") {
@@ -581,6 +599,19 @@ function AgentBanner({
                   <RefreshCw className="h-4 w-4" />
                   Обновить агент
                 </a>
+              </Button>
+            ) : null}
+            {running ? (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="mt-3"
+                disabled={stopping}
+                onClick={() => void onStop()}
+              >
+                {stopping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Octagon className="h-4 w-4" />}
+                {stopping ? "Останавливаю…" : "Остановить агента"}
               </Button>
             ) : null}
           </div>
