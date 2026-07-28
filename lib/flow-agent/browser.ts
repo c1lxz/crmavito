@@ -85,9 +85,10 @@ export async function generateFlowImage(input: {
   if (source?.startsWith("data:")) {
     await writeFile(input.outputPath, Buffer.from(source.split(",", 2)[1], "base64"));
   } else if (source && !source.startsWith("blob:")) {
-    const response = await input.page.request.get(new URL(source, input.page.url()).toString());
-    if (!response.ok()) throw new Error(`Flow: результат не скачан, HTTP ${response.status()}.`);
-    await writeFile(input.outputPath, await response.body());
+    await writeFile(
+      input.outputPath,
+      await downloadResultImage(input.page, new URL(source, input.page.url()).toString()),
+    );
   } else {
     const downloadButton = await firstVisible(input.page, [
       '[data-testid="result-download"]',
@@ -107,6 +108,46 @@ export async function generateFlowImage(input: {
     uploadMs: uploadFinished - started,
     generationMs: generatedAt - uploadFinished,
   };
+}
+
+async function downloadResultImage(page: Page, sourceUrl: string) {
+  let downloadUrl = sourceUrl;
+  const redirect = await page.request.get(sourceUrl, {
+    maxRedirects: 0,
+    timeout: 45_000,
+  });
+  try {
+    if (redirect.status() >= 300 && redirect.status() < 400) {
+      const location = redirect.headers().location;
+      if (!location) throw new Error("Flow: Google не вернул ссылку на готовое изображение.");
+      downloadUrl = new URL(location, sourceUrl).toString();
+    } else {
+      if (!redirect.ok()) throw new Error(`Flow: результат не скачан, HTTP ${redirect.status()}.`);
+      return Buffer.from(await redirect.body());
+    }
+  } finally {
+    await redirect.dispose();
+  }
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(downloadUrl, {
+        headers: { accept: "image/*" },
+        signal: AbortSignal.timeout(90_000),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = Buffer.from(await response.arrayBuffer());
+      if (!result.length) throw new Error("empty response");
+      return result;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 1_500));
+    }
+  }
+  throw new Error(`Flow: готовое изображение не скачано после трёх попыток. ${
+    lastError instanceof Error ? lastError.message : String(lastError)
+  }`);
 }
 
 async function acceptRightsNotice(page: Page) {

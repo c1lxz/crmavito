@@ -5,6 +5,7 @@ import { loadEnvConfig } from "@next/env";
 import { chromium, type Browser, type BrowserContext } from "playwright";
 import sharp from "sharp";
 import { generateFlowImage } from "../lib/flow-agent/browser";
+import { publicFlowAgentError, sanitizeFlowAgentError } from "../lib/flow-agent/errors";
 import { buildOriginalDesignPrompt, collectMarketResearch, type MarketResearch } from "../lib/flow-agent/market-research";
 
 loadEnvConfig(process.cwd());
@@ -118,12 +119,12 @@ async function main() {
         continue;
       }
       await processJob(context, job).catch(async (error) => {
-        const message = error instanceof Error ? error.stack || error.message : String(error);
+        const message = sanitizeFlowAgentError(error);
         console.error(`[flow-agent] ${job.id}: ${message}`);
         await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${job.id}/fail`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ agentId, error: message }),
+          body: JSON.stringify({ agentId, error: publicFlowAgentError(error) }),
         }).catch(() => undefined);
       });
     }
@@ -376,7 +377,7 @@ async function supervise() {
       await main();
       return;
     } catch (error) {
-      const message = error instanceof Error ? error.stack || error.message : String(error);
+      const message = sanitizeFlowAgentError(error);
       console.error(`[flow-agent] session stopped: ${message}`);
       await reportStatus({
         state: "error",

@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promi
 import path from "node:path";
 import { BACKGROUND_SLOTS, readBackground, validateImageFile, type BackgroundSlot } from "@/lib/ai/content-machine";
 import { buildProductPhotoPrompt } from "@/lib/ai/gemini-images";
+import { publicFlowAgentError } from "@/lib/flow-agent/errors";
 import type { MarketResearch } from "@/lib/flow-agent/market-research";
 
 const mimeExtensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as const;
@@ -316,7 +317,7 @@ export async function failFlowJob(id: string, agentId: string, error: string) {
     const manifest = await readManifest(id);
     if (manifest.agentId !== agentId) throw new Error("Задание назначено другому локальному агенту.");
     manifest.agentStatus = "failed";
-    manifest.error = error.slice(0, 2000);
+    manifest.error = publicFlowAgentError(error);
     manifest.completedAt = new Date().toISOString();
     if (manifest.metrics) {
       manifest.metrics.completedAt = manifest.completedAt;
