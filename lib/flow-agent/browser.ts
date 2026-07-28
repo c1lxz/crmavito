@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Page } from "playwright";
+import type { Locator, Page } from "playwright";
 
 export type FlowRunTiming = {
   startedAt: string;
@@ -85,10 +85,14 @@ export async function generateFlowImage(input: {
   if (source?.startsWith("data:")) {
     await writeFile(input.outputPath, Buffer.from(source.split(",", 2)[1], "base64"));
   } else if (source && !source.startsWith("blob:")) {
-    await writeFile(
-      input.outputPath,
-      await downloadResultImage(input.page, new URL(source, input.page.url()).toString()),
-    );
+    try {
+      await writeFile(
+        input.outputPath,
+        await downloadResultImage(input.page, new URL(source, input.page.url()).toString()),
+      );
+    } catch {
+      await captureRenderedResult(result, input.outputPath);
+    }
   } else {
     const downloadButton = await firstVisible(input.page, [
       '[data-testid="result-download"]',
@@ -140,7 +144,7 @@ async function downloadResultImage(page: Page, sourceUrl: string) {
     try {
       const response = await fetch(downloadUrl, {
         headers: { accept: "image/*" },
-        signal: AbortSignal.timeout(90_000),
+        signal: AbortSignal.timeout(20_000),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = Buffer.from(await response.arrayBuffer());
@@ -159,7 +163,7 @@ async function downloadResultImage(page: Page, sourceUrl: string) {
 async function downloadResultInsideBrowser(page: Page, sourceUrl: string) {
   const base64 = await page.evaluate(async (url) => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 90_000);
+    const timeout = setTimeout(() => controller.abort(), 20_000);
     try {
       const response = await fetch(url, {
         cache: "force-cache",
@@ -180,6 +184,43 @@ async function downloadResultInsideBrowser(page: Page, sourceUrl: string) {
   const result = Buffer.from(base64, "base64");
   if (!result.length) throw new Error("Flow: браузер вернул пустое изображение.");
   return result;
+}
+
+async function captureRenderedResult(result: Locator, outputPath: string) {
+  const marker = `flow-agent-capture-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  await result.evaluate((image, id) => {
+    const source = image as HTMLImageElement;
+    const width = Math.max(1, Math.min(source.naturalWidth || source.width || 1024, 2048));
+    const naturalHeight = source.naturalHeight || source.height || width;
+    const naturalWidth = source.naturalWidth || source.width || width;
+    const height = Math.max(1, Math.round(naturalHeight * (width / naturalWidth)));
+    const clone = source.cloneNode(true) as HTMLImageElement;
+    clone.id = id;
+    clone.style.cssText = [
+      "position:fixed",
+      "left:0",
+      "top:0",
+      "z-index:2147483647",
+      `width:${width}px`,
+      `height:${height}px`,
+      "max-width:none",
+      "max-height:none",
+      "object-fit:fill",
+      "background:white",
+    ].join(";");
+    document.body.appendChild(clone);
+  }, marker);
+  const capture = result.page().locator(`#${marker}`);
+  try {
+    await capture.screenshot({
+      path: outputPath,
+      type: "png",
+      animations: "disabled",
+      timeout: 30_000,
+    });
+  } finally {
+    await capture.evaluate((image) => image.remove()).catch(() => undefined);
+  }
 }
 
 async function acceptRightsNotice(page: Page) {
