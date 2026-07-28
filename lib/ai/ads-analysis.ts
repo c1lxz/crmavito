@@ -1,31 +1,58 @@
 import { z } from "zod";
 
+const nonnegativeIntMetricSchema = z.preprocess((value) => {
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/\s/g, "").replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+  return value;
+}, z.number().int().nonnegative());
+
+const nonnegativePriceSchema = z.preprocess((value) => {
+  if (value === "" || value === null || value === undefined) return null;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/\s/g, "").replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+  return value;
+}, z.number().nonnegative().nullable());
+
+const nullableUrlSchema = z.preprocess((value) => {
+  if (value === "" || value === null || value === undefined) return null;
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("//")) return `https:${trimmed}`;
+  if (trimmed.startsWith("/")) return `https://www.avito.ru${trimmed}`;
+  return trimmed;
+}, z.string().url().nullable());
+
 export const adsAnalysisItemSchema = z.object({
   itemId: z.string().min(1),
   title: z.string().min(1).max(300),
-  url: z.string().url().nullable().optional(),
+  url: nullableUrlSchema.optional(),
   status: z.string().nullable().optional(),
-  views: z.number().int().nonnegative(),
-  contacts: z.number().int().nonnegative(),
-  favorites: z.number().int().nonnegative(),
-  price: z.number().nonnegative().nullable().optional(),
+  views: nonnegativeIntMetricSchema,
+  contacts: nonnegativeIntMetricSchema,
+  favorites: nonnegativeIntMetricSchema,
+  price: nonnegativePriceSchema.optional(),
   description: z.string().max(6000).nullable().optional(),
-  imageCount: z.number().int().nonnegative().nullable().optional(),
+  imageCount: nonnegativeIntMetricSchema.nullable().optional(),
 });
 
 export const adsAnalysisInputSchema = z.object({
   profileId: z.string().min(1),
   accountId: z.string().min(1),
-  periodDays: z.number().int().min(1).max(270),
+  periodDays: nonnegativeIntMetricSchema.pipe(z.number().int().min(1).max(270)),
   dateFrom: z.string().min(1),
   dateTo: z.string().min(1),
   total: z.object({
-    ads: z.number().int().nonnegative(),
-    views: z.number().int().nonnegative(),
-    contacts: z.number().int().nonnegative(),
-    favorites: z.number().int().nonnegative(),
+    ads: nonnegativeIntMetricSchema,
+    views: nonnegativeIntMetricSchema,
+    contacts: nonnegativeIntMetricSchema,
+    favorites: nonnegativeIntMetricSchema,
   }),
-  items: z.array(adsAnalysisItemSchema).max(500),
+  items: z.array(adsAnalysisItemSchema).max(5000),
 });
 
 export const adsAnalysisActionSchema = z.object({

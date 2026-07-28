@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { brotliCompressSync } from "node:zlib";
-import { buildAdsAnalysisPrompt, compactAdsAnalysisInput, createDataDrivenAdsReport, type AdsAnalysisInput } from "@/lib/ai/ads-analysis";
+import { adsAnalysisInputSchema, buildAdsAnalysisPrompt, compactAdsAnalysisInput, createDataDrivenAdsReport, type AdsAnalysisInput } from "@/lib/ai/ads-analysis";
 import { createClaudeAdsReport } from "@/lib/ai/claude";
 import { buildProductPhotoPrompt, generateGeminiImage } from "@/lib/ai/gemini-images";
 
@@ -47,6 +47,31 @@ describe("AI providers", () => {
     expect(compact.analyzedItemCount).toBe(100);
     expect(compact.coveragePercent).toBe(83.33);
     expect(compact.items.every((item) => (item.description?.length ?? 0) <= 1200)).toBe(true);
+  });
+
+  it("accepts large Avito analytics payloads and normalizes loose API fields", () => {
+    const parsed = adsAnalysisInputSchema.parse({
+      ...analytics,
+      periodDays: "30",
+      total: { ads: "650", views: "12 345", contacts: "27", favorites: "101" },
+      items: Array.from({ length: 650 }, (_, index) => ({
+        ...analytics.items[0],
+        itemId: String(index + 1),
+        title: `Item ${index + 1}`,
+        url: index % 2 === 0 ? "" : `/item_${index + 1}`,
+        views: String(index),
+        contacts: "0",
+        favorites: "1",
+        price: "2 500",
+      })),
+    });
+
+    expect(parsed.items).toHaveLength(650);
+    expect(parsed.total.views).toBe(12345);
+    expect(parsed.total.contacts).toBe(27);
+    expect(parsed.items[0].url).toBeNull();
+    expect(parsed.items[1].url).toBe("https://www.avito.ru/item_2");
+    expect(parsed.items[1].price).toBe(2500);
   });
 
   it("builds a complete data-driven report when Claude is unavailable", () => {
