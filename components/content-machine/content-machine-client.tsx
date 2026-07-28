@@ -79,6 +79,7 @@ type FlowJob = {
 
 const slots: BackgroundSlot[] = ["1", "2", "3"];
 const maxProducts = 10;
+const maxDesignReferences = 6;
 
 export function ContentMachineClient() {
   const [backgrounds, setBackgrounds] = useState<Background[]>(slots.map((slot) => emptyBackground(slot)));
@@ -161,7 +162,7 @@ export function ContentMachineClient() {
 
   function addProducts(files: FileList | null) {
     if (!files) return;
-    const limit = mode === "original-design" ? 1 : maxProducts;
+    const limit = mode === "original-design" ? maxDesignReferences : maxProducts;
     const available = limit - products.length;
     const accepted = Array.from(files)
       .filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= 20 * 1024 * 1024)
@@ -250,6 +251,7 @@ export function ContentMachineClient() {
   const readyResults = job?.results || [];
   const selectedCount = selectedIds.length;
   const designReady = mode === "product-photo" || inspirationQuery.trim().length >= 3;
+  const resultCount = mode === "original-design" ? 3 : products.length * 3;
 
   return (
     <div className="min-h-screen bg-background">
@@ -314,13 +316,13 @@ export function ContentMachineClient() {
               <h2 className="text-base font-semibold">{mode === "original-design" ? "Фото залетевшей позиции" : "Исходные фото товара"}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {mode === "original-design"
-                  ? "Загрузите одну футболку или лонгслив, чью коммерческую логику нужно развить в новом самостоятельном дизайне."
+                  ? "Добавьте перед, спину и детали одной залетевшей позиции. Все фото считаются ракурсами одного товара и помогают понять принты с обеих сторон."
                   : "Добавьте все ракурсы одной вещи. Принт, пошив, цвет и видимая сторона сохраняются, а композиция может быть улучшена."}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">{products.length} фото → {products.length * 3} результатов</span>
-              <Button variant="outline" size="sm" onClick={() => productInputRef.current?.click()} disabled={creatingJob || products.length >= (mode === "original-design" ? 1 : maxProducts)}>
+              <span className="text-sm text-muted-foreground">{products.length} фото → {resultCount} результата</span>
+              <Button variant="outline" size="sm" onClick={() => productInputRef.current?.click()} disabled={creatingJob || products.length >= (mode === "original-design" ? maxDesignReferences : maxProducts)}>
                 <ImagePlus className="mr-1.5 h-4 w-4" />Добавить
               </Button>
             </div>
@@ -331,14 +333,7 @@ export function ContentMachineClient() {
               <Label htmlFor="content-mode">Режим</Label>
               <Select
                 value={mode}
-                onValueChange={(value: "product-photo" | "original-design") => {
-                  if (value === "original-design" && products.length > 1) {
-                    products.slice(1).forEach((product) => URL.revokeObjectURL(product.previewUrl));
-                    setProducts((items) => items.slice(0, 1));
-                    toast({ title: "Оставлено первое фото", description: "Для нового дизайна нужен один пример залетевшей позиции." });
-                  }
-                  setMode(value);
-                }}
+                onValueChange={(value: "product-photo" | "original-design") => setMode(value)}
                 disabled={creatingJob}
               >
                 <SelectTrigger id="content-mode" className="mt-1.5 h-11"><SelectValue /></SelectTrigger>
@@ -405,7 +400,7 @@ export function ContentMachineClient() {
             ref={productInputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            multiple={mode === "product-photo"}
+            multiple
             className="hidden"
             onChange={(event) => { addProducts(event.target.files); event.currentTarget.value = ""; }}
           />
@@ -418,7 +413,7 @@ export function ContentMachineClient() {
             >
               <span className="icon-tile mb-3 h-11 w-11"><UploadCloud className="h-5 w-5" /></span>
               <span className="text-sm font-semibold">{mode === "original-design" ? "Загрузить фото залетевшей позиции" : "Загрузить фото товара"}</span>
-              <span className="mt-1 text-xs text-muted-foreground">JPG, PNG или WebP до 20 МБ · {mode === "original-design" ? "одно фото футболки или лонгслива" : `максимум ${maxProducts} ракурсов`}</span>
+              <span className="mt-1 text-xs text-muted-foreground">JPG, PNG или WebP до 20 МБ · максимум {mode === "original-design" ? maxDesignReferences : maxProducts} ракурсов одного товара</span>
             </button>
           ) : (
             <div className="flex gap-3 overflow-x-auto pb-2">
@@ -453,7 +448,7 @@ export function ContentMachineClient() {
             </div>
             <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady || !designReady || (agentStatus !== null && !agentReady)} className="shrink-0">
               {creatingJob ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              {creatingJob ? "Ставлю в очередь Flow…" : `Создать ${products.length * 3} фото`}
+              {creatingJob ? "Ставлю в очередь Flow…" : `Создать ${resultCount} фото`}
             </Button>
           </div>
           {agentStatus && (!agentStatus.online || agentStatus.state !== "ready") && (

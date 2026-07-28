@@ -94,13 +94,20 @@ export async function collectMarketResearch(browser: Browser, query: string, lim
   };
 }
 
-export function buildOriginalDesignPrompt(research: MarketResearch, designNote?: string, labelStyleReference?: string): string {
+export function buildOriginalDesignPrompt(
+  research: MarketResearch,
+  designNote?: string,
+  labelStyleReference?: string,
+  referenceCount = 1,
+): string {
   const signals = research.topSignals.length
     ? research.topSignals.join(", ")
     : "strong central graphic, readable hierarchy, restrained vintage distressing";
   return [
     "Create exactly ONE original, commercially strong apparel design presented as a photorealistic marketplace product photo.",
-    "REFERENCE IMAGE 1 is only the required background, perspective and lighting reference.",
+    `REFERENCE IMAGES 1-${referenceCount} show different views of the same inspiration garment. Read them together to understand garment construction and whether the original uses coordinated front and back graphics, but never copy its artwork.`,
+    `REFERENCE IMAGE ${referenceCount + 1} is the required background, perspective and lighting reference.`,
+    "If the views show graphics on both sides, invent a coordinated but original front-and-back print system. Across the three independent runs vary front, back and angled presentation while returning exactly one image per run.",
     ...(labelStyleReference?.trim() ? [
       `Add exactly one small single-line heat-transfer marking inside the back collar, using broad high-level aesthetic cues from '${labelStyleReference.trim()}'. It must read exactly 'CUSTOM MADE', printed directly on the fabric. Never add a second line, duplicate marking, sewn tag or woven label. Invent original typography and spacing. Never show the reference name, its logo, monogram or distinctive brand identity.`,
     ] : []),

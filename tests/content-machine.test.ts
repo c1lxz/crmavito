@@ -118,7 +118,7 @@ describe("content machine", () => {
     }
   });
 
-  it("creates an original-design job from one proven product and keeps the prompt independent", async () => {
+  it("creates three original-design variants from multiple views of one proven product", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "crmavito-design-job-"));
     process.env.CONTENT_MACHINE_DATA_DIR = directory;
     try {
@@ -126,20 +126,22 @@ describe("content machine", () => {
         await saveBackground(slot, new File([`background-${slot}`], `background-${slot}.jpg`, { type: "image/jpeg" }) as unknown as globalThis.File);
       }
       const winner = new File(["winner"], "winner-long-sleeve.jpg", { type: "image/jpeg" }) as unknown as globalThis.File;
-      const created = await createCodexJob([winner], "2K", {
+      const created = await createCodexJob([winner, winner], "2K", {
         mode: "original-design",
         inspirationQuery: "vintage gothic long sleeve",
         designNote: "Make the graphic smaller and vary the camera angle.",
         labelStyleReference: "minimal archival luxury",
       });
       expect(created.mode).toBe("original-design");
+      expect(created.products).toHaveLength(2);
+      expect(created.expectedResults).toBe(3);
       expect(created.inspirationQuery).toBe("vintage gothic long sleeve");
       expect(created.designNote).toBe("Make the graphic smaller and vary the camera angle.");
       expect(created.labelStyleReference).toBe("minimal archival luxury");
-      await expect(createCodexJob([winner, winner], "2K", {
+      await expect(createCodexJob(Array.from({ length: 7 }, () => winner), "2K", {
         mode: "original-design",
         inspirationQuery: "vintage gothic long sleeve",
-      })).rejects.toThrow("одну фотографию");
+      })).rejects.toThrow("6");
 
       const prompt = buildOriginalDesignPrompt({
         query: "vintage gothic long sleeve",
@@ -147,13 +149,15 @@ describe("content machine", () => {
         listings: [],
         topSignals: ["gothic", "distressed", "oversized"],
         sourceCounts: { grailed: 0, mercari: 0, rakuma: 0 },
-      }, undefined, "minimal archival luxury");
+      }, undefined, "minimal archival luxury", 2);
       expect(prompt).toContain("Grailed, Mercari and Rakuma");
       expect(prompt).toContain("gothic, distressed, oversized");
       expect(prompt).toContain("Do not reproduce");
       expect(prompt).toContain("CUSTOM MADE");
       expect(prompt).toContain("minimal archival luxury");
       expect(prompt).toContain("Never show the reference name");
+      expect(prompt).toContain("REFERENCE IMAGES 1-2");
+      expect(prompt).toContain("REFERENCE IMAGE 3");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -168,9 +172,12 @@ describe("content machine", () => {
       "Do not copy any logo, mascot, character, wording, monogram, artist style or distinctive composition.",
       "Return only one photorealistic final image without watermarks, props, halos, pasted graphics or CGI fabric.",
     ].join(" ");
+    const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
     const result = await createClaudeDesignMetaPrompt({
-      image: Buffer.from("winner"),
-      mimeType: "image/jpeg",
+      images: [
+        { image: tinyPng, mimeType: "image/png" },
+        { image: tinyPng, mimeType: "image/png" },
+      ],
       query: "gothic long sleeve",
       designNote: "Make the graphic smaller and provide varied camera angles.",
       labelStyleReference: "minimal archival luxury",
@@ -193,12 +200,15 @@ describe("content machine", () => {
     expect(result.prompt).toBe(expectedPrompt);
     expect(result.model).toBe("test-claude");
     expect(requestBody).toContain('"type":"image"');
+    expect(requestBody.match(/"type":"image"/g)).toHaveLength(2);
     expect(requestBody).toContain("Grailed 3, Mercari 3, Rakuma 3");
     expect(requestBody).toContain("Mandatory user note");
     expect(requestBody).toContain("Make the graphic smaller and provide varied camera angles.");
     expect(requestBody).toContain("Neck-label aesthetic reference: minimal archival luxury");
     expect(requestBody).toContain("CUSTOM MADE");
     expect(requestBody).toContain("never render the reference name");
+    expect(requestBody).toContain("REFERENCE IMAGES 1-2");
+    expect(requestBody).toContain("REFERENCE IMAGE 3");
     expect(requestBody).toContain("exactly one image per run");
     expect(requestBody).toContain("Do not explain your analysis");
   });

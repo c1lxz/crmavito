@@ -219,9 +219,13 @@ async function processJob(context: BrowserContext, job: AgentJob) {
   ]);
 
   const completed = new Set(job.results.map((result) => `${result.productIndex}:${result.backgroundSlot}`));
-  const work = job.products.flatMap((product) => job.backgrounds
-    .filter((background) => !completed.has(`${product.index}:${background.slot}`))
-    .map((background) => ({ product, background })));
+  const work = job.mode === "original-design"
+    ? job.backgrounds
+      .filter((background) => !completed.has(`1:${background.slot}`))
+      .map((background) => ({ product: job.products[0], background }))
+    : job.products.flatMap((product) => job.backgrounds
+      .filter((background) => !completed.has(`${product.index}:${background.slot}`))
+      .map((background) => ({ product, background })));
   console.log(`[flow-agent] ${job.id}: ${work.length} фото`);
   const prompt = await resolveJobPrompt(job);
   let cursor = 0;
@@ -235,7 +239,10 @@ async function processJob(context: BrowserContext, job: AgentJob) {
           page,
           flowUrl,
           references: job.mode === "original-design"
-            ? [backgrounds.get(item.background.slot)!]
+            ? [
+              ...job.products.map((product) => products.get(product.index)!),
+              backgrounds.get(item.background.slot)!,
+            ]
             : [products.get(item.product.index)!, backgrounds.get(item.background.slot)!],
           prompt,
           outputPath,
@@ -276,7 +283,7 @@ async function resolveJobPrompt(job: AgentJob) {
     return await requestMetaPrompt(job.id);
   } catch (error) {
     console.warn(`[flow-agent] Claude meta-prompt failed, using fallback: ${error instanceof Error ? error.message : String(error)}`);
-    return buildOriginalDesignPrompt(research, job.designNote, job.labelStyleReference);
+    return buildOriginalDesignPrompt(research, job.designNote, job.labelStyleReference, job.products.length);
   }
 }
 

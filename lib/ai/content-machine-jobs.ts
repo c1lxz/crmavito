@@ -97,8 +97,8 @@ export async function createCodexJob(
   const inspirationQuery = options.inspirationQuery?.trim().slice(0, 120);
   const designNote = options.designNote?.trim().slice(0, 1200);
   const labelStyleReference = options.labelStyleReference?.replace(/\s+/g, " ").trim().slice(0, 100);
-  if (mode === "original-design" && products.length !== 1) {
-    throw new Error("Для нового дизайна загрузите одну фотографию залетевшей позиции.");
+  if (mode === "original-design" && products.length > 6) {
+    throw new Error("Для нового дизайна загрузите не больше 6 ракурсов одной позиции.");
   }
   if (mode === "original-design" && (!inspirationQuery || inspirationQuery.length < 3)) {
     throw new Error("Для нового дизайна укажите, что искать на Grailed, Mercari и Rakuma.");
@@ -180,7 +180,7 @@ async function hydrateJob(manifest: JobManifest): Promise<CodexJob> {
       url: `/api/ai/content-machine/codex-jobs/${manifest.id}/files/results/${encodeURIComponent(fileName)}?v=${details.mtimeMs}`,
     });
   }
-  const expectedResults = manifest.products.length * BACKGROUND_SLOTS.length;
+  const expectedResults = expectedResultCount(manifest);
   const status = results.length >= expectedResults
     ? "ready"
     : manifest.agentStatus === "failed"
@@ -205,7 +205,7 @@ export async function claimNextFlowJob(agentId: string): Promise<CodexJob | null
       const manifestPath = path.join(jobDirectory(id), "manifest.json");
       const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as JobManifest;
       const resumable = manifest.agentStatus === "processing" && manifest.agentId === agentId;
-      if (resumable && await countResultFiles(manifest) >= manifest.products.length * BACKGROUND_SLOTS.length) {
+      if (resumable && await countResultFiles(manifest) >= expectedResultCount(manifest)) {
         completeManifest(manifest);
         await saveManifest(manifest);
         continue;
@@ -253,7 +253,7 @@ export async function saveFlowJobResult(
       (item) => item.productIndex !== input.productIndex || item.backgroundSlot !== input.backgroundSlot,
     );
     manifest.metrics.generations.push(metric);
-    if (await countResultFiles(manifest) >= manifest.products.length * BACKGROUND_SLOTS.length) completeManifest(manifest);
+    if (await countResultFiles(manifest) >= expectedResultCount(manifest)) completeManifest(manifest);
     await saveManifest(manifest);
     return hydrateJob(manifest);
   });
@@ -279,11 +279,12 @@ export async function getFlowDesignPromptContext(id: string, agentId: string) {
   if (manifest.mode !== "original-design" || !manifest.inspirationQuery || !manifest.marketResearch) {
     throw new Error("Для задания ещё не готово исследование рынка.");
   }
-  const product = manifest.products[0];
-  const image = await readFile(path.join(jobDirectory(id), "products", product.fileName));
-  return {
-    image,
+  const images = await Promise.all(manifest.products.map(async (product) => ({
+    image: await readFile(path.join(jobDirectory(id), "products", product.fileName)),
     mimeType: product.mimeType as "image/jpeg" | "image/png" | "image/webp",
+  })));
+  return {
+    images,
     query: manifest.inspirationQuery,
     designNote: manifest.designNote,
     labelStyleReference: manifest.labelStyleReference,
@@ -340,6 +341,10 @@ async function saveManifest(manifest: JobManifest) {
 async function countResultFiles(manifest: JobManifest) {
   const names = await readdir(path.join(jobDirectory(manifest.id), "results")).catch(() => []);
   return names.filter((name) => /^product-\d{2}-background-[123]\.(jpg|jpeg|png|webp)$/i.test(name)).length;
+}
+
+function expectedResultCount(manifest: JobManifest) {
+  return (manifest.mode === "original-design" ? 1 : manifest.products.length) * BACKGROUND_SLOTS.length;
 }
 
 function completeManifest(manifest: JobManifest) {

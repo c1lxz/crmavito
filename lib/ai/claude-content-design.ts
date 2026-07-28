@@ -1,5 +1,6 @@
 import { getClaudeStatus } from "@/lib/ai/claude";
 import type { MarketResearch } from "@/lib/flow-agent/market-research";
+import sharp from "sharp";
 
 type AnthropicResponse = {
   content?: Array<{ type?: string; text?: string }>;
@@ -8,8 +9,10 @@ type AnthropicResponse = {
 
 export async function createClaudeDesignMetaPrompt(
   input: {
-    image: Buffer;
-    mimeType: "image/jpeg" | "image/png" | "image/webp";
+    images: Array<{
+      image: Buffer;
+      mimeType: "image/jpeg" | "image/png" | "image/webp";
+    }>;
     query: string;
     designNote?: string;
     labelStyleReference?: string;
@@ -19,11 +22,16 @@ export async function createClaudeDesignMetaPrompt(
 ) {
   const apiKey = options.apiKey?.trim() || (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY)?.trim();
   if (!apiKey) throw new Error("Claude не настроен на сервере.");
-  if (input.image.length > 8 * 1024 * 1024) throw new Error("Фото-победитель слишком большое для быстрого анализа Claude.");
+  if (input.images.length < 1 || input.images.length > 6) throw new Error("Claude нужно от 1 до 6 ракурсов одного товара.");
   const status = getClaudeStatus();
   const baseUrl = (options.baseUrl?.trim() || status.baseUrl).replace(/\/$/, "");
   const model = options.model?.trim() || status.model;
   const signals = input.research.topSignals.join(", ") || "no stable cross-market signals";
+  const preparedImages = await Promise.all(input.images.map(async ({ image }) => sharp(image)
+    .rotate()
+    .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 82, mozjpeg: true })
+    .toBuffer()));
 
   const response = await (options.fetchFn ?? fetch)(`${baseUrl}/v1/messages`, {
     method: "POST",
@@ -39,17 +47,17 @@ export async function createClaudeDesignMetaPrompt(
       messages: [{
         role: "user",
         content: [
-          {
+          ...preparedImages.map((image) => ({
             type: "image",
             source: {
               type: "base64",
-              media_type: input.mimeType,
-              data: input.image.toString("base64"),
+              media_type: "image/jpeg",
+              data: image.toString("base64"),
             },
-          },
+          })),
           {
             type: "text",
-            text: buildMetaPromptRequest(input.query, signals, input.research.sourceCounts, input.designNote, input.labelStyleReference),
+            text: buildMetaPromptRequest(input.query, signals, input.research.sourceCounts, input.images.length, input.designNote, input.labelStyleReference),
           },
         ],
       }],
@@ -82,12 +90,13 @@ function buildMetaPromptRequest(
   query: string,
   signals: string,
   counts: MarketResearch["sourceCounts"],
+  referenceCount: number,
   designNote?: string,
   labelStyleReference?: string,
 ) {
   return [
     "You are a senior apparel art director writing the final image-generation prompt for Google Flow.",
-    "Analyze the uploaded proven-performing T-shirt or long-sleeve only at the level of commercial visual principles: garment type, base color, print scale, placement, contrast, density, visual rhythm, audience and photographic presentation.",
+    `The ${referenceCount} uploaded images show different views and details of the same proven-performing T-shirt or long-sleeve. Analyze front, back, sleeves and detail shots together, including whether graphics exist on both sides.`,
     `The market query is: ${query}.`,
     `Cross-market abstract signals are: ${signals}.`,
     `Research coverage: Grailed ${counts.grailed}, Mercari ${counts.mercari}, Rakuma ${counts.rakuma}.`,
@@ -102,7 +111,8 @@ function buildMetaPromptRequest(
     "Invent and explicitly describe a new central motif, supporting geometry, layout and limited color system that are visibly different from the uploaded winner.",
     "Demand crisp print edges, visible cotton weave, realistic screen-print ink absorption, sharp seams, natural folds and contact shadows, neutral white balance, high micro-contrast and a clean high-resolution commercial camera result.",
     "Prefer a purely visual main graphic. If typography is essential, specify one exact original phrase of at most three words in quotation marks. Prohibit all other words, letters, numbers and fake branding except the explicitly requested original CUSTOM MADE neck label.",
-    "The winner is visible only to you. Do not call it a reference image in the final prompt. Flow receives REFERENCE IMAGE 1 only as the exact background, perspective and light reference.",
+    `Flow receives REFERENCE IMAGES 1-${referenceCount} as views of the same inspiration garment and REFERENCE IMAGE ${referenceCount + 1} as the exact background, perspective and light reference. Tell Flow to understand the full front/back print system without copying its protected artwork.`,
+    "When the uploaded views show graphics on both sides, require a coordinated but fully original front-and-back print system and distribute front, back and angled presentation across the three independent runs.",
     "The final prompt is reused for three independent Flow generations. Convert requests for several angles or variants into concise directions that encourage meaningful viewpoint variation across those independent runs; still request exactly one image per run.",
     "Avoid generic CGI, soft focus, low resolution, plastic fabric, pasted graphics, halos, malformed text, watermarks, props and extra garments.",
     "Do not explain your analysis and do not use Markdown. Return only the final Flow prompt.",
