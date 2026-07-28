@@ -66,6 +66,7 @@ type FlowJob = {
     topSignals: string[];
     sourceCounts: Record<"grailed" | "mercari" | "rakuma", number>;
   };
+  metaPromptSource?: "claude" | "fallback";
   metrics?: {
     totalDurationMs?: number;
     averageGenerationMs?: number;
@@ -301,12 +302,16 @@ export function ContentMachineClient() {
         <section>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="text-base font-semibold">Исходные фото товара</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Добавьте все ракурсы одной вещи. Принт, пошив, цвет и видимая сторона сохраняются, а композиция может быть улучшена.</p>
+              <h2 className="text-base font-semibold">{mode === "original-design" ? "Фото залетевшей позиции" : "Исходные фото товара"}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {mode === "original-design"
+                  ? "Загрузите одну футболку или лонгслив, чью коммерческую логику нужно развить в новом самостоятельном дизайне."
+                  : "Добавьте все ракурсы одной вещи. Принт, пошив, цвет и видимая сторона сохраняются, а композиция может быть улучшена."}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">{products.length} фото → {products.length * 3} результатов</span>
-              <Button variant="outline" size="sm" onClick={() => productInputRef.current?.click()} disabled={creatingJob || products.length >= maxProducts}>
+              <Button variant="outline" size="sm" onClick={() => productInputRef.current?.click()} disabled={creatingJob || products.length >= (mode === "original-design" ? 1 : maxProducts)}>
                 <ImagePlus className="mr-1.5 h-4 w-4" />Добавить
               </Button>
             </div>
@@ -426,6 +431,7 @@ export function ContentMachineClient() {
                 <div className="flex flex-wrap items-center gap-2">
                   <ScanSearch className="h-4 w-4 text-primary" />
                   <h2 className="text-sm font-semibold">Рынок изучен</h2>
+                  {job.metaPromptSource === "claude" && <Badge variant="success">Мета-промпт Claude</Badge>}
                   {(["grailed", "mercari", "rakuma"] as const).map((source) => (
                     <Badge key={source} variant="secondary" className="capitalize">
                       {source} · {job.marketResearch?.sourceCounts[source] || 0}

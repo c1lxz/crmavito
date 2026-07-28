@@ -3,11 +3,32 @@
   <body>
     <button data-testid="new-project">New project</button>
     <input data-testid="upload-references" type="file" multiple>
+    <button id="rights">I accept</button>
+    <button data-testid="add-media">Add media</button>
+    <div role="dialog" hidden>
+      <div id="uploaded"></div>
+      <button id="attach" disabled>Add to prompt</button>
+    </div>
     <textarea data-testid="prompt"></textarea>
     <button data-testid="generate">Generate</button>
     <div id="result"></div>
     <script>
       const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAATElEQVR4nO3PQQ0AIBDAsAP/nuGNAvZoFSzZOjNnyNi1dwfgUQCeBOBJAB4F4EkAngTgSQAeBeBJAB4F4EkAngTgSQAeBeBJAB4F4EkAHgUNAn6QyKsGAAAAAElFTkSuQmCC";
+      const dialog = document.querySelector("[role=dialog]");
+      document.querySelector("#rights").addEventListener("click", (event) => event.currentTarget.remove());
+      document.querySelector("[data-testid=upload-references]").addEventListener("change", (event) => {
+        document.querySelector("#uploaded").innerHTML = [...event.target.files]
+          .map((file) => `<img alt="${file.name}" src="${png}">`)
+          .join("");
+        document.querySelector("#attach").disabled = false;
+      });
+      document.querySelector("[data-testid=add-media]").addEventListener("click", () => {
+        dialog.hidden = false;
+      });
+      document.querySelector("#attach").addEventListener("click", () => {
+        dialog.hidden = true;
+        document.querySelector("#uploaded").innerHTML = "";
+      });
       document.querySelector("[data-testid=generate]").addEventListener("click", () => {
         setTimeout(() => {
           document.querySelector("#result").innerHTML = `<img data-testid="result-image" alt="Generated image" src="${png}">`;

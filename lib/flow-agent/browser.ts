@@ -25,42 +25,54 @@ export async function generateFlowImage(input: {
   }
 
   await clickFirstVisible(input.page, [
-    '[data-testid="new-project"]',
-    'button:has-text("New project")',
-    'button:has-text("Create project")',
+    'button:has-text("Hide")',
+    'button:has-text("No thanks")',
+    'button:has-text("Нет, спасибо")',
+  ], false);
+  const openedFlow = await clickFirstVisible(input.page, [
+    'button:has-text("Create with Google Flow")',
     'button:has-text("Create with Flow")',
   ], false);
+  if (openedFlow) await input.page.waitForTimeout(2_000);
+  await openProjectWorkspace(input.page, 90_000);
 
   const fileInput = await waitForFileInput(input.page);
   await fileInput.setInputFiles(input.references);
+  await acceptRightsNotice(input.page);
+  await attachUploadedReferences(input.page, input.references);
   const uploadFinished = Date.now();
 
   const promptInput = await firstVisible(input.page, [
     '[data-testid="prompt"]',
     'textarea[placeholder*="prompt" i]',
     'textarea',
+    '[role="textbox"]',
     '[contenteditable="true"][role="textbox"]',
   ]);
   if (!promptInput) throw new Error("Flow: не найдено поле промпта.");
-  await promptInput.fill(input.prompt);
+  await promptInput.fill(compactFlowPrompt(input.prompt));
 
-  const generateButton = await firstVisible(input.page, [
+  const generateButton = await waitForFirstEnabled(input.page, [
     '[data-testid="generate"]',
+    'button:has-text("arrow_forward")',
     'button:has-text("Generate")',
     'button[aria-label*="Generate" i]',
     'button:has-text("Create")',
-  ]);
+  ], 90_000);
   if (!generateButton) throw new Error("Flow: не найдена кнопка генерации.");
+  const existingSources = new Set(await input.page.locator("img").evaluateAll(
+    (images) => images.map((image) => (image as HTMLImageElement).src).filter(Boolean),
+  ));
   await generateButton.click();
 
-  const result = await waitForResult(input.page, input.timeoutMs);
+  const result = await waitForResult(input.page, input.timeoutMs, existingSources);
   const generatedAt = Date.now();
   await mkdir(path.dirname(input.outputPath), { recursive: true });
   const source = await result.getAttribute("src");
   if (source?.startsWith("data:")) {
     await writeFile(input.outputPath, Buffer.from(source.split(",", 2)[1], "base64"));
   } else if (source && !source.startsWith("blob:")) {
-    const response = await input.page.request.get(source);
+    const response = await input.page.request.get(new URL(source, input.page.url()).toString());
     if (!response.ok()) throw new Error(`Flow: результат не скачан, HTTP ${response.status()}.`);
     await writeFile(input.outputPath, await response.body());
   } else {
@@ -84,35 +96,116 @@ export async function generateFlowImage(input: {
   };
 }
 
+async function acceptRightsNotice(page: Page) {
+  const notice = await waitForFirstVisible(page, [
+    'button:has-text("I accept")',
+    'button:has-text("Accept")',
+    'button:has-text("Принимаю")',
+  ], 5_000);
+  if (!notice) return;
+  await notice.click({ timeout: 5_000 }).catch(async (error) => {
+    if (await firstVisible(page, ['[role="dialog"]'])) throw error;
+  });
+}
+
+async function attachUploadedReferences(page: Page, references: string[]) {
+  const addMedia = await waitForFirstVisible(page, [
+    '[data-testid="add-media"]',
+    'button:has-text("add_2")',
+  ], 30_000);
+  if (!addMedia) throw new Error("Flow: не найдена кнопка прикрепления референсов.");
+  await addMedia.click();
+
+  for (const reference of references) {
+    const fileName = path.basename(reference);
+    const image = page.locator(`[role="dialog"] img[alt=${JSON.stringify(fileName)}]`).last();
+    await image.waitFor({ state: "visible", timeout: 60_000 });
+    await image.click();
+  }
+
+  const attach = await waitForFirstEnabled(page, [
+    'button:has-text("Add to prompt")',
+    'button:has-text("Add to request")',
+    'button:has-text("Добавить в запрос")',
+  ], 20_000);
+  if (!attach) throw new Error("Flow: загруженные референсы не удалось добавить в запрос.");
+  await attach.click();
+}
+
+function compactFlowPrompt(prompt: string) {
+  const normalized = prompt.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 900) return normalized;
+  const suffix = " Original design only: no copied artwork, logos, brands, characters, watermarks or UI. Return one photorealistic marketplace product image.";
+  const available = 900 - suffix.length;
+  const prefix = normalized.slice(0, available);
+  const boundary = Math.max(prefix.lastIndexOf(". "), prefix.lastIndexOf("; "));
+  return `${boundary > available * 0.65 ? prefix.slice(0, boundary + 1) : prefix}${suffix}`;
+}
+
+async function openProjectWorkspace(page: Page, timeoutMs: number) {
+  const deadline = Date.now() + timeoutMs;
+  let lastProjectClick = 0;
+  while (Date.now() < deadline) {
+    const prompt = await firstVisible(page, [
+      '[role="textbox"]',
+      'textarea',
+      '[contenteditable="true"]',
+    ]);
+    if (prompt && (page.url().includes("/project/") || await page.locator('[data-testid="prompt"]').count())) return;
+
+    if (!prompt && Date.now() - lastProjectClick >= 3_000) {
+      const newProject = await firstVisible(page, [
+        '[data-testid="new-project"]',
+        'button:has-text("New project")',
+        'button:has-text("Create project")',
+        'button:has-text("Создать проект")',
+      ]) || await lastVisible(page, 'button:has-text("add_2")');
+      if (newProject) {
+        await newProject.click();
+        lastProjectClick = Date.now();
+      }
+    }
+    await page.waitForTimeout(500);
+  }
+  throw new Error(`Flow: рабочая область не загрузилась за ${Math.round(timeoutMs / 1000)} секунд.`);
+}
+
 async function waitForFileInput(page: Page) {
-  const direct = page.locator('input[type="file"]');
-  if (await direct.count()) return direct.first();
-  await clickFirstVisible(page, [
+  const direct = page.locator('input[type="file"]').first();
+  await direct.waitFor({ state: "attached", timeout: 30_000 }).catch(() => undefined);
+  if (await direct.count()) return direct;
+  const upload = await waitForFirstVisible(page, [
     '[data-testid="upload-references"]',
     'button[aria-label*="Upload" i]',
     'button:has-text("Upload")',
     'button[aria-label*="Add media" i]',
     'button[aria-label*="Add reference" i]',
-  ], true);
-  await page.locator('input[type="file"]').first().waitFor({ state: "attached", timeout: 10_000 });
+    'button[aria-label*="Добавить медиа" i]',
+    'button[aria-label*="Добавить референс" i]',
+  ], 30_000);
+  if (!upload) throw new Error("Flow: не найден элемент загрузки референсов.");
+  await upload.click();
+  await page.locator('input[type="file"]').first().waitFor({ state: "attached", timeout: 20_000 });
   return page.locator('input[type="file"]').first();
 }
 
-async function waitForResult(page: Page, timeoutMs: number) {
+async function waitForResult(page: Page, timeoutMs: number, existingSources: Set<string>) {
   const selectors = [
     '[data-testid="result-image"]',
     'img[alt*="Generated" i]',
     'img[alt*="generation" i]',
+    'img[alt*="Сгенерирован" i]',
   ];
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const result = await firstVisible(page, selectors);
     if (result) {
+      const source = await result.evaluate((image) => (image as HTMLImageElement).src);
       const ready = await result.evaluate((image) => {
         const node = image as HTMLImageElement;
         return Boolean(node.src) && (node.naturalWidth > 32 || node.src.startsWith("data:"));
       });
-      if (ready) return result;
+      if (ready && !existingSources.has(source)) return result;
     }
     await page.waitForTimeout(400);
   }
@@ -137,6 +230,35 @@ async function firstVisible(page: Page, selectors: string[]) {
       const candidate = locator.nth(index);
       if (await candidate.isVisible().catch(() => false)) return candidate;
     }
+  }
+  return null;
+}
+
+async function lastVisible(page: Page, selector: string) {
+  const locator = page.locator(selector);
+  for (let index = await locator.count() - 1; index >= 0; index -= 1) {
+    const candidate = locator.nth(index);
+    if (await candidate.isVisible().catch(() => false)) return candidate;
+  }
+  return null;
+}
+
+async function waitForFirstVisible(page: Page, selectors: string[], timeoutMs: number) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const locator = await firstVisible(page, selectors);
+    if (locator) return locator;
+    await page.waitForTimeout(500);
+  }
+  return null;
+}
+
+async function waitForFirstEnabled(page: Page, selectors: string[], timeoutMs: number) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const locator = await firstVisible(page, selectors);
+    if (locator && await locator.isEnabled().catch(() => false)) return locator;
+    await page.waitForTimeout(500);
   }
   return null;
 }

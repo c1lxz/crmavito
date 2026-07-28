@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { claimNextFlowJob, createCodexJob, getCodexJob, saveFlowJobResult } from "@/lib/ai/content-machine-jobs";
 import { saveBackground } from "@/lib/ai/content-machine";
 import { buildOriginalDesignPrompt } from "@/lib/flow-agent/market-research";
+import { createClaudeDesignMetaPrompt } from "@/lib/ai/claude-content-design";
 
 const root = path.resolve(__dirname, "..");
 const clientSource = fs.readFileSync(path.join(root, "components/content-machine/content-machine-client.tsx"), "utf8");
@@ -149,5 +150,41 @@ describe("content machine", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it("asks Claude vision for a production-ready Flow meta-prompt", async () => {
+    let requestBody = "";
+    const expectedPrompt = [
+      "Create one original black long-sleeve garment with a newly composed high-contrast screen print.",
+      "Use reference image 1 only for broad commercial hierarchy and reference image 2 for the exact background and lighting.",
+      "Preserve realistic cotton weave, seams, folds, print absorption, contact shadows, lens perspective and marketplace-camera imperfections.",
+      "Do not copy any logo, mascot, character, wording, monogram, artist style or distinctive composition.",
+      "Return only one photorealistic final image without watermarks, props, halos, pasted graphics or CGI fabric.",
+    ].join(" ");
+    const result = await createClaudeDesignMetaPrompt({
+      image: Buffer.from("winner"),
+      mimeType: "image/jpeg",
+      query: "gothic long sleeve",
+      research: {
+        query: "gothic long sleeve",
+        checkedAt: new Date().toISOString(),
+        listings: [],
+        topSignals: ["gothic mood", "large central graphic"],
+        sourceCounts: { grailed: 3, mercari: 3, rakuma: 3 },
+      },
+    }, {
+      apiKey: "test-key",
+      baseUrl: "https://claude.test",
+      model: "test-claude",
+      fetchFn: async (_url, init) => {
+        requestBody = String(init?.body);
+        return new Response(JSON.stringify({ content: [{ type: "text", text: expectedPrompt }] }), { status: 200 });
+      },
+    });
+    expect(result.prompt).toBe(expectedPrompt);
+    expect(result.model).toBe("test-claude");
+    expect(requestBody).toContain('"type":"image"');
+    expect(requestBody).toContain("Grailed 3, Mercari 3, Rakuma 3");
+    expect(requestBody).toContain("Do not explain your analysis");
   });
 });

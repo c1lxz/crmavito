@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
 import { chromium, type Browser, type BrowserContext } from "playwright";
+import sharp from "sharp";
 import { generateFlowImage } from "../lib/flow-agent/browser";
 import { buildOriginalDesignPrompt, collectMarketResearch, type MarketResearch } from "../lib/flow-agent/market-research";
 
@@ -15,6 +16,8 @@ type AgentJob = {
   mode?: "product-photo" | "original-design";
   inspirationQuery?: string;
   marketResearch?: MarketResearch;
+  designPrompt?: string;
+  metaPromptSource?: "claude" | "fallback";
   products: Array<{ index: number; fileName: string }>;
   backgrounds: Array<{ slot: BackgroundSlot; fileName: string }>;
   results: Array<{ productIndex: number; backgroundSlot: BackgroundSlot }>;
@@ -35,6 +38,7 @@ const proxyServer = process.env.FLOW_AGENT_PROXY_SERVER?.trim();
 const proxyUsername = process.env.FLOW_AGENT_PROXY_USERNAME?.trim();
 const proxyPassword = process.env.FLOW_AGENT_PROXY_PASSWORD?.trim();
 const profileName = process.env.FLOW_AGENT_PROFILE_NAME?.trim();
+const extensionPath = process.env.FLOW_AGENT_EXTENSION_PATH?.trim();
 
 async function main() {
   if (!token) throw new Error("Задайте FLOW_LOCAL_AGENT_TOKEN.");
@@ -43,6 +47,7 @@ async function main() {
     channel: "chrome",
     headless: process.env.FLOW_AGENT_HEADLESS === "1",
     viewport: { width: 1440, height: 1000 },
+    ignoreDefaultArgs: profileName || extensionPath ? ["--disable-extensions"] : undefined,
     proxy: proxyServer ? {
       server: proxyServer,
       ...(proxyUsername ? { username: proxyUsername } : {}),
@@ -52,6 +57,7 @@ async function main() {
       "--disable-background-timer-throttling",
       "--disable-renderer-backgrounding",
       ...(profileName ? [`--profile-directory=${profileName}`] : []),
+      ...(extensionPath ? [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`] : []),
     ],
   });
   if (process.env.FLOW_AGENT_PREFLIGHT === "1") {
@@ -195,7 +201,9 @@ async function processJob(context: BrowserContext, job: AgentJob) {
         const timing = await generateFlowImage({
           page,
           flowUrl,
-          references: [products.get(item.product.index)!, backgrounds.get(item.background.slot)!],
+          references: job.mode === "original-design"
+            ? [backgrounds.get(item.background.slot)!]
+            : [products.get(item.product.index)!, backgrounds.get(item.background.slot)!],
           prompt,
           outputPath,
           timeoutMs: generationTimeoutMs,
@@ -211,6 +219,7 @@ async function processJob(context: BrowserContext, job: AgentJob) {
 
 async function resolveJobPrompt(job: AgentJob) {
   if (job.mode !== "original-design") return job.generationPrompt || defaultPrompt();
+  if (job.designPrompt) return job.designPrompt;
   let research = job.marketResearch;
   if (!research) {
     const query = job.inspirationQuery?.trim();
@@ -227,7 +236,12 @@ async function resolveJobPrompt(job: AgentJob) {
     }
     await saveResearch(job.id, research);
   }
-  return buildOriginalDesignPrompt(research);
+  try {
+    return await requestMetaPrompt(job.id);
+  } catch (error) {
+    console.warn(`[flow-agent] Claude meta-prompt failed, using fallback: ${error instanceof Error ? error.message : String(error)}`);
+    return buildOriginalDesignPrompt(research);
+  }
 }
 
 async function saveResearch(jobId: string, research: MarketResearch) {
@@ -237,6 +251,17 @@ async function saveResearch(jobId: string, research: MarketResearch) {
     body: JSON.stringify({ agentId, research }),
   });
   if (!response.ok) throw new Error(`CRM не приняла исследование рынка: HTTP ${response.status} ${await response.text()}`);
+}
+
+async function requestMetaPrompt(jobId: string) {
+  const response = await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${jobId}/meta-prompt`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ agentId }),
+  });
+  const data = await response.json() as { prompt?: string; error?: string };
+  if (!response.ok || !data.prompt) throw new Error(data.error || `CRM вернула HTTP ${response.status}.`);
+  return data.prompt;
 }
 
 async function downloadAsset(jobId: string, kind: string, fileName: string, target: string) {
@@ -257,7 +282,22 @@ async function uploadResult(
   form.set("productIndex", String(productIndex));
   form.set("backgroundSlot", backgroundSlot);
   for (const [key, value] of Object.entries(timing)) form.set(key, String(value));
-  form.set("file", new Blob([await readFile(filePath)], { type: "image/png" }), path.basename(filePath));
+  const source = await readFile(filePath);
+  const metadata = await sharp(source).metadata();
+  const longestSide = Math.max(metadata.width || 0, metadata.height || 0);
+  const normalized = await sharp(source)
+    .rotate()
+    .resize({
+      ...(metadata.width && metadata.height && metadata.width >= metadata.height ? { width: 2048 } : { height: 2048 }),
+      withoutEnlargement: longestSide >= 2048,
+      kernel: sharp.kernel.lanczos3,
+    })
+    .sharpen({ sigma: 0.65, m1: 0.55, m2: 1.8 })
+    .png({ compressionLevel: 8, adaptiveFiltering: true })
+    .toBuffer();
+  const payload = new Uint8Array(normalized.length);
+  payload.set(normalized);
+  form.set("file", new Blob([payload], { type: "image/png" }), path.basename(filePath));
   const response = await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${jobId}/result`, { method: "POST", body: form });
   if (!response.ok) throw new Error(`CRM не приняла результат: HTTP ${response.status} ${await response.text()}`);
 }

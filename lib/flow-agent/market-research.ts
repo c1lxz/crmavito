@@ -100,14 +100,15 @@ export function buildOriginalDesignPrompt(research: MarketResearch): string {
     : "strong central graphic, readable hierarchy, restrained vintage distressing";
   return [
     "Create exactly ONE original, commercially strong apparel design presented as a photorealistic marketplace product photo.",
-    "REFERENCE IMAGE 1 is a proven-performing garment. Analyze only its broad commercial principles: visual hierarchy, graphic scale, contrast, placement, mood and garment silhouette.",
-    "REFERENCE IMAGE 2 is the required background and lighting reference.",
+    "REFERENCE IMAGE 1 is only the required background, perspective and lighting reference.",
     `Fresh marketplace research across Grailed, Mercari and Rakuma for '${research.query}' found these recurring signals: ${signals}.`,
     "Use the combined signals as abstract inspiration, not as source artwork.",
     "Create a genuinely new graphic concept with different composition, wording, symbols and illustration. Do not reproduce or closely imitate any identifiable print, character, logo, brand name, artist style, trademark or copyrighted artwork from the reference or marketplace listings.",
-    "Keep the garment category and realistic construction believable. Preserve the background identity, perspective and light from REFERENCE IMAGE 2.",
-    "The result should feel sellable in the same audience while remaining clearly independent and original.",
-    "No mockup labels, watermarks, UI, borders or explanatory text. Return only the final image.",
+    "Create a visibly new central motif, supporting geometry and composition; do not reuse the winner's subject or silhouette.",
+    "Keep the garment category and realistic construction believable. Preserve the background identity, perspective and light from REFERENCE IMAGE 1.",
+    "Render premium commercial quality: crisp original print edges, visible cotton weave, realistic ink absorption, sharp seams, natural folds, contact shadows, neutral white balance and high micro-contrast.",
+    "The result should feel sellable in the same audience while remaining clearly independent and original, sharp and high resolution.",
+    "Use no words, letters, numbers, neck-label text or fake branding. No mockup labels, watermarks, UI, borders or explanatory text. Return only the final image.",
   ].join("\n");
 }
 

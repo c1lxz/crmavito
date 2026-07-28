@@ -27,6 +27,8 @@ type JobManifest = {
   mode?: "product-photo" | "original-design";
   inspirationQuery?: string;
   marketResearch?: MarketResearch;
+  designPrompt?: string;
+  metaPromptSource?: "claude" | "fallback";
   products: JobProduct[];
   backgrounds: JobBackground[];
 };
@@ -262,6 +264,43 @@ export async function saveFlowJobResearch(id: string, agentId: string, marketRes
       throw new Error("Задание назначено другому локальному агенту.");
     }
     manifest.marketResearch = marketResearch;
+    await saveManifest(manifest);
+    return hydrateJob(manifest);
+  });
+}
+
+export async function getFlowDesignPromptContext(id: string, agentId: string) {
+  const manifest = await readManifest(id);
+  if (manifest.agentStatus !== "processing" || manifest.agentId !== agentId) {
+    throw new Error("Задание назначено другому локальному агенту.");
+  }
+  if (manifest.mode !== "original-design" || !manifest.inspirationQuery || !manifest.marketResearch) {
+    throw new Error("Для задания ещё не готово исследование рынка.");
+  }
+  const product = manifest.products[0];
+  const image = await readFile(path.join(jobDirectory(id), "products", product.fileName));
+  return {
+    image,
+    mimeType: product.mimeType as "image/jpeg" | "image/png" | "image/webp",
+    query: manifest.inspirationQuery,
+    research: manifest.marketResearch,
+    designPrompt: manifest.designPrompt,
+  };
+}
+
+export async function saveFlowDesignPrompt(
+  id: string,
+  agentId: string,
+  designPrompt: string,
+  source: "claude" | "fallback",
+) {
+  return withMutation(async () => {
+    const manifest = await readManifest(id);
+    if (manifest.agentStatus !== "processing" || manifest.agentId !== agentId) {
+      throw new Error("Задание назначено другому локальному агенту.");
+    }
+    manifest.designPrompt = designPrompt.slice(0, 12_000);
+    manifest.metaPromptSource = source;
     await saveManifest(manifest);
     return hydrateJob(manifest);
   });
