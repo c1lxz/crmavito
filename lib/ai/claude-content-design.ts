@@ -95,7 +95,7 @@ function buildMetaPromptRequest(
       ? `Mandatory user note for the final result:\n${designNote.trim()}\nTranslate this intent into precise visual and camera directions in the final Flow prompt. Follow it unless it conflicts with originality, safety or photorealistic quality.`
       : "There is no additional user note.",
     labelStyleReference?.trim()
-      ? `Neck-label aesthetic reference: ${labelStyleReference.trim()}. Add a small, realistic heat-transfer label inside the back neck reading exactly "CUSTOM MADE" with optional smaller "ARCHIVE DIVISION". Use only broad high-level aesthetic cues from the reference. Invent original typography and spacing; never render the reference name, its logo, monogram or distinctive trade dress.`
+      ? `Neck-label aesthetic reference: ${labelStyleReference.trim()}. Add exactly one small, single-line heat-transfer marking inside the back neck reading exactly "CUSTOM MADE". It must be ink printed directly on the fabric, never a sewn or woven tag, and must not be repeated or accompanied by any second line. Use only broad high-level aesthetic cues from the reference. Invent original typography and spacing; never render the reference name, its logo, monogram or distinctive trade dress.`
       : "Do not add neck-label text.",
     "Write one production-ready English Flow prompt of 650-850 characters that creates ONE genuinely original garment design and a premium photorealistic marketplace photo.",
     "The prompt must preserve the broad demand logic while changing all protected expression. Explicitly prohibit copying or closely imitating any brand, logo, character, mascot, artwork, artist style, monogram, exact wording or distinctive composition visible in the reference.",

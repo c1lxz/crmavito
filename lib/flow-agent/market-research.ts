@@ -102,7 +102,7 @@ export function buildOriginalDesignPrompt(research: MarketResearch, designNote?:
     "Create exactly ONE original, commercially strong apparel design presented as a photorealistic marketplace product photo.",
     "REFERENCE IMAGE 1 is only the required background, perspective and lighting reference.",
     ...(labelStyleReference?.trim() ? [
-      `Add a small realistic heat-transfer neck label inside the back collar, using broad high-level aesthetic cues from '${labelStyleReference.trim()}'. The label must read exactly 'CUSTOM MADE' with optional smaller 'ARCHIVE DIVISION'. Invent original typography and spacing. Never show the reference name, its logo, monogram or distinctive brand identity.`,
+      `Add exactly one small single-line heat-transfer marking inside the back collar, using broad high-level aesthetic cues from '${labelStyleReference.trim()}'. It must read exactly 'CUSTOM MADE', printed directly on the fabric. Never add a second line, duplicate marking, sewn tag or woven label. Invent original typography and spacing. Never show the reference name, its logo, monogram or distinctive brand identity.`,
     ] : []),
     `Fresh marketplace research across Grailed, Mercari and Rakuma for '${research.query}' found these recurring signals: ${signals}.`,
     "Use the combined signals as abstract inspiration, not as source artwork.",
