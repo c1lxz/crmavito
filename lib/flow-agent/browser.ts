@@ -177,8 +177,8 @@ async function openProjectWorkspace(page: Page, timeoutMs: number) {
         'button:has-text("Создать проект")',
       ]) || await lastVisible(page, 'button:has-text("add_2")');
       if (newProject) {
-        await newProject.click();
-        lastProjectClick = Date.now();
+        const clicked = await newProject.click({ timeout: 5_000 }).then(() => true).catch(() => false);
+        if (clicked) lastProjectClick = Date.now();
       }
     }
     await page.waitForTimeout(500);
