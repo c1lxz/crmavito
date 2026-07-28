@@ -199,6 +199,11 @@ export async function claimNextFlowJob(agentId: string): Promise<CodexJob | null
       const manifestPath = path.join(jobDirectory(id), "manifest.json");
       const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as JobManifest;
       const resumable = manifest.agentStatus === "processing" && manifest.agentId === agentId;
+      if (resumable && await countResultFiles(manifest) >= manifest.products.length * BACKGROUND_SLOTS.length) {
+        completeManifest(manifest);
+        await saveManifest(manifest);
+        continue;
+      }
       if (manifest.agentStatus !== "queued" && !resumable) continue;
       if (!resumable) {
         const now = new Date().toISOString();
@@ -242,16 +247,7 @@ export async function saveFlowJobResult(
       (item) => item.productIndex !== input.productIndex || item.backgroundSlot !== input.backgroundSlot,
     );
     manifest.metrics.generations.push(metric);
-    if (manifest.metrics.generations.length >= manifest.products.length * BACKGROUND_SLOTS.length) {
-      const completedAt = new Date().toISOString();
-      manifest.agentStatus = "complete";
-      manifest.completedAt = completedAt;
-      manifest.metrics.completedAt = completedAt;
-      manifest.metrics.totalDurationMs = Date.parse(completedAt) - Date.parse(manifest.metrics.startedAt);
-      manifest.metrics.averageGenerationMs = Math.round(
-        manifest.metrics.generations.reduce((sum, item) => sum + item.durationMs, 0) / manifest.metrics.generations.length,
-      );
-    }
+    if (await countResultFiles(manifest) >= manifest.products.length * BACKGROUND_SLOTS.length) completeManifest(manifest);
     await saveManifest(manifest);
     return hydrateJob(manifest);
   });
@@ -331,6 +327,26 @@ async function saveManifest(manifest: JobManifest) {
   const temporary = `${manifestPath}.${process.pid}.tmp`;
   await writeFile(temporary, JSON.stringify(manifest, null, 2), "utf8");
   await rename(temporary, manifestPath);
+}
+
+async function countResultFiles(manifest: JobManifest) {
+  const names = await readdir(path.join(jobDirectory(manifest.id), "results")).catch(() => []);
+  return names.filter((name) => /^product-\d{2}-background-[123]\.(jpg|jpeg|png|webp)$/i.test(name)).length;
+}
+
+function completeManifest(manifest: JobManifest) {
+  const completedAt = new Date().toISOString();
+  manifest.agentStatus = "complete";
+  manifest.completedAt = completedAt;
+  delete manifest.error;
+  if (!manifest.metrics) return;
+  manifest.metrics.completedAt = completedAt;
+  manifest.metrics.totalDurationMs = Date.parse(completedAt) - Date.parse(manifest.metrics.startedAt);
+  if (manifest.metrics.generations.length) {
+    manifest.metrics.averageGenerationMs = Math.round(
+      manifest.metrics.generations.reduce((sum, item) => sum + item.durationMs, 0) / manifest.metrics.generations.length,
+    );
+  }
 }
 
 function withMutation<T>(operation: () => Promise<T>): Promise<T> {
