@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promi
 import path from "node:path";
 import { BACKGROUND_SLOTS, readBackground, validateImageFile, type BackgroundSlot } from "@/lib/ai/content-machine";
 import { buildProductPhotoPrompt } from "@/lib/ai/gemini-images";
+import type { MarketResearch } from "@/lib/flow-agent/market-research";
 
 const mimeExtensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as const;
 const resultMimeTypes: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
@@ -23,6 +24,9 @@ type JobManifest = {
   metrics?: FlowJobMetrics;
   qualityProfile?: "photorealistic-v2";
   generationPrompt?: string;
+  mode?: "product-photo" | "original-design";
+  inspirationQuery?: string;
+  marketResearch?: MarketResearch;
   products: JobProduct[];
   backgrounds: JobBackground[];
 };
@@ -78,9 +82,21 @@ function jobDirectory(id: string) {
   return path.join(jobsDirectory(), id);
 }
 
-export async function createCodexJob(products: File[], imageSize: "2K" | "4K"): Promise<CodexJob> {
+export async function createCodexJob(
+  products: File[],
+  imageSize: "2K" | "4K",
+  options: { mode?: "product-photo" | "original-design"; inspirationQuery?: string } = {},
+): Promise<CodexJob> {
   if (products.length < 1 || products.length > 10) throw new Error("Добавьте от 1 до 10 фотографий товара.");
   products.forEach(validateImageFile);
+  const mode = options.mode === "original-design" ? "original-design" : "product-photo";
+  const inspirationQuery = options.inspirationQuery?.trim().slice(0, 120);
+  if (mode === "original-design" && products.length !== 1) {
+    throw new Error("Для нового дизайна загрузите одну фотографию залетевшей позиции.");
+  }
+  if (mode === "original-design" && (!inspirationQuery || inspirationQuery.length < 3)) {
+    throw new Error("Для нового дизайна укажите, что искать на Grailed, Mercari и Rakuma.");
+  }
   const now = new Date();
   const id = `CM-${now.toISOString().slice(0, 10).replaceAll("-", "")}-${randomBytes(3).toString("hex").toUpperCase()}`;
   const directory = jobDirectory(id);
@@ -116,6 +132,8 @@ export async function createCodexJob(products: File[], imageSize: "2K" | "4K"): 
     agentStatus: "queued",
     qualityProfile: "photorealistic-v2",
     generationPrompt: buildProductPhotoPrompt(),
+    mode,
+    ...(inspirationQuery ? { inspirationQuery } : {}),
     products: storedProducts,
     backgrounds: storedBackgrounds,
   };
@@ -232,6 +250,18 @@ export async function saveFlowJobResult(
         manifest.metrics.generations.reduce((sum, item) => sum + item.durationMs, 0) / manifest.metrics.generations.length,
       );
     }
+    await saveManifest(manifest);
+    return hydrateJob(manifest);
+  });
+}
+
+export async function saveFlowJobResearch(id: string, agentId: string, marketResearch: MarketResearch) {
+  return withMutation(async () => {
+    const manifest = await readManifest(id);
+    if (manifest.agentStatus !== "processing" || manifest.agentId !== agentId) {
+      throw new Error("Задание назначено другому локальному агенту.");
+    }
+    manifest.marketResearch = marketResearch;
     await saveManifest(manifest);
     return hydrateJob(manifest);
   });

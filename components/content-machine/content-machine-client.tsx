@@ -11,6 +11,7 @@ import {
   Images,
   Loader2,
   RefreshCw,
+  ScanSearch,
   Sparkles,
   Trash2,
   UploadCloud,
@@ -19,6 +20,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/lib/hooks/use-toast";
@@ -58,6 +60,12 @@ type FlowJob = {
   failedResults?: number;
   results: FlowResult[];
   error?: string;
+  mode?: "product-photo" | "original-design";
+  inspirationQuery?: string;
+  marketResearch?: {
+    topSignals: string[];
+    sourceCounts: Record<"grailed" | "mercari" | "rakuma", number>;
+  };
   metrics?: {
     totalDurationMs?: number;
     averageGenerationMs?: number;
@@ -74,6 +82,8 @@ export function ContentMachineClient() {
   const [uploadingSlot, setUploadingSlot] = useState<BackgroundSlot | null>(null);
   const [products, setProducts] = useState<ProductPhoto[]>([]);
   const [imageSize, setImageSize] = useState<"2K" | "4K">("2K");
+  const [mode, setMode] = useState<"product-photo" | "original-design">("product-photo");
+  const [inspirationQuery, setInspirationQuery] = useState("");
   const [job, setJob] = useState<FlowJob | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
@@ -145,7 +155,8 @@ export function ContentMachineClient() {
 
   function addProducts(files: FileList | null) {
     if (!files) return;
-    const available = maxProducts - products.length;
+    const limit = mode === "original-design" ? 1 : maxProducts;
+    const available = limit - products.length;
     const accepted = Array.from(files)
       .filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= 20 * 1024 * 1024)
       .slice(0, available);
@@ -177,6 +188,8 @@ export function ContentMachineClient() {
       const form = new FormData();
       products.forEach((product) => form.append("products", product.file));
       form.append("imageSize", imageSize);
+      form.append("mode", mode);
+      if (mode === "original-design") form.append("inspirationQuery", inspirationQuery.trim());
       const response = await fetch("/api/ai/content-machine/codex-jobs", { method: "POST", body: form });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Не удалось создать задание Flow.");
@@ -226,6 +239,7 @@ export function ContentMachineClient() {
   const agentReady = Boolean(agentStatus?.online && agentStatus.state === "ready");
   const readyResults = job?.results || [];
   const selectedCount = selectedIds.length;
+  const designReady = mode === "product-photo" || inspirationQuery.trim().length >= 3;
 
   return (
     <div className="min-h-screen bg-background">
@@ -298,11 +312,57 @@ export function ContentMachineClient() {
             </div>
           </div>
 
+          <div className="mb-4 grid gap-3 rounded-lg border bg-card p-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+            <div>
+              <Label htmlFor="content-mode">Режим</Label>
+              <Select
+                value={mode}
+                onValueChange={(value: "product-photo" | "original-design") => {
+                  if (value === "original-design" && products.length > 1) {
+                    products.slice(1).forEach((product) => URL.revokeObjectURL(product.previewUrl));
+                    setProducts((items) => items.slice(0, 1));
+                    toast({ title: "Оставлено первое фото", description: "Для нового дизайна нужен один пример залетевшей позиции." });
+                  }
+                  setMode(value);
+                }}
+                disabled={creatingJob}
+              >
+                <SelectTrigger id="content-mode" className="mt-1.5 h-11"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="product-photo">Карточка существующего товара</SelectItem>
+                  <SelectItem value="original-design">Новый дизайн по залетевшей позиции</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {mode === "original-design" ? (
+              <div>
+                <Label htmlFor="inspiration-query">Что сравнить на площадках</Label>
+                <div className="relative mt-1.5">
+                  <ScanSearch className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="inspiration-query"
+                    value={inspirationQuery}
+                    onChange={(event) => setInspirationQuery(event.target.value)}
+                    placeholder="Например: vintage gothic long sleeve, washed black"
+                    maxLength={120}
+                    className="h-11 pl-9"
+                    disabled={creatingJob}
+                  />
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">Агент сравнит Grailed, Mercari и Rakuma и выделит общие приёмы без копирования конкретного принта.</p>
+              </div>
+            ) : (
+              <div className="flex items-center text-sm text-muted-foreground">
+                Товар останется неизменным, агент заменит только фон и сведёт свет.
+              </div>
+            )}
+          </div>
+
           <input
             ref={productInputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            multiple
+            multiple={mode === "product-photo"}
             className="hidden"
             onChange={(event) => { addProducts(event.target.files); event.currentTarget.value = ""; }}
           />
@@ -314,8 +374,8 @@ export function ContentMachineClient() {
               className="flex min-h-52 w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-secondary/20 px-6 text-center transition-colors hover:border-primary/45 hover:bg-secondary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span className="icon-tile mb-3 h-11 w-11"><UploadCloud className="h-5 w-5" /></span>
-              <span className="text-sm font-semibold">Загрузить фото товара</span>
-              <span className="mt-1 text-xs text-muted-foreground">JPG, PNG или WebP до 20 МБ · максимум {maxProducts} ракурсов</span>
+              <span className="text-sm font-semibold">{mode === "original-design" ? "Загрузить фото залетевшей позиции" : "Загрузить фото товара"}</span>
+              <span className="mt-1 text-xs text-muted-foreground">JPG, PNG или WebP до 20 МБ · {mode === "original-design" ? "одно фото футболки или лонгслива" : `максимум ${maxProducts} ракурсов`}</span>
             </button>
           ) : (
             <div className="flex gap-3 overflow-x-auto pb-2">
@@ -340,11 +400,15 @@ export function ContentMachineClient() {
             <div className="flex items-start gap-3">
               <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
               <div>
-                <p className="text-sm font-semibold">Запустить быстрый локальный агент Flow</p>
-                <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">Агент сам откроет отдельный проект Flow для каждого результата, загрузит оба референса, вставит промпт и сохранит готовое фото в CRM.</p>
+                <p className="text-sm font-semibold">{mode === "original-design" ? "Исследовать рынок и создать оригинальные варианты" : "Запустить быстрый локальный агент Flow"}</p>
+                <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">
+                  {mode === "original-design"
+                    ? "Агент разберёт фото-победитель, сравнит выдачу трёх площадок, соберёт общий тренд-промпт и вернёт три самостоятельных дизайна в CRM."
+                    : "Агент сам откроет отдельный проект Flow для каждого результата, загрузит оба референса, вставит промпт и сохранит готовое фото в CRM."}
+                </p>
               </div>
             </div>
-            <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady || (agentStatus !== null && !agentReady)} className="shrink-0">
+            <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady || !designReady || (agentStatus !== null && !agentReady)} className="shrink-0">
               {creatingJob ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               {creatingJob ? "Ставлю в очередь Flow…" : `Создать ${products.length * 3} фото`}
             </Button>
@@ -357,6 +421,22 @@ export function ContentMachineClient() {
 
         {job && (
           <section>
+            {job.marketResearch && (
+              <div className="mb-4 rounded-lg border bg-card p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <ScanSearch className="h-4 w-4 text-primary" />
+                  <h2 className="text-sm font-semibold">Рынок изучен</h2>
+                  {(["grailed", "mercari", "rakuma"] as const).map((source) => (
+                    <Badge key={source} variant="secondary" className="capitalize">
+                      {source} · {job.marketResearch?.sourceCounts[source] || 0}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Сигналы: {job.marketResearch.topSignals.length ? job.marketResearch.topSignals.join(", ") : "выдача площадок не дала устойчивых повторов; агент использовал фото-победитель"}
+                </p>
+              </div>
+            )}
             <div className="mb-5 rounded-lg border bg-card p-4 sm:p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 items-start gap-3">

@@ -2,8 +2,9 @@ import { hostname } from "node:os";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
-import { chromium } from "playwright";
+import { chromium, type Browser, type BrowserContext } from "playwright";
 import { generateFlowImage } from "../lib/flow-agent/browser";
+import { buildOriginalDesignPrompt, collectMarketResearch, type MarketResearch } from "../lib/flow-agent/market-research";
 
 loadEnvConfig(process.cwd());
 
@@ -11,6 +12,9 @@ type BackgroundSlot = "1" | "2" | "3";
 type AgentJob = {
   id: string;
   generationPrompt?: string;
+  mode?: "product-photo" | "original-design";
+  inspirationQuery?: string;
+  marketResearch?: MarketResearch;
   products: Array<{ index: number; fileName: string }>;
   backgrounds: Array<{ slot: BackgroundSlot; fileName: string }>;
   results: Array<{ productIndex: number; backgroundSlot: BackgroundSlot }>;
@@ -25,8 +29,12 @@ const concurrency = clamp(Number(process.env.FLOW_AGENT_CONCURRENCY || 3), 1, 6)
 const pollMs = clamp(Number(process.env.FLOW_AGENT_POLL_MS || 750), 250, 30_000);
 const generationTimeoutMs = clamp(Number(process.env.FLOW_GENERATION_TIMEOUT_MS || 240_000), 30_000, 600_000);
 const stateDirectory = path.resolve(process.env.FLOW_AGENT_STATE_DIR || ".flow-local-agent");
-const profileDirectory = path.join(stateDirectory, "chrome-profile");
+const profileDirectory = path.resolve(process.env.FLOW_AGENT_PROFILE_DIR || path.join(stateDirectory, "chrome-profile"));
 const workDirectory = path.join(stateDirectory, "work");
+const proxyServer = process.env.FLOW_AGENT_PROXY_SERVER?.trim();
+const proxyUsername = process.env.FLOW_AGENT_PROXY_USERNAME?.trim();
+const proxyPassword = process.env.FLOW_AGENT_PROXY_PASSWORD?.trim();
+const profileName = process.env.FLOW_AGENT_PROFILE_NAME?.trim();
 
 async function main() {
   if (!token) throw new Error("Задайте FLOW_LOCAL_AGENT_TOKEN.");
@@ -35,7 +43,16 @@ async function main() {
     channel: "chrome",
     headless: process.env.FLOW_AGENT_HEADLESS === "1",
     viewport: { width: 1440, height: 1000 },
-    args: ["--disable-background-timer-throttling", "--disable-renderer-backgrounding"],
+    proxy: proxyServer ? {
+      server: proxyServer,
+      ...(proxyUsername ? { username: proxyUsername } : {}),
+      ...(proxyPassword ? { password: proxyPassword } : {}),
+    } : undefined,
+    args: [
+      "--disable-background-timer-throttling",
+      "--disable-renderer-backgrounding",
+      ...(profileName ? [`--profile-directory=${profileName}`] : []),
+    ],
   });
   if (process.env.FLOW_AGENT_PREFLIGHT === "1") {
     const page = context.pages()[0] || await context.newPage();
@@ -143,7 +160,7 @@ async function claimJob(): Promise<AgentJob | null> {
   return data.job;
 }
 
-async function processJob(context: Awaited<ReturnType<typeof chromium.launchPersistentContext>>, job: AgentJob) {
+async function processJob(context: BrowserContext, job: AgentJob) {
   const jobDirectory = path.join(workDirectory, job.id);
   await rm(jobDirectory, { recursive: true, force: true });
   await mkdir(jobDirectory, { recursive: true });
@@ -167,28 +184,59 @@ async function processJob(context: Awaited<ReturnType<typeof chromium.launchPers
     .filter((background) => !completed.has(`${product.index}:${background.slot}`))
     .map((background) => ({ product, background })));
   console.log(`[flow-agent] ${job.id}: ${work.length} фото`);
+  const prompt = await resolveJobPrompt(job);
   let cursor = 0;
   await Promise.all(Array.from({ length: Math.min(concurrency, work.length) }, async () => {
-    while (cursor < work.length) {
-      const item = work[cursor++];
-      const page = await context.newPage();
-      const outputPath = path.join(jobDirectory, `product-${String(item.product.index).padStart(2, "0")}-background-${item.background.slot}.png`);
-      try {
+    const page = await context.newPage();
+    try {
+      while (cursor < work.length) {
+        const item = work[cursor++];
+        const outputPath = path.join(jobDirectory, `product-${String(item.product.index).padStart(2, "0")}-background-${item.background.slot}.png`);
         const timing = await generateFlowImage({
           page,
           flowUrl,
           references: [products.get(item.product.index)!, backgrounds.get(item.background.slot)!],
-          prompt: job.generationPrompt || defaultPrompt(),
+          prompt,
           outputPath,
           timeoutMs: generationTimeoutMs,
         });
         await uploadResult(job.id, item.product.index, item.background.slot, outputPath, timing);
         console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: ${(timing.durationMs / 1000).toFixed(1)} сек`);
-      } finally {
-        await page.close();
       }
+    } finally {
+      await page.close();
     }
   }));
+}
+
+async function resolveJobPrompt(job: AgentJob) {
+  if (job.mode !== "original-design") return job.generationPrompt || defaultPrompt();
+  let research = job.marketResearch;
+  if (!research) {
+    const query = job.inspirationQuery?.trim();
+    if (!query) throw new Error("Для режима нового дизайна не задан рыночный запрос.");
+    let browser: Browser | null = null;
+    try {
+      browser = await chromium.launch({
+        channel: "chrome",
+        headless: process.env.FLOW_RESEARCH_HEADLESS !== "0",
+      });
+      research = await collectMarketResearch(browser, query);
+    } finally {
+      await browser?.close();
+    }
+    await saveResearch(job.id, research);
+  }
+  return buildOriginalDesignPrompt(research);
+}
+
+async function saveResearch(jobId: string, research: MarketResearch) {
+  const response = await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${jobId}/research`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ agentId, research }),
+  });
+  if (!response.ok) throw new Error(`CRM не приняла исследование рынка: HTTP ${response.status} ${await response.text()}`);
 }
 
 async function downloadAsset(jobId: string, kind: string, fileName: string, target: string) {

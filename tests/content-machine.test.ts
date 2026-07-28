@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { claimNextFlowJob, createCodexJob, getCodexJob, saveFlowJobResult } from "@/lib/ai/content-machine-jobs";
 import { saveBackground } from "@/lib/ai/content-machine";
+import { buildOriginalDesignPrompt } from "@/lib/flow-agent/market-research";
 
 const root = path.resolve(__dirname, "..");
 const clientSource = fs.readFileSync(path.join(root, "components/content-machine/content-machine-client.tsx"), "utf8");
@@ -111,6 +112,40 @@ describe("content machine", () => {
       expect(ready.status).toBe("ready");
       expect(ready.results).toHaveLength(3);
       expect(ready.results[0].url).toContain(`/codex-jobs/${created.id}/files/results/`);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("creates an original-design job from one proven product and keeps the prompt independent", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "crmavito-design-job-"));
+    process.env.CONTENT_MACHINE_DATA_DIR = directory;
+    try {
+      for (const slot of ["1", "2", "3"] as const) {
+        await saveBackground(slot, new File([`background-${slot}`], `background-${slot}.jpg`, { type: "image/jpeg" }) as unknown as globalThis.File);
+      }
+      const winner = new File(["winner"], "winner-long-sleeve.jpg", { type: "image/jpeg" }) as unknown as globalThis.File;
+      const created = await createCodexJob([winner], "2K", {
+        mode: "original-design",
+        inspirationQuery: "vintage gothic long sleeve",
+      });
+      expect(created.mode).toBe("original-design");
+      expect(created.inspirationQuery).toBe("vintage gothic long sleeve");
+      await expect(createCodexJob([winner, winner], "2K", {
+        mode: "original-design",
+        inspirationQuery: "vintage gothic long sleeve",
+      })).rejects.toThrow("одну фотографию");
+
+      const prompt = buildOriginalDesignPrompt({
+        query: "vintage gothic long sleeve",
+        checkedAt: new Date().toISOString(),
+        listings: [],
+        topSignals: ["gothic", "distressed", "oversized"],
+        sourceCounts: { grailed: 0, mercari: 0, rakuma: 0 },
+      });
+      expect(prompt).toContain("Grailed, Mercari and Rakuma");
+      expect(prompt).toContain("gothic, distressed, oversized");
+      expect(prompt).toContain("Do not reproduce");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

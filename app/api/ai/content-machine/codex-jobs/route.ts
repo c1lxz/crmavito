@@ -12,7 +12,9 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const products = form.getAll("products").filter((value): value is File => value instanceof File);
     const imageSize = form.get("imageSize") === "4K" ? "4K" : "2K";
-    const job = await createCodexJob(products, imageSize);
+    const mode = form.get("mode") === "original-design" ? "original-design" : "product-photo";
+    const inspirationQuery = typeof form.get("inspirationQuery") === "string" ? String(form.get("inspirationQuery")) : undefined;
+    const job = await createCodexJob(products, imageSize, { mode, inspirationQuery });
     return NextResponse.json({ job });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
