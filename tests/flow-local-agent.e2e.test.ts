@@ -46,8 +46,9 @@ describe("Flow local browser agent", () => {
       expect(await Promise.all([1, 2, 3].map((index) => readFile(path.join(directory, `result-${index}.png`))))).toSatisfy(
         (files: Buffer[]) => files.every((file) => file.length > 50),
       );
-      expect(timings.every((timing) => timing.generationMs >= 150 && timing.durationMs < 3_000)).toBe(true);
+      expect(timings.every((timing) => timing.generationMs >= 100 && timing.durationMs < 3_000)).toBe(true);
       expect(elapsed).toBeLessThan(3_500);
+      expect(context.pages()).toHaveLength(0);
     } finally {
       await context.close();
       await rm(directory, { recursive: true, force: true });

@@ -48,7 +48,10 @@ async function main() {
     channel: "chrome",
     headless: process.env.FLOW_AGENT_HEADLESS === "1",
     viewport: { width: 1440, height: 1000 },
-    ignoreDefaultArgs: profileName || extensionPath ? ["--disable-extensions"] : undefined,
+    ignoreDefaultArgs: [
+      "--no-sandbox",
+      ...(profileName || extensionPath ? ["--disable-extensions"] : []),
+    ],
     proxy: proxyServer ? {
       server: proxyServer,
       ...(proxyUsername ? { username: proxyUsername } : {}),
@@ -57,26 +60,29 @@ async function main() {
     args: [
       "--disable-background-timer-throttling",
       "--disable-renderer-backgrounding",
+      "--disable-session-crashed-bubble",
+      "--hide-crash-restore-bubble",
       ...(profileName ? [`--profile-directory=${profileName}`] : []),
       ...(extensionPath ? [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`] : []),
     ],
   });
+  let controlPage = await prepareControlPage(context);
   if (process.env.FLOW_AGENT_PREFLIGHT === "1") {
-    const page = context.pages()[0] || await context.newPage();
-    await page.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    const summary = (await page.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 500);
-    console.log(JSON.stringify({ url: page.url(), title: await page.title(), summary }));
+    await controlPage.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const summary = (await controlPage.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 500);
+    console.log(JSON.stringify({ url: controlPage.url(), title: await controlPage.title(), summary }));
     await context.close();
     return;
   }
   console.log(`[flow-agent] ${agentId}; параллельность ${concurrency}; CRM ${baseUrl}`);
   try {
-    let availability = await probeFlow(context);
+    let availability = await probeFlow(controlPage);
     let nextProbeAt = Date.now() + 5 * 60_000;
     let nextHeartbeatAt = 0;
     while (true) {
       if (Date.now() >= nextProbeAt) {
-        availability = await probeFlow(context);
+        controlPage = await prepareControlPage(context, controlPage);
+        availability = await probeFlow(controlPage);
         nextProbeAt = Date.now() + 5 * 60_000;
       }
       if (Date.now() >= nextHeartbeatAt) {
@@ -116,8 +122,15 @@ async function main() {
   }
 }
 
-async function probeFlow(context: Awaited<ReturnType<typeof chromium.launchPersistentContext>>): Promise<FlowAvailability> {
-  const page = await context.newPage();
+async function prepareControlPage(context: BrowserContext, current?: import("playwright").Page) {
+  if (current && !current.isClosed()) return current;
+  const pages = context.pages().filter((page) => !page.isClosed());
+  const controlPage = pages.find((page) => page.url().startsWith(flowUrl)) || pages[0] || await context.newPage();
+  await Promise.all(pages.filter((page) => page !== controlPage).map((page) => page.close().catch(() => undefined)));
+  return controlPage;
+}
+
+async function probeFlow(page: import("playwright").Page): Promise<FlowAvailability> {
   try {
     await page.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
     const url = page.url();
@@ -131,8 +144,6 @@ async function probeFlow(context: Awaited<ReturnType<typeof chromium.launchPersi
     return { state: "ready", message: "Google Flow доступен; агент готов к генерации." };
   } catch (error) {
     return { state: "error", message: error instanceof Error ? error.message : String(error) };
-  } finally {
-    await page.close();
   }
 }
 
