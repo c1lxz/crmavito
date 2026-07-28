@@ -158,6 +158,9 @@ describe("content machine", () => {
       expect(prompt).toContain("Never show the reference name");
       expect(prompt).toContain("REFERENCE IMAGES 1-2");
       expect(prompt).toContain("REFERENCE IMAGE 3");
+      expect(prompt).toContain(
+        "Preserve the background identity, perspective and light from REFERENCE IMAGE 3",
+      );
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
