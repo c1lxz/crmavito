@@ -103,7 +103,7 @@ export function buildOriginalDesignPrompt(research: MarketResearch): string {
     "REFERENCE IMAGE 1 is only the required background, perspective and lighting reference.",
     `Fresh marketplace research across Grailed, Mercari and Rakuma for '${research.query}' found these recurring signals: ${signals}.`,
     "Use the combined signals as abstract inspiration, not as source artwork.",
-    "Create a genuinely new graphic concept with different composition, wording, symbols and illustration. Do not reproduce or closely imitate any identifiable print, character, logo, brand name, artist style, trademark or copyrighted artwork from the reference or marketplace listings.",
+    "Create a genuinely new graphic concept with different composition, symbols and illustration. Do not reproduce or closely imitate any identifiable print, character, logo, brand name, artist style, trademark or copyrighted artwork from the reference or marketplace listings.",
     "Create a visibly new central motif, supporting geometry and composition; do not reuse the winner's subject or silhouette.",
     "Keep the garment category and realistic construction believable. Preserve the background identity, perspective and light from REFERENCE IMAGE 1.",
     "Render premium commercial quality: crisp original print edges, visible cotton weave, realistic ink absorption, sharp seams, natural folds, contact shadows, neutral white balance and high micro-contrast.",

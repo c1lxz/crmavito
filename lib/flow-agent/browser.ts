@@ -148,7 +148,7 @@ async function attachUploadedReferences(page: Page, references: string[]) {
 function compactFlowPrompt(prompt: string) {
   const normalized = prompt.replace(/\s+/g, " ").trim();
   if (normalized.length <= 900) return normalized;
-  const suffix = " Original design only: no copied artwork, logos, brands, characters, watermarks or UI. Return one photorealistic marketplace product image.";
+  const suffix = " Original visual design only: no copied artwork, logos, brands, characters, words, letters, numbers, neck-label text, watermarks or UI. Return one sharp photorealistic marketplace product image.";
   const available = 900 - suffix.length;
   const prefix = normalized.slice(0, available);
   const boundary = Math.max(prefix.lastIndexOf(". "), prefix.lastIndexOf("; "));
