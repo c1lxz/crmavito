@@ -26,6 +26,7 @@ type JobManifest = {
   generationPrompt?: string;
   mode?: "product-photo" | "original-design";
   inspirationQuery?: string;
+  designNote?: string;
   marketResearch?: MarketResearch;
   designPrompt?: string;
   metaPromptSource?: "claude" | "fallback";
@@ -87,12 +88,13 @@ function jobDirectory(id: string) {
 export async function createCodexJob(
   products: File[],
   imageSize: "2K" | "4K",
-  options: { mode?: "product-photo" | "original-design"; inspirationQuery?: string } = {},
+  options: { mode?: "product-photo" | "original-design"; inspirationQuery?: string; designNote?: string } = {},
 ): Promise<CodexJob> {
   if (products.length < 1 || products.length > 10) throw new Error("Добавьте от 1 до 10 фотографий товара.");
   products.forEach(validateImageFile);
   const mode = options.mode === "original-design" ? "original-design" : "product-photo";
   const inspirationQuery = options.inspirationQuery?.trim().slice(0, 120);
+  const designNote = options.designNote?.trim().slice(0, 1200);
   if (mode === "original-design" && products.length !== 1) {
     throw new Error("Для нового дизайна загрузите одну фотографию залетевшей позиции.");
   }
@@ -136,6 +138,7 @@ export async function createCodexJob(
     generationPrompt: buildProductPhotoPrompt(),
     mode,
     ...(inspirationQuery ? { inspirationQuery } : {}),
+    ...(mode === "original-design" && designNote ? { designNote } : {}),
     products: storedProducts,
     backgrounds: storedBackgrounds,
   };
@@ -279,6 +282,7 @@ export async function getFlowDesignPromptContext(id: string, agentId: string) {
     image,
     mimeType: product.mimeType as "image/jpeg" | "image/png" | "image/webp",
     query: manifest.inspirationQuery,
+    designNote: manifest.designNote,
     research: manifest.marketResearch,
     designPrompt: manifest.designPrompt,
   };

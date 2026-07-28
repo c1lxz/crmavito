@@ -129,9 +129,11 @@ describe("content machine", () => {
       const created = await createCodexJob([winner], "2K", {
         mode: "original-design",
         inspirationQuery: "vintage gothic long sleeve",
+        designNote: "Make the graphic smaller and vary the camera angle.",
       });
       expect(created.mode).toBe("original-design");
       expect(created.inspirationQuery).toBe("vintage gothic long sleeve");
+      expect(created.designNote).toBe("Make the graphic smaller and vary the camera angle.");
       await expect(createCodexJob([winner, winner], "2K", {
         mode: "original-design",
         inspirationQuery: "vintage gothic long sleeve",
@@ -165,6 +167,7 @@ describe("content machine", () => {
       image: Buffer.from("winner"),
       mimeType: "image/jpeg",
       query: "gothic long sleeve",
+      designNote: "Make the graphic smaller and provide varied camera angles.",
       research: {
         query: "gothic long sleeve",
         checkedAt: new Date().toISOString(),
@@ -185,6 +188,9 @@ describe("content machine", () => {
     expect(result.model).toBe("test-claude");
     expect(requestBody).toContain('"type":"image"');
     expect(requestBody).toContain("Grailed 3, Mercari 3, Rakuma 3");
+    expect(requestBody).toContain("Mandatory user note");
+    expect(requestBody).toContain("Make the graphic smaller and provide varied camera angles.");
+    expect(requestBody).toContain("exactly one image per run");
     expect(requestBody).toContain("Do not explain your analysis");
   });
 });

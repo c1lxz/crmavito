@@ -15,6 +15,7 @@ type AgentJob = {
   generationPrompt?: string;
   mode?: "product-photo" | "original-design";
   inspirationQuery?: string;
+  designNote?: string;
   marketResearch?: MarketResearch;
   designPrompt?: string;
   metaPromptSource?: "claude" | "fallback";
@@ -243,7 +244,7 @@ async function resolveJobPrompt(job: AgentJob) {
     return await requestMetaPrompt(job.id);
   } catch (error) {
     console.warn(`[flow-agent] Claude meta-prompt failed, using fallback: ${error instanceof Error ? error.message : String(error)}`);
-    return buildOriginalDesignPrompt(research);
+    return buildOriginalDesignPrompt(research, job.designNote);
   }
 }
 

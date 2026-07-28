@@ -11,6 +11,7 @@ export async function createClaudeDesignMetaPrompt(
     image: Buffer;
     mimeType: "image/jpeg" | "image/png" | "image/webp";
     query: string;
+    designNote?: string;
     research: MarketResearch;
   },
   options: { fetchFn?: typeof fetch; apiKey?: string; baseUrl?: string; model?: string } = {},
@@ -47,7 +48,7 @@ export async function createClaudeDesignMetaPrompt(
           },
           {
             type: "text",
-            text: buildMetaPromptRequest(input.query, signals, input.research.sourceCounts),
+            text: buildMetaPromptRequest(input.query, signals, input.research.sourceCounts, input.designNote),
           },
         ],
       }],
@@ -80,6 +81,7 @@ function buildMetaPromptRequest(
   query: string,
   signals: string,
   counts: MarketResearch["sourceCounts"],
+  designNote?: string,
 ) {
   return [
     "You are a senior apparel art director writing the final image-generation prompt for Google Flow.",
@@ -87,12 +89,16 @@ function buildMetaPromptRequest(
     `The market query is: ${query}.`,
     `Cross-market abstract signals are: ${signals}.`,
     `Research coverage: Grailed ${counts.grailed}, Mercari ${counts.mercari}, Rakuma ${counts.rakuma}.`,
+    designNote?.trim()
+      ? `Mandatory user note for the final result:\n${designNote.trim()}\nTranslate this intent into precise visual and camera directions in the final Flow prompt. Follow it unless it conflicts with originality, safety or photorealistic quality.`
+      : "There is no additional user note.",
     "Write one production-ready English Flow prompt of 650-850 characters that creates ONE genuinely original garment design and a premium photorealistic marketplace photo.",
     "The prompt must preserve the broad demand logic while changing all protected expression. Explicitly prohibit copying or closely imitating any brand, logo, character, mascot, artwork, artist style, monogram, exact wording or distinctive composition visible in the reference.",
     "Invent and explicitly describe a new central motif, supporting geometry, layout and limited color system that are visibly different from the uploaded winner.",
     "Demand crisp print edges, visible cotton weave, realistic screen-print ink absorption, sharp seams, natural folds and contact shadows, neutral white balance, high micro-contrast and a clean high-resolution commercial camera result.",
     "Prefer a purely visual graphic. If typography is essential, specify one exact original phrase of at most three words in quotation marks. Prohibit all other words, letters, numbers, neck-label text and fake branding.",
     "The winner is visible only to you. Do not call it a reference image in the final prompt. Flow receives REFERENCE IMAGE 1 only as the exact background, perspective and light reference.",
+    "The final prompt is reused for three independent Flow generations. Convert requests for several angles or variants into concise directions that encourage meaningful viewpoint variation across those independent runs; still request exactly one image per run.",
     "Avoid generic CGI, soft focus, low resolution, plastic fabric, pasted graphics, halos, malformed text, watermarks, props and extra garments.",
     "Do not explain your analysis and do not use Markdown. Return only the final Flow prompt.",
   ].join("\n");

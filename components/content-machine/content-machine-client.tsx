@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/hooks/use-toast";
 
 type BackgroundSlot = "1" | "2" | "3";
@@ -62,6 +63,7 @@ type FlowJob = {
   error?: string;
   mode?: "product-photo" | "original-design";
   inspirationQuery?: string;
+  designNote?: string;
   marketResearch?: {
     topSignals: string[];
     sourceCounts: Record<"grailed" | "mercari" | "rakuma", number>;
@@ -85,6 +87,7 @@ export function ContentMachineClient() {
   const [imageSize, setImageSize] = useState<"2K" | "4K">("2K");
   const [mode, setMode] = useState<"product-photo" | "original-design">("product-photo");
   const [inspirationQuery, setInspirationQuery] = useState("");
+  const [designNote, setDesignNote] = useState("");
   const [job, setJob] = useState<FlowJob | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
@@ -190,7 +193,10 @@ export function ContentMachineClient() {
       products.forEach((product) => form.append("products", product.file));
       form.append("imageSize", imageSize);
       form.append("mode", mode);
-      if (mode === "original-design") form.append("inspirationQuery", inspirationQuery.trim());
+      if (mode === "original-design") {
+        form.append("inspirationQuery", inspirationQuery.trim());
+        form.append("designNote", designNote.trim());
+      }
       const response = await fetch("/api/ai/content-machine/codex-jobs", { method: "POST", body: form });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Не удалось создать задание Flow.");
@@ -340,22 +346,38 @@ export function ContentMachineClient() {
               </Select>
             </div>
             {mode === "original-design" ? (
-              <div>
-                <Label htmlFor="inspiration-query">Что сравнить на площадках</Label>
-                <div className="relative mt-1.5">
-                  <ScanSearch className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="inspiration-query"
-                    value={inspirationQuery}
-                    onChange={(event) => setInspirationQuery(event.target.value)}
-                    placeholder="Например: vintage gothic long sleeve, washed black"
-                    maxLength={120}
-                    className="h-11 pl-9"
+              <>
+                <div>
+                  <Label htmlFor="inspiration-query">Что сравнить на площадках</Label>
+                  <div className="relative mt-1.5">
+                    <ScanSearch className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="inspiration-query"
+                      value={inspirationQuery}
+                      onChange={(event) => setInspirationQuery(event.target.value)}
+                      placeholder="Например: vintage gothic long sleeve, washed black"
+                      maxLength={120}
+                      className="h-11 pl-9"
+                      disabled={creatingJob}
+                    />
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground">Агент сравнит Grailed, Mercari и Rakuma и выделит общие приёмы без копирования конкретного принта.</p>
+                </div>
+                <div className="lg:col-span-2">
+                  <Label htmlFor="design-note">Примечание</Label>
+                  <Textarea
+                    id="design-note"
+                    value={designNote}
+                    onChange={(event) => setDesignNote(event.target.value)}
+                    placeholder={"Например:\nДай 3 фото с разных ракурсов\nРисунок меньше"}
+                    maxLength={1200}
+                    rows={3}
+                    className="mt-1.5 min-h-24 resize-y"
                     disabled={creatingJob}
                   />
+                  <p className="mt-1.5 text-xs text-muted-foreground">Claude учтёт пожелания при создании финального мета-промпта для Flow.</p>
                 </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">Агент сравнит Grailed, Mercari и Rakuma и выделит общие приёмы без копирования конкретного принта.</p>
-              </div>
+              </>
             ) : (
               <div className="flex items-center text-sm text-muted-foreground">
                 Товар останется неизменным, агент заменит только фон и сведёт свет.
