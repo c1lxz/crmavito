@@ -95,6 +95,8 @@ export function ContentMachineClient() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
   const [refreshingJob, setRefreshingJob] = useState(false);
+  const [refreshConfirmed, setRefreshConfirmed] = useState(false);
+  const [resultRefreshKey, setResultRefreshKey] = useState(0);
   const [agentStatus, setAgentStatus] = useState<FlowAgentStatus | null>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
   const productUrlsRef = useRef<string[]>([]);
@@ -232,8 +234,12 @@ export function ContentMachineClient() {
 
   async function refreshJob(id: string) {
     setRefreshingJob(true);
+    setRefreshConfirmed(false);
     try {
       if (await loadJob(id)) {
+        setResultRefreshKey((value) => value + 1);
+        setRefreshConfirmed(true);
+        window.setTimeout(() => setRefreshConfirmed(false), 2_500);
         toast({ title: "Результаты обновлены", description: "CRM получила актуальные файлы задачи." });
       }
     } finally {
@@ -526,8 +532,10 @@ export function ContentMachineClient() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" disabled={refreshingJob} onClick={() => void refreshJob(job.id)}>
-                    <RefreshCw className={`mr-1.5 h-4 w-4 ${refreshingJob ? "animate-spin" : ""}`} />
-                    {refreshingJob ? "Обновляю…" : "Обновить"}
+                    {refreshConfirmed
+                      ? <Check className="mr-1.5 h-4 w-4 text-emerald-600" />
+                      : <RefreshCw className={`mr-1.5 h-4 w-4 ${refreshingJob ? "animate-spin" : ""}`} />}
+                    {refreshingJob ? "Обновляю…" : refreshConfirmed ? "Обновлено" : "Обновить"}
                   </Button>
                 </div>
               </div>
@@ -569,6 +577,7 @@ export function ContentMachineClient() {
                         selected={selectedIds.includes(result.id)}
                         onToggle={() => toggleSelected(result.id)}
                         onDownload={() => void downloadResult(result)}
+                        refreshKey={resultRefreshKey}
                       />
                     ))}
                   </div>
@@ -614,18 +623,19 @@ function BackgroundPanel({ background, loading, onFile }: { background: Backgrou
   );
 }
 
-function ResultPanel({ result, selected, onToggle, onDownload }: {
+function ResultPanel({ result, selected, onToggle, onDownload, refreshKey }: {
   result: FlowResult;
   selected: boolean;
   onToggle: () => void;
   onDownload: () => void;
+  refreshKey: number;
 }) {
   return (
     <div className={`overflow-hidden rounded-lg border bg-card ${selected ? "border-primary ring-1 ring-primary/30" : ""}`}>
       <div className="relative min-h-32 bg-secondary/30">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={result.url}
+          src={`${result.url}${result.url.includes("?") ? "&" : "?"}refresh=${refreshKey}`}
           alt={`${result.productName}, фон ${result.backgroundSlot}`}
           className="block h-auto w-full"
           loading="eager"
