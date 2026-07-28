@@ -94,6 +94,7 @@ export function ContentMachineClient() {
   const [job, setJob] = useState<FlowJob | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
+  const [refreshingJob, setRefreshingJob] = useState(false);
   const [agentStatus, setAgentStatus] = useState<FlowAgentStatus | null>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
   const productUrlsRef = useRef<string[]>([]);
@@ -222,8 +223,21 @@ export function ContentMachineClient() {
       if (!response.ok) throw new Error(data.error || "Не удалось обновить задание.");
       setJob(data.job);
       if (data.job.status === "ready") setSelectedIds((items) => items.length ? items : data.job.results.map((result: FlowResult) => result.id));
+      return true;
     } catch (error) {
       if (showError) toast({ title: "Задание не найдено", description: errorMessage(error), variant: "destructive" });
+      return false;
+    }
+  }
+
+  async function refreshJob(id: string) {
+    setRefreshingJob(true);
+    try {
+      if (await loadJob(id)) {
+        toast({ title: "Результаты обновлены", description: "CRM получила актуальные файлы задачи." });
+      }
+    } finally {
+      setRefreshingJob(false);
     }
   }
 
@@ -511,8 +525,9 @@ export function ContentMachineClient() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => void loadJob(job.id)}>
-                    <RefreshCw className="mr-1.5 h-4 w-4" />Обновить
+                  <Button variant="outline" size="sm" disabled={refreshingJob} onClick={() => void refreshJob(job.id)}>
+                    <RefreshCw className={`mr-1.5 h-4 w-4 ${refreshingJob ? "animate-spin" : ""}`} />
+                    {refreshingJob ? "Обновляю…" : "Обновить"}
                   </Button>
                 </div>
               </div>
@@ -607,9 +622,14 @@ function ResultPanel({ result, selected, onToggle, onDownload }: {
 }) {
   return (
     <div className={`overflow-hidden rounded-lg border bg-card ${selected ? "border-primary ring-1 ring-primary/30" : ""}`}>
-      <div className="relative aspect-[4/5] bg-secondary/30">
+      <div className="relative min-h-32 bg-secondary/30">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={result.url} alt={`${result.productName}, фон ${result.backgroundSlot}`} className="h-full w-full object-contain" />
+        <img
+          src={result.url}
+          alt={`${result.productName}, фон ${result.backgroundSlot}`}
+          className="block h-auto w-full"
+          loading="eager"
+        />
         <button type="button" onClick={onToggle} className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md border shadow-sm ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background/90"}`} aria-label={selected ? "Снять выбор" : "Выбрать фото"}>
           <Check className="h-4 w-4" />
         </button>
