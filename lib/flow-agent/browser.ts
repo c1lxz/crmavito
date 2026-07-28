@@ -37,9 +37,22 @@ export async function generateFlowImage(input: {
   await openProjectWorkspace(input.page, 90_000);
 
   const fileInput = await waitForFileInput(input.page);
-  await fileInput.setInputFiles(input.references);
-  await acceptRightsNotice(input.page);
-  await attachUploadedReferences(input.page, input.references);
+  let uploadError: unknown;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      if (attempt > 1) await fileInput.setInputFiles([]);
+      await fileInput.setInputFiles(input.references);
+      await acceptRightsNotice(input.page);
+      await attachUploadedReferences(input.page, input.references);
+      uploadError = undefined;
+      break;
+    } catch (error) {
+      uploadError = error;
+      await input.page.keyboard.press("Escape").catch(() => undefined);
+      await input.page.waitForTimeout(1_500);
+    }
+  }
+  if (uploadError) throw uploadError;
   const uploadFinished = Date.now();
 
   const promptInput = await firstVisible(input.page, [

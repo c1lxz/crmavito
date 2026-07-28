@@ -192,7 +192,7 @@ async function processJob(context: BrowserContext, job: AgentJob) {
   console.log(`[flow-agent] ${job.id}: ${work.length} фото`);
   const prompt = await resolveJobPrompt(job);
   let cursor = 0;
-  await Promise.all(Array.from({ length: Math.min(concurrency, work.length) }, async () => {
+  const workers = Array.from({ length: Math.min(concurrency, work.length) }, async () => {
     const page = await context.newPage();
     try {
       while (cursor < work.length) {
@@ -214,7 +214,10 @@ async function processJob(context: BrowserContext, job: AgentJob) {
     } finally {
       await page.close();
     }
-  }));
+  });
+  const outcomes = await Promise.allSettled(workers);
+  const failed = outcomes.find((outcome): outcome is PromiseRejectedResult => outcome.status === "rejected");
+  if (failed) throw failed.reason;
 }
 
 async function resolveJobPrompt(job: AgentJob) {
