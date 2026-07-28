@@ -64,6 +64,7 @@ type FlowJob = {
   mode?: "product-photo" | "original-design";
   inspirationQuery?: string;
   designNote?: string;
+  labelStyleReference?: string;
   marketResearch?: {
     topSignals: string[];
     sourceCounts: Record<"grailed" | "mercari" | "rakuma", number>;
@@ -88,6 +89,7 @@ export function ContentMachineClient() {
   const [mode, setMode] = useState<"product-photo" | "original-design">("product-photo");
   const [inspirationQuery, setInspirationQuery] = useState("");
   const [designNote, setDesignNote] = useState("");
+  const [labelStyleReference, setLabelStyleReference] = useState("");
   const [job, setJob] = useState<FlowJob | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
@@ -196,6 +198,7 @@ export function ContentMachineClient() {
       if (mode === "original-design") {
         form.append("inspirationQuery", inspirationQuery.trim());
         form.append("designNote", designNote.trim());
+        form.append("labelStyleReference", labelStyleReference.trim());
       }
       const response = await fetch("/api/ai/content-machine/codex-jobs", { method: "POST", body: form });
       const data = await response.json();
@@ -362,6 +365,19 @@ export function ContentMachineClient() {
                     />
                   </div>
                   <p className="mt-1.5 text-xs text-muted-foreground">Агент сравнит Grailed, Mercari и Rakuma и выделит общие приёмы без копирования конкретного принта.</p>
+                </div>
+                <div>
+                  <Label htmlFor="label-style-reference">Стиль бирки / бренд-референс</Label>
+                  <Input
+                    id="label-style-reference"
+                    value={labelStyleReference}
+                    onChange={(event) => setLabelStyleReference(event.target.value)}
+                    placeholder="Например: минималистичный архивный люкс"
+                    maxLength={100}
+                    className="mt-1.5 h-11"
+                    disabled={creatingJob}
+                  />
+                  <p className="mt-1.5 text-xs text-muted-foreground">Flow сделает оригинальную термобирку CUSTOM MADE в указанной эстетике, без чужого названия или логотипа.</p>
                 </div>
                 <div className="lg:col-span-2">
                   <Label htmlFor="design-note">Примечание</Label>

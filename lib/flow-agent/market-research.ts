@@ -94,13 +94,16 @@ export async function collectMarketResearch(browser: Browser, query: string, lim
   };
 }
 
-export function buildOriginalDesignPrompt(research: MarketResearch, designNote?: string): string {
+export function buildOriginalDesignPrompt(research: MarketResearch, designNote?: string, labelStyleReference?: string): string {
   const signals = research.topSignals.length
     ? research.topSignals.join(", ")
     : "strong central graphic, readable hierarchy, restrained vintage distressing";
   return [
     "Create exactly ONE original, commercially strong apparel design presented as a photorealistic marketplace product photo.",
     "REFERENCE IMAGE 1 is only the required background, perspective and lighting reference.",
+    ...(labelStyleReference?.trim() ? [
+      `Add a small realistic heat-transfer neck label inside the back collar, using broad high-level aesthetic cues from '${labelStyleReference.trim()}'. The label must read exactly 'CUSTOM MADE' with optional smaller 'ARCHIVE DIVISION'. Invent original typography and spacing. Never show the reference name, its logo, monogram or distinctive brand identity.`,
+    ] : []),
     `Fresh marketplace research across Grailed, Mercari and Rakuma for '${research.query}' found these recurring signals: ${signals}.`,
     "Use the combined signals as abstract inspiration, not as source artwork.",
     "Create a genuinely new graphic concept with different composition, symbols and illustration. Do not reproduce or closely imitate any identifiable print, character, logo, brand name, artist style, trademark or copyrighted artwork from the reference or marketplace listings.",
@@ -109,7 +112,7 @@ export function buildOriginalDesignPrompt(research: MarketResearch, designNote?:
     "Render premium commercial quality: crisp original print edges, visible cotton weave, realistic ink absorption, sharp seams, natural folds, contact shadows, neutral white balance and high micro-contrast.",
     ...(designNote?.trim() ? [`Mandatory creative direction: ${designNote.trim()}`] : []),
     "The result should feel sellable in the same audience while remaining clearly independent and original, sharp and high resolution.",
-    "Use no words, letters, numbers, neck-label text or fake branding. No mockup labels, watermarks, UI, borders or explanatory text. Return only the final image.",
+    `Use no words, letters or numbers${labelStyleReference?.trim() ? " except the requested original neck label" : ", neck-label text"} and no fake branding. No mockup labels, watermarks, UI, borders or explanatory text. Return only the final image.`,
   ].join("\n");
 }
 

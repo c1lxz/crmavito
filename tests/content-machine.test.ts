@@ -130,10 +130,12 @@ describe("content machine", () => {
         mode: "original-design",
         inspirationQuery: "vintage gothic long sleeve",
         designNote: "Make the graphic smaller and vary the camera angle.",
+        labelStyleReference: "minimal archival luxury",
       });
       expect(created.mode).toBe("original-design");
       expect(created.inspirationQuery).toBe("vintage gothic long sleeve");
       expect(created.designNote).toBe("Make the graphic smaller and vary the camera angle.");
+      expect(created.labelStyleReference).toBe("minimal archival luxury");
       await expect(createCodexJob([winner, winner], "2K", {
         mode: "original-design",
         inspirationQuery: "vintage gothic long sleeve",
@@ -145,10 +147,13 @@ describe("content machine", () => {
         listings: [],
         topSignals: ["gothic", "distressed", "oversized"],
         sourceCounts: { grailed: 0, mercari: 0, rakuma: 0 },
-      });
+      }, undefined, "minimal archival luxury");
       expect(prompt).toContain("Grailed, Mercari and Rakuma");
       expect(prompt).toContain("gothic, distressed, oversized");
       expect(prompt).toContain("Do not reproduce");
+      expect(prompt).toContain("CUSTOM MADE");
+      expect(prompt).toContain("minimal archival luxury");
+      expect(prompt).toContain("Never show the reference name");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -168,6 +173,7 @@ describe("content machine", () => {
       mimeType: "image/jpeg",
       query: "gothic long sleeve",
       designNote: "Make the graphic smaller and provide varied camera angles.",
+      labelStyleReference: "minimal archival luxury",
       research: {
         query: "gothic long sleeve",
         checkedAt: new Date().toISOString(),
@@ -190,6 +196,9 @@ describe("content machine", () => {
     expect(requestBody).toContain("Grailed 3, Mercari 3, Rakuma 3");
     expect(requestBody).toContain("Mandatory user note");
     expect(requestBody).toContain("Make the graphic smaller and provide varied camera angles.");
+    expect(requestBody).toContain("Neck-label aesthetic reference: minimal archival luxury");
+    expect(requestBody).toContain("CUSTOM MADE");
+    expect(requestBody).toContain("never render the reference name");
     expect(requestBody).toContain("exactly one image per run");
     expect(requestBody).toContain("Do not explain your analysis");
   });

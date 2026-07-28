@@ -18,7 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       await saveFlowDesignPrompt(id, body.agentId, generated.prompt, "claude");
       return Response.json({ prompt: generated.prompt, source: "claude", model: generated.model });
     } catch (error) {
-      const prompt = buildOriginalDesignPrompt(promptContext.research, promptContext.designNote);
+      const prompt = buildOriginalDesignPrompt(promptContext.research, promptContext.designNote, promptContext.labelStyleReference);
       await saveFlowDesignPrompt(id, body.agentId, prompt, "fallback");
       return Response.json({
         prompt,
