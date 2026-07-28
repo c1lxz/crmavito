@@ -75,8 +75,14 @@ async function main() {
     return;
   }
   console.log(`[flow-agent] ${agentId}; параллельность ${concurrency}; CRM ${baseUrl}`);
+  let minimizeTimer: ReturnType<typeof setInterval> | null = null;
   try {
     let availability = await probeFlow(controlPage);
+    minimizeTimer = setInterval(() => {
+      if (availability.state === "ready" && !controlPage.isClosed()) {
+        void minimizeBrowserWindow(context, controlPage).catch(() => undefined);
+      }
+    }, 10_000);
     let nextProbeAt = Date.now() + 5 * 60_000;
     let nextHeartbeatAt = 0;
     while (true) {
@@ -118,6 +124,7 @@ async function main() {
       });
     }
   } finally {
+    if (minimizeTimer) clearInterval(minimizeTimer);
     await context.close();
   }
 }
@@ -128,6 +135,19 @@ async function prepareControlPage(context: BrowserContext, current?: import("pla
   const controlPage = pages.find((page) => page.url().startsWith(flowUrl)) || pages[0] || await context.newPage();
   await Promise.all(pages.filter((page) => page !== controlPage).map((page) => page.close().catch(() => undefined)));
   return controlPage;
+}
+
+async function minimizeBrowserWindow(context: BrowserContext, page: import("playwright").Page) {
+  const session = await context.newCDPSession(page);
+  try {
+    const { windowId } = await session.send("Browser.getWindowForTarget");
+    await session.send("Browser.setWindowBounds", {
+      windowId,
+      bounds: { windowState: "minimized" },
+    });
+  } finally {
+    await session.detach().catch(() => undefined);
+  }
 }
 
 async function probeFlow(page: import("playwright").Page): Promise<FlowAvailability> {
