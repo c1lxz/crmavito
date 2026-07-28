@@ -36,10 +36,18 @@ describe("Flow agent authentication", () => {
         checkedAt: new Date().toISOString(),
         concurrency: 3,
       });
+      await saveFlowAgentStatus({
+        agentId: "blocked-public-agent",
+        state: "blocked",
+        message: "Wrong region",
+        checkedAt: new Date(Date.now() + 1_000).toISOString(),
+        concurrency: 1,
+      });
       const status = await readFlowAgentStatus();
       expect(status.online).toBe(true);
       expect(status.state).toBe("ready");
       expect(status.concurrency).toBe(3);
+      expect(status.agentsOnline).toBe(2);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
