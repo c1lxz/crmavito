@@ -84,13 +84,16 @@ async function main() {
         void minimizeBrowserWindow(context, controlPage).catch(() => undefined);
       }
     }, 10_000);
-    let nextProbeAt = Date.now() + 5 * 60_000;
+    let nextProbeAt = Date.now() + probeIntervalMs(availability);
     let nextHeartbeatAt = 0;
     while (true) {
+      if (controlPage.isClosed() || context.browser()?.isConnected() === false) {
+        throw new Error("Flow browser closed; restarting the local agent session.");
+      }
       if (Date.now() >= nextProbeAt) {
         controlPage = await prepareControlPage(context, controlPage);
         availability = await probeFlow(controlPage);
-        nextProbeAt = Date.now() + 5 * 60_000;
+        nextProbeAt = Date.now() + probeIntervalMs(availability);
       }
       if (Date.now() >= nextHeartbeatAt) {
         await reportStatus(availability).catch((error) => {
@@ -363,7 +366,25 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-void main().catch((error) => {
-  console.error(error instanceof Error ? error.stack : error);
-  process.exitCode = 1;
-});
+function probeIntervalMs(availability: FlowAvailability) {
+  return availability.state === "ready" ? 5 * 60_000 : 10_000;
+}
+
+async function supervise() {
+  while (true) {
+    try {
+      await main();
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.stack || error.message : String(error);
+      console.error(`[flow-agent] session stopped: ${message}`);
+      await reportStatus({
+        state: "error",
+        message: "Локальный браузер Flow перезапускается после закрытия.",
+      }).catch(() => undefined);
+      await delay(3_000);
+    }
+  }
+}
+
+void supervise();
