@@ -25,7 +25,7 @@ declare global {
 function applyInsets() {
   const tg = window.Telegram?.WebApp;
   if (!tg) {
-    document.documentElement.style.setProperty("--app-top-pad", "48px");
+    document.documentElement.style.setProperty("--app-top-pad", "32px");
     return;
   }
   const top = (tg.safeAreaInset?.top ?? 0) + (tg.contentSafeAreaInset?.top ?? 0);
@@ -41,7 +41,7 @@ export function TelegramInit() {
     const init = () => {
       const tg = window.Telegram?.WebApp;
       if (!tg) {
-        document.documentElement.style.setProperty("--app-top-pad", "48px");
+        document.documentElement.style.setProperty("--app-top-pad", "32px");
         return;
       }
       tg.ready?.();

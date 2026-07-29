@@ -32,6 +32,7 @@ describe("CRM theme system", () => {
     expect(telegram).toContain("resolvedTheme");
     expect(telegram).toContain("setHeaderColor");
     expect(telegram).toContain("setBackgroundColor");
+    expect(telegram).toContain('setProperty("--app-top-pad", "32px")');
   });
 
   it("uses matte text tones instead of absolute white and black", () => {

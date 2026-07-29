@@ -74,7 +74,10 @@ describe("desktop responsive UI", () => {
   it("keeps desktop styling scoped to pc-shell so mobile Telegram stays safe", () => {
     expect(globalsSource).toContain(".pc-shell");
     expect(globalsSource).toContain("--app-top-pad: 0px");
-    expect(globalsSource).toContain("@apply px-8 py-5");
+    expect(globalsSource).toContain("@apply px-8 py-3");
+    expect(globalsSource).toContain("@apply !h-8 !w-8 !rounded-md");
+    expect(globalsSource).toContain("@apply !text-xl !leading-6");
+    expect(globalsSource).toContain("inset: -6px");
     expect(globalsSource).toContain(".mobile-shell .pc-only");
     expect(globalsSource).toContain(".mobile-shell main");
     expect(globalsSource).toContain("overflow-x: hidden");

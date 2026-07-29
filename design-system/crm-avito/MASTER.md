@@ -41,6 +41,8 @@ Never use status color without a text label or icon. Avoid large saturated fills
 - Control height: 40–44px. Touch target: at least 44×44px.
 - Radius: controls 10px, cards 16px, modal 20px.
 - One subtle shadow level for floating surfaces only.
+- Service headers: compact 32px visible icon tile with an invisible 44×44px hit area;
+  20px title, 14px caption, and 12px vertical padding on desktop.
 
 ## Layout
 

@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --app-top-pad: 48px;
+    --app-top-pad: 32px;
     --app-bottom-pad: 0px;
     --background: 210 38% 97%;
     --foreground: 212 29% 28%;
@@ -151,7 +151,27 @@
   }
 
   .app-header {
-    @apply sticky top-0 z-30 border-b border-border/60 bg-background/90 px-4 pt-[var(--app-top-pad)] pb-3 backdrop-blur-xl;
+    @apply sticky top-0 z-30 border-b border-border/60 bg-background/90 px-4 pt-[var(--app-top-pad)] pb-2 backdrop-blur-xl;
+  }
+
+  .app-header h1 {
+    @apply !text-xl !leading-6;
+  }
+
+  .app-header .section-caption {
+    @apply !text-sm !leading-[1.125rem];
+  }
+
+  .app-header .icon-tile {
+    @apply !h-8 !w-8 !rounded-md;
+    position: relative;
+  }
+
+  .app-header a.icon-tile::after,
+  .app-header button.icon-tile::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
   }
 
   .app-content {
@@ -198,7 +218,7 @@
   }
 
   .pc-shell .app-header {
-    @apply px-8 py-5;
+    @apply px-8 py-3;
   }
 
   .pc-shell .app-content {
