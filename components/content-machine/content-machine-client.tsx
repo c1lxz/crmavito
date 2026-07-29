@@ -13,6 +13,7 @@ import {
   Loader2,
   RefreshCw,
   ScanSearch,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
   UploadCloud,
@@ -434,73 +435,82 @@ export function ContentMachineClient() {
             </div>
           </div>
 
-          <div className="mb-4 grid gap-3 rounded-lg border bg-card p-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
-            <div>
-              <Label htmlFor="content-mode">Режим</Label>
-              <Select
-                value={mode}
-                onValueChange={(value: "product-photo" | "original-design") => setMode(value)}
-                disabled={creatingJob}
-              >
-                <SelectTrigger id="content-mode" className="mt-1.5 h-11"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="product-photo">Карточка существующего товара</SelectItem>
-                  <SelectItem value="original-design">Новый дизайн по залетевшей позиции</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {mode === "original-design" ? (
-              <>
-                <div>
-                  <Label htmlFor="inspiration-query">Что сравнить на площадках</Label>
-                  <div className="relative mt-1.5">
-                    <ScanSearch className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+          <details className="mb-4 rounded-lg border bg-card">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+              <SlidersHorizontal className="h-4 w-4" />
+              Параметры генерации
+              <span className="ml-auto text-xs opacity-75">
+                {mode === "original-design" ? "Новый дизайн" : "Карточка товара"} · {imageSize}
+              </span>
+            </summary>
+            <div className="grid gap-3 border-t border-border/80 p-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+              <div>
+                <Label htmlFor="content-mode">Режим</Label>
+                <Select
+                  value={mode}
+                  onValueChange={(value: "product-photo" | "original-design") => setMode(value)}
+                  disabled={creatingJob}
+                >
+                  <SelectTrigger id="content-mode" className="mt-1.5 h-11"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="product-photo">Карточка существующего товара</SelectItem>
+                    <SelectItem value="original-design">Новый дизайн по залетевшей позиции</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {mode === "original-design" ? (
+                <>
+                  <div>
+                    <Label htmlFor="inspiration-query">Что сравнить на площадках</Label>
+                    <div className="relative mt-1.5">
+                      <ScanSearch className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="inspiration-query"
+                        value={inspirationQuery}
+                        onChange={(event) => setInspirationQuery(event.target.value)}
+                        placeholder="Например: vintage gothic long sleeve, washed black"
+                        maxLength={120}
+                        className="h-11 pl-9"
+                        disabled={creatingJob}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">Агент сравнит Grailed, Mercari и Rakuma и выделит общие приёмы без копирования конкретного принта.</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="label-style-reference">Стиль бирки / бренд-референс</Label>
                     <Input
-                      id="inspiration-query"
-                      value={inspirationQuery}
-                      onChange={(event) => setInspirationQuery(event.target.value)}
-                      placeholder="Например: vintage gothic long sleeve, washed black"
-                      maxLength={120}
-                      className="h-11 pl-9"
+                      id="label-style-reference"
+                      value={labelStyleReference}
+                      onChange={(event) => setLabelStyleReference(event.target.value)}
+                      placeholder="Например: минималистичный архивный люкс"
+                      maxLength={100}
+                      className="mt-1.5 h-11"
                       disabled={creatingJob}
                     />
+                    <p className="mt-1.5 text-xs text-muted-foreground">Flow сделает оригинальную термобирку CUSTOM MADE в указанной эстетике, без чужого названия или логотипа.</p>
                   </div>
-                  <p className="mt-1.5 text-xs text-muted-foreground">Агент сравнит Grailed, Mercari и Rakuma и выделит общие приёмы без копирования конкретного принта.</p>
+                  <div className="lg:col-span-2">
+                    <Label htmlFor="design-note">Примечание</Label>
+                    <Textarea
+                      id="design-note"
+                      value={designNote}
+                      onChange={(event) => setDesignNote(event.target.value)}
+                      placeholder={"Например:\nДай 3 фото с разных ракурсов\nРисунок меньше"}
+                      maxLength={1200}
+                      rows={3}
+                      className="mt-1.5 min-h-24 resize-y"
+                      disabled={creatingJob}
+                    />
+                    <p className="mt-1.5 text-xs text-muted-foreground">Claude учтёт пожелания при создании финального мета-промпта для Flow.</p>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center text-sm text-muted-foreground">
+                  Товар останется неизменным, агент заменит только фон и сведёт свет.
                 </div>
-                <div>
-                  <Label htmlFor="label-style-reference">Стиль бирки / бренд-референс</Label>
-                  <Input
-                    id="label-style-reference"
-                    value={labelStyleReference}
-                    onChange={(event) => setLabelStyleReference(event.target.value)}
-                    placeholder="Например: минималистичный архивный люкс"
-                    maxLength={100}
-                    className="mt-1.5 h-11"
-                    disabled={creatingJob}
-                  />
-                  <p className="mt-1.5 text-xs text-muted-foreground">Flow сделает оригинальную термобирку CUSTOM MADE в указанной эстетике, без чужого названия или логотипа.</p>
-                </div>
-                <div className="lg:col-span-2">
-                  <Label htmlFor="design-note">Примечание</Label>
-                  <Textarea
-                    id="design-note"
-                    value={designNote}
-                    onChange={(event) => setDesignNote(event.target.value)}
-                    placeholder={"Например:\nДай 3 фото с разных ракурсов\nРисунок меньше"}
-                    maxLength={1200}
-                    rows={3}
-                    className="mt-1.5 min-h-24 resize-y"
-                    disabled={creatingJob}
-                  />
-                  <p className="mt-1.5 text-xs text-muted-foreground">Claude учтёт пожелания при создании финального мета-промпта для Flow.</p>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center text-sm text-muted-foreground">
-                Товар останется неизменным, агент заменит только фон и сведёт свет.
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          </details>
 
           <input
             ref={productInputRef}

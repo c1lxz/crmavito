@@ -10,6 +10,7 @@ import {
   FileArchive,
   History,
   ImageIcon,
+  Link2,
   Loader2,
   MoreHorizontal,
   Package,
@@ -836,11 +837,18 @@ export function BotvMiniApp() {
             </details>
             <input ref={fileRef} type="file" accept=".zip,.rar,.7z" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) run(() => upload(f)); }} />
           </div>
-          <div className="grid gap-2 lg:grid-cols-[minmax(320px,1fr)_minmax(260px,420px)]">
-            <div className="flex gap-2">
-              <Input placeholder="Ссылка на Яндекс.Диск" value={diskLink} onChange={(e) => setDiskLink(e.target.value)} />
-              <Button variant="outline" onClick={() => run(uploadLink)} disabled={status === "uploading" || !diskLink.trim()}>Загрузить</Button>
-            </div>
+          <div className="grid gap-2 lg:grid-cols-[minmax(240px,360px)_minmax(260px,420px)] lg:justify-end">
+            <details className="group rounded-md border border-input bg-background">
+              <summary className="flex h-10 cursor-pointer list-none items-center gap-2 px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+                <Link2 className="h-4 w-4" />
+                Загрузить по ссылке
+                <span className="ml-auto text-xs opacity-70">Яндекс.Диск</span>
+              </summary>
+              <div className="flex gap-2 border-t border-border/80 p-2">
+                <Input aria-label="Ссылка на Яндекс.Диск" placeholder="Ссылка на Яндекс.Диск" value={diskLink} onChange={(e) => setDiskLink(e.target.value)} />
+                <Button variant="outline" onClick={() => run(uploadLink)} disabled={status === "uploading" || !diskLink.trim()}>Загрузить</Button>
+              </div>
+            </details>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder="Поиск по товарам" className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -1159,15 +1167,6 @@ export function BotvMiniApp() {
                       <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">#{product.index} {product.name}</p><p className="text-xs text-muted-foreground">{product.photoCount} фото · {formatRub(product.price)}</p></div>
                     </div>
                     <Input value={product.adTitle} disabled={product.useOriginalTitle || product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { adTitle: e.target.value })} onBlur={(e) => run(() => saveProductTitle(product.index, e.currentTarget.value))} />
-                    <Textarea
-                      value={product.description}
-                      disabled={product.deleted}
-                      placeholder="Описание для XML"
-                      className="min-h-24 resize-y text-xs leading-5"
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => updateLocalProduct(product.index, { description: e.target.value })}
-                      onBlur={(e) => run(() => saveProductDescription(product.index, e.currentTarget.value))}
-                    />
                     <div className="flex gap-2">
                       <Input inputMode="numeric" placeholder="Цена" value={product.price ?? ""} disabled={product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { price: e.target.value ? Number(e.target.value) : null })} onBlur={(e) => run(() => saveProductPrice(product.index, e.currentTarget.value ? Number(e.currentTarget.value) : null))} />
                       <select
@@ -1199,21 +1198,38 @@ export function BotvMiniApp() {
                         </div>
                       </details>
                     </div>
-                    {product.photos.length > 1 && (
-                      <div className="flex gap-1 overflow-x-auto pb-1" onClick={(e) => e.stopPropagation()}>
-                        {product.photos.slice(0, 8).map((token, photoIndex) => (
-                          <div key={token} className="group/photo relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
-                            {session && <img src={photoUrl(session.id, token, { thumb: true, size: 128 })} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />}
-                            <span className="absolute left-1 top-1 rounded bg-background/85 px-1 text-[10px] font-semibold">{photoIndex + 1}</span>
-                            <div className="absolute inset-x-0 bottom-0 flex translate-y-full justify-center gap-0.5 bg-background/90 p-0.5 opacity-0 transition-[transform,opacity] group-hover/photo:translate-y-0 group-hover/photo:opacity-100 focus-within:translate-y-0 focus-within:opacity-100">
-                              <button title="Сделать первой" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "first"))}><PanelTop className="h-3 w-3" /></button>
-                              <button title="Сдвинуть влево" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "left"))}><ArrowLeft className="h-3 w-3" /></button>
-                              <button title="Сдвинуть вправо" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "right"))}><ArrowRight className="h-3 w-3" /></button>
-                            </div>
+                    <details className="rounded-md border border-border/70 bg-background/35" onClick={(e) => e.stopPropagation()}>
+                      <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-2.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        Описание и фотографии
+                        <span className="ml-auto">{product.photoCount} фото</span>
+                      </summary>
+                      <div className="space-y-3 border-t border-border/70 p-2.5">
+                        <Textarea
+                          value={product.description}
+                          disabled={product.deleted}
+                          placeholder="Описание для XML"
+                          className="min-h-24 resize-y text-xs leading-5"
+                          onChange={(e) => updateLocalProduct(product.index, { description: e.target.value })}
+                          onBlur={(e) => run(() => saveProductDescription(product.index, e.currentTarget.value))}
+                        />
+                        {product.photos.length > 1 && (
+                          <div className="flex gap-1.5 overflow-x-auto pb-1">
+                            {product.photos.slice(0, 8).map((token, photoIndex) => (
+                              <div key={token} className="group/photo relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+                                {session && <img src={photoUrl(session.id, token, { thumb: true, size: 128 })} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />}
+                                <span className="absolute left-1 top-1 rounded bg-background/85 px-1 text-[10px] font-semibold">{photoIndex + 1}</span>
+                                <div className="absolute inset-x-0 bottom-0 flex translate-y-full justify-center gap-0.5 bg-background/90 p-0.5 opacity-0 transition-[transform,opacity] group-hover/photo:translate-y-0 group-hover/photo:opacity-100 focus-within:translate-y-0 focus-within:opacity-100">
+                                  <button type="button" aria-label="Сделать фото первым" title="Сделать первой" className="flex h-7 w-7 items-center justify-center rounded hover:bg-accent" onClick={() => run(() => movePhoto(product, token, "first"))}><PanelTop className="h-3.5 w-3.5" /></button>
+                                  <button type="button" aria-label="Сдвинуть фото влево" title="Сдвинуть влево" className="flex h-7 w-7 items-center justify-center rounded hover:bg-accent" onClick={() => run(() => movePhoto(product, token, "left"))}><ArrowLeft className="h-3.5 w-3.5" /></button>
+                                  <button type="button" aria-label="Сдвинуть фото вправо" title="Сдвинуть вправо" className="flex h-7 w-7 items-center justify-center rounded hover:bg-accent" onClick={() => run(() => movePhoto(product, token, "right"))}><ArrowRight className="h-3.5 w-3.5" /></button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
+                    </details>
                   </div>
                 </CardContent>
               </Card>

@@ -9,10 +9,12 @@ import {
   Globe2,
   ImagePlus,
   Loader2,
+  MoreHorizontal,
   Octagon,
   Play,
   RefreshCw,
   Store,
+  SlidersHorizontal,
   Trash2,
   UploadCloud,
 } from "lucide-react";
@@ -302,11 +304,17 @@ export function WbResaleClient() {
             {importingXml ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
             Импорт XML
           </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a href="/downloads/install-wb-resale-agent.exe" download>
-              Скачать агент
-            </a>
-          </Button>
+          <details className="group relative">
+            <summary className="flex h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" aria-label="Другие действия WB Resale">
+              <MoreHorizontal className="h-4 w-4" />
+              Ещё
+            </summary>
+            <div className="absolute right-0 top-full z-30 mt-2 w-52 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+              <a href="/downloads/install-wb-resale-agent.exe" download className="flex h-9 items-center rounded px-2.5 text-sm hover:bg-accent">
+                Скачать агент
+              </a>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -391,26 +399,6 @@ export function WbResaleClient() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>Состояние</Label>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm font-medium"
-                    value={form.condition}
-                    onChange={(event) => setFormValue("condition", event.target.value)}
-                  >
-                    <option>Новое</option>
-                    <option>Идеальное</option>
-                    <option>Хорошее</option>
-                    <option>Есть дефекты</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Пункт отправки</Label>
-                  <Input value={DEFAULT_PICKUP_POINT} readOnly />
-                </div>
-              </div>
-
               <div
                 className={`rounded-lg border border-dashed p-4 transition-colors ${dragging ? "border-primary bg-primary/5" : "border-input bg-secondary/40"}`}
                 onDragOver={(event) => {
@@ -469,15 +457,42 @@ export function WbResaleClient() {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <Label>Описание</Label>
-                <Textarea rows={5} value={form.description} onChange={(event) => setFormValue("description", event.target.value)} placeholder="Описание товара для WB" />
-              </div>
-
-              <div className="space-y-1">
-                <Label>Характеристики без размера</Label>
-                <Input value={form.characteristics} onChange={(event) => setFormValue("characteristics", event.target.value)} placeholder="Цвет черный, плотность 180 г/м²" />
-              </div>
+              <details className="rounded-md border border-border/80 bg-background/40">
+                <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Дополнительные параметры
+                  <span className="ml-auto text-xs opacity-70">состояние, описание</span>
+                </summary>
+                <div className="space-y-4 border-t border-border/80 p-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label>Состояние</Label>
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm font-medium"
+                        value={form.condition}
+                        onChange={(event) => setFormValue("condition", event.target.value)}
+                      >
+                        <option>Новое</option>
+                        <option>Идеальное</option>
+                        <option>Хорошее</option>
+                        <option>Есть дефекты</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Пункт отправки</Label>
+                      <Input value={DEFAULT_PICKUP_POINT} readOnly />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Описание</Label>
+                    <Textarea rows={5} value={form.description} onChange={(event) => setFormValue("description", event.target.value)} placeholder="Описание товара для WB" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Характеристики без размера</Label>
+                    <Input value={form.characteristics} onChange={(event) => setFormValue("characteristics", event.target.value)} placeholder="Цвет черный, плотность 180 г/м²" />
+                  </div>
+                </div>
+              </details>
 
               <Button className="w-full" disabled={saving} onClick={() => saveAndPublish().catch((error) => addError(error instanceof Error ? error.message : String(error)))}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
@@ -515,26 +530,32 @@ export function WbResaleClient() {
                         </Badge>
                       </div>
                       {item.note ? <p className="mt-1 line-clamp-2 text-xs text-destructive">{item.note}</p> : null}
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {item.listing_url ? (
-                          <Button asChild variant="outline" size="sm" className="h-8">
-                            <a href={item.listing_url} target="_blank" rel="noreferrer">
-                              <ExternalLink className="h-3.5 w-3.5" />
-                              Открыть
-                            </a>
+                      <details className="relative mt-2 w-fit">
+                        <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" aria-label={`Действия с ${item.title}`}>
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                          Действия
+                        </summary>
+                        <div className="absolute left-0 top-full z-20 mt-1.5 w-44 space-y-1 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+                          {item.listing_url ? (
+                            <Button asChild variant="ghost" size="sm" className="w-full justify-start">
+                              <a href={item.listing_url} target="_blank" rel="noreferrer">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                Открыть
+                              </a>
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-start text-destructive hover:text-destructive"
+                            disabled={Boolean(deletingSku) || rpaRunning}
+                            onClick={() => deleteListing(item).catch((error) => addError(error instanceof Error ? error.message : String(error)))}
+                          >
+                            {deletingSku === item.sku ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            Удалить
                           </Button>
-                        ) : null}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-destructive hover:text-destructive"
-                          disabled={Boolean(deletingSku) || rpaRunning}
-                          onClick={() => deleteListing(item).catch((error) => addError(error instanceof Error ? error.message : String(error)))}
-                        >
-                          {deletingSku === item.sku ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                          Удалить
-                        </Button>
-                      </div>
+                        </div>
+                      </details>
                     </div>
                   </div>
                 )) : (
