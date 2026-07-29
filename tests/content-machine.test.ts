@@ -11,6 +11,7 @@ import { createClaudeDesignMetaPrompt } from "@/lib/ai/claude-content-design";
 
 const root = path.resolve(__dirname, "..");
 const clientSource = fs.readFileSync(path.join(root, "components/content-machine/content-machine-client.tsx"), "utf8");
+const diagnosticsSource = fs.readFileSync(path.join(root, "components/content-machine/content-machine-diagnostics.tsx"), "utf8");
 const generateRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-machine/generate-image/route.ts"), "utf8");
 const backgroundsRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-machine/backgrounds/route.ts"), "utf8");
 const storageSource = fs.readFileSync(path.join(root, "lib/ai/content-machine.ts"), "utf8");
@@ -118,6 +119,25 @@ describe("content machine", () => {
     }
   });
 
+  it("provides screenshot-friendly diagnostics for the system and every image", () => {
+    expect(clientSource).toContain("<ContentMachineDiagnostics");
+    expect(clientSource).toContain("Диагностика");
+    expect(diagnosticsSource).toContain("Полная диагностика");
+    expect(diagnosticsSource).toContain("Журнал ошибок при работе");
+    expect(diagnosticsSource).toContain("Почему");
+    expect(diagnosticsSource).toContain("Что делать");
+    expect(clientSource).toContain("reportIncident");
+    expect(clientSource).toContain("diagnoseIncident");
+    expect(clientSource).toContain("content-machine-diagnostic-incidents");
+    expect(diagnosticsSource).toContain("/api/ai/content-machine/backgrounds");
+    expect(diagnosticsSource).toContain("/api/ai/content-machine/flow-agent/status");
+    expect(diagnosticsSource).toContain("samplePixels");
+    expect(diagnosticsSource).toContain("Скачать JSON");
+    expect(diagnosticsSource).toContain("Изображение не открылось");
+    expect(diagnosticsSource).toContain('url.startsWith("blob:")');
+    expect(diagnosticsSource).toContain('document.execCommand("copy")');
+  });
+
   it("creates three original-design variants from multiple views of one proven product", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "crmavito-design-job-"));
     process.env.CONTENT_MACHINE_DATA_DIR = directory;
@@ -154,6 +174,8 @@ describe("content machine", () => {
       expect(prompt).toContain("gothic, distressed, oversized");
       expect(prompt).toContain("Do not reproduce");
       expect(prompt).toContain("CUSTOM MADE");
+      expect(prompt).toContain("HARD TEXT CONSTRAINT");
+      expect(prompt).toContain("No microtext");
       expect(prompt).toContain("minimal archival luxury");
       expect(prompt).toContain("Never show the reference name");
       expect(prompt).toContain("REFERENCE IMAGES 1-2");
@@ -209,6 +231,8 @@ describe("content machine", () => {
     expect(requestBody).toContain("Make the graphic smaller and provide varied camera angles.");
     expect(requestBody).toContain("Neck-label aesthetic reference: minimal archival luxury");
     expect(requestBody).toContain("CUSTOM MADE");
+    expect(requestBody).toContain("hard text constraint");
+    expect(requestBody).toContain("pseudo-words");
     expect(requestBody).toContain("never render the reference name");
     expect(requestBody).toContain("REFERENCE IMAGES 1-2");
     expect(requestBody).toContain("REFERENCE IMAGE 3");

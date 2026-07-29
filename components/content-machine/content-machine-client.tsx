@@ -7,6 +7,7 @@ import {
   CircleCheck,
   Clock3,
   Download,
+  Bug,
   ImagePlus,
   Images,
   Loader2,
@@ -25,6 +26,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/hooks/use-toast";
+import {
+  ContentMachineDiagnostics,
+  type DiagnosticIncident,
+} from "@/components/content-machine/content-machine-diagnostics";
 
 type BackgroundSlot = "1" | "2" | "3";
 type Background = {
@@ -98,17 +103,35 @@ export function ContentMachineClient() {
   const [refreshConfirmed, setRefreshConfirmed] = useState(false);
   const [resultRefreshKey, setResultRefreshKey] = useState(0);
   const [agentStatus, setAgentStatus] = useState<FlowAgentStatus | null>(null);
+  const [diagnosticIncidents, setDiagnosticIncidents] = useState<DiagnosticIncident[]>([]);
   const productInputRef = useRef<HTMLInputElement>(null);
   const productUrlsRef = useRef<string[]>([]);
+  const incidentFingerprintsRef = useRef(new Set<string>());
 
   useEffect(() => {
     void loadBackgrounds();
     void loadAgentStatus();
     const statusTimer = window.setInterval(() => void loadAgentStatus(), 5000);
     const savedJobId = window.localStorage.getItem("content-machine-flow-job");
+    try {
+      const savedIncidents = JSON.parse(window.localStorage.getItem("content-machine-diagnostic-incidents") || "[]") as DiagnosticIncident[];
+      if (Array.isArray(savedIncidents)) {
+        const valid = savedIncidents.filter((item) => item?.id && item?.action && item?.occurredAt).slice(0, 20);
+        setDiagnosticIncidents(valid);
+        valid.forEach((item) => incidentFingerprintsRef.current.add(`${item.action}:${item.technical}`));
+      }
+    } catch {
+      window.localStorage.removeItem("content-machine-diagnostic-incidents");
+    }
     if (savedJobId) void loadJob(savedJobId, false);
+    const handleWindowError = (event: ErrorEvent) => reportIncident("Ошибка интерфейса", event.error || event.message);
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => reportIncident("Необработанная ошибка", event.reason);
+    window.addEventListener("error", handleWindowError);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
     return () => {
       window.clearInterval(statusTimer);
+      window.removeEventListener("error", handleWindowError);
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
       productUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
@@ -124,10 +147,10 @@ export function ContentMachineClient() {
     try {
       const response = await fetch("/api/ai/content-machine/backgrounds", { cache: "no-store" });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Не удалось загрузить фоны.");
+      if (!response.ok) throw new Error(`[HTTP ${response.status}] ${data.error || "Не удалось загрузить фоны."}`);
       setBackgrounds(data.backgrounds);
     } catch (error) {
-      toast({ title: "Фоны не загружены", description: errorMessage(error), variant: "destructive" });
+      reportIncident("Загрузка эталонных фонов", error);
     } finally {
       setBackgroundsLoading(false);
     }
@@ -136,11 +159,15 @@ export function ContentMachineClient() {
   async function loadAgentStatus() {
     try {
       const response = await fetch("/api/ai/content-machine/flow-agent/status", { cache: "no-store" });
-      if (!response.ok) return;
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(`[HTTP ${response.status}] ${data.error || "Не удалось получить статус Flow."}`);
       setAgentStatus(data.status);
-    } catch {
+      if (!data.status?.online || data.status?.state !== "ready") {
+        reportIncident("Flow-агент недоступен", `${data.status?.state || "offline"}: ${data.status?.message || "Агент не прислал актуальный статус."}`);
+      }
+    } catch (error) {
       setAgentStatus(null);
+      reportIncident("Проверка Flow-агента", error);
     }
   }
 
@@ -153,11 +180,11 @@ export function ContentMachineClient() {
       form.append("file", file);
       const response = await fetch("/api/ai/content-machine/backgrounds", { method: "POST", body: form });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Не удалось сохранить фон.");
+      if (!response.ok) throw new Error(`[HTTP ${response.status}] ${data.error || "Не удалось сохранить фон."}`);
       setBackgrounds((items) => items.map((item) => item.slot === slot ? data.background : item));
       toast({ title: `Фон ${slot} сохранён`, description: "Этот оригинал будет использоваться во всех следующих генерациях." });
     } catch (error) {
-      toast({ title: "Ошибка загрузки", description: errorMessage(error), variant: "destructive" });
+      reportIncident(`Загрузка фона ${slot}`, error);
     } finally {
       setUploadingSlot(null);
     }
@@ -171,7 +198,7 @@ export function ContentMachineClient() {
       .filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= 20 * 1024 * 1024)
       .slice(0, available);
     if (accepted.length === 0) {
-      toast({ title: "Не удалось добавить фото", description: "Используйте JPG, PNG или WebP до 20 МБ.", variant: "destructive" });
+      reportIncident("Добавление исходного фото", "Файл имеет неподдерживаемый формат, пустой или превышает 20 МБ.");
       return;
     }
     const added = accepted.map((file) => {
@@ -206,13 +233,13 @@ export function ContentMachineClient() {
       }
       const response = await fetch("/api/ai/content-machine/codex-jobs", { method: "POST", body: form });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Не удалось создать задание Flow.");
+      if (!response.ok) throw new Error(`[HTTP ${response.status}] ${data.error || "Не удалось создать задание Flow."}`);
       setJob(data.job);
       setSelectedIds([]);
       window.localStorage.setItem("content-machine-flow-job", data.job.id);
       toast({ title: `Задание ${data.job.id} запущено`, description: "Локальный агент создаёт новые проекты Flow и автоматически забирает результаты." });
     } catch (error) {
-      toast({ title: "Задание не создано", description: errorMessage(error), variant: "destructive" });
+      reportIncident("Создание задачи Flow", error);
     } finally {
       setCreatingJob(false);
     }
@@ -222,12 +249,18 @@ export function ContentMachineClient() {
     try {
       const response = await fetch(`/api/ai/content-machine/codex-jobs/${encodeURIComponent(id)}`, { cache: "no-store" });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Не удалось обновить задание.");
+      if (!response.ok) throw new Error(`[HTTP ${response.status}] ${data.error || "Не удалось обновить задание."}`);
       setJob(data.job);
+      if (data.job.status === "failed" || Number(data.job.failedResults) > 0) {
+        reportIncident(
+          `Ошибка задачи ${data.job.id}`,
+          data.job.error || `Flow не создал ${data.job.failedResults || 1} из ${data.job.expectedResults} изображений.`,
+        );
+      }
       if (data.job.status === "ready") setSelectedIds((items) => items.length ? items : data.job.results.map((result: FlowResult) => result.id));
       return true;
     } catch (error) {
-      if (showError) toast({ title: "Задание не найдено", description: errorMessage(error), variant: "destructive" });
+      if (showError) reportIncident("Обновление задачи Flow", error);
       return false;
     }
   }
@@ -266,6 +299,42 @@ export function ContentMachineClient() {
     }
   }
 
+  function reportIncident(action: string, error: unknown) {
+    const technical = errorMessage(error);
+    const fingerprint = `${action}:${technical}`;
+    if (incidentFingerprintsRef.current.has(fingerprint)) return;
+    incidentFingerprintsRef.current.add(fingerprint);
+    const diagnosis = diagnoseIncident(action, technical);
+    const incident: DiagnosticIncident = {
+      id: typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      occurredAt: new Date().toISOString(),
+      action,
+      cause: diagnosis.cause,
+      resolution: diagnosis.resolution,
+      technical,
+    };
+    setDiagnosticIncidents((items) => {
+      const next = [incident, ...items].slice(0, 20);
+      try {
+        window.localStorage.setItem("content-machine-diagnostic-incidents", JSON.stringify(next));
+      } catch {
+        // The live journal still works in memory when storage is blocked.
+      }
+      return next;
+    });
+    toast({
+      title: `Ошибка: ${action}`,
+      description: `${diagnosis.cause} Что делать: ${diagnosis.resolution}`,
+      variant: "destructive",
+    });
+  }
+
+  function clearDiagnosticIncidents() {
+    setDiagnosticIncidents([]);
+    incidentFingerprintsRef.current.clear();
+    window.localStorage.removeItem("content-machine-diagnostic-incidents");
+  }
+
   const allBackgroundsReady = backgrounds.every((background) => Boolean(background.url));
   const agentReady = Boolean(agentStatus?.online && agentStatus.state === "ready");
   const readyResults = job?.results || [];
@@ -297,6 +366,14 @@ export function ContentMachineClient() {
                   ? "Flow: нужен вход"
                   : "Flow-агент офлайн"}
           </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden sm:inline-flex"
+            onClick={() => document.getElementById("content-machine-diagnostics")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          >
+            <Bug className="mr-1.5 h-4 w-4" />Диагностика
+          </Button>
           <Select value={imageSize} onValueChange={(value: "2K" | "4K") => setImageSize(value)} disabled={creatingJob}>
             <SelectTrigger className="h-9 w-24"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -308,6 +385,14 @@ export function ContentMachineClient() {
       </header>
 
       <main className="content-machine-content mx-auto w-full max-w-[100rem] space-y-8 px-4 py-6 sm:px-6 lg:px-8">
+        <ContentMachineDiagnostics
+          backgrounds={backgrounds}
+          products={products}
+          agentStatus={agentStatus}
+          job={job}
+          incidents={diagnosticIncidents}
+          onClearIncidents={clearDiagnosticIncidents}
+        />
         <section>
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -325,6 +410,7 @@ export function ContentMachineClient() {
                 background={background}
                 loading={backgroundsLoading || uploadingSlot === background.slot}
                 onFile={(file) => void uploadBackground(background.slot, file)}
+                onImageError={() => reportIncident(`Отображение фона ${background.slot}`, `${background.fileName || "Файл"} не открылся в браузере.`)}
               />
             ))}
           </div>
@@ -441,7 +527,12 @@ export function ContentMachineClient() {
                 <div key={product.id} className="group relative w-40 shrink-0 overflow-hidden rounded-lg border bg-card">
                   <div className="aspect-[4/5] bg-secondary/30">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={product.previewUrl} alt={`Исходное фото ${index + 1}`} className="h-full w-full object-cover" />
+                    <img
+                      src={product.previewUrl}
+                      alt={`Исходное фото ${index + 1}`}
+                      className="h-full w-full object-cover"
+                      onError={() => reportIncident(`Отображение исходного фото ${index + 1}`, `${product.file.name}: браузер не смог открыть изображение.`)}
+                    />
                   </div>
                   <div className="flex items-center justify-between gap-2 p-2">
                     <span className="min-w-0 truncate text-xs font-medium">{index + 1}. {product.file.name}</span>
@@ -578,6 +669,7 @@ export function ContentMachineClient() {
                         onToggle={() => toggleSelected(result.id)}
                         onDownload={() => void downloadResult(result)}
                         refreshKey={resultRefreshKey}
+                        onImageError={() => reportIncident(`Отображение результата ${result.fileName}`, `${result.url}: изображение не загрузилось.`)}
                       />
                     ))}
                   </div>
@@ -592,14 +684,19 @@ export function ContentMachineClient() {
   );
 }
 
-function BackgroundPanel({ background, loading, onFile }: { background: Background; loading: boolean; onFile: (file: File | undefined) => void }) {
+function BackgroundPanel({ background, loading, onFile, onImageError }: {
+  background: Background;
+  loading: boolean;
+  onFile: (file: File | undefined) => void;
+  onImageError: () => void;
+}) {
   const inputId = `background-upload-${background.slot}`;
   return (
     <Card className="overflow-hidden">
       <div className="relative aspect-[4/3] bg-secondary/35">
         {background.url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={background.url} alt={`Эталонный фон ${background.slot}`} className="h-full w-full object-cover" />
+          <img src={background.url} alt={`Эталонный фон ${background.slot}`} className="h-full w-full object-cover" onError={onImageError} />
         ) : (
           <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
             <Images className="mb-2 h-7 w-7 opacity-55" />
@@ -623,12 +720,13 @@ function BackgroundPanel({ background, loading, onFile }: { background: Backgrou
   );
 }
 
-function ResultPanel({ result, selected, onToggle, onDownload, refreshKey }: {
+function ResultPanel({ result, selected, onToggle, onDownload, refreshKey, onImageError }: {
   result: FlowResult;
   selected: boolean;
   onToggle: () => void;
   onDownload: () => void;
   refreshKey: number;
+  onImageError: () => void;
 }) {
   return (
     <div className={`overflow-hidden rounded-lg border bg-card ${selected ? "border-primary ring-1 ring-primary/30" : ""}`}>
@@ -639,6 +737,7 @@ function ResultPanel({ result, selected, onToggle, onDownload, refreshKey }: {
           alt={`${result.productName}, фон ${result.backgroundSlot}`}
           className="block h-auto w-full"
           loading="eager"
+          onError={onImageError}
         />
         <button type="button" onClick={onToggle} className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md border shadow-sm ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background/90"}`} aria-label={selected ? "Снять выбор" : "Выбрать фото"}>
           <Check className="h-4 w-4" />
@@ -671,4 +770,60 @@ function formatDuration(ms: number) {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function diagnoseIncident(action: string, technical: string) {
+  const text = `${action} ${technical}`.toLowerCase();
+  if (text.includes("401") || text.includes("не авторизован")) {
+    return {
+      cause: "Сессия сотрудника закончилась или вход в CRM потерян.",
+      resolution: "Обновите страницу и войдите в CRM заново, затем повторите действие.",
+    };
+  }
+  if (text.includes("403") || text.includes("недостаточно прав")) {
+    return {
+      cause: "У текущего пользователя нет прав на это действие.",
+      resolution: "Войдите под администратором или попросите владельца CRM проверить роль сотрудника.",
+    };
+  }
+  if (text.includes("20 мб") || text.includes("формат") || text.includes("разрешены jpg")) {
+    return {
+      cause: "Файл пустой, слишком большой или имеет неподдерживаемый формат.",
+      resolution: "Используйте JPG, PNG или WebP размером до 20 МБ и загрузите файл повторно.",
+    };
+  }
+  if (text.includes("регион") || text.includes("blocked")) {
+    return {
+      cause: "Google Flow заблокирован для текущего региона или подключения.",
+      resolution: "Проверьте прокси Flow-агента и повторите запуск после появления статуса «Flow онлайн».",
+    };
+  }
+  if (text.includes("вход") || text.includes("auth_required")) {
+    return {
+      cause: "Локальный Flow-агент потерял авторизацию Google.",
+      resolution: "Откройте профиль Flow-агента, войдите в Google и дождитесь статуса «Flow онлайн».",
+    };
+  }
+  if (text.includes("fetch") || text.includes("network") || text.includes("сеть")) {
+    return {
+      cause: "Браузер не смог связаться с CRM или соединение оборвалось.",
+      resolution: "Проверьте интернет, обновите страницу и повторите действие. Если ошибка останется — отправьте технические детали владельцу.",
+    };
+  }
+  if (text.includes("изображ") || text.includes("фото") || text.includes("фон")) {
+    return {
+      cause: "Файл изображения отсутствует, повреждён или недоступен браузеру.",
+      resolution: "Перезагрузите страницу. Если файл не появился — загрузите исходник/фон снова или обновите результаты задачи.",
+    };
+  }
+  if (text.includes("flow") || text.includes("задач")) {
+    return {
+      cause: "CRM или локальный Flow-агент не смогли выполнить операцию с задачей.",
+      resolution: "Проверьте статус Flow вверху страницы, нажмите «Обновить». Если не поможет — скопируйте эту ошибку и отправьте владельцу.",
+    };
+  }
+  return {
+    cause: "Во время работы произошла непредвиденная техническая ошибка.",
+    resolution: "Повторите действие один раз. Если ошибка повторится — нажмите «Скопировать последнюю» и отправьте владельцу вместе со скриншотом.",
+  };
 }
