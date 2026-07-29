@@ -11,8 +11,7 @@ import {
   startOfMonth,
   subDays,
 } from "@/lib/utils";
-import { ChevronRight, Package, Plus, RotateCcw, Search, Settings, Wallet } from "lucide-react";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ChevronRight, Package, Plus, RotateCcw, Search, Wallet } from "lucide-react";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import Link from "next/link";
 import Image from "next/image";
@@ -174,19 +173,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="app-shell">
-      <div className="app-header">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold tracking-tight">CRM Avito</h1>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <Link href="/settings" className="icon-tile h-11 w-11 hover:border-primary/35 hover:text-primary" aria-label="Настройки">
-              <Settings className="h-5 w-5" />
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      <div className="app-content space-y-5">
+      <div className="dashboard-content app-content space-y-5">
         <div className="pc-dashboard-kpi grid grid-cols-2 gap-3">
           {kpiCards.map((card, i) => (
             <Card key={card.label} className={i === 1 ? "border-primary/25 bg-accent/65" : undefined}>

@@ -178,6 +178,10 @@
     @apply px-4 py-4 pb-24;
   }
 
+  .dashboard-content {
+    padding-top: calc(var(--app-top-pad) + 1rem);
+  }
+
   .section-title {
     @apply text-sm font-medium text-foreground;
   }

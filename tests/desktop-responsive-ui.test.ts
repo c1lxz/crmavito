@@ -102,8 +102,10 @@ describe("desktop responsive UI", () => {
   });
 
   it("keeps the dashboard header compact", () => {
+    expect(dashboardSource).not.toContain('className="app-header"');
     expect(dashboardSource).not.toContain("Рабочая сводка для");
     expect(dashboardSource).not.toContain("toLocaleDateString");
+    expect(dashboardSource).toContain("dashboard-content app-content");
   });
 
   it("gives the desktop sidebar distinct light and dark theme palettes", () => {
