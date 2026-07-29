@@ -351,9 +351,12 @@
     max-width: 28rem;
   }
 
-  .pc-shell .pc-reports-kpi,
-  .pc-shell .pc-donut-grid {
+  .pc-shell .pc-reports-kpi {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pc-shell .pc-donut-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .pc-shell .pc-summary-wide {

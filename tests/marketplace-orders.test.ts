@@ -99,5 +99,8 @@ describe("marketplace orders and statistics", () => {
     expect(reports).toContain("Заказы Авито / WB");
     expect(charts).toContain("Выручка и прибыль по площадкам");
     expect(charts).toContain("Динамика прибыли Авито / WB");
+    expect(charts).toContain("CHART_TEXT_COLOR");
+    expect(charts).toContain("cursor={false}");
+    expect(charts).toContain("activeBar={false}");
   });
 });
