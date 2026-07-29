@@ -146,6 +146,7 @@ describe("content machine", () => {
     expect(draftSource).toContain("products: Array<{ id: string; file: File }>");
     expect(flowBrowserSource).toContain("downloadResultInsideBrowser");
     expect(flowBrowserSource).toContain("водяного знака");
+    expect(flowBrowserSource).toContain("Google перенаправил агента на общую страницу Labs");
     expect(flowAgentSource).toContain("withoutEnlargement: true");
     expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");

@@ -297,6 +297,12 @@ async function openProjectWorkspace(page: Page, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs;
   let lastProjectClick = 0;
   while (Date.now() < deadline) {
+    const currentUrl = new URL(page.url());
+    if (currentUrl.hostname === "labs.google" && !currentUrl.pathname.includes("/fx/tools/flow")) {
+      throw new Error(
+        "Google Flow недоступен для текущего региона или профиля: Google перенаправил агента на общую страницу Labs.",
+      );
+    }
     const prompt = await firstVisible(page, [
       '[role="textbox"]',
       'textarea',
