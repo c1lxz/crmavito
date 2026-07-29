@@ -66,6 +66,11 @@ describe("Flow agent authentication", () => {
     expect(agent).toContain("CRM poll failed");
     expect(agent).toContain("CRM вернула не-JSON ответ");
     expect(agent).toContain("probeFlow");
+    expect(agent).toContain("Агент готов; Flow откроется только при запуске генерации.");
+    expect(agent.indexOf("job = await claimJob()"))
+      .toBeLessThan(agent.indexOf("await runJobInFlow(job)"));
+    expect(agent.indexOf("async function runJobInFlow"))
+      .toBeLessThan(agent.lastIndexOf("const context = await launchFlowContext()"));
     expect(agent).toContain("/api/ai/content-machine/flow-agent/status");
     expect(client).toContain("Flow: регион заблокирован");
   });

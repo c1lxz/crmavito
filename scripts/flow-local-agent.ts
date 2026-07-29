@@ -46,7 +46,57 @@ const extensionPath = process.env.FLOW_AGENT_EXTENSION_PATH?.trim();
 async function main() {
   if (!token) throw new Error("Задайте FLOW_LOCAL_AGENT_TOKEN.");
   await mkdir(workDirectory, { recursive: true });
-  const context = await chromium.launchPersistentContext(profileDirectory, {
+  if (process.env.FLOW_AGENT_PREFLIGHT === "1") {
+    const context = await launchFlowContext();
+    try {
+      const controlPage = await prepareControlPage(context);
+      await controlPage.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      const summary = (await controlPage.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 500);
+      console.log(JSON.stringify({ url: controlPage.url(), title: await controlPage.title(), summary }));
+    } finally {
+      await context.close();
+    }
+    return;
+  }
+  console.log(`[flow-agent] ${agentId}; параллельность ${concurrency}; CRM ${baseUrl}`);
+  const idleAvailability: FlowAvailability = {
+    state: "ready",
+    message: "Агент готов; Flow откроется только при запуске генерации.",
+  };
+  let nextHeartbeatAt = 0;
+  while (true) {
+    if (Date.now() >= nextHeartbeatAt) {
+      await reportStatus(idleAvailability).catch((error) => {
+        console.error(`[flow-agent] heartbeat failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
+      nextHeartbeatAt = Date.now() + 15_000;
+    }
+    let job: AgentJob | null;
+    try {
+      job = await claimJob();
+    } catch (error) {
+      console.error(`[flow-agent] CRM poll failed: ${error instanceof Error ? error.message : String(error)}`);
+      await delay(Math.max(2_000, pollMs));
+      continue;
+    }
+    if (!job) {
+      await delay(pollMs);
+      continue;
+    }
+    await runJobInFlow(job).catch(async (error) => {
+      const message = sanitizeFlowAgentError(error);
+      console.error(`[flow-agent] ${job.id}: ${message}`);
+      await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${job.id}/fail`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentId, error: publicFlowAgentError(error) }),
+      }).catch(() => undefined);
+    });
+  }
+}
+
+function launchFlowContext() {
+  return chromium.launchPersistentContext(profileDirectory, {
     channel: "chrome",
     headless: process.env.FLOW_AGENT_HEADLESS === "1",
     viewport: { width: 1440, height: 1000 },
@@ -68,66 +118,22 @@ async function main() {
       ...(extensionPath ? [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`] : []),
     ],
   });
-  let controlPage = await prepareControlPage(context);
-  if (process.env.FLOW_AGENT_PREFLIGHT === "1") {
-    await controlPage.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    const summary = (await controlPage.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 500);
-    console.log(JSON.stringify({ url: controlPage.url(), title: await controlPage.title(), summary }));
-    await context.close();
-    return;
-  }
-  console.log(`[flow-agent] ${agentId}; параллельность ${concurrency}; CRM ${baseUrl}`);
+}
+
+async function runJobInFlow(job: AgentJob) {
+  const context = await launchFlowContext();
   let minimizeTimer: ReturnType<typeof setInterval> | null = null;
   try {
-    let availability = await probeFlow(controlPage);
+    const controlPage = await prepareControlPage(context);
+    const availability = await probeFlow(controlPage);
+    await reportStatus(availability).catch(() => undefined);
+    if (availability.state !== "ready") throw new Error(availability.message);
     minimizeTimer = setInterval(() => {
-      if (availability.state === "ready" && !controlPage.isClosed()) {
+      if (!controlPage.isClosed()) {
         void minimizeBrowserWindow(context, controlPage).catch(() => undefined);
       }
     }, 10_000);
-    let nextProbeAt = Date.now() + probeIntervalMs(availability);
-    let nextHeartbeatAt = 0;
-    while (true) {
-      if (controlPage.isClosed() || context.browser()?.isConnected() === false) {
-        throw new Error("Flow browser closed; restarting the local agent session.");
-      }
-      if (Date.now() >= nextProbeAt) {
-        controlPage = await prepareControlPage(context, controlPage);
-        availability = await probeFlow(controlPage);
-        nextProbeAt = Date.now() + probeIntervalMs(availability);
-      }
-      if (Date.now() >= nextHeartbeatAt) {
-        await reportStatus(availability).catch((error) => {
-          console.error(`[flow-agent] heartbeat failed: ${error instanceof Error ? error.message : String(error)}`);
-        });
-        nextHeartbeatAt = Date.now() + 15_000;
-      }
-      if (availability.state !== "ready") {
-        await delay(5_000);
-        continue;
-      }
-      let job: AgentJob | null;
-      try {
-        job = await claimJob();
-      } catch (error) {
-        console.error(`[flow-agent] CRM poll failed: ${error instanceof Error ? error.message : String(error)}`);
-        await delay(Math.max(2_000, pollMs));
-        continue;
-      }
-      if (!job) {
-        await delay(pollMs);
-        continue;
-      }
-      await processJob(context, job).catch(async (error) => {
-        const message = sanitizeFlowAgentError(error);
-        console.error(`[flow-agent] ${job.id}: ${message}`);
-        await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${job.id}/fail`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ agentId, error: publicFlowAgentError(error) }),
-        }).catch(() => undefined);
-      });
-    }
+    await processJob(context, job);
   } finally {
     if (minimizeTimer) clearInterval(minimizeTimer);
     await context.close();
@@ -367,10 +373,6 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function probeIntervalMs(availability: FlowAvailability) {
-  return availability.state === "ready" ? 5 * 60_000 : 10_000;
-}
-
 async function supervise() {
   while (true) {
     try {
@@ -381,7 +383,7 @@ async function supervise() {
       console.error(`[flow-agent] session stopped: ${message}`);
       await reportStatus({
         state: "error",
-        message: "Локальный браузер Flow перезапускается после закрытия.",
+        message: "Локальный Flow-агент перезапускается после ошибки.",
       }).catch(() => undefined);
       await delay(3_000);
     }
