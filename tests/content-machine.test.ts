@@ -146,6 +146,8 @@ describe("content machine", () => {
     expect(draftSource).toContain("products: Array<{ id: string; file: File }>");
     expect(flowBrowserSource).toContain("downloadResultInsideBrowser");
     expect(flowBrowserSource).toContain("водяного знака");
+    expect(flowAgentSource).toContain("withoutEnlargement: true");
+    expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");
     expect(flowAgentSource).toContain('"release" : "fail"');
     expect(diagnosticsSource).toContain("/api/ai/content-machine/backgrounds");

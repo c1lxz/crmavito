@@ -364,15 +364,13 @@ async function uploadResult(
   for (const [key, value] of Object.entries(timing)) form.set(key, String(value));
   const source = await readFile(filePath);
   const metadata = await sharp(source).metadata();
-  const longestSide = Math.max(metadata.width || 0, metadata.height || 0);
   const normalized = await sharp(source)
     .rotate()
     .resize({
       ...(metadata.width && metadata.height && metadata.width >= metadata.height ? { width: 2048 } : { height: 2048 }),
-      withoutEnlargement: longestSide >= 2048,
+      withoutEnlargement: true,
       kernel: sharp.kernel.lanczos3,
     })
-    .sharpen({ sigma: 0.65, m1: 0.55, m2: 1.8 })
     .png({ compressionLevel: 8, adaptiveFiltering: true })
     .toBuffer();
   const payload = new Uint8Array(normalized.length);
