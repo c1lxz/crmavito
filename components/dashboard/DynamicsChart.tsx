@@ -141,7 +141,7 @@ export function DynamicsChart({ data, period, onPeriodChange }: BaseProps) {
             Выручка
           </span>
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#1D9E75" }} />
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-success" />
             Прибыль
           </span>
         </div>
@@ -192,10 +192,10 @@ export function DynamicsChart({ data, period, onPeriodChange }: BaseProps) {
               <Line
                 type="monotone"
                 dataKey="profit"
-                stroke="#1D9E75"
+                stroke="hsl(var(--success))"
                 strokeWidth={2}
-                dot={{ r: 3, fill: "#1D9E75", strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: "#1D9E75" }}
+                dot={{ r: 3, fill: "hsl(var(--success))", strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: "hsl(var(--success))" }}
                 name="profit"
               />
             </LineChart>
@@ -218,7 +218,7 @@ export function OrdersDynamicsChart({ data, period, onPeriodChange }: BaseProps)
 
         <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2">
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#E08B2D" }} />
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-warning" />
             Заказы
           </span>
         </div>
@@ -270,10 +270,10 @@ export function OrdersDynamicsChart({ data, period, onPeriodChange }: BaseProps)
               <Line
                 type="monotone"
                 dataKey="orders"
-                stroke="#E08B2D"
+                stroke="hsl(var(--warning))"
                 strokeWidth={2}
-                dot={{ r: 3, fill: "#E08B2D", strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: "#E08B2D" }}
+                dot={{ r: 3, fill: "hsl(var(--warning))", strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: "hsl(var(--warning))" }}
                 name="orders"
               />
             </LineChart>

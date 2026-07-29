@@ -267,7 +267,7 @@ export function MarketAnalysisClient() {
                   }}
                 />
                 {selectedProfile && !selectedProfile.hasCredentials && !manualCredentialsComplete && (
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Для этого профиля добавьте API-ключи Avito или используйте ручные ключи.</p>
+                  <p className="text-xs font-medium text-warning">Для этого профиля добавьте API-ключи Avito или используйте ручные ключи.</p>
                 )}
               </div>
               <Button

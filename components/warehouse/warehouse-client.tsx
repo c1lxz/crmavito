@@ -185,7 +185,7 @@ export function WarehouseClient({ items }: { items: WarehouseItem[] }) {
 
 function StateIcon({ state }: { state: WarehouseItem["state"] }) {
   const styles = {
-    AVAILABLE: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+    AVAILABLE: "bg-success/12 text-success",
     ARCHIVED: "bg-secondary text-muted-foreground",
   };
   const Icon = state === "AVAILABLE" ? CheckCircle2 : Archive;

@@ -516,12 +516,12 @@ export function CreateOrderDialog({
                     </div>
                   </div>
                   {warehouseReturn ? (
-                    <div className="space-y-2 rounded-md border border-emerald-500/35 bg-emerald-500/10 p-3">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                    <div className="space-y-2 rounded-md border border-success/30 bg-success/10 p-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-success">
                         <Warehouse className="h-4 w-4" />
                         Есть на складе
                       </div>
-                      <p className="text-xs text-emerald-900/80 dark:text-emerald-100/80">
+                      <p className="text-xs text-success/85">
                         Возврат {warehouseReturn.trackingNumber} будет использован автоматически.
                       </p>
                     </div>
@@ -668,7 +668,7 @@ export function CreateOrderDialog({
                 </Select>
               </div>
               ) : (
-                <div className="rounded-md border border-violet-500/25 bg-violet-500/8 px-3 py-2 text-xs text-muted-foreground">
+                <div className="rounded-md border border-special/25 bg-special/8 px-3 py-2 text-xs text-muted-foreground">
                   Заказ будет учтён в статистике Wildberries.
                 </div>
               )}

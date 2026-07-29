@@ -72,8 +72,8 @@ export function TelegramInit() {
     const tg = window.Telegram?.WebApp;
     if (!tg) return;
     const isDark = resolvedTheme === "dark";
-    tg.setHeaderColor?.(isDark ? "#172033" : "#eef2f7");
-    tg.setBackgroundColor?.(isDark ? "#101623" : "#eef2f7");
+    tg.setHeaderColor?.(isDark ? "#081727" : "#f8fafc");
+    tg.setBackgroundColor?.(isDark ? "#06111f" : "#eef2f6");
   }, [resolvedTheme]);
 
   return (

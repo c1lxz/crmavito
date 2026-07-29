@@ -24,7 +24,7 @@ export function MetricCard({ label, value, format, prevValue }: MetricCardProps)
         <p
           className={cn(
             "text-[11px] mt-1.5 font-medium tabular-nums",
-            delta >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
+            delta >= 0 ? "text-success" : "text-destructive"
           )}
         >
           {delta >= 0 ? "↑" : "↓"} {Math.abs(delta).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%

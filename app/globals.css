@@ -22,6 +22,10 @@
     --accent-foreground: 218 52% 30%;
     --destructive: 354 51% 47%;
     --destructive-foreground: 0 0% 100%;
+    --success: 160 52% 36%;
+    --warning: 38 68% 44%;
+    --info: 202 67% 46%;
+    --special: 258 48% 54%;
     --border: 210 23% 84%;
     --input: 210 23% 78%;
     --ring: 222 80% 56%;
@@ -58,6 +62,10 @@
     --accent-foreground: 211 50% 88%;
     --destructive: 354 57% 68%;
     --destructive-foreground: 0 0% 100%;
+    --success: 160 52% 62%;
+    --warning: 38 68% 66%;
+    --info: 188 58% 62%;
+    --special: 255 48% 70%;
     --border: 210 39% 21%;
     --input: 210 32% 26%;
     --ring: 220 100% 67%;
@@ -168,11 +176,11 @@
   }
 
   .money-positive {
-    @apply text-emerald-700 dark:text-emerald-300;
+    @apply text-success;
   }
 
   .money-negative {
-    @apply text-red-700 dark:text-red-300;
+    @apply text-destructive;
   }
 }
 

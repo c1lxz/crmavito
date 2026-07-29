@@ -564,7 +564,7 @@ export function OrdersClient({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="rounded-l-none border-l-0 px-2.5 text-violet-700 dark:text-violet-300"
+                  className="rounded-l-none border-l-0 px-2.5 text-special"
                   onClick={() => {
                     setCreateMarketplace("WB");
                     setShowCreate(true);
@@ -616,7 +616,7 @@ export function OrdersClient({
               onClick={() => setWarehouseOnly((current) => !current)}
               className={`filter-chip gap-1.5 ${
                 warehouseOnly
-                  ? "border-emerald-600/25 bg-emerald-600 text-white shadow-sm shadow-emerald-900/10 hover:bg-emerald-700 hover:text-white dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                  ? "border-success/25 bg-success text-background shadow-sm hover:bg-success/90 hover:text-background"
                   : ""
               }`}
             >
@@ -921,7 +921,7 @@ export function OrdersClient({
                           {ORDER_STATUS_LABELS[order.status]}
                         </span>
                         {hasWarehouseItem(order) ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-success/12 px-2 py-0.5 text-xs font-semibold text-success">
                             <PackageOpen className="h-3 w-3" />
                             Есть на складе
                           </span>
@@ -1020,7 +1020,7 @@ export function OrdersClient({
                           {ORDER_STATUS_LABELS[order.status]}
                         </span>
                         {hasWarehouseItem(order) ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-success/12 px-2 py-0.5 text-[11px] font-semibold text-success">
                             <PackageOpen className="h-3 w-3" />
                             Есть на складе
                           </span>
@@ -1033,7 +1033,7 @@ export function OrdersClient({
                       <p className="text-xs text-muted-foreground">Avito: {order.avitoProfile.name}</p>
                     )}
                     {order.marketplace === "WB" && (
-                      <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">Wildberries</p>
+                      <p className="text-xs font-semibold text-special">Wildberries</p>
                     )}
                     <div className="flex items-center justify-between mt-1">
                       <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">

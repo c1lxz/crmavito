@@ -31,8 +31,8 @@ export interface MarketplaceReport {
   }>;
 }
 
-const AVITO_COLOR = "#2563eb";
-const WB_COLOR = "#7c3aed";
+const AVITO_COLOR = "hsl(var(--chart-1))";
+const WB_COLOR = "hsl(var(--special))";
 const tooltipStyle = {
   backgroundColor: "hsl(var(--popover))",
   border: "1px solid hsl(var(--border))",

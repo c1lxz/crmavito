@@ -269,7 +269,7 @@ export function OrderDetailClient({ order, financials, products, counterparties,
               </SelectContent>
             </Select>
             {hasWarehouseItem ? (
-              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/12 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-success/12 px-2.5 py-1 text-xs font-semibold text-success">
                 <Package className="h-3.5 w-3.5" />
                 Есть на складе
               </div>
@@ -295,7 +295,7 @@ export function OrderDetailClient({ order, financials, products, counterparties,
                       {item.quantity} шт. × {formatRub(item.salePriceAtOrder)}
                     </p>
                     {item.sourceReturn && order.status === "ACCEPTED" ? (
-                      <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      <p className="mt-1 text-xs font-semibold text-success">
                         Есть на складе · возврат {item.sourceReturn.trackingNumber}
                       </p>
                     ) : null}
@@ -394,30 +394,32 @@ export function OrderDetailClient({ order, financials, products, counterparties,
 
       {mounted && showBarcode && barcodeUrl
         ? createPortal(
-            <div className="fixed inset-0 flex flex-col bg-white" style={{ zIndex: 9999 }} role="dialog" aria-modal="true">
-              <div className="flex items-center justify-between border-b border-neutral-200 p-4">
+            <div className="fixed inset-0 flex flex-col bg-background text-foreground" style={{ zIndex: 9999 }} role="dialog" aria-modal="true">
+              <div className="flex items-center justify-between border-b border-border p-4">
                 <div>
-                  <p className="text-xs text-neutral-500">Заказ №{order.orderNumber}</p>
-                  <p className="text-sm font-semibold text-neutral-900">{order.productNameSnapshot}</p>
+                  <p className="text-xs text-muted-foreground">Заказ №{order.orderNumber}</p>
+                  <p className="text-sm font-semibold text-foreground">{order.productNameSnapshot}</p>
                 </div>
-                <button type="button" onClick={() => setShowBarcode(false)} className="rounded-full p-2 text-neutral-700 hover:bg-neutral-100" aria-label="Закрыть">
+                <button type="button" onClick={() => setShowBarcode(false)} className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label="Закрыть">
                   <X className="h-5 w-5" />
                 </button>
               </div>
               <div className="flex flex-1 flex-col items-center justify-center gap-6 overflow-auto p-6">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={barcodeUrl} alt="Штрихкод" className="w-full max-w-md object-contain" style={{ imageRendering: "pixelated" }} />
+                <div className="w-full max-w-md rounded-md bg-white p-3">
+                  <img src={barcodeUrl} alt="Штрихкод" className="w-full object-contain" style={{ imageRendering: "pixelated" }} />
+                </div>
                 <div className="text-center">
-                  <p className="text-xs uppercase tracking-wider text-neutral-500">Трек-номер</p>
-                  <p className="text-2xl font-bold tracking-wide text-neutral-900">{order.trackingNumber}</p>
-                  <p className="mt-1 text-sm text-neutral-500">{order.carrier || detectCarrierName(order.trackingNumber)}</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Трек-номер</p>
+                  <p className="text-2xl font-bold tracking-wide text-foreground">{order.trackingNumber}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{order.carrier || detectCarrierName(order.trackingNumber)}</p>
                 </div>
               </div>
-              <div className="flex gap-2 border-t border-neutral-200 p-4">
-                <a href={barcodeUrl} download={`barcode-${order.trackingNumber}.png`} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-neutral-900 text-sm font-medium text-white">
+              <div className="flex gap-2 border-t border-border p-4">
+                <a href={barcodeUrl} download={`barcode-${order.trackingNumber}.png`} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-primary text-sm font-medium text-primary-foreground">
                   <Download className="h-4 w-4" /> Скачать
                 </a>
-                <button type="button" onClick={() => setShowBarcode(false)} className="h-11 flex-1 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-900">
+                <button type="button" onClick={() => setShowBarcode(false)} className="h-11 flex-1 rounded-lg border border-input bg-card text-sm font-medium text-foreground hover:bg-accent">
                   Закрыть
                 </button>
               </div>

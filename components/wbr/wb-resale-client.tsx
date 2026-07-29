@@ -585,9 +585,9 @@ function AgentBanner({
 }) {
   if (status === "online") {
     return (
-      <Card className="border-emerald-500/25 bg-emerald-500/8">
+      <Card className="border-success/25 bg-success/8">
         <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start">
-          <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
+          <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Локальный WB-агент подключён{running ? ", публикация идёт" : ""}</p>
             <p className="text-sm text-muted-foreground">
@@ -646,9 +646,9 @@ function AgentBanner({
   }
 
   return (
-    <Card className="border-amber-500/30 bg-amber-500/8">
+    <Card className="border-warning/25 bg-warning/8">
       <CardContent className="flex items-start gap-3 p-4">
-        <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
+        <AlertTriangle className="mt-0.5 h-5 w-5 text-warning" />
         <div className="space-y-1">
           <p className="text-sm font-semibold">Локальный WB-агент не найден</p>
           <p className="text-sm text-muted-foreground">

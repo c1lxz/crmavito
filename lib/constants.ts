@@ -26,12 +26,12 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
-  ACCEPTED: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
-  SHIPPED: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
-  RECEIVED: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-  RETURNING: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
-  RETURNED: "bg-red-500/15 text-red-700 dark:text-red-300",
-  CANCELLED: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
+  ACCEPTED: "bg-special/15 text-special",
+  SHIPPED: "bg-info/15 text-info",
+  RECEIVED: "bg-success/15 text-success",
+  RETURNING: "bg-warning/15 text-warning",
+  RETURNED: "bg-destructive/15 text-destructive",
+  CANCELLED: "bg-muted text-muted-foreground",
 };
 
 export const RETURN_STATUS_LABELS: Record<ReturnStatus, string> = {
@@ -41,9 +41,9 @@ export const RETURN_STATUS_LABELS: Record<ReturnStatus, string> = {
 };
 
 export const RETURN_STATUS_COLORS: Record<ReturnStatus, string> = {
-  RETURNING: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
-  RETURNED: "bg-red-500/15 text-red-700 dark:text-red-300",
-  CANCELLED: "bg-slate-500/15 text-slate-600 dark:text-slate-400",
+  RETURNING: "bg-warning/15 text-warning",
+  RETURNED: "bg-destructive/15 text-destructive",
+  CANCELLED: "bg-muted text-muted-foreground",
 };
 
 export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -57,11 +57,11 @@ export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
 };
 
 export const EXPENSE_CATEGORY_COLORS: Record<ExpenseCategory, string> = {
-  PURCHASE: "#6D5BD0",
-  ADVERTISING: "#f59e0b",
-  LOGISTICS: "#3b82f6",
-  SALARY: "#7C3AED",
-  PACKAGING: "#14b8a6",
-  AVITO_COMMISSION: "#ef4444",
-  OTHER: "#6b7280",
+  PURCHASE: "hsl(var(--chart-5))",
+  ADVERTISING: "hsl(var(--chart-3))",
+  LOGISTICS: "hsl(var(--chart-1))",
+  SALARY: "hsl(var(--special))",
+  PACKAGING: "hsl(var(--chart-2))",
+  AVITO_COMMISSION: "hsl(var(--chart-4))",
+  OTHER: "hsl(var(--muted-foreground))",
 };

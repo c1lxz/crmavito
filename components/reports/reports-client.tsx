@@ -25,7 +25,15 @@ interface KpiData {
   ordersCount: number; receivedOrdersCount: number; avgCheck: number; returnsCount: number; returnsPercent: number;
 }
 
-const AVITO_PROFILE_COLORS = ["#6366f1", "#22c55e", "#eab308", "#f97316", "#7c3aed", "#06b6d4", "#ef4444"];
+const AVITO_PROFILE_COLORS = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--info))",
+  "hsl(var(--special))",
+  "hsl(var(--chart-5))",
+  "hsl(var(--chart-4))",
+];
 
 const EXPENSE_ORDER: string[] = [
   "PURCHASE", "LOGISTICS", "ADVERTISING", "AVITO_COMMISSION", "PACKAGING", "SALARY", "OTHER",
@@ -138,7 +146,7 @@ export function ReportsClient() {
     key,
     label: EXPENSE_CATEGORY_LABELS[key as keyof typeof EXPENSE_CATEGORY_LABELS] ?? key,
     amount: expenseCategories[key] ?? 0,
-    color: EXPENSE_CATEGORY_COLORS[key as keyof typeof EXPENSE_CATEGORY_COLORS] ?? "#888",
+    color: EXPENSE_CATEGORY_COLORS[key as keyof typeof EXPENSE_CATEGORY_COLORS] ?? "hsl(var(--muted-foreground))",
   }));
   const expenseTotal = expenseDonutData.reduce((s, d) => s + d.amount, 0);
 
@@ -148,13 +156,13 @@ export function ReportsClient() {
           status: "orders",
           label: "Заказы",
           count: kpi.current.receivedOrdersCount,
-          color: "#22c55e",
+          color: "hsl(var(--success))",
         },
         {
           status: "returns",
           label: "Возвраты",
           count: kpi.current.returnsCount,
-          color: "#ef4444",
+          color: "hsl(var(--destructive))",
         },
       ]
     : [];
@@ -170,7 +178,7 @@ export function ReportsClient() {
     status: item.marketplace,
     label: item.marketplace === "AVITO" ? "Авито" : "Wildberries",
     count: item.orders,
-    color: item.marketplace === "AVITO" ? "#2563eb" : "#7c3aed",
+    color: item.marketplace === "AVITO" ? "hsl(var(--chart-1))" : "hsl(var(--special))",
   }));
   const marketplaceTotal = marketplaceData.reduce((sum, item) => sum + item.count, 0);
 

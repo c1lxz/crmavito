@@ -546,7 +546,7 @@ export function StocksClient() {
             }}
           />
           {selectedProfile && !selectedProfile.hasCredentials && !manualCredentialsComplete && (
-            <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Для загрузки остатков этому профилю нужны API-ключи Avito.</p>
+            <p className="text-xs font-medium text-warning">Для загрузки остатков этому профилю нужны API-ключи Avito.</p>
           )}
         </div>
 

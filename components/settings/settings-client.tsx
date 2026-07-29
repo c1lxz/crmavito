@@ -349,7 +349,7 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
                         Telegram: не доставлено
                       </p>
                     ) : u.credentialsDeliveredAt ? (
-                      <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                      <p className="text-[11px] font-medium text-success">
                         Доступ отправлен
                       </p>
                     ) : null}
@@ -721,7 +721,7 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
             <div
               className={`flex items-start gap-2 rounded-md border p-3 text-sm ${
                 issuedCredentials?.delivery.sent
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
+                  ? "border-success/30 bg-success/10 text-success"
                   : "border-destructive/30 bg-destructive/10 text-destructive"
               }`}
             >

@@ -621,7 +621,7 @@ export function ReturnsClient({ initialData }: Props) {
                 {ret.returnDate && <div>Возврат: <span className="text-foreground">{formatDate(ret.returnDate)}</span></div>}
                 <div className="col-span-2">Причина: <span className="text-foreground">{ret.reason}</span></div>
                 {ret.usedByOrderItems[0] ? (
-                  <div className="col-span-2 mt-1 flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-300">
+                  <div className="col-span-2 mt-1 flex items-center gap-1 font-semibold text-success">
                     <Warehouse className="h-3.5 w-3.5" />
                     Взят с депозита в заказ №{ret.usedByOrderItems[0].order.orderNumber}
                   </div>
@@ -686,7 +686,7 @@ export function ReturnsClient({ initialData }: Props) {
       <div className="pc-summary-wide px-4 py-3 border-t">
         <div className="flex gap-4 text-sm text-muted-foreground">
           <span>Всего: <strong className="text-foreground">{data.returns.length}</strong></span>
-          <span>На возврате: <strong className="text-orange-600">{data.totalReturning}</strong></span>
+          <span>На возврате: <strong className="text-warning">{data.totalReturning}</strong></span>
           <span>Возвращено: <strong className="money-negative">{data.totalReturned}</strong></span>
         </div>
       </div>
@@ -728,7 +728,7 @@ export function ReturnsClient({ initialData }: Props) {
                 </Button>
               </div>
               {returnForm.matchedOrder ? (
-                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                <p className="text-xs font-semibold text-success">
                   Найден заказ №{returnForm.matchedOrder}, данные подставлены
                 </p>
               ) : (

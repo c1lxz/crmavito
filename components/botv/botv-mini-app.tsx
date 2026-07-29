@@ -930,19 +930,19 @@ export function BotvMiniApp() {
 
           {error && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
           {autoloadStopMessage && (
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-950 dark:text-amber-100">
+            <div className="rounded-md border border-warning/25 bg-warning/10 p-3 text-sm text-warning">
               {autoloadStopMessage}
             </div>
           )}
           <AdIdsBlock title="ID последнего XML" adIds={lastXmlAdIds} />
           {lastXmlStockStatus && (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-900 dark:text-emerald-100">
+            <div className="rounded-md border border-success/25 bg-success/10 p-3 text-sm text-success">
               <p className="font-semibold">Проверка остатка в XML</p>
               <p className="mt-1 text-xs opacity-80">{lastXmlStockStatus.message}</p>
             </div>
           )}
           {publishResult && (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-900 dark:text-emerald-100">
+            <div className="rounded-md border border-success/25 bg-success/10 p-3 text-sm text-success">
               <p className="font-semibold">Публикация Avito запущена</p>
               <p className="mt-1 text-xs opacity-80">
                 Avito принял XML-фид в автозагрузку. Итог публикации появится в отчётах Автозагрузки Avito после обработки.
@@ -969,7 +969,7 @@ export function BotvMiniApp() {
           )}
           {publishResult?.adIds && <AdIdsBlock title="ID опубликованных объявлений" adIds={publishResult.adIds} />}
           {autoloadStatus && (
-            <div className="rounded-md border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-950 dark:text-sky-100">
+            <div className="rounded-md border border-info/25 bg-info/10 p-3 text-sm text-info">
               <p className="font-semibold">Статус автозагрузки Avito</p>
               <div className="mt-2 grid gap-1 text-xs">
                 <p><span className="font-medium">Текущая:</span> {uploadLine(autoloadStatus.current)}</p>
@@ -1118,7 +1118,7 @@ export function BotvMiniApp() {
                       }}
                     />
                     {selectedPublishProfile && !selectedPublishProfile.hasCredentials && !manualPublishCredentialsComplete && (
-                      <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Для публикации XML этому профилю нужны API-ключи Avito.</p>
+                      <p className="text-xs font-medium text-warning">Для публикации XML этому профилю нужны API-ключи Avito.</p>
                     )}
                   </div>
                   <div className="grid gap-2 md:grid-cols-3">
@@ -1134,7 +1134,7 @@ export function BotvMiniApp() {
                     </Button>
                     {dropStockStatus && <span className="max-w-[480px] text-xs text-muted-foreground">{dropStockStatus}</span>}
                   </div>
-                  <label className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-950 dark:text-amber-100">
+                  <label className="flex items-start gap-2 rounded-md border border-warning/25 bg-warning/10 p-3 text-xs text-warning">
                     <input type="checkbox" className="mt-0.5 h-4 w-4" checked={publishLegacyIds} onChange={(event) => setPublishLegacyIds(event.target.checked)} />
                     <span>
                       <span className="block font-semibold">XML и публикация со старыми ID</span>

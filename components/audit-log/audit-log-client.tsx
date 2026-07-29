@@ -32,12 +32,12 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
 };
 
 const ENTITY_TYPE_COLORS: Record<string, string> = {
-  ORDER: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
-  RETURN: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  EXPENSE: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-  PRODUCT: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  COUNTERPARTY: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
-  USER: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  ORDER: "bg-primary/12 text-primary",
+  RETURN: "bg-warning/12 text-warning",
+  EXPENSE: "bg-destructive/12 text-destructive",
+  PRODUCT: "bg-info/12 text-info",
+  COUNTERPARTY: "bg-special/12 text-special",
+  USER: "bg-success/12 text-success",
 };
 
 const FIELD_LABELS: Record<string, string> = {

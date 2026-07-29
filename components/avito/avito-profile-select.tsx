@@ -39,7 +39,7 @@ export function AvitoProfileSelect({
               <span
                 className={cn(
                   "h-2 w-2 shrink-0 rounded-full",
-                  profile.hasCredentials ? "bg-emerald-500" : "bg-amber-500",
+                  profile.hasCredentials ? "bg-success" : "bg-warning",
                 )}
               />
               <span className="min-w-0 truncate">{profile.name}</span>

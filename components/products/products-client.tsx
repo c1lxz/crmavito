@@ -171,7 +171,7 @@ export function ProductsClient({ products: initial, isAdmin }: Props) {
                     </span>
                   )}
                   {product.avitoListingStatus && product.avitoListingStatus !== "active" && (
-                    <span className="flex items-center gap-0.5 text-xs text-amber-600">
+                    <span className="flex items-center gap-0.5 text-xs text-warning">
                       <Clock className="h-3 w-3" /> {product.avitoListingStatus}
                     </span>
                   )}

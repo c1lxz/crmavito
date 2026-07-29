@@ -10,8 +10,9 @@ describe("orders to returns donut", () => {
     expect(clientSource).toContain('title="Заказы / возвраты"');
     expect(clientSource).toContain('label: "Заказы"');
     expect(clientSource).toContain("count: kpi.current.receivedOrdersCount");
-    expect(clientSource).toContain('color: "#22c55e"');
+    expect(clientSource).toContain('color: "hsl(var(--success))"');
     expect(clientSource).toContain('label: "Возвраты"');
+    expect(clientSource).toContain('color: "hsl(var(--destructive))"');
     expect(clientSource).not.toContain("centerValue={formatPercent(returnsRatio)}");
     expect(clientSource).toContain("showSlicePercentLabels");
     expect(clientSource).not.toContain('centerLabel="Возвраты"');

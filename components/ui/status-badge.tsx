@@ -7,34 +7,34 @@ type Tone = "violet" | "sky" | "emerald" | "orange" | "red" | "slate";
 
 const TONE_STYLES: Record<Tone, { bg: string; text: string; dot: string }> = {
   violet: {
-    bg: "bg-violet-500/15",
-    text: "text-violet-700 dark:text-violet-300",
-    dot: "bg-violet-500",
+    bg: "bg-special/15",
+    text: "text-special",
+    dot: "bg-special",
   },
   sky: {
-    bg: "bg-sky-500/15",
-    text: "text-sky-700 dark:text-sky-300",
-    dot: "bg-sky-500",
+    bg: "bg-info/15",
+    text: "text-info",
+    dot: "bg-info",
   },
   emerald: {
-    bg: "bg-emerald-500/15",
-    text: "text-emerald-700 dark:text-emerald-300",
-    dot: "bg-emerald-500",
+    bg: "bg-success/15",
+    text: "text-success",
+    dot: "bg-success",
   },
   orange: {
-    bg: "bg-orange-500/15",
-    text: "text-orange-700 dark:text-orange-300",
-    dot: "bg-orange-500",
+    bg: "bg-warning/15",
+    text: "text-warning",
+    dot: "bg-warning",
   },
   red: {
-    bg: "bg-red-500/15",
-    text: "text-red-700 dark:text-red-300",
-    dot: "bg-red-500",
+    bg: "bg-destructive/15",
+    text: "text-destructive",
+    dot: "bg-destructive",
   },
   slate: {
-    bg: "bg-slate-500/15",
-    text: "text-slate-600 dark:text-slate-400",
-    dot: "bg-slate-500",
+    bg: "bg-muted",
+    text: "text-muted-foreground",
+    dot: "bg-muted-foreground",
   },
 };
 

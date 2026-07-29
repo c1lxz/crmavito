@@ -472,9 +472,9 @@ export function ContentMachineClient() {
             </Button>
           </div>
           {agentStatus && (!agentStatus.online || agentStatus.state !== "ready") && (
-            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{agentStatus.message}</p>
+            <p className="mt-2 text-xs text-warning">{agentStatus.message}</p>
           )}
-          {!allBackgroundsReady && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Перед запуском загрузите все три эталонных фона.</p>}
+          {!allBackgroundsReady && <p className="mt-2 text-xs text-warning">Перед запуском загрузите все три эталонных фона.</p>}
         </section>
 
         {job && (
@@ -500,7 +500,7 @@ export function ContentMachineClient() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 items-start gap-3">
                   <span className="icon-tile h-10 w-10">
-                    {job.status === "ready" ? <CircleCheck className="h-5 w-5 text-emerald-600" /> : <Clock3 className="h-5 w-5 text-primary" />}
+                    {job.status === "ready" ? <CircleCheck className="h-5 w-5 text-success" /> : <Clock3 className="h-5 w-5 text-primary" />}
                   </span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -533,7 +533,7 @@ export function ContentMachineClient() {
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" disabled={refreshingJob} onClick={() => void refreshJob(job.id)}>
                     {refreshConfirmed
-                      ? <Check className="mr-1.5 h-4 w-4 text-emerald-600" />
+                      ? <Check className="mr-1.5 h-4 w-4 text-success" />
                       : <RefreshCw className={`mr-1.5 h-4 w-4 ${refreshingJob ? "animate-spin" : ""}`} />}
                     {refreshingJob ? "Обновляю…" : refreshConfirmed ? "Обновлено" : "Обновить"}
                   </Button>

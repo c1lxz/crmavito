@@ -285,7 +285,7 @@ function ActionRow({
   onDraft: (value: string) => void;
 }) {
   return (
-    <div className={cn("p-4 transition-colors", decision === "approved" && "bg-emerald-50/60 dark:bg-emerald-950/15", decision === "queued" && "bg-primary/[0.04]", decision === "rejected" && "bg-secondary/45 opacity-70")}>
+    <div className={cn("p-4 transition-colors", decision === "approved" && "bg-success/8", decision === "queued" && "bg-primary/[0.04]", decision === "rejected" && "bg-secondary/45 opacity-70")}>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
