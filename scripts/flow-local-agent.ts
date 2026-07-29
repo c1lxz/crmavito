@@ -93,15 +93,16 @@ async function main() {
       const message = sanitizeFlowAgentError(error);
       console.error(`[flow-agent] ${job.id}: ${message}`);
       const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась/i.test(message);
+      const publicError = publicFlowAgentError(error);
       currentAvailability = {
         state: canTryAnotherAgent ? "blocked" : "error",
-        message: publicFlowAgentError(error),
+        message: publicError.split("\n")[0].replace(/^Error:\s*/, ""),
       };
       await reportStatus(currentAvailability).catch(() => undefined);
       await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${job.id}/${canTryAnotherAgent ? "release" : "fail"}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ agentId, error: publicFlowAgentError(error) }),
+        body: JSON.stringify({ agentId, error: publicError }),
       }).catch(() => undefined);
     });
   }
