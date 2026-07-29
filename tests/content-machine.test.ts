@@ -142,6 +142,8 @@ describe("content machine", () => {
     expect(clientSource).toContain("content-machine-diagnostic-incidents");
     expect(clientSource).toContain("loadContentMachineDraft");
     expect(clientSource).toContain("Повторить недостающие");
+    expect(clientSource).toContain("disabled={creatingJob || products.length === 0 || !allBackgroundsReady || !designReady}");
+    expect(clientSource).not.toContain("agentStatus !== null && !agentReady");
     expect(draftSource).toContain("indexedDB.open");
     expect(draftSource).toContain("products: Array<{ id: string; file: File }>");
     expect(flowBrowserSource).toContain("downloadResultInsideBrowser");

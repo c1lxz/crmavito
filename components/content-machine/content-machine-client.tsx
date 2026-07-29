@@ -403,7 +403,6 @@ export function ContentMachineClient() {
   }
 
   const allBackgroundsReady = backgrounds.every((background) => Boolean(background.url));
-  const agentReady = Boolean(agentStatus?.online && agentStatus.state === "ready");
   const readyResults = job?.results || [];
   const selectedCount = selectedIds.length;
   const designReady = mode === "product-photo" || inspirationQuery.trim().length >= 3;
@@ -633,13 +632,13 @@ export function ContentMachineClient() {
                 </p>
               </div>
             </div>
-            <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady || !designReady || (agentStatus !== null && !agentReady)} className="shrink-0">
+            <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady || !designReady} className="shrink-0">
               {creatingJob ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               {creatingJob ? "Ставлю в очередь Flow…" : `Создать ${resultCount} фото`}
             </Button>
           </div>
           {agentStatus && (!agentStatus.online || agentStatus.state !== "ready") && (
-            <p className="mt-2 text-xs text-warning">{agentStatus.message}</p>
+            <p className="mt-2 text-xs text-warning">{agentStatus.message} Статус агента не блокирует постановку задания в очередь.</p>
           )}
           {!allBackgroundsReady && <p className="mt-2 text-xs text-warning">Перед запуском загрузите все три эталонных фона.</p>}
         </section>
