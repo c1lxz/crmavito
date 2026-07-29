@@ -93,6 +93,16 @@ describe("desktop responsive UI", () => {
     expect(bottomNavSource).toContain("/m/dashboard");
   });
 
+  it("gives the desktop sidebar distinct light and dark theme palettes", () => {
+    const lightTheme = globalsSource.match(/:root\s*{([\s\S]*?)\n\s*}/)?.[1] ?? "";
+    const darkTheme = globalsSource.match(/\.dark\s*{([\s\S]*?)\n\s*}/)?.[1] ?? "";
+
+    expect(lightTheme).toContain("--sidebar-background: 210 40% 98%");
+    expect(lightTheme).toContain("--sidebar-foreground: 212 40% 15%");
+    expect(darkTheme).toContain("--sidebar-background: 211 66% 9%");
+    expect(lightTheme).not.toContain("--sidebar-background: 211 66% 9%");
+  });
+
   it("uses dense desktop layouts for the main operational screens", () => {
     expect(ordersSource).toContain("pc-only hidden overflow-hidden rounded-lg border border-border bg-card");
     expect(ordersSource).toContain("mobile-only space-y-3");
