@@ -1,4 +1,5 @@
 import { hostname } from "node:os";
+import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
@@ -44,7 +45,9 @@ const proxyPassword = process.env.FLOW_AGENT_PROXY_PASSWORD?.trim();
 const profileName = process.env.FLOW_AGENT_PROFILE_NAME?.trim();
 const extensionPath = process.env.FLOW_AGENT_EXTENSION_PATH?.trim();
 const cdpUrl = process.env.FLOW_AGENT_CDP_URL?.trim();
+const cdpBootstrapScript = process.env.FLOW_AGENT_CDP_BOOTSTRAP_SCRIPT?.trim();
 let sharedCdpBrowser: Browser | null = null;
+let cdpBootstrapPromise: Promise<void> | null = null;
 
 type FlowContextSession = {
   context: BrowserContext;
@@ -101,7 +104,7 @@ async function main() {
     }).catch(async (error) => {
       const message = sanitizeFlowAgentError(error);
       console.error(`[flow-agent] ${job.id}: ${message}`);
-      const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась/i.test(message);
+      const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|connectOverCDP|ECONNREFUSED/i.test(message);
       const publicError = publicFlowAgentError(error);
       currentAvailability = {
         state: canTryAnotherAgent ? "blocked" : "error",
@@ -119,7 +122,7 @@ async function main() {
 
 async function launchFlowSession(): Promise<FlowContextSession> {
   if (cdpUrl) {
-    if (!sharedCdpBrowser?.isConnected()) sharedCdpBrowser = await chromium.connectOverCDP(cdpUrl);
+    if (!sharedCdpBrowser?.isConnected()) sharedCdpBrowser = await connectToShortcutChrome();
     const context = sharedCdpBrowser.contexts()[0];
     if (!context) throw new Error("Chrome из ярлыка запущен, но его профиль недоступен агенту.");
     return { context, close: async () => undefined, preservePages: true };
@@ -147,6 +150,59 @@ async function launchFlowSession(): Promise<FlowContextSession> {
     ],
   });
   return { context, close: () => context.close(), preservePages: false };
+}
+
+async function connectToShortcutChrome(): Promise<Browser> {
+  if (!cdpUrl) throw new Error("FLOW_AGENT_CDP_URL не задан.");
+  try {
+    return rememberCdpBrowser(await chromium.connectOverCDP(cdpUrl));
+  } catch (error) {
+    if (!cdpBootstrapScript) throw error;
+    console.warn("[flow-agent] Chrome из ярлыка закрыт; запускаю его тем же PowerShell-скриптом.");
+    cdpBootstrapPromise ??= bootstrapShortcutChrome().finally(() => {
+      cdpBootstrapPromise = null;
+    });
+    await cdpBootstrapPromise;
+    return rememberCdpBrowser(await chromium.connectOverCDP(cdpUrl));
+  }
+}
+
+function rememberCdpBrowser(browser: Browser) {
+  browser.once("disconnected", () => {
+    if (sharedCdpBrowser === browser) sharedCdpBrowser = null;
+  });
+  return browser;
+}
+
+async function bootstrapShortcutChrome() {
+  if (!cdpBootstrapScript || !cdpUrl) return;
+  const child = spawn("powershell.exe", [
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", cdpBootstrapScript,
+  ], {
+    detached: true,
+    windowsHide: true,
+    stdio: "ignore",
+  });
+  child.unref();
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    try {
+      const response = await fetch(`${cdpUrl.replace(/\/+$/, "")}/json/version`, {
+        signal: AbortSignal.timeout(1_000),
+      });
+      if (response.ok) return;
+      lastError = new Error(`CDP ответил HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await delay(500);
+  }
+  throw new Error(
+    `Не удалось запустить Chrome через ярлык: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
 }
 
 async function runJobInFlow(job: AgentJob, onAvailability?: (availability: FlowAvailability) => void) {

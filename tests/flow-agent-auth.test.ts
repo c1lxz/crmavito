@@ -66,6 +66,8 @@ describe("Flow agent authentication", () => {
     expect(ensure).toContain('$env:COMPUTERNAME -eq "DESKTOP-1QUOHBP"');
     expect(ensure).toContain("start_google_flow_proxy.ps1");
     expect(agent).toContain("chromium.connectOverCDP(cdpUrl)");
+    expect(agent).toContain("FLOW_AGENT_CDP_BOOTSTRAP_SCRIPT");
+    expect(agent).toContain("bootstrapShortcutChrome");
     expect(agent).toContain("preservePages");
     expect(agent).toContain("CRM poll failed");
     expect(agent).toContain("CRM вернула не-JSON ответ");
