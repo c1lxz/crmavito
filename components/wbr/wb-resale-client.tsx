@@ -289,7 +289,7 @@ export function WbResaleClient() {
             <p className="section-caption">Публикация идёт через локальный агент на ПК сотрудника</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="wb-resale-actions mt-2 flex flex-wrap gap-2">
           <input
             ref={xmlInputRef}
             type="file"

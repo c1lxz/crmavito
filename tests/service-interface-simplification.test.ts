@@ -18,6 +18,7 @@ describe("service interfaces use progressive disclosure", () => {
     expect(wbResaleSource).toContain("Дополнительные параметры");
     expect(wbResaleSource).toContain("Другие действия WB Resale");
     expect(wbResaleSource).toContain("Действия с ${item.title}");
+    expect(wbResaleSource).toContain("wb-resale-actions mt-2");
   });
 
   it("collapses content generation settings without removing them", () => {

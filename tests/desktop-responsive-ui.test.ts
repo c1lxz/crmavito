@@ -42,6 +42,10 @@ const marketAnalysisSource = readFileSync(
   path.resolve(__dirname, "../components/settings/market-analysis-client.tsx"),
   "utf8",
 );
+const dashboardSource = readFileSync(
+  path.resolve(__dirname, "../app/(app)/dashboard/page.tsx"),
+  "utf8",
+);
 
 describe("desktop responsive UI", () => {
   it("splits explicit /pc and /m modes instead of relying on viewport width", () => {
@@ -87,6 +91,7 @@ describe("desktop responsive UI", () => {
 
   it("adds a desktop sidebar with the main working sections", () => {
     expect(desktopSidebarSource).toContain("hidden w-64");
+    expect(desktopSidebarSource).toContain("h-8 w-8");
     expect(desktopSidebarSource).toContain("/pc/orders");
     expect(desktopSidebarSource).toContain("/pc/returns");
     expect(desktopSidebarSource).toContain("/pc/products");
@@ -94,6 +99,11 @@ describe("desktop responsive UI", () => {
     expect(desktopSidebarSource).toContain("usePathname");
     expect(bottomNavSource).toContain("/m/orders");
     expect(bottomNavSource).toContain("/m/dashboard");
+  });
+
+  it("keeps the dashboard header compact", () => {
+    expect(dashboardSource).not.toContain("Рабочая сводка для");
+    expect(dashboardSource).not.toContain("toLocaleDateString");
   });
 
   it("gives the desktop sidebar distinct light and dark theme palettes", () => {
@@ -140,6 +150,8 @@ describe("desktop responsive UI", () => {
     expect(productsSource).toContain("pc-products-grid");
     expect(reportsSource).toContain("pc-reports-kpi");
     expect(reportsSource).toContain("pc-donut-grid");
+    expect(reportsSource).toContain("grid grid-cols-3 gap-2");
+    expect(globalsSource).toContain("repeat(auto-fit, minmax(min(100%, 18rem), 1fr))");
     expect(marketAnalysisSource).toContain("market-analysis-controls");
     expect(marketAnalysisSource).toContain('className="w-full min-w-0 space-y-1 sm:w-auto"');
     expect(marketAnalysisSource).toContain('inputMode="numeric"');

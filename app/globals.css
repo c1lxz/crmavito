@@ -348,7 +348,9 @@
   }
 
   .pc-shell .pc-reports-range {
-    max-width: 28rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    align-items: center;
+    max-width: none;
   }
 
   .pc-shell .pc-reports-kpi {

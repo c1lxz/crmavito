@@ -1,4 +1,3 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { calcOrderFinancials, sumFinancials } from "@/lib/finance/calculations";
 import { toDecimalNumber } from "@/lib/db/orders";
@@ -141,13 +140,7 @@ async function getDashboardData() {
 }
 
 export default async function DashboardPage() {
-  const [session, data] = await Promise.all([auth(), getDashboardData()]);
-  const today = new Date().toLocaleDateString("ru-RU", {
-    timeZone: "Europe/Moscow",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const data = await getDashboardData();
 
   const kpiCards = [
     { label: "Заказы сегодня", value: `${data.todayOrders}`, sub: formatRub(data.todayOrderAmount) },
@@ -183,13 +176,7 @@ export default async function DashboardPage() {
     <div className="app-shell">
       <div className="app-header">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="section-caption">{today}</p>
-            <h1 className="text-xl font-semibold tracking-tight">CRM Avito</h1>
-            <span className="text-xs font-medium text-muted-foreground">
-              Рабочая сводка для {session?.user?.name}
-            </span>
-          </div>
+          <h1 className="text-xl font-semibold tracking-tight">CRM Avito</h1>
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <Link href="/settings" className="icon-tile h-11 w-11 hover:border-primary/35 hover:text-primary" aria-label="Настройки">

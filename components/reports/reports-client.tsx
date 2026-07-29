@@ -192,18 +192,15 @@ export function ReportsClient() {
   return (
     <div className="app-shell">
       <div className="app-header">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Отчёты</h1>
-            <p className="section-caption">Деньги, маржа и структура заказов</p>
-          </div>
+        <div className="mb-2 flex items-center justify-between">
+          <h1 className="text-xl font-semibold tracking-tight">Отчёты</h1>
           <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
             {loading ? "..." : "Обновить"}
           </Button>
         </div>
-        <div className="pc-reports-range space-y-2">
+        <div className="pc-reports-range grid gap-2">
           <Select value={marketplace} onValueChange={(value) => setMarketplace(value as "ALL" | "AVITO" | "WB")}>
-            <SelectTrigger aria-label="Площадка">
+            <SelectTrigger className="h-9" aria-label="Площадка">
               <SelectValue placeholder="Все площадки" />
             </SelectTrigger>
             <SelectContent>
@@ -212,13 +209,14 @@ export function ReportsClient() {
               <SelectItem value="WB">Wildberries</SelectItem>
             </SelectContent>
           </Select>
-          <div className="flex flex-wrap gap-2" aria-label="Быстрый выбор периода">
+          <div className="grid grid-cols-3 gap-2" aria-label="Быстрый выбор периода">
             {REPORT_PERIODS.map((days) => (
               <Button
                 key={days}
                 type="button"
                 size="sm"
                 variant={activePeriodDays === days ? "secondary" : "outline"}
+                className="w-full"
                 aria-pressed={activePeriodDays === days}
                 onClick={() => applyRecentPeriod(days)}
               >
@@ -226,7 +224,7 @@ export function ReportsClient() {
               </Button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
             <Input
               type="date"
               value={dateFrom}
@@ -235,7 +233,7 @@ export function ReportsClient() {
                 setActivePeriodDays(null);
               }}
               aria-label="Начало периода"
-              className="text-sm"
+              className="h-9 min-w-0 px-2 text-sm"
             />
             <span className="text-muted-foreground">—</span>
             <Input
@@ -246,7 +244,7 @@ export function ReportsClient() {
                 setActivePeriodDays(null);
               }}
               aria-label="Конец периода"
-              className="text-sm"
+              className="h-9 min-w-0 px-2 text-sm"
             />
           </div>
         </div>
