@@ -28,6 +28,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/hooks/use-toast";
 import {
+  loadContentMachineDraft,
+  saveContentMachineDraft,
+} from "@/lib/client/content-machine-draft";
+import {
   ContentMachineDiagnostics,
   type DiagnosticIncident,
 } from "@/components/content-machine/content-machine-diagnostics";
@@ -101,10 +105,12 @@ export function ContentMachineClient() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
   const [refreshingJob, setRefreshingJob] = useState(false);
+  const [retryingJob, setRetryingJob] = useState(false);
   const [refreshConfirmed, setRefreshConfirmed] = useState(false);
   const [resultRefreshKey, setResultRefreshKey] = useState(0);
   const [agentStatus, setAgentStatus] = useState<FlowAgentStatus | null>(null);
   const [diagnosticIncidents, setDiagnosticIncidents] = useState<DiagnosticIncident[]>([]);
+  const [draftRestored, setDraftRestored] = useState(false);
   const productInputRef = useRef<HTMLInputElement>(null);
   const productUrlsRef = useRef<string[]>([]);
   const incidentFingerprintsRef = useRef(new Set<string>());
@@ -112,6 +118,7 @@ export function ContentMachineClient() {
   useEffect(() => {
     void loadBackgrounds();
     void loadAgentStatus();
+    void restoreDraft();
     const statusTimer = window.setInterval(() => void loadAgentStatus(), 5000);
     const savedJobId = window.localStorage.getItem("content-machine-flow-job");
     try {
@@ -136,6 +143,22 @@ export function ContentMachineClient() {
       productUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
   }, []);
+
+  useEffect(() => {
+    if (!draftRestored) return;
+    const timer = window.setTimeout(() => {
+      void saveContentMachineDraft({
+        mode,
+        imageSize,
+        inspirationQuery,
+        designNote,
+        labelStyleReference,
+        products: products.map(({ id, file }) => ({ id, file })),
+        savedAt: new Date().toISOString(),
+      }).catch((error) => reportIncident("Сохранение черновика", error));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [draftRestored, mode, imageSize, inspirationQuery, designNote, labelStyleReference, products]);
 
   useEffect(() => {
     if (!job || job.status === "ready" || job.status === "failed") return;
@@ -266,6 +289,34 @@ export function ContentMachineClient() {
     }
   }
 
+  async function restoreDraft() {
+    try {
+      const draft = await loadContentMachineDraft();
+      if (!draft) return;
+      setMode(draft.mode === "original-design" ? "original-design" : "product-photo");
+      setImageSize(draft.imageSize === "4K" ? "4K" : "2K");
+      setInspirationQuery(String(draft.inspirationQuery || "").slice(0, 120));
+      setDesignNote(String(draft.designNote || "").slice(0, 1200));
+      setLabelStyleReference(String(draft.labelStyleReference || "").slice(0, 100));
+      const restoredProducts = (draft.products || [])
+        .filter((item) => item?.file instanceof File)
+        .slice(0, draft.mode === "original-design" ? maxDesignReferences : maxProducts)
+        .map((item) => {
+          const previewUrl = URL.createObjectURL(item.file);
+          productUrlsRef.current.push(previewUrl);
+          return { id: item.id || crypto.randomUUID(), file: item.file, previewUrl };
+        });
+      setProducts(restoredProducts);
+      if (restoredProducts.length > 0) {
+        toast({ title: "Черновик восстановлен", description: `Возвращено ${restoredProducts.length} исходных фото и заполненные поля.` });
+      }
+    } catch (error) {
+      reportIncident("Восстановление черновика", error);
+    } finally {
+      setDraftRestored(true);
+    }
+  }
+
   async function refreshJob(id: string) {
     setRefreshingJob(true);
     setRefreshConfirmed(false);
@@ -278,6 +329,21 @@ export function ContentMachineClient() {
       }
     } finally {
       setRefreshingJob(false);
+    }
+  }
+
+  async function retryJob(id: string) {
+    setRetryingJob(true);
+    try {
+      const response = await fetch(`/api/ai/content-machine/codex-jobs/${encodeURIComponent(id)}/retry`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(`[HTTP ${response.status}] ${data.error || "Не удалось повторить задачу."}`);
+      setJob(data.job);
+      toast({ title: "Задача возвращена в очередь", description: "Готовые фото сохранены; Flow создаст только недостающие." });
+    } catch (error) {
+      reportIncident("Повтор задачи Flow", error);
+    } finally {
+      setRetryingJob(false);
     }
   }
 
@@ -632,6 +698,12 @@ export function ContentMachineClient() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {job.status === "failed" && (
+                    <Button size="sm" disabled={retryingJob} onClick={() => void retryJob(job.id)}>
+                      {retryingJob ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}
+                      {retryingJob ? "Возвращаю в очередь…" : "Повторить недостающие"}
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" disabled={refreshingJob} onClick={() => void refreshJob(job.id)}>
                     {refreshConfirmed
                       ? <Check className="mr-1.5 h-4 w-4 text-success" />
@@ -800,6 +872,18 @@ function diagnoseIncident(action: string, technical: string) {
     return {
       cause: "Файл пустой, слишком большой или имеет неподдерживаемый формат.",
       resolution: "Используйте JPG, PNG или WebP размером до 20 МБ и загрузите файл повторно.",
+    };
+  }
+  if (text.includes("watermark") || text.includes("водян")) {
+    return {
+      cause: "Google Flow обнаружил водяной знак на одном из референсов и отклонил файл.",
+      resolution: "Замените проблемное фото оригиналом без водяного знака и нажмите «Повторить недостающие». Уже готовые результаты сохранятся.",
+    };
+  }
+  if (text.includes("авторск") || text.includes("content policy") || text.includes("policy violation")) {
+    return {
+      cause: "Google Flow отклонил референс по правилам контента или авторских прав.",
+      resolution: "Используйте собственное фото без чужих логотипов и нажмите «Повторить недостающие».",
     };
   }
   if (text.includes("регион") || text.includes("blocked")) {

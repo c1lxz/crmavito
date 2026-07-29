@@ -37,6 +37,7 @@ const generationTimeoutMs = clamp(Number(process.env.FLOW_GENERATION_TIMEOUT_MS 
 const stateDirectory = path.resolve(process.env.FLOW_AGENT_STATE_DIR || ".flow-local-agent");
 const profileDirectory = path.resolve(process.env.FLOW_AGENT_PROFILE_DIR || path.join(stateDirectory, "chrome-profile"));
 const workDirectory = path.join(stateDirectory, "work");
+const diagnosticsDirectory = path.join(stateDirectory, "diagnostics");
 const proxyServer = process.env.FLOW_AGENT_PROXY_SERVER?.trim();
 const proxyUsername = process.env.FLOW_AGENT_PROXY_USERNAME?.trim();
 const proxyPassword = process.env.FLOW_AGENT_PROXY_PASSWORD?.trim();
@@ -86,7 +87,8 @@ async function main() {
     await runJobInFlow(job).catch(async (error) => {
       const message = sanitizeFlowAgentError(error);
       console.error(`[flow-agent] ${job.id}: ${message}`);
-      await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${job.id}/fail`, {
+      const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась/i.test(message);
+      await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${job.id}/${canTryAnotherAgent ? "release" : "fail"}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ agentId, error: publicFlowAgentError(error) }),
@@ -123,17 +125,28 @@ function launchFlowContext() {
 async function runJobInFlow(job: AgentJob) {
   const context = await launchFlowContext();
   let minimizeTimer: ReturnType<typeof setInterval> | null = null;
+  let controlPage: import("playwright").Page | null = null;
   try {
-    const controlPage = await prepareControlPage(context);
+    controlPage = await prepareControlPage(context);
     const availability = await probeFlow(controlPage);
     await reportStatus(availability).catch(() => undefined);
     if (availability.state !== "ready") throw new Error(availability.message);
     minimizeTimer = setInterval(() => {
-      if (!controlPage.isClosed()) {
+      if (controlPage && !controlPage.isClosed()) {
         void minimizeBrowserWindow(context, controlPage).catch(() => undefined);
       }
     }, 10_000);
     await processJob(context, job);
+  } catch (error) {
+    if (controlPage && !controlPage.isClosed()) {
+      await mkdir(diagnosticsDirectory, { recursive: true }).catch(() => undefined);
+      const screenshotPath = path.join(diagnosticsDirectory, `${job.id}-${Date.now()}.png`);
+      const saved = await controlPage.screenshot({ path: screenshotPath, fullPage: true }).then(() => true).catch(() => false);
+      if (saved) {
+        throw new Error(`${error instanceof Error ? error.message : String(error)} Диагностический скриншот: ${screenshotPath}`);
+      }
+    }
+    throw error;
   } finally {
     if (minimizeTimer) clearInterval(minimizeTimer);
     await context.close();
@@ -165,11 +178,13 @@ async function probeFlow(page: import("playwright").Page): Promise<FlowAvailabil
   try {
     await page.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
     const url = page.url();
-    const body = (await page.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 1000);
-    if (url.includes("/unsupported-country") || body.includes("Flow is not available in your country")) {
-      return { state: "blocked", message: "Google Flow отклоняет регион или профиль аккаунта." };
+    const unsupportedVisible = await page.getByText(/Flow is not available in your country/i)
+      .isVisible()
+      .catch(() => false);
+    if (url.includes("/unsupported-country") || unsupportedVisible) {
+      return { state: "blocked", message: "Google Flow показывает видимую блокировку региона для этого локального агента." };
     }
-    if (url.includes("accounts.google.") || /\bSign in\b/i.test(body)) {
+    if (url.includes("accounts.google.")) {
       return { state: "auth_required", message: "В профиле локального агента требуется вход в Google." };
     }
     return { state: "ready", message: "Google Flow доступен; агент готов к генерации." };

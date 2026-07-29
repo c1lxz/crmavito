@@ -4,7 +4,15 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { claimNextFlowJob, createCodexJob, getCodexJob, saveFlowJobResult } from "@/lib/ai/content-machine-jobs";
+import {
+  claimNextFlowJob,
+  createCodexJob,
+  failFlowJob,
+  getCodexJob,
+  releaseFlowJob,
+  retryFlowJob,
+  saveFlowJobResult,
+} from "@/lib/ai/content-machine-jobs";
 import { saveBackground } from "@/lib/ai/content-machine";
 import { buildOriginalDesignPrompt } from "@/lib/flow-agent/market-research";
 import { createClaudeDesignMetaPrompt } from "@/lib/ai/claude-content-design";
@@ -12,6 +20,9 @@ import { createClaudeDesignMetaPrompt } from "@/lib/ai/claude-content-design";
 const root = path.resolve(__dirname, "..");
 const clientSource = fs.readFileSync(path.join(root, "components/content-machine/content-machine-client.tsx"), "utf8");
 const diagnosticsSource = fs.readFileSync(path.join(root, "components/content-machine/content-machine-diagnostics.tsx"), "utf8");
+const draftSource = fs.readFileSync(path.join(root, "lib/client/content-machine-draft.ts"), "utf8");
+const flowBrowserSource = fs.readFileSync(path.join(root, "lib/flow-agent/browser.ts"), "utf8");
+const flowAgentSource = fs.readFileSync(path.join(root, "scripts/flow-local-agent.ts"), "utf8");
 const generateRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-machine/generate-image/route.ts"), "utf8");
 const backgroundsRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-machine/backgrounds/route.ts"), "utf8");
 const storageSource = fs.readFileSync(path.join(root, "lib/ai/content-machine.ts"), "utf8");
@@ -129,6 +140,14 @@ describe("content machine", () => {
     expect(clientSource).toContain("reportIncident");
     expect(clientSource).toContain("diagnoseIncident");
     expect(clientSource).toContain("content-machine-diagnostic-incidents");
+    expect(clientSource).toContain("loadContentMachineDraft");
+    expect(clientSource).toContain("Повторить недостающие");
+    expect(draftSource).toContain("indexedDB.open");
+    expect(draftSource).toContain("products: Array<{ id: string; file: File }>");
+    expect(flowBrowserSource).toContain("downloadResultInsideBrowser");
+    expect(flowBrowserSource).toContain("водяного знака");
+    expect(flowAgentSource).toContain("unsupportedVisible");
+    expect(flowAgentSource).toContain('"release" : "fail"');
     expect(diagnosticsSource).toContain("/api/ai/content-machine/backgrounds");
     expect(diagnosticsSource).toContain("/api/ai/content-machine/flow-agent/status");
     expect(diagnosticsSource).toContain("samplePixels");
@@ -136,6 +155,26 @@ describe("content machine", () => {
     expect(diagnosticsSource).toContain("Изображение не открылось");
     expect(diagnosticsSource).toContain('url.startsWith("blob:")');
     expect(diagnosticsSource).toContain('document.execCommand("copy")');
+  });
+
+  it("releases an unavailable agent and lets another agent resume the same job", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "crmavito-flow-release-"));
+    process.env.CONTENT_MACHINE_DATA_DIR = directory;
+    try {
+      for (const slot of ["1", "2", "3"] as const) {
+        await saveBackground(slot, new File([`background-${slot}`], `background-${slot}.jpg`, { type: "image/jpeg" }) as unknown as globalThis.File);
+      }
+      const product = new File(["product"], "shirt.jpg", { type: "image/jpeg" }) as unknown as globalThis.File;
+      const created = await createCodexJob([product], "2K");
+      expect((await claimNextFlowJob("blocked-agent"))?.id).toBe(created.id);
+      await failFlowJob(created.id, "blocked-agent", "Google Flow отклоняет регион или профиль аккаунта.");
+      expect(await claimNextFlowJob("blocked-agent")).toBeNull();
+      expect((await claimNextFlowJob("working-agent"))?.id).toBe(created.id);
+      await releaseFlowJob(created.id, "working-agent", "auth_required");
+      await expect(retryFlowJob(created.id)).resolves.toMatchObject({ id: created.id, status: "waiting" });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("creates three original-design variants from multiple views of one proven product", async () => {

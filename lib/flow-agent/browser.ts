@@ -47,7 +47,7 @@ export async function generateFlowImage(input: {
       uploadError = undefined;
       break;
     } catch (error) {
-      uploadError = error;
+      uploadError = await describeFlowPageError(input.page, error);
       await input.page.keyboard.press("Escape").catch(() => undefined);
       await input.page.waitForTimeout(1_500);
     }
@@ -84,26 +84,29 @@ export async function generateFlowImage(input: {
   const source = await result.getAttribute("src");
   if (source?.startsWith("data:")) {
     await writeFile(input.outputPath, Buffer.from(source.split(",", 2)[1], "base64"));
-  } else if (source && !source.startsWith("blob:")) {
+  } else if (source) {
+    const absoluteSource = source.startsWith("blob:") ? source : new URL(source, input.page.url()).toString();
+    let downloaded = false;
     try {
-      await writeFile(
-        input.outputPath,
-        await downloadResultImage(input.page, new URL(source, input.page.url()).toString()),
-      );
+      await writeFile(input.outputPath, await downloadResultInsideBrowser(input.page, absoluteSource));
+      downloaded = true;
     } catch {
-      await captureRenderedResult(result, input.outputPath);
+      if (!source.startsWith("blob:")) {
+        try {
+          await writeFile(input.outputPath, await downloadResultImage(input.page, absoluteSource));
+          downloaded = true;
+        } catch {
+          // Try Flow's own download button below.
+        }
+      }
     }
+    if (!downloaded) {
+      downloaded = await downloadWithFlowButton(input.page, input.outputPath);
+    }
+    if (!downloaded) await captureRenderedResult(result, input.outputPath);
   } else {
-    const downloadButton = await firstVisible(input.page, [
-      '[data-testid="result-download"]',
-      'button[aria-label*="Download" i]',
-      'button:has-text("Download")',
-    ]);
-    if (!downloadButton) throw new Error("Flow: у результата нет доступной кнопки скачивания.");
-    const downloadPromise = input.page.waitForEvent("download", { timeout: 30_000 });
-    await downloadButton.click();
-    const download = await downloadPromise;
-    await download.saveAs(input.outputPath);
+    const downloaded = await downloadWithFlowButton(input.page, input.outputPath);
+    if (!downloaded) throw new Error("Flow: у результата нет доступного изображения или кнопки скачивания.");
   }
   const finished = Date.now();
   return {
@@ -112,6 +115,24 @@ export async function generateFlowImage(input: {
     uploadMs: uploadFinished - started,
     generationMs: generatedAt - uploadFinished,
   };
+}
+
+async function downloadWithFlowButton(page: Page, outputPath: string) {
+  try {
+    const downloadButton = await firstVisible(page, [
+      '[data-testid="result-download"]',
+      'button[aria-label*="Download" i]',
+      'button:has-text("Download")',
+    ]);
+    if (!downloadButton) return false;
+    const downloadPromise = page.waitForEvent("download", { timeout: 30_000 });
+    await downloadButton.click();
+    const download = await downloadPromise;
+    await download.saveAs(outputPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function downloadResultImage(page: Page, sourceUrl: string) {
@@ -297,7 +318,10 @@ async function openProjectWorkspace(page: Page, timeoutMs: number) {
     }
     await page.waitForTimeout(500);
   }
-  throw new Error(`Flow: рабочая область не загрузилась за ${Math.round(timeoutMs / 1000)} секунд.`);
+  throw await describeFlowPageError(
+    page,
+    new Error(`Flow: рабочая область не загрузилась за ${Math.round(timeoutMs / 1000)} секунд.`),
+  );
 }
 
 async function waitForFileInput(page: Page) {
@@ -391,4 +415,32 @@ async function waitForFirstEnabled(page: Page, selectors: string[], timeoutMs: n
     await page.waitForTimeout(500);
   }
   return null;
+}
+
+async function describeFlowPageError(page: Page, fallback: unknown) {
+  const notices: string[] = [];
+  for (const selector of ['[role="alert"]', '[role="dialog"]', '[aria-live="assertive"]']) {
+    const locator = page.locator(selector);
+    const count = Math.min(await locator.count().catch(() => 0), 8);
+    for (let index = 0; index < count; index += 1) {
+      const item = locator.nth(index);
+      if (!await item.isVisible().catch(() => false)) continue;
+      const text = (await item.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+      if (text) notices.push(text.slice(0, 600));
+    }
+  }
+  const visibleNotice = [...new Set(notices)].join(" · ");
+  if (/water\s?mark|водян/i.test(visibleNotice)) {
+    return new Error(`Flow отклонил референс из-за водяного знака. Загрузите оригинальное фото без водяного знака и повторите задачу. Сообщение Flow: ${visibleNotice}`);
+  }
+  if (/copyright|авторск|content policy|policy violation|наруш.*политик/i.test(visibleNotice)) {
+    return new Error(`Flow отклонил референс по правилам контента или авторских прав. Используйте собственное фото без чужих логотипов и повторите задачу. Сообщение Flow: ${visibleNotice}`);
+  }
+  if (/quota|limit reached|try again later|слишком много|повторите позже/i.test(visibleNotice)) {
+    return new Error(`Flow временно ограничил генерации аккаунта. Подождите несколько минут и нажмите «Обновить» или создайте задачу повторно. Сообщение Flow: ${visibleNotice}`);
+  }
+  if (/unsupported.*(?:file|image)|(?:file|image).*unsupported|can't upload|cannot upload|не удалось загрузить/i.test(visibleNotice)) {
+    return new Error(`Flow не принял один из файлов. Пересохраните фото в JPG или PNG без метаданных и водяных знаков. Сообщение Flow: ${visibleNotice}`);
+  }
+  return fallback instanceof Error ? fallback : new Error(String(fallback));
 }

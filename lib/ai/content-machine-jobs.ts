@@ -20,6 +20,7 @@ type JobManifest = {
   agentStatus: "queued" | "processing" | "complete" | "failed";
   agentId?: string;
   claimedAt?: string;
+  agentExclusions?: Record<string, string>;
   completedAt?: string;
   error?: string;
   metrics?: FlowJobMetrics;
@@ -212,6 +213,8 @@ export async function claimNextFlowJob(agentId: string): Promise<CodexJob | null
         continue;
       }
       if (manifest.agentStatus !== "queued" && !resumable) continue;
+      const excludedUntil = manifest.agentExclusions?.[agentId];
+      if (!resumable && excludedUntil && Date.parse(excludedUntil) > Date.now()) continue;
       if (!resumable) {
         const now = new Date().toISOString();
         manifest.agentStatus = "processing";
@@ -316,6 +319,11 @@ export async function failFlowJob(id: string, agentId: string, error: string) {
   return withMutation(async () => {
     const manifest = await readManifest(id);
     if (manifest.agentId !== agentId) throw new Error("Задание назначено другому локальному агенту.");
+    if (shouldReleaseFlowJob(error)) {
+      releaseManifestFromAgent(manifest, agentId, error);
+      await saveManifest(manifest);
+      return hydrateJob(manifest);
+    }
     manifest.agentStatus = "failed";
     manifest.error = publicFlowAgentError(error);
     manifest.completedAt = new Date().toISOString();
@@ -337,6 +345,49 @@ async function saveManifest(manifest: JobManifest) {
   const temporary = `${manifestPath}.${process.pid}.tmp`;
   await writeFile(temporary, JSON.stringify(manifest, null, 2), "utf8");
   await rename(temporary, manifestPath);
+}
+
+export async function releaseFlowJob(id: string, agentId: string, error: string) {
+  return withMutation(async () => {
+    const manifest = await readManifest(id);
+    if (manifest.agentId !== agentId) throw new Error("Задание назначено другому локальному агенту.");
+    releaseManifestFromAgent(manifest, agentId, error);
+    await saveManifest(manifest);
+    return hydrateJob(manifest);
+  });
+}
+
+function shouldReleaseFlowJob(error: string) {
+  return /регион|region|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась/i.test(error);
+}
+
+function releaseManifestFromAgent(manifest: JobManifest, agentId: string, error: string) {
+  manifest.agentStatus = "queued";
+  manifest.agentExclusions ??= {};
+  manifest.agentExclusions[agentId] = new Date(Date.now() + 10 * 60_000).toISOString();
+  manifest.error = publicFlowAgentError(error);
+  delete manifest.agentId;
+  delete manifest.claimedAt;
+  delete manifest.completedAt;
+  delete manifest.metrics;
+}
+
+export async function retryFlowJob(id: string) {
+  return withMutation(async () => {
+    const manifest = await readManifest(id);
+    if (await countResultFiles(manifest) >= expectedResultCount(manifest)) {
+      completeManifest(manifest);
+    } else {
+      manifest.agentStatus = "queued";
+      delete manifest.agentId;
+      delete manifest.claimedAt;
+      delete manifest.completedAt;
+      delete manifest.error;
+      delete manifest.metrics;
+    }
+    await saveManifest(manifest);
+    return hydrateJob(manifest);
+  });
 }
 
 async function countResultFiles(manifest: JobManifest) {
