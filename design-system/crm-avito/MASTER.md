@@ -16,9 +16,9 @@ and low-glare. Prioritize scanning and task completion over decorative density.
 | `--surface-1` | `#0D1C2F` | `#FFFFFF` | Main cards |
 | `--surface-2` | `#10243A` | `#EDF3F8` | Controls, hover |
 | `--border` | `#20354A` | `#D9E2EA` | Quiet separators |
-| `--text-primary` | `#EDF5FC` | `#122033` | Headings and values |
-| `--text-secondary` | `#91A5B8` | `#526579` | Body copy |
-| `--text-muted` | `#647B91` | `#75879A` | Metadata |
+| `--text-primary` | `#B8C7D3` | `#33465C` | Headings and values; softened away from pure white/black |
+| `--text-secondary` | `#7F93A6` | `#5E7286` | Body copy |
+| `--text-muted` | `#71869A` | `#6F8398` | Metadata |
 | `--primary` | `#568AFF` | `#3567E8` | Primary action |
 | `--success` | `#59C99A` | `#158A5B` | Complete, positive |
 | `--warning` | `#E6B86C` | `#A66712` | Attention |
@@ -93,4 +93,3 @@ Never use status color without a text label or icon. Avoid large saturated fills
 8. Reports: one chart per analytical question; comparison controls stay in the header.
 9. Content machine/market analysis: step-based workflow with explicit progress and results.
 10. Settings/audit: low density, clear sections, destructive actions separated.
-

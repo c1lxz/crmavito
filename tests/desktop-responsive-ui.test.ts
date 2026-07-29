@@ -108,9 +108,9 @@ describe("desktop responsive UI", () => {
     const darkTheme = globalsSource.match(/\.dark\s*{([\s\S]*?)\n\s*}/)?.[1] ?? "";
 
     expect(lightTheme).toContain("--background: 210 38% 97%");
-    expect(lightTheme).toContain("--foreground: 215 48% 14%");
+    expect(lightTheme).toContain("--foreground: 212 29% 28%");
     expect(darkTheme).toContain("--background: 214 68% 7%");
-    expect(darkTheme).toContain("--foreground: 209 33% 85%");
+    expect(darkTheme).toContain("--foreground: 207 23% 77%");
     expect(lightTheme).toContain("--chart-1: 222 72% 58%");
     expect(lightTheme).toContain("--chart-2: 160 52% 40%");
     expect(lightTheme).toContain("--chart-3: 38 68% 50%");

@@ -33,4 +33,15 @@ describe("CRM theme system", () => {
     expect(telegram).toContain("setHeaderColor");
     expect(telegram).toContain("setBackgroundColor");
   });
+
+  it("uses matte text tones instead of absolute white and black", () => {
+    const globals = read("app/globals.css");
+
+    expect(globals).toContain("--foreground: 212 29% 28%");
+    expect(globals).toContain("--foreground: 207 23% 77%");
+    expect(globals).toContain("--muted-foreground: 210 18% 45%");
+    expect(globals).toContain("--muted-foreground: 209 18% 57%");
+    expect(globals).not.toContain("--primary-foreground: 0 0% 100%");
+    expect(globals).not.toContain("--destructive-foreground: 0 0% 100%");
+  });
 });
