@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Check, CheckSquare, ChevronRight, Loader2, Package, Plus, RotateCcw, Search, Square, Trash2, Warehouse, X } from "lucide-react";
+import { Archive, Check, CheckSquare, ChevronRight, Loader2, Package, Plus, RotateCcw, Search, Square, Trash2, Warehouse, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -355,8 +355,8 @@ export function ReturnsClient({ initialData }: Props) {
             {!selectionMode && (
               <Button asChild size="sm" variant="outline">
                 <Link href="/warehouse">
-                  <Warehouse className="h-4 w-4" />
-                  <span className="hidden sm:inline">Склад</span>
+                  <Archive className="h-4 w-4" />
+                  <span className="hidden sm:inline">Архив</span>
                 </Link>
               </Button>
             )}

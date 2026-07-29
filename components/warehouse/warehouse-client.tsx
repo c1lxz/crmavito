@@ -62,7 +62,7 @@ export function WarehouseClient({ items }: { items: WarehouseItem[] }) {
     <div className="app-shell">
       <div className="app-header">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Склад</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Архив</h1>
           <p className="section-caption">
             Возвращённые товары до повторной отправки и их архив
           </p>

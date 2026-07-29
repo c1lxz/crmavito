@@ -25,7 +25,7 @@ describe("warehouse screen", () => {
     );
   });
 
-  it("is reachable from desktop, mobile and returns navigation", () => {
+  it("is reachable from returns without taking a mobile dock slot", () => {
     const desktop = readFileSync(
       path.resolve(__dirname, "../components/layout/desktop-sidebar.tsx"),
       "utf8",
@@ -40,7 +40,9 @@ describe("warehouse screen", () => {
     );
 
     expect(desktop).toContain('href: "/pc/warehouse"');
-    expect(mobile).toContain('href: "/m/warehouse"');
+    expect(mobile).not.toContain('href: "/m/warehouse"');
+    expect(mobile).toContain('? "/returns"');
     expect(returns).toContain('<Link href="/warehouse">');
+    expect(returns).toContain("Архив");
   });
 });
