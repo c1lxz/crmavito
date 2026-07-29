@@ -149,6 +149,7 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain("withoutEnlargement: true");
     expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");
+    expect(flowAgentSource).toContain('!url.includes("/fx/tools/flow")');
     expect(flowAgentSource).toContain('"release" : "fail"');
     expect(diagnosticsSource).toContain("/api/ai/content-machine/backgrounds");
     expect(diagnosticsSource).toContain("/api/ai/content-machine/flow-agent/status");
