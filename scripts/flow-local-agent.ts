@@ -64,10 +64,11 @@ async function main() {
     state: "ready",
     message: "Агент готов; Flow откроется только при запуске генерации.",
   };
+  let currentAvailability = idleAvailability;
   let nextHeartbeatAt = 0;
   while (true) {
     if (Date.now() >= nextHeartbeatAt) {
-      await reportStatus(idleAvailability).catch((error) => {
+      await reportStatus(currentAvailability).catch((error) => {
         console.error(`[flow-agent] heartbeat failed: ${error instanceof Error ? error.message : String(error)}`);
       });
       nextHeartbeatAt = Date.now() + 15_000;
@@ -84,10 +85,19 @@ async function main() {
       await delay(pollMs);
       continue;
     }
-    await runJobInFlow(job).catch(async (error) => {
+    await runJobInFlow(job, (availability) => {
+      currentAvailability = availability;
+    }).then(() => {
+      currentAvailability = idleAvailability;
+    }).catch(async (error) => {
       const message = sanitizeFlowAgentError(error);
       console.error(`[flow-agent] ${job.id}: ${message}`);
       const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась/i.test(message);
+      currentAvailability = {
+        state: canTryAnotherAgent ? "blocked" : "error",
+        message: publicFlowAgentError(error),
+      };
+      await reportStatus(currentAvailability).catch(() => undefined);
       await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${job.id}/${canTryAnotherAgent ? "release" : "fail"}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -122,13 +132,14 @@ function launchFlowContext() {
   });
 }
 
-async function runJobInFlow(job: AgentJob) {
+async function runJobInFlow(job: AgentJob, onAvailability?: (availability: FlowAvailability) => void) {
   const context = await launchFlowContext();
   let minimizeTimer: ReturnType<typeof setInterval> | null = null;
   let controlPage: import("playwright").Page | null = null;
   try {
     controlPage = await prepareControlPage(context);
     const availability = await probeFlow(controlPage);
+    onAvailability?.(availability);
     await reportStatus(availability).catch(() => undefined);
     if (availability.state !== "ready") throw new Error(availability.message);
     minimizeTimer = setInterval(() => {
