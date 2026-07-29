@@ -43,20 +43,29 @@ const proxyUsername = process.env.FLOW_AGENT_PROXY_USERNAME?.trim();
 const proxyPassword = process.env.FLOW_AGENT_PROXY_PASSWORD?.trim();
 const profileName = process.env.FLOW_AGENT_PROFILE_NAME?.trim();
 const extensionPath = process.env.FLOW_AGENT_EXTENSION_PATH?.trim();
+const cdpUrl = process.env.FLOW_AGENT_CDP_URL?.trim();
+let sharedCdpBrowser: Browser | null = null;
+
+type FlowContextSession = {
+  context: BrowserContext;
+  close: () => Promise<void>;
+  preservePages: boolean;
+};
 
 async function main() {
   if (!token) throw new Error("Задайте FLOW_LOCAL_AGENT_TOKEN.");
   await mkdir(workDirectory, { recursive: true });
   if (process.env.FLOW_AGENT_PREFLIGHT === "1") {
-    const context = await launchFlowContext();
+    const session = await launchFlowSession();
     try {
-      const controlPage = await prepareControlPage(context);
+      const controlPage = await prepareControlPage(session.context, undefined, session.preservePages);
       await controlPage.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
       const summary = (await controlPage.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 500);
       console.log(JSON.stringify({ url: controlPage.url(), title: await controlPage.title(), summary }));
     } finally {
-      await context.close();
+      await session.close();
     }
+    if (cdpUrl) process.exit(0);
     return;
   }
   console.log(`[flow-agent] ${agentId}; параллельность ${concurrency}; CRM ${baseUrl}`);
@@ -108,8 +117,14 @@ async function main() {
   }
 }
 
-function launchFlowContext() {
-  return chromium.launchPersistentContext(profileDirectory, {
+async function launchFlowSession(): Promise<FlowContextSession> {
+  if (cdpUrl) {
+    if (!sharedCdpBrowser?.isConnected()) sharedCdpBrowser = await chromium.connectOverCDP(cdpUrl);
+    const context = sharedCdpBrowser.contexts()[0];
+    if (!context) throw new Error("Chrome из ярлыка запущен, но его профиль недоступен агенту.");
+    return { context, close: async () => undefined, preservePages: true };
+  }
+  const context = await chromium.launchPersistentContext(profileDirectory, {
     channel: "chrome",
     headless: process.env.FLOW_AGENT_HEADLESS === "1",
     viewport: { width: 1440, height: 1000 },
@@ -131,14 +146,16 @@ function launchFlowContext() {
       ...(extensionPath ? [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`] : []),
     ],
   });
+  return { context, close: () => context.close(), preservePages: false };
 }
 
 async function runJobInFlow(job: AgentJob, onAvailability?: (availability: FlowAvailability) => void) {
-  const context = await launchFlowContext();
+  const session = await launchFlowSession();
+  const { context } = session;
   let minimizeTimer: ReturnType<typeof setInterval> | null = null;
   let controlPage: import("playwright").Page | null = null;
   try {
-    controlPage = await prepareControlPage(context);
+    controlPage = await prepareControlPage(context, undefined, session.preservePages);
     const availability = await probeFlow(controlPage);
     onAvailability?.(availability);
     await reportStatus(availability).catch(() => undefined);
@@ -161,15 +178,21 @@ async function runJobInFlow(job: AgentJob, onAvailability?: (availability: FlowA
     throw error;
   } finally {
     if (minimizeTimer) clearInterval(minimizeTimer);
-    await context.close();
+    await session.close();
   }
 }
 
-async function prepareControlPage(context: BrowserContext, current?: import("playwright").Page) {
+async function prepareControlPage(
+  context: BrowserContext,
+  current?: import("playwright").Page,
+  preservePages = false,
+) {
   if (current && !current.isClosed()) return current;
   const pages = context.pages().filter((page) => !page.isClosed());
   const controlPage = pages.find((page) => page.url().startsWith(flowUrl)) || pages[0] || await context.newPage();
-  await Promise.all(pages.filter((page) => page !== controlPage).map((page) => page.close().catch(() => undefined)));
+  if (!preservePages) {
+    await Promise.all(pages.filter((page) => page !== controlPage).map((page) => page.close().catch(() => undefined)));
+  }
   return controlPage;
 }
 

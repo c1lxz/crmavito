@@ -63,6 +63,10 @@ describe("Flow agent authentication", () => {
     expect(installer).toContain("RunLevel Limited");
     expect(ensure).toContain('$_.Name -eq "node.exe"');
     expect(ensure).toContain("*scripts/flow-local-agent.ts*");
+    expect(ensure).toContain('$env:COMPUTERNAME -eq "DESKTOP-1QUOHBP"');
+    expect(ensure).toContain("start_google_flow_proxy.ps1");
+    expect(agent).toContain("chromium.connectOverCDP(cdpUrl)");
+    expect(agent).toContain("preservePages");
     expect(agent).toContain("CRM poll failed");
     expect(agent).toContain("CRM вернула не-JSON ответ");
     expect(agent).toContain("probeFlow");
@@ -70,7 +74,7 @@ describe("Flow agent authentication", () => {
     expect(agent.indexOf("job = await claimJob()"))
       .toBeLessThan(agent.indexOf("await runJobInFlow(job,"));
     expect(agent.indexOf("async function runJobInFlow"))
-      .toBeLessThan(agent.lastIndexOf("const context = await launchFlowContext()"));
+      .toBeLessThan(agent.lastIndexOf("const session = await launchFlowSession()"));
     expect(agent).toContain("/api/ai/content-machine/flow-agent/status");
     expect(client).toContain("Flow: регион заблокирован");
   });
