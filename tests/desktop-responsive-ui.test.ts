@@ -97,10 +97,10 @@ describe("desktop responsive UI", () => {
     const lightTheme = globalsSource.match(/:root\s*{([\s\S]*?)\n\s*}/)?.[1] ?? "";
     const darkTheme = globalsSource.match(/\.dark\s*{([\s\S]*?)\n\s*}/)?.[1] ?? "";
 
-    expect(lightTheme).toContain("--sidebar-background: 210 40% 98%");
-    expect(lightTheme).toContain("--sidebar-foreground: 212 40% 15%");
-    expect(darkTheme).toContain("--sidebar-background: 211 66% 9%");
-    expect(lightTheme).not.toContain("--sidebar-background: 211 66% 9%");
+    expect(lightTheme).toContain("--sidebar-background: 216 33% 97%");
+    expect(lightTheme).toContain("--sidebar-foreground: 220 18% 24%");
+    expect(darkTheme).toContain("--sidebar-background: 220 25% 9%");
+    expect(lightTheme).not.toContain("--sidebar-background: 220 25% 9%");
   });
 
   it("uses dense desktop layouts for the main operational screens", () => {

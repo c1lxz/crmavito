@@ -32,7 +32,7 @@ export function AnimatedKpiCard({
       )}
     >
       <div className="p-3">
-        <p className="text-[11px] font-semibold text-foreground/55 leading-tight mb-2">{label}</p>
+        <p className="mb-2 text-[11px] font-medium leading-tight text-muted-foreground">{label}</p>
         <p className="text-xl font-bold tabular-nums leading-none">{value}</p>
         {delta != null && (
           <p

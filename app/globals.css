@@ -6,82 +6,82 @@
   :root {
     --app-top-pad: 48px;
     --app-bottom-pad: 0px;
-    --background: 210 31% 95%;
-    --foreground: 212 40% 15%;
-    --card: 210 40% 98%;
-    --card-foreground: 212 40% 15%;
-    --popover: 210 40% 99%;
-    --popover-foreground: 212 40% 15%;
-    --primary: 222 80% 56%;
+    --background: 214 32% 96%;
+    --foreground: 220 18% 24%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 18% 24%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 18% 24%;
+    --primary: 222 72% 58%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 29% 92%;
-    --secondary-foreground: 212 34% 20%;
-    --muted: 210 28% 93%;
-    --muted-foreground: 210 20% 41%;
-    --accent: 211 50% 92%;
-    --accent-foreground: 218 52% 30%;
-    --destructive: 354 51% 47%;
+    --secondary: 215 30% 94%;
+    --secondary-foreground: 220 20% 24%;
+    --muted: 215 27% 94%;
+    --muted-foreground: 215 16% 46%;
+    --accent: 220 45% 94%;
+    --accent-foreground: 222 38% 34%;
+    --destructive: 354 48% 50%;
     --destructive-foreground: 0 0% 100%;
     --success: 160 52% 36%;
     --warning: 38 68% 44%;
     --info: 202 67% 46%;
     --special: 258 48% 54%;
-    --border: 210 23% 84%;
-    --input: 210 23% 78%;
-    --ring: 222 80% 56%;
-    --radius: 0.5rem;
-    --chart-1: 222 80% 56%;
+    --border: 215 22% 89%;
+    --input: 215 20% 84%;
+    --ring: 222 72% 58%;
+    --radius: 0.75rem;
+    --chart-1: 222 72% 58%;
     --chart-2: 160 52% 40%;
     --chart-3: 38 68% 50%;
     --chart-4: 354 51% 52%;
     --chart-5: 202 57% 48%;
-    --sidebar-background: 210 40% 98%;
-    --sidebar-foreground: 212 40% 15%;
-    --sidebar-primary: 222 80% 56%;
+    --sidebar-background: 216 33% 97%;
+    --sidebar-foreground: 220 18% 24%;
+    --sidebar-primary: 222 72% 58%;
     --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 211 50% 92%;
-    --sidebar-accent-foreground: 218 52% 30%;
-    --sidebar-border: 210 23% 84%;
-    --sidebar-ring: 222 80% 56%;
+    --sidebar-accent: 220 45% 93%;
+    --sidebar-accent-foreground: 222 38% 34%;
+    --sidebar-border: 215 22% 89%;
+    --sidebar-ring: 222 72% 58%;
   }
 
   .dark {
-    --background: 212 68% 7%;
-    --foreground: 208 71% 96%;
-    --card: 214 56% 12%;
-    --card-foreground: 208 71% 96%;
-    --popover: 212 55% 13%;
-    --popover-foreground: 208 71% 96%;
-    --primary: 220 100% 67%;
+    --background: 220 24% 10%;
+    --foreground: 214 18% 88%;
+    --card: 220 22% 14%;
+    --card-foreground: 214 18% 88%;
+    --popover: 220 22% 15%;
+    --popover-foreground: 214 18% 88%;
+    --primary: 221 78% 70%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 57% 15%;
-    --secondary-foreground: 208 45% 92%;
-    --muted: 211 43% 17%;
-    --muted-foreground: 210 22% 65%;
-    --accent: 212 45% 19%;
-    --accent-foreground: 211 50% 88%;
+    --secondary: 220 18% 18%;
+    --secondary-foreground: 214 23% 90%;
+    --muted: 220 18% 17%;
+    --muted-foreground: 216 14% 66%;
+    --accent: 220 21% 20%;
+    --accent-foreground: 214 24% 90%;
     --destructive: 354 57% 68%;
     --destructive-foreground: 0 0% 100%;
     --success: 160 52% 62%;
     --warning: 38 68% 66%;
     --info: 188 58% 62%;
     --special: 255 48% 70%;
-    --border: 210 39% 21%;
-    --input: 210 32% 26%;
-    --ring: 220 100% 67%;
-    --chart-1: 220 100% 67%;
+    --border: 220 16% 23%;
+    --input: 220 14% 28%;
+    --ring: 221 78% 70%;
+    --chart-1: 221 78% 70%;
     --chart-2: 160 52% 57%;
     --chart-3: 38 68% 66%;
     --chart-4: 354 57% 68%;
     --chart-5: 188 58% 62%;
-    --sidebar-background: 211 66% 9%;
-    --sidebar-foreground: 208 45% 92%;
-    --sidebar-primary: 220 100% 67%;
+    --sidebar-background: 220 25% 9%;
+    --sidebar-foreground: 214 18% 88%;
+    --sidebar-primary: 221 78% 70%;
     --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 211 49% 15%;
-    --sidebar-accent-foreground: 208 45% 94%;
-    --sidebar-border: 210 39% 21%;
-    --sidebar-ring: 220 100% 67%;
+    --sidebar-accent: 220 20% 17%;
+    --sidebar-accent-foreground: 214 24% 92%;
+    --sidebar-border: 220 16% 21%;
+    --sidebar-ring: 221 78% 70%;
   }
 }
 
@@ -93,6 +93,8 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     text-rendering: optimizeLegibility;
+    font-weight: 400;
+    line-height: 1.5;
     color-scheme: light;
   }
 
@@ -104,6 +106,7 @@
   h2,
   h3 {
     text-wrap: balance;
+    letter-spacing: -0.015em;
   }
 
   /* Normalise <input type="date"> width across browsers (iOS/Android often
@@ -144,11 +147,11 @@
 @layer components {
   .app-shell {
     @apply min-h-screen bg-background text-foreground;
-    background-image: radial-gradient(circle at 15% -10%, hsl(var(--primary) / 0.09), transparent 28rem);
+    background-image: radial-gradient(circle at 15% -10%, hsl(var(--primary) / 0.045), transparent 30rem);
   }
 
   .app-header {
-    @apply sticky top-0 z-30 border-b border-border/80 bg-background/95 px-4 pt-[var(--app-top-pad)] pb-3 backdrop-blur-md;
+    @apply sticky top-0 z-30 border-b border-border/60 bg-background/90 px-4 pt-[var(--app-top-pad)] pb-3 backdrop-blur-xl;
   }
 
   .app-content {
@@ -156,23 +159,23 @@
   }
 
   .section-title {
-    @apply text-[13px] font-semibold text-foreground;
+    @apply text-sm font-medium text-foreground;
   }
 
   .section-caption {
-    @apply text-xs font-medium text-muted-foreground;
+    @apply text-xs font-normal leading-relaxed text-muted-foreground;
   }
 
   .filter-chip {
-    @apply inline-flex h-8 items-center rounded-md border border-transparent px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground;
+    @apply inline-flex h-8 items-center rounded-lg border border-transparent px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary/75 hover:text-foreground;
   }
 
   .filter-chip-active {
-    @apply border-primary/20 bg-primary text-primary-foreground shadow-sm shadow-primary/10;
+    @apply border-primary/20 bg-primary/10 text-primary shadow-none;
   }
 
   .icon-tile {
-    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/80 bg-secondary text-foreground;
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-secondary/70 text-foreground;
   }
 
   .money-positive {

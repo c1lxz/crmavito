@@ -39,9 +39,9 @@ export function DesktopSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex lg:flex-col">
-      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-sidebar-border/70 bg-sidebar/96 text-sidebar-foreground shadow-[6px_0_24px_hsl(var(--foreground)/0.025)] backdrop-blur-xl lg:flex lg:flex-col">
+      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border/60 px-5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm shadow-sidebar-primary/15">
           <PackageSearch className="h-5 w-5" />
         </div>
         <div className="min-w-0">
@@ -63,10 +63,10 @@ export function DesktopSidebar() {
               href={href}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors",
+                "flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-[background-color,color,box-shadow] duration-150",
                 isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                  : "text-sidebar-foreground/76 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  ? "bg-sidebar-primary/12 text-sidebar-primary ring-1 ring-inset ring-sidebar-primary/15"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground",
               )}
             >
               <Icon className="h-4 w-4" />
@@ -76,7 +76,7 @@ export function DesktopSidebar() {
         })}
       </nav>
 
-      <div className="flex items-center justify-between border-t border-sidebar-border px-4 py-3">
+      <div className="flex items-center justify-between border-t border-sidebar-border/60 px-4 py-3">
         <div>
           <p className="text-xs font-semibold text-sidebar-foreground">Оформление</p>
           <p className="text-[11px] text-sidebar-foreground/55">Светлая / тёмная</p>
