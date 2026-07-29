@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CRM Avito — спокойный интерфейс</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      --bg: #06111f;
+      --rail: #081625;
+      --nav: #0a192a;
+      --surface: #0d1c2f;
+      --surface-2: #102238;
+      --surface-3: #132941;
+      --line: rgba(151, 179, 208, .11);
+      --text: #edf5fc;
+      --muted: #8196ad;
+      --blue: #4c83ff;
+      --cyan: #60c9db;
+      --green: #51c995;
+      --amber: #e6b86c;
+      --red: #dc7e85;
+    }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+    body {
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 83% -8%, rgba(52, 105, 231, .25), transparent 30%),
+        radial-gradient(circle at 40% 105%, rgba(41, 124, 172, .09), transparent 32%),
+        var(--bg);
+      letter-spacing: -.01em;
+    }
+    svg { display: block; }
+    button { font: inherit; }
+    .app {
+      width: 1536px;
+      height: 960px;
+      display: grid;
+      grid-template-columns: 72px 200px 1fr;
+    }
+    .rail {
+      background: rgba(5, 16, 29, .92);
+      border-right: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      flex-direction: column;
+      padding: 24px 0;
+      gap: 26px;
+    }
+    .logo {
+      width: 38px; height: 38px; border-radius: 12px;
+      display: grid; place-items: center;
+      background: linear-gradient(145deg, #5b91ff, #2b59d1);
+      box-shadow: 0 12px 28px rgba(49, 94, 220, .25);
+    }
+    .rail-icons { display: flex; flex-direction: column; gap: 13px; }
+    .rail-icon {
+      width: 42px; height: 42px; display: grid; place-items: center;
+      color: #61778e; border-radius: 12px;
+    }
+    .rail-icon.active { color: #dfeaff; background: rgba(87, 135, 255, .13); }
+    .rail-spacer { flex: 1; }
+    .nav {
+      background: rgba(8, 23, 39, .78);
+      border-right: 1px solid var(--line);
+      padding: 27px 18px 22px;
+      display: flex; flex-direction: column;
+    }
+    .brand { padding: 2px 10px 31px; }
+    .brand strong { display:block; font-size: 17px; letter-spacing: -.02em; }
+    .brand span { display:block; margin-top: 5px; color: var(--muted); font-size: 12px; }
+    .group-title {
+      margin: 0 10px 10px;
+      color: #566c83; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .11em;
+    }
+    .nav-list { display: flex; flex-direction: column; gap: 6px; }
+    .nav-item {
+      height: 42px; border-radius: 11px; padding: 0 12px;
+      display: flex; align-items: center; gap: 11px;
+      color: #8197ad; font-size: 13px; font-weight: 560;
+    }
+    .nav-item svg { width: 17px; height: 17px; }
+    .nav-item.active {
+      color: #f4f8ff;
+      background: linear-gradient(90deg, rgba(73, 122, 245, .22), rgba(73, 122, 245, .08));
+      box-shadow: inset 2px 0 #5d8dff;
+    }
+    .nav-item .chev { margin-left: auto; width: 14px; opacity: .6; }
+    .profile {
+      margin-top: auto; padding: 14px 10px 2px; border-top: 1px solid var(--line);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .avatar {
+      width: 35px; height: 35px; border-radius: 12px; display:grid; place-items:center;
+      background: #183453; color: #a9c7e7; font-size: 12px; font-weight: 700;
+    }
+    .profile strong { display:block; font-size:12px; }
+    .profile span { display:block; margin-top:3px; font-size:10px; color:var(--muted); }
+    .main { padding: 31px 36px 40px; overflow: hidden; }
+    .header { height: 66px; display:flex; align-items:flex-start; justify-content:space-between; }
+    .header h1 { margin: 0; font-size: 25px; line-height: 1.2; font-weight: 650; }
+    .header p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+    .tools { display:flex; align-items:center; gap:10px; }
+    .search {
+      width: 220px; height: 41px; border-radius: 12px; border: 1px solid var(--line);
+      background: rgba(11, 27, 45, .62); display:flex; align-items:center; gap:9px;
+      color:#617a92; padding:0 13px; font-size:12px;
+    }
+    .search svg { width:16px; }
+    .tool {
+      width:41px; height:41px; border-radius:12px; border:1px solid var(--line);
+      background:rgba(11,27,45,.62); color:#879bb0; display:grid; place-items:center;
+      position:relative;
+    }
+    .tool svg { width:17px; }
+    .dot { position:absolute; width:6px; height:6px; border-radius:50%; background:#67a1ff; top:9px; right:9px; box-shadow:0 0 0 3px #0b1b2d; }
+    .primary {
+      height:41px; border:0; border-radius:12px; padding:0 17px; color:white; font-weight:650; font-size:12px;
+      background:linear-gradient(135deg,#568aff,#3263dc); box-shadow:0 10px 24px rgba(40,83,197,.24);
+    }
+    .grid-top { display:grid; grid-template-columns: minmax(0, 1.95fr) minmax(250px, .75fr); gap:16px; }
+    .grid-mid { display:grid; grid-template-columns: minmax(0, 1.95fr) minmax(250px, .75fr); gap:16px; margin-top:16px; }
+    .card {
+      border:1px solid var(--line); border-radius:17px;
+      background: linear-gradient(145deg, rgba(15, 34, 56, .94), rgba(11, 27, 45, .88));
+      box-shadow: 0 18px 50px rgba(0,0,0,.10);
+    }
+    .analytics { height: 286px; padding: 22px 24px 16px; position:relative; overflow:hidden; }
+    .analytics::after {
+      content:""; position:absolute; inset:0;
+      background:radial-gradient(circle at 90% 10%, rgba(68,124,249,.10), transparent 38%);
+      pointer-events:none;
+    }
+    .card-head { display:flex; align-items:flex-start; justify-content:space-between; position:relative; z-index:1; }
+    .eyebrow { color:#8499ae; font-size:11px; font-weight:600; }
+    .big { margin-top:8px; font-size:29px; font-weight:650; letter-spacing:-.035em; }
+    .delta { color:var(--cyan); font-size:11px; font-weight:650; margin-left:8px; }
+    .select {
+      padding:8px 11px; border-radius:10px; border:1px solid var(--line);
+      color:#8ca1b6; font-size:10px; background:rgba(7,19,33,.34);
+    }
+    .chart { position:absolute; left:18px; right:18px; bottom:15px; height:150px; }
+    .chart-labels { position:absolute; left:35px; right:30px; bottom:13px; display:flex; justify-content:space-between; color:#536b83; font-size:9px; }
+    .today { height:286px; padding:22px; }
+    .today h2, .attention h2, .table h2, .peek h2 { margin:0; font-size:14px; font-weight:650; }
+    .today p { margin:7px 0 20px; color:var(--muted); font-size:10px; }
+    .metric { padding:15px 0; display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--line); }
+    .metric:first-of-type { border-top:0; }
+    .metric-label { display:flex; gap:10px; align-items:center; color:#91a5b8; font-size:11px; }
+    .metric-icon { width:29px;height:29px;border-radius:9px;display:grid;place-items:center;background:#142d49;color:#72a3ef; }
+    .metric-icon svg { width:14px; }
+    .metric strong { font-size:14px; font-weight:650; }
+    .table { height:326px; overflow:hidden; }
+    .table-title { height:58px; padding:0 21px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+    .link { color:#6e9cff; font-size:10px; font-weight:650; }
+    .columns, .row { display:grid; grid-template-columns: 2.3fr 1.2fr .85fr .8fr; align-items:center; }
+    .columns { height:34px; padding:0 21px; color:#586f87; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+    .row { height:57px; padding:0 21px; border-top:1px solid rgba(151,179,208,.075); font-size:11px; }
+    .product { display:flex; align-items:center; gap:11px; min-width:0; }
+    .thumb { width:34px; height:34px; border-radius:10px; background:linear-gradient(145deg,#dce7f1,#7288a0); display:grid; place-items:center; color:#17314b; }
+    .thumb svg { width:17px; }
+    .product strong { display:block; font-size:11px; white-space:nowrap; }
+    .product span { display:block; margin-top:3px; color:#637a91; font-size:9px; }
+    .client { color:#9aabbb; }
+    .sum { color:#dce8f3; font-weight:600; }
+    .status { display:inline-flex; width:max-content; padding:5px 8px; border-radius:8px; font-size:9px; font-weight:650; }
+    .green { color:#71d6a9;background:rgba(62,179,127,.12); }
+    .blue { color:#7ca9ff;background:rgba(74,123,237,.14); }
+    .grey { color:#a4b4c3;background:rgba(143,162,181,.11); }
+    .amber { color:#e8bd78;background:rgba(206,145,57,.13); }
+    .attention { height:326px; padding:20px 21px; }
+    .attention-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:15px; }
+    .task { display:grid; grid-template-columns:8px 1fr auto; gap:10px; padding:14px 0; align-items:start; border-top:1px solid var(--line); }
+    .task:first-of-type { border-top:0; }
+    .task-dot { width:6px;height:6px;border-radius:50%;margin-top:4px;background:var(--amber); }
+    .task:nth-of-type(2) .task-dot { background:var(--red); }
+    .task:nth-of-type(3) .task-dot { background:var(--blue); }
+    .task strong { display:block; font-size:11px; line-height:1.35; font-weight:600; }
+    .task span { display:block; margin-top:5px; color:#6e8499; font-size:9px; }
+    .count { min-width:24px; height:22px; border-radius:8px; background:#142c47; display:grid;place-items:center;color:#9fb5cb;font-size:9px; }
+    .tip {
+      margin-top:14px; padding:13px; border-radius:12px; color:#7990a5; font-size:9px; line-height:1.5;
+      background:rgba(71,116,221,.07); border:1px solid rgba(85,132,235,.10);
+    }
+    .peek-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+    .peek { height:125px; padding:19px 21px; }
+    .peek-top { display:flex;align-items:center;justify-content:space-between; }
+    .bars { display:flex;align-items:flex-end;gap:6px;height:51px;margin-top:14px; }
+    .bars i { display:block;width:8%;border-radius:5px 5px 2px 2px;background:#294f7e; }
+    .finance-line { margin-top:18px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; }
+    .finance-line span { font-size:9px; color:#6d8399; }
+    .finance-line strong { display:block; margin-top:7px; color:#dbe7f2; font-size:13px; }
+    .finance-line div:last-child strong { color:#6dd2a6; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="rail">
+      <div class="logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8"><path d="m6 8 6-3 6 3-6 3-6-3Z"/><path d="m6 8v7l6 4 6-4V8M12 11v8"/></svg>
+      </div>
+      <div class="rail-icons">
+        <div class="rail-icon active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 10.5 12 4l8 6.5V20H4z"/><path d="M9 20v-6h6v6"/></svg></div>
+        <div class="rail-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg></div>
+        <div class="rail-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m4 7 8-4 8 4v10l-8 4-8-4z"/><path d="m4 7 8 4 8-4M12 11v10"/></svg></div>
+        <div class="rail-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V9M10 19V5M16 19v-8M22 19V3"/></svg></div>
+      </div>
+      <div class="rail-spacer"></div>
+      <div class="rail-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg></div>
+    </aside>
+
+    <aside class="nav">
+      <div class="brand"><strong>CRM Avito</strong><span>Рабочая панель</span></div>
+      <div class="group-title">Работа</div>
+      <div class="nav-list">
+        <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 10.5 12 4l8 6.5V20H4z"/><path d="M9 20v-6h6v6"/></svg>Главная</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>Заказы</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Блокнот</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6"/><path d="M4 4v4.6h4.6"/></svg>Возвраты</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m4 8 8-4 8 4v11H4z"/><path d="M9 19v-6h6v6M4 8h16"/></svg>Склад</div>
+        <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>Ещё<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m9 10 3 3 3-3"/></svg></div>
+      </div>
+      <div class="profile"><div class="avatar">А</div><div><strong>Алексей</strong><span>Администратор</span></div></div>
+    </aside>
+
+    <main class="main">
+      <header class="header">
+        <div><h1>Добрый день, Алексей</h1><p>Понедельник, 28 июля · Рабочая сводка</p></div>
+        <div class="tools">
+          <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Поиск заказа</div>
+          <div class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><i class="dot"></i></div>
+          <button class="primary">+ Новый заказ</button>
+        </div>
+      </header>
+
+      <section class="grid-top">
+        <div class="card analytics">
+          <div class="card-head">
+            <div><div class="eyebrow">Продажи за неделю</div><div class="big">156 700 ₽ <span class="delta">+18,4%</span></div></div>
+            <div class="select">Последние 7 дней⌄</div>
+          </div>
+          <svg class="chart" viewBox="0 0 760 150" preserveAspectRatio="none">
+            <defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4c83ff" stop-opacity=".28"/><stop offset="1" stop-color="#4c83ff" stop-opacity="0"/></linearGradient></defs>
+            <g stroke="rgba(151,179,208,.09)" stroke-width="1"><path d="M18 25H744"/><path d="M18 65H744"/><path d="M18 105H744"/></g>
+            <path d="M20 123 C75 110 95 114 132 93 S210 104 247 79 S315 69 351 75 S426 110 466 71 S538 82 580 58 S658 68 738 24 L738 138 L20 138 Z" fill="url(#area)"/>
+            <path d="M20 123 C75 110 95 114 132 93 S210 104 247 79 S315 69 351 75 S426 110 466 71 S538 82 580 58 S658 68 738 24" fill="none" stroke="#6796ff" stroke-width="3" stroke-linecap="round"/>
+            <g fill="#92b3ff"><circle cx="20" cy="123" r="3"/><circle cx="132" cy="93" r="3"/><circle cx="247" cy="79" r="3"/><circle cx="351" cy="75" r="3"/><circle cx="466" cy="71" r="3"/><circle cx="580" cy="58" r="3"/><circle cx="738" cy="24" r="3"/></g>
+          </svg>
+          <div class="chart-labels"><span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span></div>
+        </div>
+        <div class="card today">
+          <h2>Сегодня</h2><p>Данные на 14:38</p>
+          <div class="metric"><div class="metric-label"><div class="metric-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 7h12l1 13H5L6 7Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg></div>Заказы</div><strong>12</strong></div>
+          <div class="metric"><div class="metric-label"><div class="metric-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16v13H4z"/><path d="M16 11h4M7 9h5"/></svg></div>Выручка</div><strong>24 500 ₽</strong></div>
+          <div class="metric"><div class="metric-label"><div class="metric-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m4 16 5-5 4 3 7-8"/><path d="M15 6h5v5"/></svg></div>Прибыль</div><strong>8 240 ₽</strong></div>
+        </div>
+      </section>
+
+      <section class="grid-mid">
+        <div class="card table">
+          <div class="table-title"><h2>Последние заказы</h2><span class="link">Все заказы →</span></div>
+          <div class="columns"><div>Заказ</div><div>Клиент</div><div>Сумма</div><div>Статус</div></div>
+          <div class="row"><div class="product"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M10 5h4"/></svg></div><div><strong>iPhone 15 Pro 128GB</strong><span>№ 45879 · Авито</span></div></div><div class="client">Марина Л.</div><div class="sum">24 990 ₽</div><div><span class="status green">Получен</span></div></div>
+          <div class="row"><div class="product"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 5c0-2 3-2 3 0v7M18 5c0-2-3-2-3 0v7"/><path d="M5 12h14v6a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z"/></svg></div><div><strong>AirPods Pro 2</strong><span>№ 45878 · Авито</span></div></div><div class="client">Илья К.</div><div class="sum">9 990 ₽</div><div><span class="status blue">Отправлен</span></div></div>
+          <div class="row"><div class="product"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="7" y="6" width="10" height="12" rx="3"/><path d="M9 2h6l1 4H8zM9 22h6l1-4H8z"/></svg></div><div><strong>Apple Watch Series 9</strong><span>№ 45877 · WB</span></div></div><div class="client">Олег С.</div><div class="sum">18 990 ₽</div><div><span class="status grey">Принят</span></div></div>
+          <div class="row"><div class="product"><div class="thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 3h6l-1 6 3 10H7l3-10z"/><path d="M10 9h4"/></svg></div><div><strong>Dyson V15 Detect</strong><span>№ 45876 · Авито</span></div></div><div class="client">Анна П.</div><div class="sum">49 990 ₽</div><div><span class="status amber">На возврате</span></div></div>
+        </div>
+        <div class="card attention">
+          <div class="attention-head"><h2>Требуют внимания</h2><span class="link">Смотреть все</span></div>
+          <div class="task"><i class="task-dot"></i><div><strong>Заказы без трек-номера</strong><span>Добавьте данные для отправки</span></div><div class="count">3</div></div>
+          <div class="task"><i class="task-dot"></i><div><strong>Возврат ожидает решения</strong><span>Срок ответа истекает сегодня</span></div><div class="count">1</div></div>
+          <div class="task"><i class="task-dot"></i><div><strong>Остаток товара снизился</strong><span>Проверьте складские запасы</span></div><div class="count">5</div></div>
+          <div class="tip">Только важное — остальные уведомления доступны в центре событий.</div>
+        </div>
+      </section>
+
+      <section class="peek-row">
+        <div class="card peek"><div class="peek-top"><h2>Топ товаров</h2><span class="link">Все товары →</span></div><div class="bars"><i style="height:35%"></i><i style="height:52%"></i><i style="height:44%"></i><i style="height:76%;background:#4777de"></i><i style="height:59%"></i><i style="height:88%;background:#5790ff"></i><i style="height:67%"></i><i style="height:95%;background:#61a0ff"></i></div></div>
+        <div class="card peek"><div class="peek-top"><h2>Финансы за месяц</h2><span class="link">Открыть отчёт →</span></div><div class="finance-line"><div><span>Выручка</span><strong>1 240 000 ₽</strong></div><div><span>Расходы</span><strong>640 000 ₽</strong></div><div><span>Чистая прибыль</span><strong>600 000 ₽</strong></div></div></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

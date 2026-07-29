@@ -11,11 +11,13 @@ import {
   History,
   ImageIcon,
   Loader2,
+  MoreHorizontal,
   Package,
   PackageCheck,
   PanelTop,
   Search,
   Send,
+  SlidersHorizontal,
   Trash2,
   UploadCloud,
   X,
@@ -809,16 +811,29 @@ export function BotvMiniApp() {
               {status === "uploading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
               Архив
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setHistoryOpen((value) => !value)}>
-              <History className="h-4 w-4" />
-              История
-            </Button>
-            <Button size="sm" variant="outline" asChild>
-              <Link href="/settings/stocks">
-                <PackageCheck className="h-4 w-4" />
-                Остатки
-              </Link>
-            </Button>
+            <details className="group relative">
+              <summary className="flex h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground">
+                <MoreHorizontal className="h-4 w-4" />
+                Ещё
+              </summary>
+              <div className="absolute right-0 top-full z-40 mt-2 w-52 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+                <button
+                  type="button"
+                  className="flex h-9 w-full items-center gap-2 rounded px-2.5 text-left text-sm hover:bg-accent"
+                  onClick={() => setHistoryOpen((value) => !value)}
+                >
+                  <History className="h-4 w-4" />
+                  История
+                </button>
+                <Link
+                  href="/settings/stocks"
+                  className="flex h-9 w-full items-center gap-2 rounded px-2.5 text-sm hover:bg-accent"
+                >
+                  <PackageCheck className="h-4 w-4" />
+                  Остатки Avito
+                </Link>
+              </div>
+            </details>
             <input ref={fileRef} type="file" accept=".zip,.rar,.7z" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.currentTarget.value = ""; if (f) run(() => upload(f)); }} />
           </div>
           <div className="grid gap-2 lg:grid-cols-[minmax(320px,1fr)_minmax(260px,420px)]">
@@ -981,72 +996,76 @@ export function BotvMiniApp() {
 
           {session && (
             <Card className="sticky top-[132px] z-20 lg:top-[142px]"><CardContent className="space-y-3 p-3">
-              <div className="flex flex-wrap gap-2">
-                <input
-                  ref={customXmlRef}
-                  type="file"
-                  accept=".xml,text/xml,application/xml"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) run(() => selectCustomXml(file));
-                  }}
-                />
+              <input
+                ref={customXmlRef}
+                type="file"
+                accept=".xml,text/xml,application/xml"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) run(() => selectCustomXml(file));
+                }}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="outline" onClick={() => setSelected(allVisibleSelected ? new Set() : new Set(filtered.map((p) => p.index)))}>{allVisibleSelected ? "Снять выбор" : "Выбрать видимые"}</Button>
-                <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, bulkOriginalTitle: true }))}><Check className="h-4 w-4" /> Название из папки</Button>
-                <Input className="h-8 w-28" placeholder="Цена" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} />
-                <Button size="sm" variant="outline" disabled={!selected.size || !bulkPrice} onClick={() => run(() => patch({ ids: selectedIds, bulkPrice }))}>Одна цена</Button>
-                <Input
-                  className="h-8 w-36"
-                  inputMode="numeric"
-                  placeholder="Остаток дропа"
-                  value={dropStockInput}
-                  onChange={(e) => setDropStockInput(e.target.value)}
-                />
-                <Button size="sm" variant="outline" onClick={() => run(saveDropStockQuantity)}>
-                  <PackageCheck className="h-4 w-4" />
-                  Остаток XML
-                </Button>
-                {dropStockStatus && (
-                  <span className="max-w-[360px] text-xs text-muted-foreground">{dropStockStatus}</span>
-                )}
-                <Button size="sm" variant="destructive" disabled={!selected.size} onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}><Trash2 className="h-4 w-4" /> Удалить</Button>
-                <Button size="sm" disabled={status === "generating" || (!publishLegacyIds && (!hasPublishAuth || manualPublishCredentialsPartial))} onClick={() => run(generateXml)}><Download className="h-4 w-4" /> XML</Button>
+                  {selected.size > 0 && (
+                    <details className="relative">
+                      <summary className="flex h-8 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent">
+                        <Check className="h-4 w-4" />
+                        Действия · {selected.size}
+                      </summary>
+                      <div className="absolute left-0 top-full z-40 mt-2 w-72 space-y-2 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-lg">
+                        <Button className="w-full justify-start" size="sm" variant="outline" onClick={() => run(() => patch({ ids: selectedIds, bulkOriginalTitle: true }))}>
+                          <Check className="h-4 w-4" />
+                          Название из папки
+                        </Button>
+                        <div className="flex gap-2">
+                          <Input className="h-8 min-w-0" placeholder="Цена" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} />
+                          <Button size="sm" variant="outline" disabled={!bulkPrice} onClick={() => run(() => patch({ ids: selectedIds, bulkPrice }))}>Одна цена</Button>
+                        </div>
+                        <Button className="w-full justify-start" size="sm" variant="destructive" onClick={() => run(() => patch({ ids: selectedIds, deleteSelected: true }))}>
+                          <Trash2 className="h-4 w-4" />
+                          Удалить выбранные
+                        </Button>
+                      </div>
+                    </details>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" disabled={status === "generating" || (!publishLegacyIds && (!hasPublishAuth || manualPublishCredentialsPartial))} onClick={() => run(generateXml)}>
+                    <Download className="h-4 w-4" />
+                    XML
+                  </Button>
                 <Button
                   size="sm"
+                  variant="outline"
                   disabled={!hasPublishAuth || manualPublishCredentialsPartial || publishing}
                   onClick={() => run(publishXml)}
                 >
                   {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   Публикация
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={publishingCustomXml}
-                  onClick={() => customXmlRef.current?.click()}
-                >
-                  <UploadCloud className="h-4 w-4" />
-                  Готовый XML
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={!hasPublishAuth || manualPublishCredentialsPartial || publishStatusLoading}
-                  onClick={() => run(checkAutoloadStatus)}
-                >
-                  {publishStatusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
-                  Статус
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={!hasPublishAuth || manualPublishCredentialsPartial || stoppingAutoload}
-                  onClick={() => run(stopAutoload)}
-                >
-                  {stoppingAutoload ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-                  Остановить
-                </Button>
+                  <details className="relative">
+                    <summary className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md border border-input bg-background shadow-sm hover:bg-accent" aria-label="Другие действия">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </summary>
+                    <div className="absolute right-0 top-full z-40 mt-2 w-56 space-y-1 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+                      <Button className="w-full justify-start" size="sm" variant="ghost" disabled={publishingCustomXml} onClick={() => customXmlRef.current?.click()}>
+                        <UploadCloud className="h-4 w-4" />
+                        Готовый XML
+                      </Button>
+                      <Button className="w-full justify-start" size="sm" variant="ghost" disabled={!hasPublishAuth || manualPublishCredentialsPartial || publishStatusLoading} onClick={() => run(checkAutoloadStatus)}>
+                        {publishStatusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
+                        Статус автозагрузки
+                      </Button>
+                      <Button className="w-full justify-start" size="sm" variant="ghost" disabled={!hasPublishAuth || manualPublishCredentialsPartial || stoppingAutoload} onClick={() => run(stopAutoload)}>
+                        {stoppingAutoload ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                        Остановить
+                      </Button>
+                    </div>
+                  </details>
+                </div>
               </div>
               {customXmlFile && (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/25 bg-accent/60 p-3 text-sm">
@@ -1080,57 +1099,50 @@ export function BotvMiniApp() {
                   </div>
                 </div>
               )}
-              <div className="max-w-xl space-y-1">
-                <Label htmlFor="botv-avito-profile">Профиль Avito</Label>
-                <AvitoProfileSelect
-                  id="botv-avito-profile"
-                  profiles={publishProfiles}
-                  value={selectedPublishProfileId}
-                  onValueChange={(value) => {
-                    setSelectedPublishProfileId(value);
-                    setManualPublishClientId("");
-                    setManualPublishClientSecret("");
-                  }}
-                />
-                {selectedPublishProfile && !selectedPublishProfile.hasCredentials && !manualPublishCredentialsComplete && (
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Для публикации XML этому профилю нужны API-ключи Avito.</p>
-                )}
-              </div>
-              <div className="grid gap-2 md:grid-cols-3">
-                <Input
-                  placeholder="client_id вручную"
-                  value={manualPublishClientId}
-                  onChange={(event) => setManualPublishClientId(event.target.value)}
-                  autoComplete="off"
-                />
-                <Input
-                  placeholder="client_secret вручную"
-                  type="password"
-                  value={manualPublishClientSecret}
-                  onChange={(event) => setManualPublishClientSecret(event.target.value)}
-                  autoComplete="new-password"
-                />
-                <Input
-                  placeholder="Email отчётов XML"
-                  type="email"
-                  value={manualPublishReportEmail}
-                  onChange={(event) => setManualPublishReportEmail(event.target.value)}
-                />
-              </div>
-              <label className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-950 dark:text-amber-100">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-4 w-4"
-                  checked={publishLegacyIds}
-                  onChange={(event) => setPublishLegacyIds(event.target.checked)}
-                />
-                <span>
-                  <span className="block font-semibold">XML и публикация со старыми ID</span>
-                  <span className="mt-1 block opacity-80">
-                    Только для восстановления старых объявлений: XML и публикация будут с ID SKU-1, SKU-2... Новые дропы скачивайте и публикуйте без этой галочки.
-                  </span>
-                </span>
-              </label>
+              <details className="rounded-md border border-border/80 bg-background/45">
+                <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Настройки публикации
+                </summary>
+                <div className="space-y-3 border-t border-border/80 p-3">
+                  <div className="max-w-xl space-y-1">
+                    <Label htmlFor="botv-avito-profile">Профиль Avito</Label>
+                    <AvitoProfileSelect
+                      id="botv-avito-profile"
+                      profiles={publishProfiles}
+                      value={selectedPublishProfileId}
+                      onValueChange={(value) => {
+                        setSelectedPublishProfileId(value);
+                        setManualPublishClientId("");
+                        setManualPublishClientSecret("");
+                      }}
+                    />
+                    {selectedPublishProfile && !selectedPublishProfile.hasCredentials && !manualPublishCredentialsComplete && (
+                      <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Для публикации XML этому профилю нужны API-ключи Avito.</p>
+                    )}
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <Input placeholder="client_id вручную" value={manualPublishClientId} onChange={(event) => setManualPublishClientId(event.target.value)} autoComplete="off" />
+                    <Input placeholder="client_secret вручную" type="password" value={manualPublishClientSecret} onChange={(event) => setManualPublishClientSecret(event.target.value)} autoComplete="new-password" />
+                    <Input placeholder="Email отчётов XML" type="email" value={manualPublishReportEmail} onChange={(event) => setManualPublishReportEmail(event.target.value)} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input className="h-8 w-40" inputMode="numeric" placeholder="Остаток дропа" value={dropStockInput} onChange={(e) => setDropStockInput(e.target.value)} />
+                    <Button size="sm" variant="outline" onClick={() => run(saveDropStockQuantity)}>
+                      <PackageCheck className="h-4 w-4" />
+                      Остаток XML
+                    </Button>
+                    {dropStockStatus && <span className="max-w-[480px] text-xs text-muted-foreground">{dropStockStatus}</span>}
+                  </div>
+                  <label className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-950 dark:text-amber-100">
+                    <input type="checkbox" className="mt-0.5 h-4 w-4" checked={publishLegacyIds} onChange={(event) => setPublishLegacyIds(event.target.checked)} />
+                    <span>
+                      <span className="block font-semibold">XML и публикация со старыми ID</span>
+                      <span className="mt-1 block opacity-80">Только для восстановления старых объявлений: XML и публикация будут с ID SKU-1, SKU-2... Новые дропы скачивайте и публикуйте без этой галочки.</span>
+                    </span>
+                  </label>
+                </div>
+              </details>
             </CardContent></Card>
           )}
 
@@ -1156,33 +1168,44 @@ export function BotvMiniApp() {
                       onChange={(e) => updateLocalProduct(product.index, { description: e.target.value })}
                       onBlur={(e) => run(() => saveProductDescription(product.index, e.currentTarget.value))}
                     />
-                    <div className="grid grid-cols-2 gap-1" onClick={(e) => e.stopPropagation()}>
-                      {PRODUCT_COLORS.map((color) => (
-                        <Button
-                          key={color}
-                          type="button"
-                          size="sm"
-                          variant={product.color === color ? "default" : "outline"}
-                          disabled={product.deleted}
-                          className="h-8"
-                          onClick={() => run(() => saveProductColor(product, color))}
-                        >
-                          {color}
-                        </Button>
-                      ))}
-                    </div>
                     <div className="flex gap-2">
                       <Input inputMode="numeric" placeholder="Цена" value={product.price ?? ""} disabled={product.deleted} onClick={(e) => e.stopPropagation()} onChange={(e) => updateLocalProduct(product.index, { price: e.target.value ? Number(e.target.value) : null })} onBlur={(e) => run(() => saveProductPrice(product.index, e.currentTarget.value ? Number(e.currentTarget.value) : null))} />
-                      <Button size="icon" variant={product.useOriginalTitle ? "default" : "outline"} onClick={(e) => { e.stopPropagation(); run(() => toggleOriginalTitle(product)); }}><Package className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="outline" onClick={(e) => { e.stopPropagation(); run(() => toggleDeleted(product)); }}>{product.deleted ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}</Button>
+                      <select
+                        aria-label="Цвет товара"
+                        className="h-10 min-w-32 rounded-md border border-input bg-background px-3 text-sm"
+                        value={product.color}
+                        disabled={product.deleted}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          const color = e.target.value as ProductColor;
+                          run(() => saveProductColor(product, color));
+                        }}
+                      >
+                        {PRODUCT_COLORS.map((color) => <option key={color} value={color}>{color}</option>)}
+                      </select>
+                      <details className="relative" onClick={(e) => e.stopPropagation()}>
+                        <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-md border border-input bg-background hover:bg-accent" aria-label="Действия с товаром">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </summary>
+                        <div className="absolute right-0 top-full z-30 mt-2 w-56 space-y-1 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+                          <Button className="w-full justify-start" size="sm" variant="ghost" onClick={() => run(() => toggleOriginalTitle(product))}>
+                            <Package className="h-4 w-4" />
+                            {product.useOriginalTitle ? "Редактировать название" : "Название из папки"}
+                          </Button>
+                          <Button className="w-full justify-start" size="sm" variant="ghost" onClick={() => run(() => toggleDeleted(product))}>
+                            {product.deleted ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+                            {product.deleted ? "Восстановить" : "Удалить карточку"}
+                          </Button>
+                        </div>
+                      </details>
                     </div>
                     {product.photos.length > 1 && (
                       <div className="flex gap-1 overflow-x-auto pb-1" onClick={(e) => e.stopPropagation()}>
                         {product.photos.slice(0, 8).map((token, photoIndex) => (
-                          <div key={token} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+                          <div key={token} className="group/photo relative h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
                             {session && <img src={photoUrl(session.id, token, { thumb: true, size: 128 })} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />}
                             <span className="absolute left-1 top-1 rounded bg-background/85 px-1 text-[10px] font-semibold">{photoIndex + 1}</span>
-                            <div className="absolute inset-x-0 bottom-0 flex justify-center gap-0.5 bg-background/80 p-0.5">
+                            <div className="absolute inset-x-0 bottom-0 flex translate-y-full justify-center gap-0.5 bg-background/90 p-0.5 opacity-0 transition-[transform,opacity] group-hover/photo:translate-y-0 group-hover/photo:opacity-100 focus-within:translate-y-0 focus-within:opacity-100">
                               <button title="Сделать первой" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "first"))}><PanelTop className="h-3 w-3" /></button>
                               <button title="Сдвинуть влево" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "left"))}><ArrowLeft className="h-3 w-3" /></button>
                               <button title="Сдвинуть вправо" className="rounded px-0.5" onClick={() => run(() => movePhoto(product, token, "right"))}><ArrowRight className="h-3 w-3" /></button>
