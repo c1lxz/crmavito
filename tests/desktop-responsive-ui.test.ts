@@ -97,10 +97,30 @@ describe("desktop responsive UI", () => {
     const lightTheme = globalsSource.match(/:root\s*{([\s\S]*?)\n\s*}/)?.[1] ?? "";
     const darkTheme = globalsSource.match(/\.dark\s*{([\s\S]*?)\n\s*}/)?.[1] ?? "";
 
-    expect(lightTheme).toContain("--sidebar-background: 216 33% 97%");
-    expect(lightTheme).toContain("--sidebar-foreground: 220 18% 24%");
-    expect(darkTheme).toContain("--sidebar-background: 220 25% 9%");
-    expect(lightTheme).not.toContain("--sidebar-background: 220 25% 9%");
+    expect(lightTheme).toContain("--sidebar-background: 0 0% 100%");
+    expect(lightTheme).toContain("--sidebar-foreground: 211 19% 40%");
+    expect(darkTheme).toContain("--sidebar-background: 211 66% 9%");
+    expect(lightTheme).not.toContain("--sidebar-background: 211 66% 9%");
+  });
+
+  it("keeps the existing chart palette while applying the reference UI colors", () => {
+    const lightTheme = globalsSource.match(/:root\s*{([\s\S]*?)\n\s*}/)?.[1] ?? "";
+    const darkTheme = globalsSource.match(/\.dark\s*{([\s\S]*?)\n\s*}/)?.[1] ?? "";
+
+    expect(lightTheme).toContain("--background: 210 38% 97%");
+    expect(lightTheme).toContain("--foreground: 215 48% 14%");
+    expect(darkTheme).toContain("--background: 214 68% 7%");
+    expect(darkTheme).toContain("--foreground: 208 71% 96%");
+    expect(lightTheme).toContain("--chart-1: 222 72% 58%");
+    expect(lightTheme).toContain("--chart-2: 160 52% 40%");
+    expect(lightTheme).toContain("--chart-3: 38 68% 50%");
+    expect(lightTheme).toContain("--chart-4: 354 51% 52%");
+    expect(lightTheme).toContain("--chart-5: 202 57% 48%");
+    expect(darkTheme).toContain("--chart-1: 221 78% 70%");
+    expect(darkTheme).toContain("--chart-2: 160 52% 57%");
+    expect(darkTheme).toContain("--chart-3: 38 68% 66%");
+    expect(darkTheme).toContain("--chart-4: 354 57% 68%");
+    expect(darkTheme).toContain("--chart-5: 188 58% 62%");
   });
 
   it("uses dense desktop layouts for the main operational screens", () => {

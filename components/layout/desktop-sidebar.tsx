@@ -39,7 +39,7 @@ export function DesktopSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-sidebar-border/70 bg-sidebar/96 text-sidebar-foreground shadow-[6px_0_24px_hsl(var(--foreground)/0.025)] backdrop-blur-xl lg:flex lg:flex-col">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[6px_0_24px_hsl(var(--foreground)/0.025)] lg:flex lg:flex-col">
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border/60 px-5">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm shadow-sidebar-primary/15">
           <PackageSearch className="h-5 w-5" />
