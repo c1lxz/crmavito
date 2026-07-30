@@ -278,12 +278,6 @@ async function probeFlow(page: import("playwright").Page): Promise<FlowAvailabil
     if (url.includes("accounts.google.")) {
       return { state: "auth_required", message: "В профиле локального агента требуется вход в Google." };
     }
-    if (!url.includes("/fx/tools/flow")) {
-      return {
-        state: "blocked",
-        message: "Google Flow недоступен для текущего региона или профиля: Google перенаправил агента на общую страницу Labs.",
-      };
-    }
     return { state: "ready", message: "Google Flow доступен; агент готов к генерации." };
   } catch (error) {
     return { state: "error", message: error instanceof Error ? error.message : String(error) };
