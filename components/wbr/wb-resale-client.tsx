@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  Download,
   ExternalLink,
   FileUp,
   Globe2,
@@ -12,11 +13,13 @@ import {
   MoreHorizontal,
   Octagon,
   Play,
+  Plus,
   RefreshCw,
   Store,
   SlidersHorizontal,
   Trash2,
   UploadCloud,
+  UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,9 +27,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const AGENT_URL = "http://127.0.0.1:3017";
-const AGENT_VERSION = "2026.07.29.14";
+const AGENT_VERSION = "2026.07.31.1";
 const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
@@ -61,6 +72,17 @@ interface UploadedPhoto {
   name?: string;
 }
 
+interface BrowserProfile {
+  id: string;
+  name: string;
+}
+
+interface BrowserProfilesResponse {
+  browser: BrowserPreference;
+  profiles: BrowserProfile[];
+  selectedProfileId: string;
+}
+
 const statusLabels: Record<string, string> = {
   draft: "Черновик",
   ready: "К публикации",
@@ -86,6 +108,13 @@ export function WbResaleClient() {
   const [sizes, setSizes] = useState(SIZES);
   const [saving, setSaving] = useState(false);
   const [importingXml, setImportingXml] = useState(false);
+  const [profilePickerOpen, setProfilePickerOpen] = useState(false);
+  const [profilesLoading, setProfilesLoading] = useState(false);
+  const [browserProfiles, setBrowserProfiles] = useState<BrowserProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState("default");
+  const [newProfileName, setNewProfileName] = useState("");
+  const [creatingProfile, setCreatingProfile] = useState(false);
+  const [startingPublication, setStartingPublication] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [deletingSku, setDeletingSku] = useState("");
   const [form, setForm] = useState({
@@ -191,13 +220,62 @@ export function WbResaleClient() {
           sizes,
         }),
       });
-      const startState = await agentFetch<{ running: boolean }>("/api/rpa/status");
-      if (!startState.running) {
-        await agentFetch("/api/rpa/start", { method: "POST" });
-      }
       await checkAgent();
+      await openProfilePicker();
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function openProfilePicker() {
+    if (agentStatus !== "online") throw new Error("Локальный WB-агент не подключён.");
+    if (rpaRunning) throw new Error("Публикация уже выполняется.");
+    setProfilePickerOpen(true);
+    setProfilesLoading(true);
+    try {
+      const result = await agentFetch<BrowserProfilesResponse>("/api/rpa/profiles");
+      setBrowserProfiles(result.profiles);
+      setSelectedProfileId(result.selectedProfileId || result.profiles[0]?.id || "default");
+    } catch (error) {
+      setProfilePickerOpen(false);
+      throw error;
+    } finally {
+      setProfilesLoading(false);
+    }
+  }
+
+  async function createBrowserProfile() {
+    if (!newProfileName.trim()) return;
+    setCreatingProfile(true);
+    try {
+      const result = await agentFetch<BrowserProfilesResponse & { profile: BrowserProfile }>("/api/rpa/profiles", {
+        method: "POST",
+        body: JSON.stringify({ name: newProfileName.trim() }),
+      });
+      setBrowserProfiles(result.profiles);
+      setSelectedProfileId(result.profile.id);
+      setNewProfileName("");
+    } finally {
+      setCreatingProfile(false);
+    }
+  }
+
+  async function startPublication() {
+    if (!selectedProfileId) throw new Error("Выберите аккаунт для публикации.");
+    setStartingPublication(true);
+    try {
+      const result = await agentFetch<{ profile: BrowserProfile; xmlPath: string }>("/api/rpa/start", {
+        method: "POST",
+        body: JSON.stringify({ profileId: selectedProfileId }),
+      });
+      setEvents((items) => [...items, {
+        time: new Date().toISOString(),
+        message: `XML создан. Открываю профиль «${result.profile.name}» для публикации.`,
+      }]);
+      setProfilePickerOpen(false);
+      await checkAgent();
+    } finally {
+      setStartingPublication(false);
     }
   }
 
@@ -256,13 +334,13 @@ export function WbResaleClient() {
       const xml = await file.text();
       const result = await agentFetch<{ imported: number; skippedDuplicates?: number; errors?: Array<{ index: number; title: string; error: string }>; publishing?: boolean }>("/api/import/xml", {
         method: "POST",
-        body: JSON.stringify({ xml, publish: true, pickup_point: DEFAULT_PICKUP_POINT }),
+        body: JSON.stringify({ xml, publish: false, pickup_point: DEFAULT_PICKUP_POINT }),
       });
       setEvents((items) => [
         ...items,
         {
           time: new Date().toISOString(),
-          message: `XML импортирован: ${result.imported} объявл. Пропущено дублей: ${result.skippedDuplicates ?? 0}. ${result.publishing ? "Публикация запущена." : ""}`,
+          message: `XML импортирован: ${result.imported} объявл. Пропущено дублей: ${result.skippedDuplicates ?? 0}. Выберите аккаунт для публикации.`,
         },
         ...(result.errors ?? []).map((error) => ({
           time: new Date().toISOString(),
@@ -271,6 +349,7 @@ export function WbResaleClient() {
         })),
       ]);
       await checkAgent();
+      if (result.imported > 0) await openProfilePicker();
     } finally {
       setImportingXml(false);
       if (xmlInputRef.current) xmlInputRef.current.value = "";
@@ -310,6 +389,10 @@ export function WbResaleClient() {
               Ещё
             </summary>
             <div className="absolute right-0 top-full z-30 mt-2 w-52 rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+              <a href={`${AGENT_URL}/api/export.xml`} className="flex h-9 items-center gap-2 rounded px-2.5 text-sm hover:bg-accent">
+                <Download className="h-4 w-4" />
+                Скачать XML для WB
+              </a>
               <a href="/downloads/install-wb-resale-agent.exe" download className="flex h-9 items-center rounded px-2.5 text-sm hover:bg-accent">
                 Скачать агент
               </a>
@@ -494,7 +577,7 @@ export function WbResaleClient() {
                 </div>
               </details>
 
-              <Button className="w-full" disabled={saving} onClick={() => saveAndPublish().catch((error) => addError(error instanceof Error ? error.message : String(error)))}>
+              <Button className="w-full" disabled={saving || rpaRunning || agentStatus !== "online"} onClick={() => saveAndPublish().catch((error) => addError(error instanceof Error ? error.message : String(error)))}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                 Сохранить и опубликовать
               </Button>
@@ -504,9 +587,20 @@ export function WbResaleClient() {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <CardTitle>Очередь локального агента</CardTitle>
-                  <Badge variant="secondary">{queueCount} к публикации</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{queueCount} к публикации</Badge>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!queueCount || rpaRunning || agentStatus !== "online" || profilesLoading}
+                      onClick={() => openProfilePicker().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
+                    >
+                      {profilesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                      Запустить публикацию
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -569,6 +663,100 @@ export function WbResaleClient() {
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={profilePickerOpen}
+        onOpenChange={(open) => {
+          if (!startingPublication) setProfilePickerOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Выберите аккаунт {browserLabel(browser)}</DialogTitle>
+            <DialogDescription>
+              Агент создаст XML публикации и откроет отдельное окно выбранного профиля. Входы Wildberries в профилях хранятся раздельно.
+            </DialogDescription>
+          </DialogHeader>
+
+          {profilesLoading ? (
+            <div className="flex min-h-32 items-center justify-center text-sm text-muted-foreground" aria-live="polite">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Загружаю профили…
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-2" role="radiogroup" aria-label="Аккаунт Wildberries для публикации">
+                {browserProfiles.map((profile) => {
+                  const selected = profile.id === selectedProfileId;
+                  return (
+                    <button
+                      key={profile.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      className={`flex min-h-14 w-full items-center gap-3 rounded-md border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? "border-primary bg-primary/5" : "border-border hover:bg-accent"}`}
+                      onClick={() => setSelectedProfileId(profile.id)}
+                    >
+                      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${selected ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>
+                        <UserRound className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">{profile.name}</span>
+                        <span className="block text-xs text-muted-foreground">Отдельная сессия Wildberries</span>
+                      </span>
+                      <span className={`h-4 w-4 rounded-full border-2 ${selected ? "border-[5px] border-primary" : "border-muted-foreground/40"}`} />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-md border border-dashed border-border p-3">
+                <Label htmlFor="wb-new-profile">Новый аккаунт</Label>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    id="wb-new-profile"
+                    value={newProfileName}
+                    maxLength={60}
+                    placeholder="Например, Магазин Москва"
+                    disabled={creatingProfile}
+                    onChange={(event) => setNewProfileName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && newProfileName.trim()) {
+                        event.preventDefault();
+                        createBrowserProfile().catch((error) => addError(error instanceof Error ? error.message : String(error)));
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!newProfileName.trim() || creatingProfile}
+                    onClick={() => createBrowserProfile().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
+                  >
+                    {creatingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    Добавить
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">При первом запуске нового профиля войдите в нужный аккаунт Wildberries в открывшемся Chrome.</p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={startingPublication} onClick={() => setProfilePickerOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              disabled={profilesLoading || !selectedProfileId || startingPublication}
+              onClick={() => startPublication().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
+            >
+              {startingPublication ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {startingPublication ? "Создаю XML…" : "Создать XML и опубликовать"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 
@@ -721,6 +909,15 @@ function makeSku(value: string) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 42);
   return `${slug || "wb-item"}-${Date.now().toString(36)}`;
+}
+
+function browserLabel(browser: BrowserPreference) {
+  return {
+    chrome: "Google Chrome",
+    yandex: "Яндекс.Браузера",
+    edge: "Microsoft Edge",
+    firefox: "Mozilla Firefox",
+  }[browser];
 }
 
 function extractSize(value: string) {
