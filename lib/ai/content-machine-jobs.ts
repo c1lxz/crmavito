@@ -358,7 +358,7 @@ export async function releaseFlowJob(id: string, agentId: string, error: string)
 }
 
 function shouldReleaseFlowJob(error: string) {
-  return /регион|region|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась/i.test(error);
+  return /регион|region|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|ERR_TUNNEL_CONNECTION_FAILED|proxy.*(?:failed|unavailable)|туннел/i.test(error);
 }
 
 function releaseManifestFromAgent(manifest: JobManifest, agentId: string, error: string) {

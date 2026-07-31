@@ -156,6 +156,8 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain("unsupportedVisible");
     expect(flowAgentSource).toContain('child.once("exit"');
     expect(flowAgentSource).not.toContain("child.unref()");
+    expect(flowAgentSource).toContain("ERR_TUNNEL_CONNECTION_FAILED");
+    expect(jobsSource).toContain("ERR_TUNNEL_CONNECTION_FAILED");
     expect(flowAgentSource).not.toContain('!url.includes("/fx/tools/flow")');
     expect(flowAgentSource).toContain('"release" : "fail"');
     expect(diagnosticsSource).toContain("/api/ai/content-machine/backgrounds");

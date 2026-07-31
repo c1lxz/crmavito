@@ -105,7 +105,7 @@ async function main() {
     }).catch(async (error) => {
       const message = sanitizeFlowAgentError(error);
       console.error(`[flow-agent] ${job.id}: ${message}`);
-      const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|connectOverCDP|ECONNREFUSED/i.test(message);
+      const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|proxy.*(?:failed|unavailable)|туннел/i.test(message);
       const publicError = publicFlowAgentError(error);
       currentAvailability = {
         state: canTryAnotherAgent ? "blocked" : "error",

@@ -11,6 +11,9 @@ export function sanitizeFlowAgentError(error: unknown, maxLength = 2_000) {
 
 export function publicFlowAgentError(error: unknown) {
   const sanitized = sanitizeFlowAgentError(error);
+  if (/ERR_TUNNEL_CONNECTION_FAILED|proxy.*(?:failed|unavailable)|туннел/i.test(sanitized)) {
+    return "Прокси Flow не пропускает соединение. Проверьте доступность, баланс и лимит трафика прокси, затем повторите задачу.";
+  }
   if (/apiRequestContext\.get: Timeout|download.*timed out|Timeout \d+ms exceeded|не скачано после трёх попыток/i.test(sanitized)) {
     return "Flow сгенерировал изображение, но агент не успел скачать результат. Загрузка будет повторена.";
   }

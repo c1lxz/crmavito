@@ -19,4 +19,10 @@ describe("Flow agent error redaction", () => {
       "Flow сгенерировал изображение, но агент не успел скачать результат. Загрузка будет повторена.",
     );
   });
+
+  it("turns a proxy tunnel failure into a clear recovery instruction", () => {
+    expect(publicFlowAgentError(new Error("page.goto: net::ERR_TUNNEL_CONNECTION_FAILED"))).toBe(
+      "Прокси Flow не пропускает соединение. Проверьте доступность, баланс и лимит трафика прокси, затем повторите задачу.",
+    );
+  });
 });
