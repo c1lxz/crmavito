@@ -113,8 +113,9 @@ describe("content machine", () => {
       const created = await createCodexJob([product], "2K");
       expect(created.status).toBe("waiting");
       expect(created.expectedResults).toBe(3);
-      expect(created.qualityProfile).toBe("photorealistic-v2");
-      expect(created.generationPrompt).toContain("tight contact shadow");
+      expect(created.qualityProfile).toBe("photorealistic-v3");
+      expect(created.generationPrompt).toContain("tight contact shadows");
+      expect(created.generationPrompt?.length).toBeLessThanOrEqual(900);
 
       const resultDirectory = path.join(directory, "codex-jobs", created.id, "results");
       await mkdir(resultDirectory, { recursive: true });
@@ -149,7 +150,8 @@ describe("content machine", () => {
     expect(flowBrowserSource).toContain("downloadResultInsideBrowser");
     expect(flowBrowserSource).toContain("водяного знака");
     expect(flowBrowserSource).not.toContain("Google перенаправил агента на общую страницу Labs");
-    expect(flowAgentSource).toContain("withoutEnlargement: true");
+    expect(flowAgentSource).toContain("normalizeFlowResult(source, imageSize)");
+    expect(flowAgentSource).toContain('imageSize === "4K" ? 4096 : 2048');
     expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");
     expect(flowAgentSource).not.toContain('!url.includes("/fx/tools/flow")');

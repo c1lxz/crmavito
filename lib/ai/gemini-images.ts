@@ -44,6 +44,17 @@ export function buildProductPhotoPrompt(additionalInstructions?: string): string
   ].filter(Boolean).join("\n");
 }
 
+export function buildFlowProductPhotoPrompt(): string {
+  return [
+    "Create ONE natural photorealistic marketplace camera photo, never CGI/render/collage/cutout.",
+    "IMAGE 1 = immutable product; IMAGE 2 = exact scene/surface/composition/light.",
+    "Preserve exactly: silhouette, cut, seams, stitching, collar, sleeves, fabric, wear, color, every print line/letter/font/spacing/texture/placement. Same visible side; never mirror, redesign, add, remove or hide details.",
+    "Only change placement, crop, camera angle and folds. Match IMAGE 2 perspective, scale, exposure, white balance, focus, depth of field and daylight.",
+    "Show real weave, thickness, gravity, irregular wrinkles and surface compression; tight contact shadows, soft occlusion under collar/sleeves/hems/folds, faint cast shadow from one light.",
+    "Use IMAGE 2 as the full background. No props, people, hands, hangers, overlays, halos, floating edges, plastic smoothing, studio light or watermarks. Return only final photo.",
+  ].join(" ");
+}
+
 export async function generateGeminiImage(
   request: GeminiImageRequest,
   options: { fetchFn?: typeof fetch; apiKey?: string; model?: string; baseUrl?: string } = {},

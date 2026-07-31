@@ -69,7 +69,8 @@ describe("desktop responsive UI", () => {
     expect(appLayoutSource).not.toContain("mobileDevice");
     expect(appLayoutSource).toContain("pc-shell");
     expect(appLayoutSource).toContain("mobile-shell");
-    expect(appLayoutSource).toContain("ml-64");
+    expect(appLayoutSource).toContain("lg:ml-64");
+    expect(appLayoutSource).not.toContain('bg-background ml-64');
     expect(appLayoutSource).toContain("max-w-xl");
     expect(appLayoutSource).toContain("isPc ? <DesktopSidebar /> : null");
     expect(appLayoutSource).toContain("isPc ? null : <BottomNav />");

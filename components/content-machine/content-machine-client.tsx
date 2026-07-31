@@ -218,12 +218,19 @@ export function ContentMachineClient() {
     if (!files) return;
     const limit = mode === "original-design" ? maxDesignReferences : maxProducts;
     const available = limit - products.length;
-    const accepted = Array.from(files)
-      .filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size <= 20 * 1024 * 1024)
+    const candidates = Array.from(files);
+    const accepted = candidates
+      .filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type) && file.size > 0 && file.size <= 20 * 1024 * 1024)
       .slice(0, available);
     if (accepted.length === 0) {
       reportIncident("Добавление исходного фото", "Файл имеет неподдерживаемый формат, пустой или превышает 20 МБ.");
       return;
+    }
+    if (accepted.length < candidates.length) {
+      toast({
+        title: "Часть файлов пропущена",
+        description: `Добавлено ${accepted.length} из ${candidates.length}. Проверьте формат, размер до 20 МБ и лимит ракурсов.`,
+      });
     }
     const added = accepted.map((file) => {
       const previewUrl = URL.createObjectURL(file);
@@ -412,7 +419,7 @@ export function ContentMachineClient() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex h-16 w-full max-w-[100rem] items-center gap-3 px-4 sm:px-6 lg:px-8">
-          <Link href="/settings" className="icon-tile h-9 w-9" aria-label="Назад в настройки">
+          <Link href="/settings" className="icon-tile h-11 w-11" aria-label="Назад в настройки">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="min-w-0 flex-1">
@@ -435,13 +442,13 @@ export function ContentMachineClient() {
           <Button
             variant="outline"
             size="sm"
-            className="hidden sm:inline-flex"
+            className="hidden min-h-11 sm:inline-flex"
             onClick={() => document.getElementById("content-machine-diagnostics")?.scrollIntoView({ behavior: "smooth", block: "start" })}
           >
             <Bug className="mr-1.5 h-4 w-4" />Диагностика
           </Button>
           <Select value={imageSize} onValueChange={(value: "2K" | "4K") => setImageSize(value)} disabled={creatingJob}>
-            <SelectTrigger className="h-9 w-24"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 w-24"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="2K">2K</SelectItem>
               <SelectItem value="4K">4K</SelectItem>
@@ -450,15 +457,7 @@ export function ContentMachineClient() {
         </div>
       </header>
 
-      <main className="content-machine-content mx-auto w-full max-w-[100rem] space-y-8 px-4 py-6 sm:px-6 lg:px-8">
-        <ContentMachineDiagnostics
-          backgrounds={backgrounds}
-          products={products}
-          agentStatus={agentStatus}
-          job={job}
-          incidents={diagnosticIncidents}
-          onClearIncidents={clearDiagnosticIncidents}
-        />
+      <main className="content-machine-content mx-auto w-full min-w-0 max-w-[100rem] space-y-8 overflow-x-clip px-4 py-6 sm:px-6 lg:px-8">
         <section>
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -494,7 +493,7 @@ export function ContentMachineClient() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">{products.length} фото → {resultCount} результата</span>
-              <Button variant="outline" size="sm" onClick={() => productInputRef.current?.click()} disabled={creatingJob || products.length >= (mode === "original-design" ? maxDesignReferences : maxProducts)}>
+              <Button variant="outline" size="sm" className="min-h-11" onClick={() => productInputRef.current?.click()} disabled={creatingJob || products.length >= (mode === "original-design" ? maxDesignReferences : maxProducts)}>
                 <ImagePlus className="mr-1.5 h-4 w-4" />Добавить
               </Button>
             </div>
@@ -611,7 +610,7 @@ export function ContentMachineClient() {
                   </div>
                   <div className="flex items-center justify-between gap-2 p-2">
                     <span className="min-w-0 truncate text-xs font-medium">{index + 1}. {product.file.name}</span>
-                    <button type="button" onClick={() => removeProduct(product.id)} disabled={creatingJob} className="text-muted-foreground hover:text-destructive disabled:opacity-40" aria-label="Удалить фото">
+                    <button type="button" onClick={() => removeProduct(product.id)} disabled={creatingJob} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40" aria-label="Удалить фото">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -632,7 +631,7 @@ export function ContentMachineClient() {
                 </p>
               </div>
             </div>
-            <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady || !designReady} className="shrink-0">
+            <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady || !designReady} className="min-h-11 w-full shrink-0 sm:w-auto">
               {creatingJob ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               {creatingJob ? "Ставлю в очередь Flow…" : `Создать ${resultCount} фото`}
             </Button>
@@ -698,12 +697,12 @@ export function ContentMachineClient() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {job.status === "failed" && (
-                    <Button size="sm" disabled={retryingJob} onClick={() => void retryJob(job.id)}>
+                    <Button size="sm" className="min-h-11" disabled={retryingJob} onClick={() => void retryJob(job.id)}>
                       {retryingJob ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}
                       {retryingJob ? "Возвращаю в очередь…" : "Повторить недостающие"}
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" disabled={refreshingJob} onClick={() => void refreshJob(job.id)}>
+                  <Button variant="outline" size="sm" className="min-h-11" disabled={refreshingJob} onClick={() => void refreshJob(job.id)}>
                     {refreshConfirmed
                       ? <Check className="mr-1.5 h-4 w-4 text-success" />
                       : <RefreshCw className={`mr-1.5 h-4 w-4 ${refreshingJob ? "animate-spin" : ""}`} />}
@@ -723,12 +722,13 @@ export function ContentMachineClient() {
                 <Button
                   size="sm"
                   variant="outline"
+                  className="min-h-11"
                   disabled={readyResults.length === 0}
                   onClick={() => setSelectedIds(selectedCount === readyResults.length ? [] : readyResults.map((item) => item.id))}
                 >
                   <Check className="mr-1.5 h-4 w-4" />{selectedCount === readyResults.length && readyResults.length ? "Снять выбор" : "Выбрать готовые"}
                 </Button>
-                <Button size="sm" disabled={selectedCount === 0} onClick={() => void downloadSelected()}>
+                <Button size="sm" className="min-h-11" disabled={selectedCount === 0} onClick={() => void downloadSelected()}>
                   <Download className="mr-1.5 h-4 w-4" />Скачать выбранные ({selectedCount})
                 </Button>
               </div>
@@ -760,6 +760,14 @@ export function ContentMachineClient() {
             </>}
           </section>
         )}
+        <ContentMachineDiagnostics
+          backgrounds={backgrounds}
+          products={products}
+          agentStatus={agentStatus}
+          job={job}
+          incidents={diagnosticIncidents}
+          onClearIncidents={clearDiagnosticIncidents}
+        />
       </main>
     </div>
   );
@@ -792,7 +800,7 @@ function BackgroundPanel({ background, loading, onFile, onImageError }: {
           <p className="truncate text-sm font-medium">{background.fileName || "Добавьте оригинал"}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">{background.url ? formatBytes(background.size) : "JPG, PNG или WebP"}</p>
         </div>
-        <Label htmlFor={inputId} className="inline-flex h-8 cursor-pointer items-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent">
+        <Label htmlFor={inputId} className="inline-flex h-11 cursor-pointer items-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent">
           {background.url ? "Заменить" : "Загрузить"}
         </Label>
         <input id={inputId} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={loading} onChange={(event) => { onFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
@@ -817,16 +825,16 @@ function ResultPanel({ result, selected, onToggle, onDownload, refreshKey, onIma
           src={`${result.url}${result.url.includes("?") ? "&" : "?"}refresh=${refreshKey}`}
           alt={`${result.productName}, фон ${result.backgroundSlot}`}
           className="block h-auto w-full"
-          loading="eager"
+          loading="lazy"
           onError={onImageError}
         />
-        <button type="button" onClick={onToggle} className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md border shadow-sm ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background/90"}`} aria-label={selected ? "Снять выбор" : "Выбрать фото"}>
+        <button type="button" onClick={onToggle} className={`absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-md border shadow-sm ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background/90"}`} aria-label={selected ? "Снять выбор" : "Выбрать фото"}>
           <Check className="h-4 w-4" />
         </button>
       </div>
       <div className="flex items-center gap-2 p-3">
         <p className="min-w-0 flex-1 truncate text-xs font-medium">{result.productName}</p>
-        <Button size="icon" variant="outline" className="h-8 w-8" onClick={onDownload} aria-label="Скачать"><Download className="h-3.5 w-3.5" /></Button>
+        <Button size="icon" variant="outline" className="h-11 w-11" onClick={onDownload} aria-label="Скачать"><Download className="h-4 w-4" /></Button>
       </div>
     </div>
   );

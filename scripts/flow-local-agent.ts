@@ -4,9 +4,9 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
 import { chromium, type Browser, type BrowserContext } from "playwright";
-import sharp from "sharp";
 import { generateFlowImage } from "../lib/flow-agent/browser";
 import { publicFlowAgentError, sanitizeFlowAgentError } from "../lib/flow-agent/errors";
+import { normalizeFlowResult, type FlowImageSize } from "../lib/flow-agent/image-output";
 import { buildOriginalDesignPrompt, collectMarketResearch, type MarketResearch } from "../lib/flow-agent/market-research";
 
 loadEnvConfig(process.cwd());
@@ -14,6 +14,7 @@ loadEnvConfig(process.cwd());
 type BackgroundSlot = "1" | "2" | "3";
 type AgentJob = {
   id: string;
+  imageSize: FlowImageSize;
   generationPrompt?: string;
   mode?: "product-photo" | "original-design";
   inspirationQuery?: string;
@@ -363,8 +364,9 @@ async function processJob(context: BrowserContext, job: AgentJob) {
           prompt,
           outputPath,
           timeoutMs: generationTimeoutMs,
+          maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
         });
-        await uploadResult(job.id, item.product.index, item.background.slot, outputPath, timing);
+        await uploadResult(job.id, item.product.index, item.background.slot, outputPath, timing, job.imageSize);
         console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: ${(timing.durationMs / 1000).toFixed(1)} сек`);
       }
     } finally {
@@ -435,6 +437,7 @@ async function uploadResult(
   backgroundSlot: BackgroundSlot,
   filePath: string,
   timing: Awaited<ReturnType<typeof generateFlowImage>>,
+  imageSize: FlowImageSize,
 ) {
   const form = new FormData();
   form.set("agentId", agentId);
@@ -442,16 +445,7 @@ async function uploadResult(
   form.set("backgroundSlot", backgroundSlot);
   for (const [key, value] of Object.entries(timing)) form.set(key, String(value));
   const source = await readFile(filePath);
-  const metadata = await sharp(source).metadata();
-  const normalized = await sharp(source)
-    .rotate()
-    .resize({
-      ...(metadata.width && metadata.height && metadata.width >= metadata.height ? { width: 2048 } : { height: 2048 }),
-      withoutEnlargement: true,
-      kernel: sharp.kernel.lanczos3,
-    })
-    .png({ compressionLevel: 8, adaptiveFiltering: true })
-    .toBuffer();
+  const normalized = await normalizeFlowResult(source, imageSize);
   const payload = new Uint8Array(normalized.length);
   payload.set(normalized);
   form.set("file", new Blob([payload], { type: "image/png" }), path.basename(filePath));

@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { BACKGROUND_SLOTS, readBackground, validateImageFile, type BackgroundSlot } from "@/lib/ai/content-machine";
-import { buildProductPhotoPrompt } from "@/lib/ai/gemini-images";
+import { buildFlowProductPhotoPrompt } from "@/lib/ai/gemini-images";
 import { publicFlowAgentError } from "@/lib/flow-agent/errors";
 import type { MarketResearch } from "@/lib/flow-agent/market-research";
 
@@ -24,7 +24,7 @@ type JobManifest = {
   completedAt?: string;
   error?: string;
   metrics?: FlowJobMetrics;
-  qualityProfile?: "photorealistic-v2";
+  qualityProfile?: "photorealistic-v2" | "photorealistic-v3";
   generationPrompt?: string;
   mode?: "product-photo" | "original-design";
   inspirationQuery?: string;
@@ -138,8 +138,8 @@ export async function createCodexJob(
     imageSize,
     provider: "google-flow",
     agentStatus: "queued",
-    qualityProfile: "photorealistic-v2",
-    generationPrompt: buildProductPhotoPrompt(),
+    qualityProfile: "photorealistic-v3",
+    generationPrompt: buildFlowProductPhotoPrompt(),
     mode,
     ...(inspirationQuery ? { inspirationQuery } : {}),
     ...(mode === "original-design" && designNote ? { designNote } : {}),

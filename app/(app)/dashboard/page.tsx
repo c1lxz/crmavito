@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { OrderStatus } from "@prisma/client";
 import { buildTopProductsByOrders } from "@/lib/dashboard/top-products";
 import { getArchivedSourceOrderExclusion } from "@/lib/orders/warehouse-match";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -174,6 +175,9 @@ export default async function DashboardPage() {
   return (
     <div className="app-shell">
       <div className="dashboard-content app-content space-y-5">
+        <div className="mobile-only flex justify-end">
+          <ThemeToggle />
+        </div>
         <div className="pc-dashboard-kpi grid grid-cols-2 gap-3">
           {kpiCards.map((card, i) => (
             <Card key={card.label} className={i === 1 ? "border-primary/25 bg-accent/65" : undefined}>

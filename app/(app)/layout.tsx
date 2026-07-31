@@ -24,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <main
         className={
           isPc
-            ? "min-h-screen bg-background ml-64"
+            ? "min-h-screen min-w-0 overflow-x-clip bg-background lg:ml-64"
             : "mx-auto min-h-screen max-w-xl bg-background shadow-[0_0_0_1px_hsl(var(--border))]"
         }
       >

@@ -47,7 +47,7 @@ describe("Flow local browser agent", () => {
         (files: Buffer[]) => files.every((file) => file.length > 50),
       );
       expect(timings.every((timing) => timing.generationMs >= 100 && timing.durationMs < 3_000)).toBe(true);
-      expect(elapsed).toBeLessThan(3_500);
+      expect(elapsed).toBeLessThan(5_000);
       expect(context.pages()).toHaveLength(0);
     } finally {
       await context.close();

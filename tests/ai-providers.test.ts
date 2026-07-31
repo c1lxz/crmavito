@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { brotliCompressSync } from "node:zlib";
 import { adsAnalysisInputSchema, buildAdsAnalysisPrompt, compactAdsAnalysisInput, createDataDrivenAdsReport, type AdsAnalysisInput } from "@/lib/ai/ads-analysis";
 import { createClaudeAdsReport } from "@/lib/ai/claude";
-import { buildProductPhotoPrompt, generateGeminiImage } from "@/lib/ai/gemini-images";
+import { buildFlowProductPhotoPrompt, buildProductPhotoPrompt, generateGeminiImage } from "@/lib/ai/gemini-images";
+import { compactFlowPrompt } from "@/lib/flow-agent/browser";
 
 const analytics: AdsAnalysisInput = {
   profileId: "profile-1",
@@ -174,6 +175,17 @@ describe("AI providers", () => {
     expect(prompt).toContain("fabric thickness, fine weave, soft micro-wrinkles");
     expect(prompt).toContain("never use a uniform dark outline");
     expect(prompt).toContain("genuine marketplace photo rather than CGI");
+  });
+
+  it("keeps the Flow product prompt complete within the Flow field limit", () => {
+    const prompt = buildFlowProductPhotoPrompt();
+    expect(prompt.length).toBeLessThanOrEqual(900);
+    expect(prompt).toContain("immutable product");
+    expect(prompt).toContain("every print line/letter/font/spacing");
+    expect(prompt).toContain("tight contact shadows");
+    expect(prompt).toContain("natural photorealistic marketplace camera photo");
+    expect(prompt).toContain("never mirror");
+    expect(compactFlowPrompt(buildProductPhotoPrompt())).toBe(prompt);
   });
 
   it("explains when the Gemini image key has no paid quota", async () => {

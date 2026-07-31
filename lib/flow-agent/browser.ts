@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Locator, Page } from "playwright";
+import { buildFlowProductPhotoPrompt } from "../ai/gemini-images";
 
 export type FlowRunTiming = {
   startedAt: string;
@@ -16,6 +17,7 @@ export async function generateFlowImage(input: {
   prompt: string;
   outputPath: string;
   timeoutMs: number;
+  maxOutputEdge?: 2048 | 4096;
 }): Promise<FlowRunTiming> {
   const started = Date.now();
   const startedAt = new Date(started).toISOString();
@@ -103,7 +105,7 @@ export async function generateFlowImage(input: {
     if (!downloaded) {
       downloaded = await downloadWithFlowButton(input.page, input.outputPath);
     }
-    if (!downloaded) await captureRenderedResult(result, input.outputPath);
+    if (!downloaded) await captureRenderedResult(result, input.outputPath, input.maxOutputEdge || 2048);
   } else {
     const downloaded = await downloadWithFlowButton(input.page, input.outputPath);
     if (!downloaded) throw new Error("Flow: у результата нет доступного изображения или кнопки скачивания.");
@@ -207,16 +209,17 @@ async function downloadResultInsideBrowser(page: Page, sourceUrl: string) {
   return result;
 }
 
-async function captureRenderedResult(result: Locator, outputPath: string) {
+async function captureRenderedResult(result: Locator, outputPath: string, maxOutputEdge: 2048 | 4096) {
   const marker = `flow-agent-capture-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  await result.evaluate((image, id) => {
+  await result.evaluate((image, input) => {
     const source = image as HTMLImageElement;
-    const width = Math.max(1, Math.min(source.naturalWidth || source.width || 1024, 2048));
-    const naturalHeight = source.naturalHeight || source.height || width;
-    const naturalWidth = source.naturalWidth || source.width || width;
-    const height = Math.max(1, Math.round(naturalHeight * (width / naturalWidth)));
+    const naturalWidth = source.naturalWidth || source.width || 1024;
+    const naturalHeight = source.naturalHeight || source.height || naturalWidth;
+    const scale = Math.min(1, input.maxOutputEdge / Math.max(naturalWidth, naturalHeight));
+    const width = Math.max(1, Math.round(naturalWidth * scale));
+    const height = Math.max(1, Math.round(naturalHeight * scale));
     const clone = source.cloneNode(true) as HTMLImageElement;
-    clone.id = id;
+    clone.id = input.id;
     clone.style.cssText = [
       "position:fixed",
       "left:0",
@@ -230,7 +233,7 @@ async function captureRenderedResult(result: Locator, outputPath: string) {
       "background:white",
     ].join(";");
     document.body.appendChild(clone);
-  }, marker);
+  }, { id: marker, maxOutputEdge });
   const capture = result.page().locator(`#${marker}`);
   try {
     await capture.screenshot({
@@ -280,9 +283,12 @@ async function attachUploadedReferences(page: Page, references: string[]) {
   await attach.click();
 }
 
-function compactFlowPrompt(prompt: string) {
+export function compactFlowPrompt(prompt: string) {
   const normalized = prompt.replace(/\s+/g, " ").trim();
   if (normalized.length <= 900) return normalized;
+  if (normalized.includes("immutable product identity") && normalized.includes("REFERENCE IMAGE 1")) {
+    return buildFlowProductPhotoPrompt();
+  }
   const labelSuffix = normalized.includes("CUSTOM MADE")
     ? " Add exactly one single-line back-neck heat-transfer marking reading 'CUSTOM MADE', printed directly on fabric; no repeat, second line, sewn tag, reference name or logo."
     : "";

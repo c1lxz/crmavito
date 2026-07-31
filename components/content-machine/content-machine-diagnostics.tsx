@@ -276,7 +276,7 @@ export function ContentMachineDiagnostics({ backgrounds, products, agentStatus, 
                 </p>
               </div>
             </div>
-            <Button onClick={() => void runDiagnostics()} disabled={running} className="shrink-0">
+            <Button onClick={() => void runDiagnostics()} disabled={running} className="min-h-11 shrink-0">
               {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
               {running ? "Проверяю…" : report ? "Проверить снова" : "Запустить диагностику"}
             </Button>
@@ -297,10 +297,10 @@ export function ContentMachineDiagnostics({ backgrounds, products, agentStatus, 
               </div>
               {incidents.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => void copyLastIncident()}>
+                  <Button variant="outline" size="sm" className="min-h-11" onClick={() => void copyLastIncident()}>
                     <Clipboard className="mr-1.5 h-4 w-4" />Скопировать последнюю
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={onClearIncidents}>Очистить</Button>
+                  <Button variant="ghost" size="sm" className="min-h-11" onClick={onClearIncidents}>Очистить</Button>
                 </div>
               )}
             </div>
@@ -363,8 +363,8 @@ export function ContentMachineDiagnostics({ backgrounds, products, agentStatus, 
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => void copyReport()}><Clipboard className="mr-1.5 h-4 w-4" />Копировать</Button>
-                  <Button variant="outline" size="sm" onClick={downloadReport}><Download className="mr-1.5 h-4 w-4" />Скачать JSON</Button>
+                  <Button variant="outline" size="sm" className="min-h-11" onClick={() => void copyReport()}><Clipboard className="mr-1.5 h-4 w-4" />Копировать</Button>
+                  <Button variant="outline" size="sm" className="min-h-11" onClick={downloadReport}><Download className="mr-1.5 h-4 w-4" />Скачать JSON</Button>
                 </div>
               </div>
 
@@ -441,10 +441,12 @@ async function inspectImage(input: {
     const image = await loadImage(input.url);
     const pixels = samplePixels(image);
     const minEdge = Math.min(image.naturalWidth, image.naturalHeight);
-    const requiredEdge = input.expected === "result-4k" ? 2000 : input.expected === "result-2k" ? 1080 : 900;
+    const maxEdge = Math.max(image.naturalWidth, image.naturalHeight);
+    const requiredResultEdge = input.expected === "result-4k" ? 3900 : input.expected === "result-2k" ? 1900 : 0;
     const warnings: string[] = [];
 
-    if (minEdge < requiredEdge) warnings.push(`малая сторона ниже ${requiredEdge}px`);
+    if (requiredResultEdge && maxEdge < requiredResultEdge) warnings.push(`длинная сторона ниже ${requiredResultEdge}px`);
+    if (!requiredResultEdge && minEdge < 900) warnings.push("малая сторона ниже 900px");
     if (pixels.average < 48) warnings.push("кадр слишком тёмный");
     if (pixels.average > 220) warnings.push("кадр пересвечен");
     if (pixels.darkShare > 0.58) warnings.push("более половины кадра в глубоких тенях");
