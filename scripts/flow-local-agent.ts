@@ -177,16 +177,22 @@ function rememberCdpBrowser(browser: Browser) {
 
 async function bootstrapShortcutChrome() {
   if (!cdpBootstrapScript || !cdpUrl) return;
-  const child = spawn("powershell.exe", [
-    "-NoProfile",
-    "-ExecutionPolicy", "Bypass",
-    "-File", cdpBootstrapScript,
-  ], {
-    detached: true,
-    windowsHide: true,
-    stdio: "ignore",
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("powershell.exe", [
+      "-NoProfile",
+      "-ExecutionPolicy", "Bypass",
+      "-WindowStyle", "Hidden",
+      "-File", cdpBootstrapScript,
+    ], {
+      windowsHide: true,
+      stdio: "ignore",
+    });
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`PowerShell-ярлык Chrome завершился с кодом ${code ?? "unknown"}.`));
+    });
   });
-  child.unref();
 
   let lastError: unknown;
   for (let attempt = 0; attempt < 120; attempt += 1) {

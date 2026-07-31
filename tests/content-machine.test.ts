@@ -154,6 +154,8 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain('imageSize === "4K" ? 4096 : 2048');
     expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");
+    expect(flowAgentSource).toContain('child.once("exit"');
+    expect(flowAgentSource).not.toContain("child.unref()");
     expect(flowAgentSource).not.toContain('!url.includes("/fx/tools/flow")');
     expect(flowAgentSource).toContain('"release" : "fail"');
     expect(diagnosticsSource).toContain("/api/ai/content-machine/backgrounds");
