@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { BarChart3, Home, NotebookPen, RotateCcw, ShoppingBag, Wallet } from "lucide-react";
+import { BarChart3, Home, NotebookPen, RotateCcw, Settings, ShoppingBag, Wallet } from "lucide-react";
 import { Dock } from "@/components/ui/dock";
 import { sanitizeOrderFilterQuery } from "@/lib/orders/filters";
 
@@ -13,6 +13,7 @@ const navItems = [
   { href: "/m/returns", match: "/returns", label: "Возвраты", icon: RotateCcw },
   { href: "/m/expenses", match: "/expenses", label: "Расходы", icon: Wallet },
   { href: "/m/reports", match: "/reports", label: "Отчёты", icon: BarChart3 },
+  { href: "/m/settings", match: "/settings", label: "Настройки", icon: Settings },
 ];
 
 export function BottomNav() {
