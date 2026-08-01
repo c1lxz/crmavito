@@ -35,6 +35,7 @@ describe("WB publication account flow", () => {
     expect(page).toContain("canViewPrivateProfiles={canViewPrivateProfiles}");
     expect(client).toContain("filterPrivateWbProfiles(result.profiles");
     expect(client).toContain('fetch("/api/wb-publication-profiles"');
+    expect(client).toContain("rememberPrivateProfiles(result.profiles.map");
     expect(client).toContain("<Dialog");
     expect(client).not.toContain("if (!canManagePublication)");
   });

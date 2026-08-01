@@ -6,7 +6,7 @@ import { isWbPublicationOwner } from "@/lib/auth/wb-publication-owner";
 import { normalizeWbProfileName } from "@/lib/wbr/private-publication-profiles";
 
 const profileSchema = z.object({
-  name: z.string().trim().min(2).max(60),
+  names: z.array(z.string().trim().min(2).max(60)).min(1).max(100),
 });
 
 export async function POST(request: NextRequest) {
@@ -20,16 +20,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const profile = await prisma.wbPrivatePublicationProfile.upsert({
-    where: { normalizedName: normalizeWbProfileName(parsed.data.name) },
-    update: { displayName: parsed.data.name, ownerUserId: session.user.id },
-    create: {
-      normalizedName: normalizeWbProfileName(parsed.data.name),
-      displayName: parsed.data.name,
-      ownerUserId: session.user.id,
-    },
-    select: { displayName: true },
-  });
+  const names = [...new Map(
+    parsed.data.names.map((name) => [normalizeWbProfileName(name), name]),
+  ).values()];
+  const profiles = await prisma.$transaction(
+    names.map((name) => prisma.wbPrivatePublicationProfile.upsert({
+      where: { normalizedName: normalizeWbProfileName(name) },
+      update: { displayName: name, ownerUserId: session.user.id },
+      create: {
+        normalizedName: normalizeWbProfileName(name),
+        displayName: name,
+        ownerUserId: session.user.id,
+      },
+      select: { displayName: true },
+    })),
+  );
 
-  return NextResponse.json({ profile }, { status: 201 });
+  return NextResponse.json({ profiles }, { status: 201 });
 }

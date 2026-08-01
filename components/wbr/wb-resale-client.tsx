@@ -247,6 +247,7 @@ export function WbResaleClient({
     setProfilesLoading(true);
     try {
       const result = await agentFetch<BrowserProfilesResponse>("/api/rpa/profiles");
+      await rememberPrivateProfiles(result.profiles.map((profile) => profile.name));
       const visibleProfiles = filterPrivateWbProfiles(result.profiles, canViewPrivateProfiles, privateProfileNames);
       setBrowserProfiles(visibleProfiles);
       setSelectedProfileId(
@@ -266,14 +267,7 @@ export function WbResaleClient({
     if (!newProfileName.trim()) return;
     setCreatingProfile(true);
     try {
-      if (canViewPrivateProfiles) {
-        const visibilityResponse = await fetch("/api/wb-publication-profiles", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newProfileName.trim() }),
-        });
-        if (!visibilityResponse.ok) throw new Error("Не удалось сохранить приватность профиля WB.");
-      }
+      await rememberPrivateProfiles([newProfileName.trim()]);
       const result = await agentFetch<BrowserProfilesResponse & { profile: BrowserProfile }>("/api/rpa/profiles", {
         method: "POST",
         body: JSON.stringify({ name: newProfileName.trim() }),
@@ -857,6 +851,16 @@ export function WbResaleClient({
 
   function addError(message: string) {
     setEvents((items) => [...items, { time: new Date().toISOString(), level: "error", message }]);
+  }
+
+  async function rememberPrivateProfiles(names: string[]) {
+    if (!canViewPrivateProfiles || !names.length) return;
+    const response = await fetch("/api/wb-publication-profiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names }),
+    });
+    if (!response.ok) throw new Error("Не удалось сохранить приватность профилей WB.");
   }
 }
 
