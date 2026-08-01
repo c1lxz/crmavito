@@ -42,42 +42,60 @@ async function requestQualityVerdict(
   input: { apiKey: string; model: string; fetchFn: typeof fetch; product: string; background: string; candidate: string },
   prompt: string,
 ) {
-  const response = await input.fetchFn(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": input.apiKey },
-      body: JSON.stringify({
-        contents: [{
-          role: "user",
-          parts: [
-            { text: prompt },
-            { text: "IMAGE A — source product that must be preserved exactly:" },
-            { inline_data: { mime_type: "image/jpeg", data: input.product } },
-            { text: "IMAGE B — scene reference; any product, print, label, text or watermark in it must NOT be copied:" },
-            { inline_data: { mime_type: "image/jpeg", data: input.background } },
-            { text: "IMAGE C — generated candidate to inspect:" },
-            { inline_data: { mime_type: "image/jpeg", data: input.candidate } },
-          ],
-        }],
-        generationConfig: { temperature: 0, responseMimeType: "application/json" },
-      }),
-      signal: AbortSignal.timeout(60_000),
-    },
-  );
-  const raw = await response.text();
-  let data: GeminiQualityResponse = {};
-  try {
-    data = JSON.parse(raw) as GeminiQualityResponse;
-  } catch {
-    // The response error below is more useful than a JSON parser exception.
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const response = await input.fetchFn(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": input.apiKey },
+        body: JSON.stringify({
+          contents: [{
+            role: "user",
+            parts: [
+              { text: prompt },
+              { text: "IMAGE A — source product that must be preserved exactly:" },
+              { inline_data: { mime_type: "image/jpeg", data: input.product } },
+              { text: "IMAGE B — scene reference; any product, print, label, text or watermark in it must NOT be copied:" },
+              { inline_data: { mime_type: "image/jpeg", data: input.background } },
+              { text: "IMAGE C — generated candidate to inspect:" },
+              { inline_data: { mime_type: "image/jpeg", data: input.candidate } },
+            ],
+          }],
+          generationConfig: { temperature: 0, responseMimeType: "application/json" },
+        }),
+        signal: AbortSignal.timeout(60_000),
+      },
+    );
+    const raw = await response.text();
+    let data: GeminiQualityResponse = {};
+    try {
+      data = JSON.parse(raw) as GeminiQualityResponse;
+    } catch {
+      // The response error below is more useful than a JSON parser exception.
+    }
+    if (!response.ok) {
+      if (attempt < 3 && (response.status === 429 || response.status >= 500)) {
+        await new Promise((resolve) => setTimeout(resolve, qualityRetryDelayMs(response, raw, attempt)));
+        continue;
+      }
+      throw new Error(`Gemini QA: HTTP ${response.status}. ${data.error?.message || "Проверка качества недоступна."}`);
+    }
+    const text = data.candidates?.flatMap((candidateItem) => candidateItem.content?.parts || [])
+      .map((part) => part.text || "")
+      .find(Boolean);
+    if (!text) throw new Error("Gemini QA не вернул оценку изображения.");
+    return parseQualityVerdict(text);
   }
-  if (!response.ok) throw new Error(`Gemini QA: HTTP ${response.status}. ${data.error?.message || "Проверка качества недоступна."}`);
-  const text = data.candidates?.flatMap((candidateItem) => candidateItem.content?.parts || [])
-    .map((part) => part.text || "")
-    .find(Boolean);
-  if (!text) throw new Error("Gemini QA не вернул оценку изображения.");
-  return parseQualityVerdict(text);
+  throw new Error("Gemini QA не завершил проверку после повторов.");
+}
+
+function qualityRetryDelayMs(response: Response, body: string, attempt: number) {
+  const retryAfter = Number.parseFloat(response.headers.get("retry-after") || "");
+  const bodySeconds = Number.parseFloat(body.match(/retry in ([0-9.]+)s/i)?.[1] || "");
+  const seconds = Number.isFinite(retryAfter) && retryAfter > 0
+    ? retryAfter
+    : Number.isFinite(bodySeconds) && bodySeconds > 0 ? bodySeconds : attempt * 5;
+  return Math.min(35_000, Math.max(1_000, Math.ceil(seconds * 1_000) + 500));
 }
 
 export function browserPageFetch(page: Page): typeof fetch {
