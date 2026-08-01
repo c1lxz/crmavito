@@ -11,7 +11,7 @@ import {
   startOfMonth,
   subDays,
 } from "@/lib/utils";
-import { ChevronRight, Package, Plus, RotateCcw, Search, Wallet } from "lucide-react";
+import { ChevronRight, Package, PackageSearch, Plus, RotateCcw, Search, Settings, Wallet } from "lucide-react";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import Link from "next/link";
 import Image from "next/image";
@@ -175,8 +175,27 @@ export default async function DashboardPage() {
   return (
     <div className="app-shell">
       <div className="dashboard-content app-content space-y-5">
-        <div className="mobile-only flex justify-end">
-          <ThemeToggle />
+        <div className="mobile-only flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
+              <PackageSearch className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-tight text-foreground">CRM Avito</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">Главная · рабочая сводка</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <ThemeToggle />
+            <Link
+              href="/m/settings"
+              aria-label="Открыть настройки"
+              title="Настройки"
+              className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-md border border-border bg-card text-foreground shadow-sm transition-[background-color,border-color,color] duration-200 hover:border-primary/35 hover:bg-accent hover:text-accent-foreground active:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <Settings className="h-5 w-5" aria-hidden="true" />
+            </Link>
+          </div>
         </div>
         <div className="pc-dashboard-kpi grid grid-cols-2 gap-3">
           {kpiCards.map((card, i) => (

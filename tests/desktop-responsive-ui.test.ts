@@ -100,8 +100,9 @@ describe("desktop responsive UI", () => {
     expect(desktopSidebarSource).toContain("usePathname");
     expect(bottomNavSource).toContain("/m/orders");
     expect(bottomNavSource).toContain("/m/dashboard");
-    expect(bottomNavSource).toContain("/m/settings");
-    expect(bottomNavSource).toContain('match: "/settings"');
+    expect(bottomNavSource).not.toContain("/m/settings");
+    expect(dashboardSource).toContain('href="/m/settings"');
+    expect(dashboardSource).toContain('aria-label="Открыть настройки"');
   });
 
   it("keeps the dashboard header compact", () => {
