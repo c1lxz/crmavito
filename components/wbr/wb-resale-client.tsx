@@ -36,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { filterPrivateWbProfiles } from "@/lib/wbr/private-publication-profiles";
 
 const AGENT_URL = "http://127.0.0.1:3017";
 const AGENT_VERSION = "2026.08.01.5";
@@ -97,7 +98,13 @@ const statusLabels: Record<string, string> = {
   error: "Ошибка",
 };
 
-export function WbResaleClient({ canManagePublication }: { canManagePublication: boolean }) {
+export function WbResaleClient({
+  canViewPrivateProfiles,
+  privateProfileNames,
+}: {
+  canViewPrivateProfiles: boolean;
+  privateProfileNames: string[];
+}) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const xmlInputRef = useRef<HTMLInputElement>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("offline");
@@ -234,15 +241,19 @@ export function WbResaleClient({ canManagePublication }: { canManagePublication:
   }
 
   async function openProfilePicker() {
-    if (!canManagePublication) throw new Error("Профили публикации WB недоступны.");
     if (agentStatus !== "online") throw new Error("Локальный WB-агент не подключён.");
     if (rpaRunning) throw new Error("Публикация уже выполняется.");
     setProfilePickerOpen(true);
     setProfilesLoading(true);
     try {
       const result = await agentFetch<BrowserProfilesResponse>("/api/rpa/profiles");
-      setBrowserProfiles(result.profiles);
-      setSelectedProfileId(result.selectedProfileId || result.profiles[0]?.id || "default");
+      const visibleProfiles = filterPrivateWbProfiles(result.profiles, canViewPrivateProfiles, privateProfileNames);
+      setBrowserProfiles(visibleProfiles);
+      setSelectedProfileId(
+        visibleProfiles.some((profile) => profile.id === result.selectedProfileId)
+          ? result.selectedProfileId
+          : visibleProfiles[0]?.id ?? "",
+      );
     } catch (error) {
       setProfilePickerOpen(false);
       throw error;
@@ -255,11 +266,19 @@ export function WbResaleClient({ canManagePublication }: { canManagePublication:
     if (!newProfileName.trim()) return;
     setCreatingProfile(true);
     try {
+      if (canViewPrivateProfiles) {
+        const visibilityResponse = await fetch("/api/wb-publication-profiles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: newProfileName.trim() }),
+        });
+        if (!visibilityResponse.ok) throw new Error("Не удалось сохранить приватность профиля WB.");
+      }
       const result = await agentFetch<BrowserProfilesResponse & { profile: BrowserProfile }>("/api/rpa/profiles", {
         method: "POST",
         body: JSON.stringify({ name: newProfileName.trim() }),
       });
-      setBrowserProfiles(result.profiles);
+      setBrowserProfiles(filterPrivateWbProfiles(result.profiles, canViewPrivateProfiles, privateProfileNames));
       setSelectedProfileId(result.profile.id);
       setNewProfileName("");
     } finally {
@@ -410,24 +429,20 @@ export function WbResaleClient({ canManagePublication }: { canManagePublication:
           </div>
         </div>
         <div className="wb-resale-actions mt-2 flex flex-wrap gap-2">
-          {canManagePublication ? (
-            <>
-              <input
-                ref={xmlInputRef}
-                type="file"
-                accept=".xml,text/xml,application/xml"
-                hidden
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) importXml(file).catch((error) => addError(error instanceof Error ? error.message : String(error)));
-                }}
-              />
-              <Button variant="outline" size="sm" disabled={importingXml} onClick={() => xmlInputRef.current?.click()}>
-                {importingXml ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
-                Импорт XML
-              </Button>
-            </>
-          ) : null}
+          <input
+            ref={xmlInputRef}
+            type="file"
+            accept=".xml,text/xml,application/xml"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) importXml(file).catch((error) => addError(error instanceof Error ? error.message : String(error)));
+            }}
+          />
+          <Button variant="outline" size="sm" disabled={importingXml} onClick={() => xmlInputRef.current?.click()}>
+            {importingXml ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+            Импорт XML
+          </Button>
           <details className="group relative">
             <summary className="flex h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" aria-label="Другие действия WB Resale">
               <MoreHorizontal className="h-4 w-4" />
@@ -502,9 +517,8 @@ export function WbResaleClient({ canManagePublication }: { canManagePublication:
           </Card>
         ) : null}
 
-        <div className={canManagePublication ? "grid gap-4 xl:grid-cols-[minmax(420px,0.85fr)_minmax(520px,1.15fr)]" : "grid gap-4"}>
-          {canManagePublication ? (
-            <Card>
+        <div className="grid gap-4 xl:grid-cols-[minmax(420px,0.85fr)_minmax(520px,1.15fr)]">
+          <Card>
               <CardHeader>
                 <CardTitle>Новая партия</CardTitle>
                 <p className="text-sm text-muted-foreground">
@@ -628,8 +642,7 @@ export function WbResaleClient({ canManagePublication }: { canManagePublication:
                 Сохранить и опубликовать
               </Button>
               </CardContent>
-            </Card>
-          ) : null}
+          </Card>
 
           <div className="space-y-4">
             <Card>
@@ -638,17 +651,15 @@ export function WbResaleClient({ canManagePublication }: { canManagePublication:
                   <CardTitle>Очередь локального агента</CardTitle>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">{queueCount} к публикации</Badge>
-                    {canManagePublication ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={!queueCount || rpaRunning || agentStatus !== "online" || profilesLoading}
-                        onClick={() => openProfilePicker().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
-                      >
-                        {profilesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                        Запустить публикацию
-                      </Button>
-                    ) : null}
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!queueCount || rpaRunning || agentStatus !== "online" || profilesLoading}
+                      onClick={() => openProfilePicker().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
+                    >
+                      {profilesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                      Запустить публикацию
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -713,14 +724,13 @@ export function WbResaleClient({ canManagePublication }: { canManagePublication:
         </div>
       </div>
 
-      {canManagePublication ? (
-        <Dialog
-          open={profilePickerOpen}
-          onOpenChange={(open) => {
-            if (!startingPublication) setProfilePickerOpen(open);
-          }}
-        >
-          <DialogContent className="max-w-xl">
+      <Dialog
+        open={profilePickerOpen}
+        onOpenChange={(open) => {
+          if (!startingPublication) setProfilePickerOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Выберите аккаунт {browserLabel(browser)}</DialogTitle>
             <DialogDescription>
@@ -836,9 +846,8 @@ export function WbResaleClient({ canManagePublication }: { canManagePublication:
               {startingPublication ? "Запускаю публикацию…" : "Создать XML и опубликовать"}
             </Button>
           </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 

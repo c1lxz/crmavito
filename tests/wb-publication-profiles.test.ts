@@ -30,11 +30,12 @@ describe("WB publication account flow", () => {
     expect(packageScript).toContain(".browser-profile*");
   });
 
-  it("only renders WB publication profiles for the configured owner", () => {
+  it("keeps publication available to everyone and filters only private owner profiles", () => {
     expect(page).toContain("isWbPublicationOwner(session.user)");
-    expect(page).toContain("canManagePublication={canManagePublication}");
-    expect(client).toContain("{canManagePublication ? (");
+    expect(page).toContain("canViewPrivateProfiles={canViewPrivateProfiles}");
+    expect(client).toContain("filterPrivateWbProfiles(result.profiles");
+    expect(client).toContain('fetch("/api/wb-publication-profiles"');
     expect(client).toContain("<Dialog");
-    expect(client).toContain("if (!canManagePublication)");
+    expect(client).not.toContain("if (!canManagePublication)");
   });
 });

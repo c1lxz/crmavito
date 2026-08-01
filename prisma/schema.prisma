@@ -87,8 +87,22 @@ model User {
   notesCreated   Note[] @relation("NoteCreatedBy")
   noteAccess     NoteViewer[]
   noteMentions   NoteMention[]
+  privateWbPublicationProfiles WbPrivatePublicationProfile[]
 
   @@map("users")
+}
+
+model WbPrivatePublicationProfile {
+  id             String   @id @default(uuid())
+  normalizedName String   @unique
+  displayName    String
+  ownerUserId    String
+  createdAt      DateTime @default(now())
+
+  owner User @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId])
+  @@map("wb_private_publication_profiles")
 }
 
 model Task {
