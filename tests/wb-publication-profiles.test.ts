@@ -18,7 +18,9 @@ describe("WB publication account flow", () => {
     expect(client).toContain("профили установленного Chrome");
     expect(client).toContain('profile.source === "system"');
     expect(client).toContain("/api/rpa/profiles/open");
+    expect(client).toContain("/api/rpa/profiles/open-automation");
     expect(client).toContain("Открыть WB");
+    expect(client).toContain("Войти для публикации");
   });
 
   it("exposes WB XML export and keeps browser sessions out of the installer", () => {

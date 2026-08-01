@@ -10,6 +10,7 @@ import {
   Globe2,
   ImagePlus,
   Loader2,
+  LogIn,
   MoreHorizontal,
   Octagon,
   Play,
@@ -37,7 +38,7 @@ import {
 } from "@/components/ui/dialog";
 
 const AGENT_URL = "http://127.0.0.1:3017";
-const AGENT_VERSION = "2026.08.01.4";
+const AGENT_VERSION = "2026.08.01.5";
 const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
@@ -118,6 +119,7 @@ export function WbResaleClient() {
   const [newProfileName, setNewProfileName] = useState("");
   const [creatingProfile, setCreatingProfile] = useState(false);
   const [openingProfile, setOpeningProfile] = useState(false);
+  const [openingAutomationProfile, setOpeningAutomationProfile] = useState(false);
   const [startingPublication, setStartingPublication] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [deletingSku, setDeletingSku] = useState("");
@@ -297,6 +299,23 @@ export function WbResaleClient() {
       }]);
     } finally {
       setOpeningProfile(false);
+    }
+  }
+
+  async function openAutomationProfile() {
+    if (!selectedProfileId) throw new Error("Выберите аккаунт Wildberries.");
+    setOpeningAutomationProfile(true);
+    try {
+      const result = await agentFetch<{ profile: BrowserProfile }>("/api/rpa/profiles/open-automation", {
+        method: "POST",
+        body: JSON.stringify({ profileId: selectedProfileId }),
+      });
+      setEvents((items) => [...items, {
+        time: new Date().toISOString(),
+        message: `Постоянный профиль автопубликации «${result.profile.name}» открыт. Войдите в WB один раз и закройте окно.`,
+      }]);
+    } finally {
+      setOpeningAutomationProfile(false);
     }
   }
 
@@ -773,15 +792,15 @@ export function WbResaleClient() {
             </div>
           )}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" className="min-h-11" disabled={startingPublication || openingProfile} onClick={() => setProfilePickerOpen(false)}>
+          <DialogFooter className="flex-wrap">
+            <Button type="button" variant="outline" className="min-h-11" disabled={startingPublication || openingProfile || openingAutomationProfile} onClick={() => setProfilePickerOpen(false)}>
               Отмена
             </Button>
             <Button
               type="button"
               variant="outline"
               className="min-h-11"
-              disabled={profilesLoading || !selectedProfileId || startingPublication || openingProfile}
+              disabled={profilesLoading || !selectedProfileId || startingPublication || openingProfile || openingAutomationProfile}
               onClick={() => openBrowserProfile().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
             >
               {openingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
@@ -789,8 +808,18 @@ export function WbResaleClient() {
             </Button>
             <Button
               type="button"
+              variant="outline"
               className="min-h-11"
-              disabled={profilesLoading || !selectedProfileId || startingPublication || openingProfile}
+              disabled={profilesLoading || !selectedProfileId || startingPublication || openingProfile || openingAutomationProfile}
+              onClick={() => openAutomationProfile().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
+            >
+              {openingAutomationProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+              {openingAutomationProfile ? "Открываю…" : "Войти для публикации"}
+            </Button>
+            <Button
+              type="button"
+              className="min-h-11"
+              disabled={profilesLoading || !selectedProfileId || startingPublication || openingProfile || openingAutomationProfile}
               onClick={() => startPublication().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
             >
               {startingPublication ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
