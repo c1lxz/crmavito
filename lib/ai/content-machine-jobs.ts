@@ -24,7 +24,7 @@ type JobManifest = {
   completedAt?: string;
   error?: string;
   metrics?: FlowJobMetrics;
-  qualityProfile?: "photorealistic-v2" | "photorealistic-v3";
+  qualityProfile?: "photorealistic-v2" | "photorealistic-v3" | "photorealistic-v4";
   generationPrompt?: string;
   mode?: "product-photo" | "original-design";
   inspirationQuery?: string;
@@ -138,7 +138,7 @@ export async function createCodexJob(
     imageSize,
     provider: "google-flow",
     agentStatus: "queued",
-    qualityProfile: "photorealistic-v3",
+    qualityProfile: "photorealistic-v4",
     generationPrompt: buildFlowProductPhotoPrompt(),
     mode,
     ...(inspirationQuery ? { inspirationQuery } : {}),

@@ -113,7 +113,7 @@ describe("content machine", () => {
       const created = await createCodexJob([product], "2K");
       expect(created.status).toBe("waiting");
       expect(created.expectedResults).toBe(3);
-      expect(created.qualityProfile).toBe("photorealistic-v3");
+      expect(created.qualityProfile).toBe("photorealistic-v4");
       expect(created.generationPrompt).toContain("tight contact shadows");
       expect(created.generationPrompt?.length).toBeLessThanOrEqual(900);
 

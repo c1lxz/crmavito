@@ -46,12 +46,13 @@ export function buildProductPhotoPrompt(additionalInstructions?: string): string
 
 export function buildFlowProductPhotoPrompt(): string {
   return [
-    "Create ONE natural photorealistic marketplace camera photo, never CGI/render/collage/cutout.",
-    "IMAGE 1 = immutable product; IMAGE 2 = exact scene/surface/composition/light.",
-    "Preserve exactly: silhouette, cut, seams, stitching, collar, sleeves, fabric, wear, color, every print line/letter/font/spacing/texture/placement. Same visible side; never mirror, redesign, add, remove or hide details.",
-    "Only change placement, crop, camera angle and folds. Match IMAGE 2 perspective, scale, exposure, white balance, focus, depth of field and daylight.",
-    "Show real weave, thickness, gravity, irregular wrinkles and surface compression; tight contact shadows, soft occlusion under collar/sleeves/hems/folds, faint cast shadow from one light.",
-    "Use IMAGE 2 as the full background. No props, people, hands, hangers, overlays, halos, floating edges, plastic smoothing, studio light or watermarks. Return only final photo.",
+    "Create one natural photorealistic marketplace camera photo; no CGI or collage.",
+    "IMAGE 1 = ONLY immutable product. IMAGE 2 may contain another garment: ignore that garment and all its print, label, text, logo and watermark; copy scene, surface and light only.",
+    "Preserve IMAGE 1 exactly: cut, seams, stitching, collar, sleeves, fabric, wear, color and every print line/letter/font/spacing/texture/placement. Same visible side; never mirror, redesign, add, remove or hide details.",
+    "Result must be IMAGE 1's garment, never IMAGE 2's garment or a mixture. Change only placement, crop, camera angle and folds.",
+    "Match IMAGE 2 perspective, exposure, focus, daylight.",
+    "Keep real weave, thickness, gravity and wrinkles; tight contact shadows and soft occlusion under collar, sleeves, hems and folds.",
+    "No overlays, halos, floating edges, plastic smoothing, studio light, text or watermarks. Return only final photo.",
   ].join(" ");
 }
 

@@ -8,6 +8,7 @@ import { generateFlowImage } from "../lib/flow-agent/browser";
 import { publicFlowAgentError, sanitizeFlowAgentError } from "../lib/flow-agent/errors";
 import { normalizeFlowResult, type FlowImageSize } from "../lib/flow-agent/image-output";
 import { buildOriginalDesignPrompt, collectMarketResearch, type MarketResearch } from "../lib/flow-agent/market-research";
+import { browserPageFetch, evaluateFlowProductPhoto } from "../lib/flow-agent/quality";
 
 loadEnvConfig(process.cwd());
 
@@ -36,6 +37,7 @@ const agentId = process.env.FLOW_AGENT_ID || hostname();
 const concurrency = clamp(Number(process.env.FLOW_AGENT_CONCURRENCY || 3), 1, 6);
 const pollMs = clamp(Number(process.env.FLOW_AGENT_POLL_MS || 750), 250, 30_000);
 const generationTimeoutMs = clamp(Number(process.env.FLOW_GENERATION_TIMEOUT_MS || 240_000), 30_000, 600_000);
+const qualityMaxAttempts = clamp(Number(process.env.FLOW_QUALITY_MAX_ATTEMPTS || 3), 1, 5);
 const stateDirectory = path.resolve(process.env.FLOW_AGENT_STATE_DIR || ".flow-local-agent");
 const profileDirectory = path.resolve(process.env.FLOW_AGENT_PROFILE_DIR || path.join(stateDirectory, "chrome-profile"));
 const workDirectory = path.join(stateDirectory, "work");
@@ -358,22 +360,42 @@ async function processJob(context: BrowserContext, job: AgentJob) {
       while (cursor < work.length) {
         const item = work[cursor++];
         const outputPath = path.join(jobDirectory, `product-${String(item.product.index).padStart(2, "0")}-background-${item.background.slot}.png`);
-        const timing = await generateFlowImage({
-          page,
-          flowUrl,
-          references: job.mode === "original-design"
-            ? [
-              ...job.products.map((product) => products.get(product.index)!),
-              backgrounds.get(item.background.slot)!,
-            ]
-            : [products.get(item.product.index)!, backgrounds.get(item.background.slot)!],
-          prompt,
-          outputPath,
-          timeoutMs: generationTimeoutMs,
-          maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
-        });
-        await uploadResult(job.id, item.product.index, item.background.slot, outputPath, timing, job.imageSize);
-        console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: ${(timing.durationMs / 1000).toFixed(1)} сек`);
+        const productPath = products.get(item.product.index)!;
+        const backgroundPath = backgrounds.get(item.background.slot)!;
+        const references = job.mode === "original-design"
+          ? [...job.products.map((product) => products.get(product.index)!), backgroundPath]
+          : [productPath, backgroundPath];
+        const requiresProductQa = job.mode !== "original-design";
+        let feedback = "";
+        for (let attempt = 1; attempt <= (requiresProductQa ? qualityMaxAttempts : 1); attempt += 1) {
+          const timing = await generateFlowImage({
+            page,
+            flowUrl,
+            references,
+            prompt: feedback
+              ? `CRITICAL RETRY: ${feedback} Use IMAGE 1 as the only product; ignore every garment, print, label, text and watermark in IMAGE 2. ${prompt}`
+              : prompt,
+            outputPath,
+            timeoutMs: generationTimeoutMs,
+            maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
+          });
+          const verdict = requiresProductQa
+            ? await evaluateFlowProductPhoto(
+              { productPath, backgroundPath, candidatePath: outputPath },
+              { fetchFn: browserPageFetch(page) },
+            )
+            : { pass: true, score: 100, issues: [], skipped: true };
+          if (verdict.pass) {
+            await uploadResult(job.id, item.product.index, item.background.slot, outputPath, timing, job.imageSize);
+            console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: ${(timing.durationMs / 1000).toFixed(1)} сек; QA ${verdict.skipped ? "skipped" : verdict.score}`);
+            break;
+          }
+          feedback = verdict.issues.join("; ").slice(0, 320) || `product fidelity score was ${verdict.score}/100`;
+          console.warn(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: QA ${verdict.score}, retry ${attempt}/${qualityMaxAttempts}: ${feedback}`);
+          if (attempt === qualityMaxAttempts) {
+            throw new Error(`Flow QA rejected ${item.product.index}/${item.background.slot} after ${qualityMaxAttempts} attempts: ${feedback}`);
+          }
+        }
       }
     } finally {
       await page.close();

@@ -65,7 +65,7 @@ export async function generateFlowImage(input: {
     '[contenteditable="true"][role="textbox"]',
   ]);
   if (!promptInput) throw new Error("Flow: не найдено поле промпта.");
-  await promptInput.fill(compactFlowPrompt(input.prompt));
+  await enterFlowPrompt(input.page, promptInput, compactFlowPrompt(input.prompt));
 
   const generateButton = await waitForFirstEnabled(input.page, [
     '[data-testid="generate"]',
@@ -260,27 +260,40 @@ async function acceptRightsNotice(page: Page) {
 }
 
 async function attachUploadedReferences(page: Page, references: string[]) {
-  const addMedia = await waitForFirstVisible(page, [
-    '[data-testid="add-media"]',
-    'button:has-text("add_2")',
-  ], 30_000);
-  if (!addMedia) throw new Error("Flow: не найдена кнопка прикрепления референсов.");
-  await addMedia.click();
-
   for (const reference of references) {
+    const addMedia = await waitForFirstVisible(page, [
+      '[data-testid="add-media"]',
+      'button:has-text("add_2")',
+    ], 30_000);
+    if (!addMedia) throw new Error("Flow: не найдена кнопка прикрепления референсов.");
+    await addMedia.click();
+
     const fileName = path.basename(reference);
     const image = page.locator(`[role="dialog"] img[alt=${JSON.stringify(fileName)}]`).last();
     await image.waitFor({ state: "visible", timeout: 60_000 });
     await image.click();
-  }
 
-  const attach = await waitForFirstEnabled(page, [
-    'button:has-text("Add to prompt")',
-    'button:has-text("Add to request")',
-    'button:has-text("Добавить в запрос")',
-  ], 20_000);
-  if (!attach) throw new Error("Flow: загруженные референсы не удалось добавить в запрос.");
-  await attach.click();
+    const attach = await waitForFirstEnabled(page, [
+      'button:has-text("Add to prompt")',
+      'button:has-text("Add to request")',
+      'button:has-text("Добавить в запрос")',
+    ], 20_000);
+    if (!attach) throw new Error("Flow: загруженный референс не удалось добавить в запрос.");
+    await attach.click();
+    await page.locator('[role="dialog"]').waitFor({ state: "hidden", timeout: 20_000 });
+  }
+}
+
+async function enterFlowPrompt(page: Page, promptInput: Locator, prompt: string) {
+  await promptInput.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.insertText(prompt);
+
+  const inserted = await promptInput.evaluate((node) => {
+    if (node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement) return node.value;
+    return node.textContent || "";
+  });
+  if (!inserted.includes(prompt.slice(0, Math.min(prompt.length, 80)))) await promptInput.fill(prompt);
 }
 
 export function compactFlowPrompt(prompt: string) {

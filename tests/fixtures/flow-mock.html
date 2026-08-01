@@ -14,7 +14,10 @@
     <div id="result"></div>
     <script>
       const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAATElEQVR4nO3PQQ0AIBDAsAP/nuGNAvZoFSzZOjNnyNi1dwfgUQCeBOBJAB4F4EkAngTgSQAeBeBJAB4F4EkAngTgSQAeBeBJAB4F4EkAHgUNAn6QyKsGAAAAAElFTkSuQmCC";
+      const generatedPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
       const dialog = document.querySelector("[role=dialog]");
+      let attachCount = 0;
+      let selected = "";
       document.querySelector("#rights").addEventListener("click", (event) => event.currentTarget.remove());
       document.querySelector("[data-testid=upload-references]").addEventListener("change", (event) => {
         document.querySelector("#uploaded").innerHTML = [...event.target.files]
@@ -25,13 +28,21 @@
       document.querySelector("[data-testid=add-media]").addEventListener("click", () => {
         dialog.hidden = false;
       });
+      document.querySelector("#uploaded").addEventListener("click", (event) => {
+        if (!(event.target instanceof HTMLImageElement)) return;
+        selected = event.target.alt;
+        document.querySelector("#attach").disabled = false;
+      });
       document.querySelector("#attach").addEventListener("click", () => {
+        if (selected) attachCount += 1;
+        selected = "";
         dialog.hidden = true;
-        document.querySelector("#uploaded").innerHTML = "";
+        document.querySelector("#attach").disabled = true;
       });
       document.querySelector("[data-testid=generate]").addEventListener("click", () => {
+        if (attachCount !== 2 || !document.querySelector("[data-testid=prompt]").value.trim()) return;
         setTimeout(() => {
-          document.querySelector("#result").innerHTML = `<img data-testid="result-image" alt="Generated image" src="${png}">`;
+          document.querySelector("#result").innerHTML = `<img data-testid="result-image" alt="Generated image" src="${generatedPng}">`;
         }, 180);
       });
     </script>
