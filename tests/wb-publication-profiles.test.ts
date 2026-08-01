@@ -7,12 +7,16 @@ const client = readFileSync(path.join(root, "components/wbr/wb-resale-client.tsx
 const packageScript = readFileSync(path.join(root, "scripts/build-wb-resale-agent-package.ps1"), "utf8");
 
 describe("WB publication account flow", () => {
-  it("chooses an isolated browser profile before every publication start", () => {
+  it("chooses a browser profile before every publication start", () => {
     expect(client).toContain("/api/rpa/profiles");
     expect(client).toContain("profileId: selectedProfileId");
     expect(client).toContain("Выберите аккаунт {browserLabel(browser)}");
     expect(client).toContain("Создать XML и опубликовать");
     expect(client).toContain("publish: false");
+    expect(client).toContain("Постоянная сессия Wildberries");
+    expect(client).toContain("Профиль и вход сохранятся под выбранным названием");
+    expect(client).toContain("/api/rpa/profiles/open");
+    expect(client).toContain("Войти в WB");
   });
 
   it("exposes WB XML export and keeps browser sessions out of the installer", () => {

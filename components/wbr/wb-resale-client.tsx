@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 
 const AGENT_URL = "http://127.0.0.1:3017";
-const AGENT_VERSION = "2026.07.31.1";
+const AGENT_VERSION = "2026.08.01.1";
 const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
@@ -114,6 +114,7 @@ export function WbResaleClient() {
   const [selectedProfileId, setSelectedProfileId] = useState("default");
   const [newProfileName, setNewProfileName] = useState("");
   const [creatingProfile, setCreatingProfile] = useState(false);
+  const [openingProfile, setOpeningProfile] = useState(false);
   const [startingPublication, setStartingPublication] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [deletingSku, setDeletingSku] = useState("");
@@ -276,6 +277,23 @@ export function WbResaleClient() {
       await checkAgent();
     } finally {
       setStartingPublication(false);
+    }
+  }
+
+  async function openBrowserProfile() {
+    if (!selectedProfileId) throw new Error("Выберите аккаунт Wildberries.");
+    setOpeningProfile(true);
+    try {
+      const result = await agentFetch<{ profile: BrowserProfile }>("/api/rpa/profiles/open", {
+        method: "POST",
+        body: JSON.stringify({ profileId: selectedProfileId }),
+      });
+      setEvents((items) => [...items, {
+        time: new Date().toISOString(),
+        message: `Профиль «${result.profile.name}» открыт. Войдите в WB и закройте окно перед публикацией.`,
+      }]);
+    } finally {
+      setOpeningProfile(false);
     }
   }
 
@@ -674,7 +692,7 @@ export function WbResaleClient() {
           <DialogHeader>
             <DialogTitle>Выберите аккаунт {browserLabel(browser)}</DialogTitle>
             <DialogDescription>
-              Агент создаст XML публикации и откроет отдельное окно выбранного профиля. Входы Wildberries в профилях хранятся раздельно.
+              Агент создаст XML публикации и откроет постоянный профиль с выбранным именем. Вход Wildberries сохранится для следующих запусков.
             </DialogDescription>
           </DialogHeader>
 
@@ -702,7 +720,7 @@ export function WbResaleClient() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold">{profile.name}</span>
-                        <span className="block text-xs text-muted-foreground">Отдельная сессия Wildberries</span>
+                        <span className="block text-xs text-muted-foreground">Постоянная сессия Wildberries</span>
                       </span>
                       <span className={`h-4 w-4 rounded-full border-2 ${selected ? "border-[5px] border-primary" : "border-muted-foreground/40"}`} />
                     </button>
@@ -737,18 +755,29 @@ export function WbResaleClient() {
                     Добавить
                   </Button>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">При первом запуске нового профиля войдите в нужный аккаунт Wildberries в открывшемся Chrome.</p>
+                <p className="mt-2 text-xs text-muted-foreground">При первом запуске нажмите «Войти в WB», авторизуйтесь и закройте открытое окно. Профиль и вход сохранятся под выбранным названием.</p>
               </div>
             </div>
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" disabled={startingPublication} onClick={() => setProfilePickerOpen(false)}>
+            <Button type="button" variant="outline" className="min-h-11" disabled={startingPublication || openingProfile} onClick={() => setProfilePickerOpen(false)}>
               Отмена
             </Button>
             <Button
               type="button"
-              disabled={profilesLoading || !selectedProfileId || startingPublication}
+              variant="outline"
+              className="min-h-11"
+              disabled={profilesLoading || !selectedProfileId || startingPublication || openingProfile}
+              onClick={() => openBrowserProfile().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
+            >
+              {openingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+              {openingProfile ? "Открываю…" : "Войти в WB"}
+            </Button>
+            <Button
+              type="button"
+              className="min-h-11"
+              disabled={profilesLoading || !selectedProfileId || startingPublication || openingProfile}
               onClick={() => startPublication().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
             >
               {startingPublication ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
