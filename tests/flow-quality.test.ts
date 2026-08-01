@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { parseQualityVerdict } from "@/lib/flow-agent/quality";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import { evaluateFlowProductPhoto, parseQualityVerdict } from "@/lib/flow-agent/quality";
 
 describe("Flow product photo quality gate", () => {
   it("accepts a high-confidence clean result", () => {
@@ -16,5 +19,32 @@ describe("Flow product photo quality gate", () => {
       score: 81,
       issues: ["print uncertain"],
     });
+  });
+
+  it("requires the independent print-count audit to pass", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "flow-qa-"));
+    const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+    const files = ["product.png", "background.png", "candidate.png"].map((name) => path.join(directory, name));
+    await Promise.all(files.map((file) => writeFile(file, image)));
+    const verdicts = [
+      { pass: true, score: 98, issues: [] },
+      { pass: false, score: 60, issues: ["A has 4 motifs; C has 5 motifs"] },
+    ];
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: JSON.stringify(verdicts.shift()) }] } }],
+    }), { status: 200 }));
+    try {
+      await expect(evaluateFlowProductPhoto(
+        { productPath: files[0], backgroundPath: files[1], candidatePath: files[2] },
+        { apiKey: "test-key", fetchFn: fetchFn as typeof fetch },
+      )).resolves.toMatchObject({
+        pass: false,
+        score: 60,
+        issues: ["A has 4 motifs; C has 5 motifs"],
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });

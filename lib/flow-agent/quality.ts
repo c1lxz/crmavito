@@ -27,22 +27,37 @@ export async function evaluateFlowProductPhoto(
     prepareVisionImage(input.backgroundPath),
     prepareVisionImage(input.candidatePath),
   ]);
-  const response = await (options.fetchFn || fetch)(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+  const request = { apiKey, model, fetchFn: options.fetchFn || fetch, product, background, candidate };
+  const primary = await requestQualityVerdict(request, qualityPrompt());
+  if (!primary.pass) return primary;
+  const identityAudit = await requestQualityVerdict(request, identityAuditPrompt());
+  return {
+    pass: identityAudit.pass,
+    score: Math.min(primary.score, identityAudit.score),
+    issues: [...new Set([...primary.issues, ...identityAudit.issues])].slice(0, 8),
+  };
+}
+
+async function requestQualityVerdict(
+  input: { apiKey: string; model: string; fetchFn: typeof fetch; product: string; background: string; candidate: string },
+  prompt: string,
+) {
+  const response = await input.fetchFn(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`,
     {
       method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+      headers: { "content-type": "application/json", "x-goog-api-key": input.apiKey },
       body: JSON.stringify({
         contents: [{
           role: "user",
           parts: [
-            { text: qualityPrompt() },
+            { text: prompt },
             { text: "IMAGE A — source product that must be preserved exactly:" },
-            { inline_data: { mime_type: "image/jpeg", data: product } },
+            { inline_data: { mime_type: "image/jpeg", data: input.product } },
             { text: "IMAGE B — scene reference; any product, print, label, text or watermark in it must NOT be copied:" },
-            { inline_data: { mime_type: "image/jpeg", data: background } },
+            { inline_data: { mime_type: "image/jpeg", data: input.background } },
             { text: "IMAGE C — generated candidate to inspect:" },
-            { inline_data: { mime_type: "image/jpeg", data: candidate } },
+            { inline_data: { mime_type: "image/jpeg", data: input.candidate } },
           ],
         }],
         generationConfig: { temperature: 0, responseMimeType: "application/json" },
@@ -109,6 +124,17 @@ function qualityPrompt() {
     "Also reject obvious CGI, pasted edges, floating cloth, broken geometry, illegible changed text, duplicated details, or any marketplace watermark.",
     "Natural changes in folds, camera angle, crop and lighting are allowed. Be conservative: uncertainty about product identity is a failure.",
     "Return only JSON: {\"pass\":boolean,\"score\":integer 0..100,\"issues\":[short strings]}. Passing requires score >= 85 and no product-identity or watermark issue.",
+  ].join(" ");
+}
+
+function identityAuditPrompt() {
+  return [
+    "Perform a second, independent product-identity audit of IMAGE A versus IMAGE C. IMAGE B is scene-only and must not contribute product details.",
+    "Before deciding, explicitly count every distinct printed motif or artwork element in A and C (for example each separate star), then compare each element's outline versus fill, texture, color, relative size and position.",
+    "Transcribe every visible word, letter and neck label in A and C and compare spelling, punctuation and placement.",
+    "Reject any missing, duplicated, added, merged, recolored or restyled motif even if the overall garment looks convincing. Reject hidden or changed labels and any watermark.",
+    "Camera angle, folds, crop and lighting may change, but they cannot hide an identity detail visible in A.",
+    "Return only JSON: {\"pass\":boolean,\"score\":integer 0..100,\"issues\":[short strings including element counts when relevant]}. Pass only if every counted motif and all visible text match exactly.",
   ].join(" ");
 }
 
