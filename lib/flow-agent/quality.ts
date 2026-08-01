@@ -42,7 +42,7 @@ async function requestQualityVerdict(
   input: { apiKey: string; model: string; fetchFn: typeof fetch; product: string; background: string; candidate: string },
   prompt: string,
 ) {
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
     const response = await input.fetchFn(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`,
       {
@@ -74,7 +74,7 @@ async function requestQualityVerdict(
       // The response error below is more useful than a JSON parser exception.
     }
     if (!response.ok) {
-      if (attempt < 3 && (response.status === 429 || response.status >= 500)) {
+      if (attempt < 4 && (response.status === 429 || response.status >= 500)) {
         await new Promise((resolve) => setTimeout(resolve, qualityRetryDelayMs(response, raw, attempt)));
         continue;
       }
@@ -89,13 +89,15 @@ async function requestQualityVerdict(
   throw new Error("Gemini QA не завершил проверку после повторов.");
 }
 
-function qualityRetryDelayMs(response: Response, body: string, attempt: number) {
+export function qualityRetryDelayMs(response: Response, body: string, attempt: number) {
   const retryAfter = Number.parseFloat(response.headers.get("retry-after") || "");
   const bodySeconds = Number.parseFloat(body.match(/retry in ([0-9.]+)s/i)?.[1] || "");
   const seconds = Number.isFinite(retryAfter) && retryAfter > 0
     ? retryAfter
     : Number.isFinite(bodySeconds) && bodySeconds > 0 ? bodySeconds : attempt * 5;
-  return Math.min(35_000, Math.max(1_000, Math.ceil(seconds * 1_000) + 500));
+  // Gemini's free-tier window commonly asks for almost a full minute. Retrying
+  // earlier can keep extending that window, so respect the advertised delay.
+  return Math.min(90_000, Math.max(1_000, Math.ceil(seconds * 1_000) + 1_500));
 }
 
 export function browserPageFetch(page: Page): typeof fetch {

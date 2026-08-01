@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { evaluateFlowProductPhoto, parseQualityVerdict } from "@/lib/flow-agent/quality";
+import { evaluateFlowProductPhoto, parseQualityVerdict, qualityRetryDelayMs } from "@/lib/flow-agent/quality";
 
 describe("Flow product photo quality gate", () => {
   it("accepts a high-confidence clean result", () => {
@@ -19,6 +19,13 @@ describe("Flow product photo quality gate", () => {
       score: 81,
       issues: ["print uncertain"],
     });
+  });
+
+  it("honors Gemini's full retry window instead of retrying too early", () => {
+    expect(qualityRetryDelayMs(new Response("", { status: 429, headers: { "retry-after": "58.25" } }), "", 1))
+      .toBe(59_750);
+    expect(qualityRetryDelayMs(new Response("", { status: 429 }), "Please retry in 49.2s.", 1))
+      .toBe(50_700);
   });
 
   it("requires the independent print-count audit to pass", async () => {
