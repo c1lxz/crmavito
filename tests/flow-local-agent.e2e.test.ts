@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
+import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { generateFlowImage } from "@/lib/flow-agent/browser";
 
@@ -37,6 +38,7 @@ describe("Flow local browser agent", () => {
             prompt: `Photo ${index}`,
             outputPath: path.join(directory, `result-${index}.png`),
             timeoutMs: 5_000,
+            downloadResolution: "2K",
           });
         } finally {
           await page.close();
@@ -46,6 +48,8 @@ describe("Flow local browser agent", () => {
       expect(await Promise.all([1, 2, 3].map((index) => readFile(path.join(directory, `result-${index}.png`))))).toSatisfy(
         (files: Buffer[]) => files.every((file) => file.length > 50),
       );
+      expect(await Promise.all([1, 2, 3].map((index) => sharp(path.join(directory, `result-${index}.png`)).metadata())))
+        .toSatisfy((files) => files.every((file) => file.width === 2048 && file.height === 2048));
       expect(timings.every((timing) => timing.generationMs >= 100 && timing.durationMs < 5_000)).toBe(true);
       expect(elapsed).toBeLessThan(7_000);
       expect(context.pages()).toHaveLength(0);

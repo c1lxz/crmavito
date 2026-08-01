@@ -18,4 +18,12 @@ describe("Flow result output size", () => {
     const output = await normalizeFlowResult(source, "2K");
     await expect(sharp(output).metadata()).resolves.toMatchObject({ width: 256, height: 128, format: "png" });
   });
+
+  it("preserves Flow's full portrait 2K dimensions", async () => {
+    const source = await sharp({
+      create: { width: 1536, height: 2752, channels: 3, background: "#222222" },
+    }).jpeg().toBuffer();
+    const output = await normalizeFlowResult(source, "2K");
+    await expect(sharp(output).metadata()).resolves.toMatchObject({ width: 1536, height: 2752, format: "png" });
+  });
 });

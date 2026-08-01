@@ -15,6 +15,7 @@
     <script>
       const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAATElEQVR4nO3PQQ0AIBDAsAP/nuGNAvZoFSzZOjNnyNi1dwfgUQCeBOBJAB4F4EkAngTgSQAeBeBJAB4F4EkAngTgSQAeBeBJAB4F4EkAHgUNAn6QyKsGAAAAAElFTkSuQmCC";
       const generatedPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+      const twoK = "data:image/svg+xml;charset=utf-8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048"><rect width="2048" height="2048" fill="#222"/></svg>');
       const dialog = document.querySelector("[role=dialog]");
       let attachCount = 0;
       let selected = "";
@@ -42,7 +43,16 @@
       document.querySelector("[data-testid=generate]").addEventListener("click", () => {
         if (attachCount !== 2 || !document.querySelector("[data-testid=prompt]").value.trim()) return;
         setTimeout(() => {
-          document.querySelector("#result").innerHTML = `<img data-testid="result-image" alt="Generated image" src="${generatedPng}">`;
+          document.querySelector("#result").innerHTML = `<img data-testid="result-image" alt="Generated image" src="${generatedPng}"><button data-testid="result-download">Download</button><div role="menu" hidden><button role="menuitem">2K Upscaled</button></div>`;
+          document.querySelector("[data-testid=result-download]").addEventListener("click", () => {
+            document.querySelector("[role=menu]").hidden = false;
+          });
+          document.querySelector("[role=menuitem]").addEventListener("click", () => {
+            const anchor = document.createElement("a");
+            anchor.href = twoK;
+            anchor.download = "result_2K.svg";
+            anchor.click();
+          });
         }, 180);
       });
     </script>

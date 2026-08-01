@@ -378,6 +378,7 @@ async function processJob(context: BrowserContext, job: AgentJob) {
             outputPath,
             timeoutMs: generationTimeoutMs,
             maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
+            downloadResolution: "2K",
           });
           const verdict = requiresProductQa
             ? await evaluateFlowProductPhoto(

@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Locator, Page } from "playwright";
+import sharp from "sharp";
 import { buildFlowProductPhotoPrompt } from "../ai/gemini-images";
 
 export type FlowRunTiming = {
@@ -18,6 +19,7 @@ export async function generateFlowImage(input: {
   outputPath: string;
   timeoutMs: number;
   maxOutputEdge?: 2048 | 4096;
+  downloadResolution?: "2K";
 }): Promise<FlowRunTiming> {
   const started = Date.now();
   const startedAt = new Date(started).toISOString();
@@ -84,11 +86,12 @@ export async function generateFlowImage(input: {
   const generatedAt = Date.now();
   await mkdir(path.dirname(input.outputPath), { recursive: true });
   const source = await result.getAttribute("src");
-  if (source?.startsWith("data:")) {
+  let downloaded = await downloadWithFlowButton(input.page, result, input.outputPath, input.downloadResolution);
+  if (!downloaded && source?.startsWith("data:")) {
     await writeFile(input.outputPath, Buffer.from(source.split(",", 2)[1], "base64"));
-  } else if (source) {
+    downloaded = true;
+  } else if (!downloaded && source) {
     const absoluteSource = source.startsWith("blob:") ? source : new URL(source, input.page.url()).toString();
-    let downloaded = false;
     try {
       await writeFile(input.outputPath, await downloadResultInsideBrowser(input.page, absoluteSource));
       downloaded = true;
@@ -102,13 +105,9 @@ export async function generateFlowImage(input: {
         }
       }
     }
-    if (!downloaded) {
-      downloaded = await downloadWithFlowButton(input.page, input.outputPath);
-    }
     if (!downloaded) await captureRenderedResult(result, input.outputPath, input.maxOutputEdge || 2048);
-  } else {
-    const downloaded = await downloadWithFlowButton(input.page, input.outputPath);
-    if (!downloaded) throw new Error("Flow: у результата нет доступного изображения или кнопки скачивания.");
+  } else if (!downloaded) {
+    throw new Error("Flow: у результата нет доступного изображения или кнопки скачивания.");
   }
   const finished = Date.now();
   return {
@@ -119,21 +118,50 @@ export async function generateFlowImage(input: {
   };
 }
 
-async function downloadWithFlowButton(page: Page, outputPath: string) {
+async function downloadWithFlowButton(page: Page, result: Locator, outputPath: string, resolution?: "2K") {
   try {
-    const downloadButton = await firstVisible(page, [
+    const selectors = [
       '[data-testid="result-download"]',
       'button[aria-label*="Download" i]',
+      'button[aria-label*="Скачать" i]',
       'button:has-text("Download")',
-    ]);
-    if (!downloadButton) return false;
-    const downloadPromise = page.waitForEvent("download", { timeout: 30_000 });
+      'button:has-text("Скачать")',
+    ];
+    let downloadButton = await firstVisible(page, selectors);
+    if (!downloadButton && resolution) {
+      await result.click();
+      downloadButton = await waitForFirstVisible(page, selectors, 15_000);
+    }
+    if (!downloadButton) {
+      if (resolution) throw new Error("Flow: не найдена кнопка скачивания результата в 2K.");
+      return false;
+    }
+    const downloadPromise = page.waitForEvent("download", { timeout: resolution ? 120_000 : 30_000 });
     await downloadButton.click();
+    if (resolution) {
+      const resolutionItem = await waitForFirstEnabled(page, [
+        '[role="menuitem"]:has-text("2K")',
+        'button[role="menuitem"]:has-text("2K")',
+        'button:has-text("2K"):has-text("Upscaled")',
+        'button:has-text("2K"):has-text("Увеличенное разрешение")',
+      ], 10_000);
+      if (resolutionItem) await resolutionItem.click();
+    }
     const download = await downloadPromise;
     await download.saveAs(outputPath);
+    if (resolution) await assertFlow2K(outputPath);
     return true;
-  } catch {
+  } catch (error) {
+    if (resolution) throw error;
     return false;
+  }
+}
+
+async function assertFlow2K(outputPath: string) {
+  const metadata = await sharp(outputPath).metadata();
+  const longestEdge = Math.max(metadata.width || 0, metadata.height || 0);
+  if (longestEdge < 2048) {
+    throw new Error(`Flow: вместо 2K скачано изображение ${metadata.width || 0}x${metadata.height || 0}.`);
   }
 }
 
