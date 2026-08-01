@@ -453,6 +453,15 @@
   }
 }
 
+/* Keep modal geometry stable while a mobile keyboard opens and closes.
+   Only the available height changes; the dialog's top edge stays anchored. */
+@media (max-width: 639px), (hover: none) and (pointer: coarse) {
+  .dialog-content {
+    top: calc(var(--app-top-pad, 48px) + 0.5rem);
+    --tw-translate-y: 0;
+  }
+}
+
 @media (min-width: 1536px) {
   .pc-shell .pc-products-grid,
   .pc-shell .pc-reports-kpi {

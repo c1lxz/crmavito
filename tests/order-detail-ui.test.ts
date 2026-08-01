@@ -89,13 +89,10 @@ describe("CreateOrderDialog — UI structure (smoke)", () => {
     expect(createOrderDialogSource).not.toContain("94svh");
   });
 
-  it("опускает окно нового заказа ниже системных кнопок Telegram", () => {
-    expect(createOrderDialogSource).toContain(
-      "var(--app-top-pad,48px)+2rem",
-    );
-    expect(createOrderDialogSource).toContain(
-      "var(--app-bottom-pad,0px)-3rem",
-    );
+  it("не пересчитывает центр формы заказа при открытии мобильной клавиатуры", () => {
+    expect(createOrderDialogSource).not.toContain("top-[calc((100dvh");
+    expect(createOrderDialogSource).toContain("flex min-h-0 flex-1 flex-col");
+    expect(createOrderDialogSource).toContain("overflow-y-auto overscroll-contain");
   });
 
   it("не содержит inline-форму создания контрагента (вынесено в Справочники)", () => {

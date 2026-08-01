@@ -386,8 +386,8 @@ export function CreateOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="top-[calc((100dvh+var(--app-top-pad,48px)+2rem-var(--app-bottom-pad,0px))/2)] max-h-[calc(100dvh-var(--app-top-pad,48px)-var(--app-bottom-pad,0px)-3rem)] max-w-lg overflow-hidden p-0">
-        <DialogHeader className="border-b border-border/70 px-4 py-4 pr-12 text-left">
+      <DialogContent className="flex max-w-lg flex-col overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b border-border/70 px-4 py-4 pr-14 text-left">
           <DialogTitle>
             {isEditing
               ? "Редактирование заказа"
@@ -398,9 +398,9 @@ export function CreateOrderDialog({
         </DialogHeader>
         <form
           onSubmit={handleSubmit}
-          className="flex max-h-[calc(100dvh-var(--app-top-pad,48px)-var(--app-bottom-pad,0px)-7rem)] flex-col"
+          className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="min-h-0 space-y-4 overflow-y-auto px-4 py-3">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain scroll-pb-24 px-4 py-3">
             {form.items.map((item, index) => {
               const selectedProduct = productsById.get(item.productId);
               const matches =
@@ -778,7 +778,7 @@ export function CreateOrderDialog({
               </p>
             </section>
           </div>
-          <div className="border-t bg-background p-4">
+          <div className="shrink-0 border-t bg-background p-4">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {isEditing ? "Сохранить изменения" : "Создать заказ"}
