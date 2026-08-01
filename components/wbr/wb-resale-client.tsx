@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 
 const AGENT_URL = "http://127.0.0.1:3017";
-const AGENT_VERSION = "2026.08.01.1";
+const AGENT_VERSION = "2026.08.01.2";
 const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
@@ -75,6 +75,9 @@ interface UploadedPhoto {
 interface BrowserProfile {
   id: string;
   name: string;
+  source?: "system";
+  systemProfileDirectory?: string;
+  browserUserName?: string;
 }
 
 interface BrowserProfilesResponse {
@@ -290,7 +293,7 @@ export function WbResaleClient() {
       });
       setEvents((items) => [...items, {
         time: new Date().toISOString(),
-        message: `Профиль «${result.profile.name}» открыт. Войдите в WB и закройте окно перед публикацией.`,
+        message: `WB открыт в системном профиле Chrome «${result.profile.name}».`,
       }]);
     } finally {
       setOpeningProfile(false);
@@ -692,7 +695,7 @@ export function WbResaleClient() {
           <DialogHeader>
             <DialogTitle>Выберите аккаунт {browserLabel(browser)}</DialogTitle>
             <DialogDescription>
-              Агент создаст XML публикации и откроет постоянный профиль с выбранным именем. Вход Wildberries сохранится для следующих запусков.
+              Выберите системный профиль Chrome. Wildberries откроется именно в нём с его сохранённой авторизацией.
             </DialogDescription>
           </DialogHeader>
 
@@ -720,7 +723,11 @@ export function WbResaleClient() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold">{profile.name}</span>
-                        <span className="block text-xs text-muted-foreground">Постоянная сессия Wildberries</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {profile.source === "system"
+                            ? `Профиль Chrome${profile.browserUserName ? ` · ${profile.browserUserName}` : ""}`
+                            : "Постоянная сессия Wildberries"}
+                        </span>
                       </span>
                       <span className={`h-4 w-4 rounded-full border-2 ${selected ? "border-[5px] border-primary" : "border-muted-foreground/40"}`} />
                     </button>
@@ -728,35 +735,41 @@ export function WbResaleClient() {
                 })}
               </div>
 
-              <div className="rounded-md border border-dashed border-border p-3">
-                <Label htmlFor="wb-new-profile">Новый аккаунт</Label>
-                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    id="wb-new-profile"
-                    value={newProfileName}
-                    maxLength={60}
-                    placeholder="Например, Магазин Москва"
-                    disabled={creatingProfile}
-                    onChange={(event) => setNewProfileName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && newProfileName.trim()) {
-                        event.preventDefault();
-                        createBrowserProfile().catch((error) => addError(error instanceof Error ? error.message : String(error)));
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!newProfileName.trim() || creatingProfile}
-                    onClick={() => createBrowserProfile().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
-                  >
-                    {creatingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    Добавить
-                  </Button>
+              {browserProfiles.some((profile) => profile.source === "system") ? (
+                <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+                  В списке показаны профили установленного Chrome. Выбранный профиль откроется напрямую, без создания отдельной сессии агента.
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">При первом запуске нажмите «Войти в WB», авторизуйтесь и закройте открытое окно. Профиль и вход сохранятся под выбранным названием.</p>
-              </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-border p-3">
+                  <Label htmlFor="wb-new-profile">Новый аккаунт</Label>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      id="wb-new-profile"
+                      value={newProfileName}
+                      maxLength={60}
+                      placeholder="Например, Магазин Москва"
+                      disabled={creatingProfile}
+                      onChange={(event) => setNewProfileName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && newProfileName.trim()) {
+                          event.preventDefault();
+                          createBrowserProfile().catch((error) => addError(error instanceof Error ? error.message : String(error)));
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!newProfileName.trim() || creatingProfile}
+                      onClick={() => createBrowserProfile().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
+                    >
+                      {creatingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      Добавить
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">При первом запуске нажмите «Открыть WB», авторизуйтесь и закройте открытое окно. Профиль и вход сохранятся под выбранным названием.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -772,7 +785,7 @@ export function WbResaleClient() {
               onClick={() => openBrowserProfile().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
             >
               {openingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-              {openingProfile ? "Открываю…" : "Войти в WB"}
+              {openingProfile ? "Открываю…" : "Открыть WB"}
             </Button>
             <Button
               type="button"

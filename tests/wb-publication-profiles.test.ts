@@ -14,9 +14,10 @@ describe("WB publication account flow", () => {
     expect(client).toContain("Создать XML и опубликовать");
     expect(client).toContain("publish: false");
     expect(client).toContain("Постоянная сессия Wildberries");
-    expect(client).toContain("Профиль и вход сохранятся под выбранным названием");
+    expect(client).toContain("профили установленного Chrome");
+    expect(client).toContain('profile.source === "system"');
     expect(client).toContain("/api/rpa/profiles/open");
-    expect(client).toContain("Войти в WB");
+    expect(client).toContain("Открыть WB");
   });
 
   it("exposes WB XML export and keeps browser sessions out of the installer", () => {
