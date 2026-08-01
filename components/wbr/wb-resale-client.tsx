@@ -97,7 +97,7 @@ const statusLabels: Record<string, string> = {
   error: "Ошибка",
 };
 
-export function WbResaleClient() {
+export function WbResaleClient({ canManagePublication }: { canManagePublication: boolean }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const xmlInputRef = useRef<HTMLInputElement>(null);
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("offline");
@@ -234,6 +234,7 @@ export function WbResaleClient() {
   }
 
   async function openProfilePicker() {
+    if (!canManagePublication) throw new Error("Профили публикации WB недоступны.");
     if (agentStatus !== "online") throw new Error("Локальный WB-агент не подключён.");
     if (rpaRunning) throw new Error("Публикация уже выполняется.");
     setProfilePickerOpen(true);
@@ -409,20 +410,24 @@ export function WbResaleClient() {
           </div>
         </div>
         <div className="wb-resale-actions mt-2 flex flex-wrap gap-2">
-          <input
-            ref={xmlInputRef}
-            type="file"
-            accept=".xml,text/xml,application/xml"
-            hidden
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) importXml(file).catch((error) => addError(error instanceof Error ? error.message : String(error)));
-            }}
-          />
-          <Button variant="outline" size="sm" disabled={importingXml} onClick={() => xmlInputRef.current?.click()}>
-            {importingXml ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
-            Импорт XML
-          </Button>
+          {canManagePublication ? (
+            <>
+              <input
+                ref={xmlInputRef}
+                type="file"
+                accept=".xml,text/xml,application/xml"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) importXml(file).catch((error) => addError(error instanceof Error ? error.message : String(error)));
+                }}
+              />
+              <Button variant="outline" size="sm" disabled={importingXml} onClick={() => xmlInputRef.current?.click()}>
+                {importingXml ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+                Импорт XML
+              </Button>
+            </>
+          ) : null}
           <details className="group relative">
             <summary className="flex h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" aria-label="Другие действия WB Resale">
               <MoreHorizontal className="h-4 w-4" />
@@ -497,15 +502,16 @@ export function WbResaleClient() {
           </Card>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(420px,0.85fr)_minmax(520px,1.15fr)]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Новая партия</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Заполните товар один раз. Будут созданы объявления по выбранным размерам и сразу отправлены в RPA.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <div className={canManagePublication ? "grid gap-4 xl:grid-cols-[minmax(420px,0.85fr)_minmax(520px,1.15fr)]" : "grid gap-4"}>
+          {canManagePublication ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Новая партия</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Заполните товар один раз. Будут созданы объявления по выбранным размерам и сразу отправлены в RPA.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
               <div className="space-y-1">
                 <Label>Название</Label>
                 <Input value={form.title} onChange={(event) => setFormValue("title", event.target.value)} placeholder="Футболка Hysteric Glamour x Deftones 2009 черная" />
@@ -621,8 +627,9 @@ export function WbResaleClient() {
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                 Сохранить и опубликовать
               </Button>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ) : null}
 
           <div className="space-y-4">
             <Card>
@@ -631,15 +638,17 @@ export function WbResaleClient() {
                   <CardTitle>Очередь локального агента</CardTitle>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">{queueCount} к публикации</Badge>
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={!queueCount || rpaRunning || agentStatus !== "online" || profilesLoading}
-                      onClick={() => openProfilePicker().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
-                    >
-                      {profilesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                      Запустить публикацию
-                    </Button>
+                    {canManagePublication ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!queueCount || rpaRunning || agentStatus !== "online" || profilesLoading}
+                        onClick={() => openProfilePicker().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
+                      >
+                        {profilesLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                        Запустить публикацию
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </CardHeader>
@@ -704,13 +713,14 @@ export function WbResaleClient() {
         </div>
       </div>
 
-      <Dialog
-        open={profilePickerOpen}
-        onOpenChange={(open) => {
-          if (!startingPublication) setProfilePickerOpen(open);
-        }}
-      >
-        <DialogContent className="max-w-xl">
+      {canManagePublication ? (
+        <Dialog
+          open={profilePickerOpen}
+          onOpenChange={(open) => {
+            if (!startingPublication) setProfilePickerOpen(open);
+          }}
+        >
+          <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Выберите аккаунт {browserLabel(browser)}</DialogTitle>
             <DialogDescription>
@@ -826,8 +836,9 @@ export function WbResaleClient() {
               {startingPublication ? "Запускаю публикацию…" : "Создать XML и опубликовать"}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 

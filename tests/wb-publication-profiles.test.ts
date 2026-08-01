@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const root = path.resolve(__dirname, "..");
 const client = readFileSync(path.join(root, "components/wbr/wb-resale-client.tsx"), "utf8");
+const page = readFileSync(path.join(root, "app/(app)/wbr/page.tsx"), "utf8");
 const packageScript = readFileSync(path.join(root, "scripts/build-wb-resale-agent-package.ps1"), "utf8");
 
 describe("WB publication account flow", () => {
@@ -27,5 +28,13 @@ describe("WB publication account flow", () => {
     expect(client).toContain("/api/export.xml");
     expect(client).toContain("Скачать XML для WB");
     expect(packageScript).toContain(".browser-profile*");
+  });
+
+  it("only renders WB publication profiles for the configured owner", () => {
+    expect(page).toContain("isWbPublicationOwner(session.user)");
+    expect(page).toContain("canManagePublication={canManagePublication}");
+    expect(client).toContain("{canManagePublication ? (");
+    expect(client).toContain("<Dialog");
+    expect(client).toContain("if (!canManagePublication)");
   });
 });
