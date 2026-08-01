@@ -182,6 +182,7 @@ describe("AI providers", () => {
     expect(prompt.length).toBeLessThanOrEqual(900);
     expect(prompt).toContain("immutable product");
     expect(prompt).toContain("every print line/letter/font/spacing");
+    expect(prompt).toContain("visible label/neck text");
     expect(prompt).toContain("tight contact shadows");
     expect(prompt).toContain("natural photorealistic marketplace camera photo");
     expect(prompt).toContain("never mirror");

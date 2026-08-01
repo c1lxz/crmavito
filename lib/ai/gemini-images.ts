@@ -48,11 +48,11 @@ export function buildFlowProductPhotoPrompt(): string {
   return [
     "Create one natural photorealistic marketplace camera photo; no CGI or collage.",
     "IMAGE 1 = ONLY immutable product. IMAGE 2 may contain another garment: ignore that garment and all its print, label, text, logo and watermark; copy scene, surface and light only.",
-    "Preserve IMAGE 1 exactly: cut, seams, stitching, collar, sleeves, fabric, wear, color and every print line/letter/font/spacing/texture/placement. Same visible side; never mirror, redesign, add, remove or hide details.",
+    "Preserve IMAGE 1 exactly: cut, seams, collar, sleeves, fabric, color, every visible label/neck text and every print line/letter/font/spacing/texture/placement. Keep text readable in place. Same visible side; never mirror, redesign, add, remove or hide details.",
     "Result must be IMAGE 1's garment, never IMAGE 2's garment or a mixture. Change only placement, crop, camera angle and folds.",
     "Match IMAGE 2 perspective, exposure, focus, daylight.",
-    "Keep real weave, thickness, gravity and wrinkles; tight contact shadows and soft occlusion under collar, sleeves, hems and folds.",
-    "No overlays, halos, floating edges, plastic smoothing, studio light, text or watermarks. Return only final photo.",
+    "Real weave, gravity and wrinkles; tight contact shadows and soft occlusion under collar, sleeves and hems.",
+    "No overlays, halos, floating edges, CGI, added text or watermarks. Return only final photo.",
   ].join(" ");
 }
 
