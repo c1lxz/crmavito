@@ -11,7 +11,7 @@ describe("WB publication account flow", () => {
     expect(client).toContain("/api/rpa/profiles");
     expect(client).toContain("profileId: selectedProfileId");
     expect(client).toContain("Выберите аккаунт {browserLabel(browser)}");
-    expect(client).toContain("Создать XML и опубликовать");
+    expect(client).toContain("Создать XML и открыть WB");
     expect(client).toContain("publish: false");
     expect(client).toContain("Постоянная сессия Wildberries");
     expect(client).toContain("профили установленного Chrome");

@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 
 const AGENT_URL = "http://127.0.0.1:3017";
-const AGENT_VERSION = "2026.08.01.2";
+const AGENT_VERSION = "2026.08.01.3";
 const SIZE_GUIDE_URL = "https://crmavito.duckdns.org/assets/ky-strok-size-guide-v2.jpg";
 const SIZES = ["XXS", "XS", "S", "M", "L", "XL", "2XL"];
 const DEFAULT_PICKUP_POINT = "Москва, Новоспасский Переулок 3к2";
@@ -274,7 +274,7 @@ export function WbResaleClient() {
       });
       setEvents((items) => [...items, {
         time: new Date().toISOString(),
-        message: `XML создан. Открываю профиль «${result.profile.name}» для публикации.`,
+        message: `XML создан. WB открыт в системном профиле Chrome «${result.profile.name}».`,
       }]);
       setProfilePickerOpen(false);
       await checkAgent();
@@ -794,7 +794,7 @@ export function WbResaleClient() {
               onClick={() => startPublication().catch((error) => addError(error instanceof Error ? error.message : String(error)))}
             >
               {startingPublication ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              {startingPublication ? "Создаю XML…" : "Создать XML и опубликовать"}
+              {startingPublication ? "Создаю XML…" : "Создать XML и открыть WB"}
             </Button>
           </DialogFooter>
         </DialogContent>
