@@ -3,6 +3,9 @@ set -e
 
 cd /var/www/crmavito
 npm install
+python3 scripts/configure-nginx-content-machine.py
+nginx -t
+systemctl reload nginx
 npx prisma db push
 DATABASE_URL_FROM_ENV="$(node -e "require('dotenv/config'); process.stdout.write(process.env.DATABASE_URL || '')")"
 if [ -n "$DATABASE_URL_FROM_ENV" ] && command -v psql >/dev/null 2>&1; then

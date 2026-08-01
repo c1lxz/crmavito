@@ -27,6 +27,8 @@ const generateRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-
 const backgroundsRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-machine/backgrounds/route.ts"), "utf8");
 const storageSource = fs.readFileSync(path.join(root, "lib/ai/content-machine.ts"), "utf8");
 const jobsSource = fs.readFileSync(path.join(root, "lib/ai/content-machine-jobs.ts"), "utf8");
+const deploySource = fs.readFileSync(path.join(root, "deploy.sh"), "utf8");
+const nginxContentMachineSource = fs.readFileSync(path.join(root, "scripts/configure-nginx-content-machine.py"), "utf8");
 const klingSource = fs.readFileSync(path.join(root, "lib/ai/kling-images.ts"), "utf8");
 const klingJobsSource = fs.readFileSync(path.join(root, "lib/ai/kling-content-machine-jobs.ts"), "utf8");
 
@@ -37,6 +39,12 @@ afterEach(() => {
 });
 
 describe("content machine", () => {
+  it("keeps the reverse proxy large enough for full 2K result uploads", () => {
+    expect(nginxContentMachineSource).toContain('NEW_LIMIT = "    client_max_body_size 25m;');
+    expect(deploySource).toContain("python3 scripts/configure-nginx-content-machine.py");
+    expect(deploySource).toContain("nginx -t");
+  });
+
   it("starts local Google Flow jobs from the content machine", () => {
     expect(clientSource).toContain('fetch("/api/ai/content-machine/codex-jobs"');
     expect(clientSource).toContain("content-machine-flow-job");
