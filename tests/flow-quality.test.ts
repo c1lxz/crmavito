@@ -28,6 +28,26 @@ describe("Flow product photo quality gate", () => {
       .toBe(50_700);
   });
 
+  it("falls back to Flash Lite immediately when the primary model is rate limited", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "flow-qa-fallback-"));
+    const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+    const files = ["product.png", "background.png", "candidate.png"].map((name) => path.join(directory, name));
+    await Promise.all(files.map((file) => writeFile(file, image)));
+    const fetchFn = vi.fn(async (url: URL | RequestInfo) => String(url).includes("gemini-2.5-flash-lite")
+      ? new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"pass":true,"score":96,"issues":[]}' }] } }] }), { status: 200 })
+      : new Response(JSON.stringify({ error: { message: "quota exhausted" } }), { status: 429 }));
+    try {
+      await expect(evaluateFlowProductPhoto(
+        { productPath: files[0], backgroundPath: files[1], candidatePath: files[2] },
+        { apiKey: "test-key", fetchFn: fetchFn as typeof fetch },
+      )).resolves.toMatchObject({ pass: true, score: 96 });
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+      expect(String(fetchFn.mock.calls[1][0])).toContain("gemini-2.5-flash-lite");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("requires the independent print-count audit to pass", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "flow-qa-"));
     const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");

@@ -22,24 +22,42 @@ export async function evaluateFlowProductPhoto(
   if (!apiKey) return { pass: true, score: 0, issues: ["Gemini QA не настроен"], skipped: true };
 
   const model = options.model?.trim() || process.env.GEMINI_QA_MODEL?.trim() || "gemini-2.5-flash";
+  const fallbackModel = process.env.GEMINI_QA_FALLBACK_MODEL?.trim() || "gemini-2.5-flash-lite";
   const [product, background, candidate] = await Promise.all([
     prepareVisionImage(input.productPath),
     prepareVisionImage(input.backgroundPath),
     prepareVisionImage(input.candidatePath),
   ]);
-  const request = { apiKey, model, fetchFn: options.fetchFn || fetch, product, background, candidate };
-  const primary = await requestQualityVerdict(request, qualityPrompt());
-  if (!primary.pass) return primary;
-  const identityAudit = await requestQualityVerdict(request, identityAuditPrompt());
-  return {
-    pass: identityAudit.pass,
-    score: Math.min(primary.score, identityAudit.score),
-    issues: [...new Set([...primary.issues, ...identityAudit.issues])].slice(0, 8),
+  const baseRequest = { apiKey, fetchFn: options.fetchFn || fetch, product, background, candidate };
+  const evaluateWithModel = async (activeModel: string, retryRateLimits: boolean) => {
+    const request = { ...baseRequest, model: activeModel, retryRateLimits };
+    const primary = await requestQualityVerdict(request, qualityPrompt());
+    if (!primary.pass) return primary;
+    const identityAudit = await requestQualityVerdict(request, identityAuditPrompt());
+    return {
+      pass: identityAudit.pass,
+      score: Math.min(primary.score, identityAudit.score),
+      issues: [...new Set([...primary.issues, ...identityAudit.issues])].slice(0, 8),
+    };
   };
+  const hasFallback = Boolean(fallbackModel && fallbackModel !== model);
+  try {
+    return await evaluateWithModel(model, !hasFallback);
+  } catch (error) {
+    if (!(error instanceof GeminiQualityHttpError) || error.status !== 429 || !hasFallback) throw error;
+    return evaluateWithModel(fallbackModel, true);
+  }
+}
+
+class GeminiQualityHttpError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+    this.name = "GeminiQualityHttpError";
+  }
 }
 
 async function requestQualityVerdict(
-  input: { apiKey: string; model: string; fetchFn: typeof fetch; product: string; background: string; candidate: string },
+  input: { apiKey: string; model: string; fetchFn: typeof fetch; product: string; background: string; candidate: string; retryRateLimits: boolean },
   prompt: string,
 ) {
   for (let attempt = 1; attempt <= 4; attempt += 1) {
@@ -74,11 +92,11 @@ async function requestQualityVerdict(
       // The response error below is more useful than a JSON parser exception.
     }
     if (!response.ok) {
-      if (attempt < 4 && (response.status === 429 || response.status >= 500)) {
+      if (attempt < 4 && ((response.status === 429 && input.retryRateLimits) || response.status >= 500)) {
         await new Promise((resolve) => setTimeout(resolve, qualityRetryDelayMs(response, raw, attempt)));
         continue;
       }
-      throw new Error(`Gemini QA: HTTP ${response.status}. ${data.error?.message || "Проверка качества недоступна."}`);
+      throw new GeminiQualityHttpError(response.status, `Gemini QA: HTTP ${response.status}. ${data.error?.message || "Проверка качества недоступна."}`);
     }
     const text = data.candidates?.flatMap((candidateItem) => candidateItem.content?.parts || [])
       .map((part) => part.text || "")
