@@ -108,7 +108,7 @@ async function main() {
     }).catch(async (error) => {
       const message = sanitizeFlowAgentError(error);
       console.error(`[flow-agent] ${job.id}: ${message}`);
-      const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|proxy.*(?:failed|unavailable)|туннел/i.test(message);
+      const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|proxy.*(?:failed|unavailable)|туннел|terminated|TargetClosedError|browser has been closed/i.test(message);
       const publicError = publicFlowAgentError(error);
       currentAvailability = {
         state: canTryAnotherAgent ? "blocked" : "error",
@@ -436,6 +436,7 @@ function isRetryableGenerationError(error: unknown) {
     "err_tunnel_connection_failed",
     "target page",
     "browser has been closed",
+    "terminated",
     "download",
   ].some((fragment) => message.includes(fragment));
 }
