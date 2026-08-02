@@ -36,7 +36,7 @@ import {
   type DiagnosticIncident,
 } from "@/components/content-machine/content-machine-diagnostics";
 
-type BackgroundSlot = "1" | "2" | "3";
+type BackgroundSlot = "1" | "2" | "3" | "4";
 type Background = {
   slot: BackgroundSlot;
   fileName: string | null;
@@ -87,7 +87,7 @@ type FlowJob = {
   };
 };
 
-const slots: BackgroundSlot[] = ["1", "2", "3"];
+const slots: BackgroundSlot[] = ["1", "2", "3", "4"];
 const maxProducts = 10;
 const maxDesignReferences = 6;
 
@@ -462,13 +462,13 @@ export function ContentMachineClient() {
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-base font-semibold">Эталонные фоны</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Загрузите три утверждённых примера один раз. В каждое задание попадёт их отдельная копия.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Загрузите четыре утверждённых примера ракурсов один раз. В каждое задание попадёт их отдельная копия.</p>
             </div>
             <Badge variant={allBackgroundsReady ? "success" : "secondary"}>
-              {backgrounds.filter((background) => background.url).length} из 3 загружено
+              {backgrounds.filter((background) => background.url).length} из {slots.length} загружено
             </Badge>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {backgrounds.map((background) => (
               <BackgroundPanel
                 key={background.slot}
@@ -559,7 +559,7 @@ export function ContentMachineClient() {
                       id="design-note"
                       value={designNote}
                       onChange={(event) => setDesignNote(event.target.value)}
-                      placeholder={"Например:\nДай 3 фото с разных ракурсов\nРисунок меньше"}
+                      placeholder={"Например:\nДай 4 фото с разных ракурсов\nРисунок меньше"}
                       maxLength={1200}
                       rows={3}
                       className="mt-1.5 min-h-24 resize-y"
@@ -639,7 +639,7 @@ export function ContentMachineClient() {
           {agentStatus && (!agentStatus.online || agentStatus.state !== "ready") && (
             <p className="mt-2 text-xs text-warning">{agentStatus.message} Статус агента не блокирует постановку задания в очередь.</p>
           )}
-          {!allBackgroundsReady && <p className="mt-2 text-xs text-warning">Перед запуском загрузите все три эталонных фона.</p>}
+          {!allBackgroundsReady && <p className="mt-2 text-xs text-warning">Перед запуском загрузите все четыре эталонных ракурса.</p>}
         </section>
 
         {job && (
@@ -734,12 +734,12 @@ export function ContentMachineClient() {
               </div>
             </div>
 
-            <div className="grid gap-5 xl:grid-cols-3">
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               {slots.map((slot) => (
                 <div key={slot} className="min-w-0">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-sm font-semibold">Фон {slot}</p>
-                    <span className="text-xs text-muted-foreground">{readyResults.filter((result) => result.backgroundSlot === slot).length}/{job.expectedResults / 3}</span>
+                    <span className="text-xs text-muted-foreground">{readyResults.filter((result) => result.backgroundSlot === slot).length}/{job.expectedResults / slots.length}</span>
                   </div>
                   <div className="space-y-3">
                     {readyResults.filter((result) => result.backgroundSlot === slot).map((result) => (

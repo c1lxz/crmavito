@@ -145,10 +145,10 @@ export function ContentMachineDiagnostics({ backgrounds, products, agentStatus, 
         });
       }
 
-      if (backgrounds.length !== 3) {
-        add({ id: "background-count", group: "Фоны", title: "Количество эталонных фонов", detail: `Получено ${backgrounds.length}, требуется ровно 3.`, status: "fail" });
+      if (backgrounds.length !== 4) {
+        add({ id: "background-count", group: "Фоны", title: "Количество эталонных фонов", detail: `Получено ${backgrounds.length}, требуется ровно 4.`, status: "fail" });
       } else {
-        add({ id: "background-count", group: "Фоны", title: "Количество эталонных фонов", detail: "Все 3 слота доступны.", status: "pass" });
+        add({ id: "background-count", group: "Фоны", title: "Количество эталонных фонов", detail: "Все 4 слота доступны.", status: "pass" });
       }
 
       for (const background of backgrounds) {

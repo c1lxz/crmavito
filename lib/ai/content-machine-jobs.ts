@@ -164,7 +164,7 @@ async function hydrateJob(manifest: JobManifest): Promise<CodexJob> {
   const names = await readdir(resultDirectory);
   const results: CodexJobResult[] = [];
   for (const fileName of names.sort()) {
-    const match = fileName.match(/^product-(\d{2})-background-([123])\.(jpg|jpeg|png|webp)$/i);
+    const match = fileName.match(/^product-(\d{2})-background-([1234])\.(jpg|jpeg|png|webp)$/i);
     if (!match) continue;
     const productIndex = Number(match[1]);
     const product = manifest.products.find((item) => item.index === productIndex);
@@ -392,11 +392,11 @@ export async function retryFlowJob(id: string) {
 
 async function countResultFiles(manifest: JobManifest) {
   const names = await readdir(path.join(jobDirectory(manifest.id), "results")).catch(() => []);
-  return names.filter((name) => /^product-\d{2}-background-[123]\.(jpg|jpeg|png|webp)$/i.test(name)).length;
+  return names.filter((name) => /^product-\d{2}-background-[1234]\.(jpg|jpeg|png|webp)$/i.test(name)).length;
 }
 
 function expectedResultCount(manifest: JobManifest) {
-  return (manifest.mode === "original-design" ? 1 : manifest.products.length) * BACKGROUND_SLOTS.length;
+  return (manifest.mode === "original-design" ? 1 : manifest.products.length) * manifest.backgrounds.length;
 }
 
 function completeManifest(manifest: JobManifest) {

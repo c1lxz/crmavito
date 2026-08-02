@@ -12,7 +12,7 @@ import { browserPageFetch, evaluateFlowProductPhoto } from "../lib/flow-agent/qu
 
 loadEnvConfig(process.cwd());
 
-type BackgroundSlot = "1" | "2" | "3";
+type BackgroundSlot = "1" | "2" | "3" | "4";
 type AgentJob = {
   id: string;
   imageSize: FlowImageSize;
@@ -366,6 +366,7 @@ async function processJob(context: BrowserContext, job: AgentJob) {
           ? [...job.products.map((product) => products.get(product.index)!), backgroundPath]
           : [productPath, backgroundPath];
         const requiresProductQa = job.mode !== "original-design";
+        const angleDirection = flowAngleDirection(item.background.slot);
         let feedback = "";
         for (let attempt = 1; attempt <= (requiresProductQa ? qualityMaxAttempts : 1); attempt += 1) {
           const timing = await generateFlowImage({
@@ -373,8 +374,8 @@ async function processJob(context: BrowserContext, job: AgentJob) {
             flowUrl,
             references,
             prompt: feedback
-              ? `CRITICAL RETRY: ${feedback} Use IMAGE 1 as the only product; ignore every garment, print, label, text and watermark in IMAGE 2. ${prompt}`
-              : prompt,
+              ? `CRITICAL RETRY: ${feedback} Use IMAGE 1 as the only product; ignore every garment, print, label, text and watermark in IMAGE 2. ${prompt} ${angleDirection}`
+              : `${prompt} ${angleDirection}`,
             outputPath,
             timeoutMs: generationTimeoutMs,
             maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
@@ -405,6 +406,16 @@ async function processJob(context: BrowserContext, job: AgentJob) {
   const outcomes = await Promise.allSettled(workers);
   const failed = outcomes.find((outcome): outcome is PromiseRejectedResult => outcome.status === "rejected");
   if (failed) throw failed.reason;
+}
+
+function flowAngleDirection(slot: BackgroundSlot) {
+  const directions: Record<BackgroundSlot, string> = {
+    "1": "ANGLE VARIANT 1: use a clean near-overhead full-garment view while matching IMAGE 2 perspective.",
+    "2": "ANGLE VARIANT 2: use a natural three-quarter diagonal view from the upper-left while matching IMAGE 2 perspective.",
+    "3": "ANGLE VARIANT 3: use a lower oblique camera angle with stronger depth, keeping the whole garment readable and matching IMAGE 2 perspective.",
+    "4": "ANGLE VARIANT 4: use the opposite three-quarter diagonal view from the upper-right while matching IMAGE 2 perspective.",
+  };
+  return directions[slot];
 }
 
 async function resolveJobPrompt(job: AgentJob) {

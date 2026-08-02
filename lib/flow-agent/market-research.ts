@@ -107,7 +107,7 @@ export function buildOriginalDesignPrompt(
     "Create exactly ONE original, commercially strong apparel design presented as a photorealistic marketplace product photo.",
     `REFERENCE IMAGES 1-${referenceCount} show different views of the same inspiration garment. Read them together to understand garment construction and whether the original uses coordinated front and back graphics, but never copy its artwork.`,
     `REFERENCE IMAGE ${referenceCount + 1} is the required background, perspective and lighting reference.`,
-    "If the views show graphics on both sides, invent a coordinated but original front-and-back print system. Across the three independent runs vary front, back and angled presentation while returning exactly one image per run.",
+    "If the views show graphics on both sides, invent a coordinated but original front-and-back print system. Across the four independent runs vary front, back and angled presentation while returning exactly one image per run.",
     ...(labelStyleReference?.trim() ? [
       `Add exactly one small single-line heat-transfer marking inside the back collar, using broad high-level aesthetic cues from '${labelStyleReference.trim()}'. It must read exactly 'CUSTOM MADE', printed directly on the fabric. Never add a second line, duplicate marking, sewn tag or woven label. Invent original typography and spacing. Never show the reference name, its logo, monogram or distinctive brand identity.`,
       "HARD TEXT CONSTRAINT: the entire image may contain only the exact words 'CUSTOM MADE'. Remove every original maker mark and leave clean blank fabric immediately above, below and around this one line. No microtext, subtitle, decorative letters, pseudo-words, care text or extra branding.",

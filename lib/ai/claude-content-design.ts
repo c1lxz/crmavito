@@ -112,8 +112,8 @@ function buildMetaPromptRequest(
     "Demand crisp print edges, visible cotton weave, realistic screen-print ink absorption, sharp seams, natural folds and contact shadows, neutral white balance, high micro-contrast and a clean high-resolution commercial camera result.",
     "Prefer a purely visual main graphic. If typography is essential, specify one exact original phrase of at most three words in quotation marks. Prohibit all other words, letters, numbers and fake branding except the explicitly requested original CUSTOM MADE neck label.",
     `Flow receives REFERENCE IMAGES 1-${referenceCount} as views of the same inspiration garment and REFERENCE IMAGE ${referenceCount + 1} as the exact background, perspective and light reference. Tell Flow to understand the full front/back print system without copying its protected artwork.`,
-    "When the uploaded views show graphics on both sides, require a coordinated but fully original front-and-back print system and distribute front, back and angled presentation across the three independent runs.",
-    "The final prompt is reused for three independent Flow generations. Convert requests for several angles or variants into concise directions that encourage meaningful viewpoint variation across those independent runs; still request exactly one image per run.",
+    "When the uploaded views show graphics on both sides, require a coordinated but fully original front-and-back print system and distribute front, back and angled presentation across the four independent runs.",
+    "The final prompt is reused for four independent Flow generations. Convert requests for several angles or variants into concise directions that encourage meaningful viewpoint variation across those independent runs; still request exactly one image per run.",
     "Avoid generic CGI, soft focus, low resolution, plastic fabric, pasted graphics, halos, malformed text, watermarks, props and extra garments.",
     "Do not explain your analysis and do not use Markdown. Return only the final Flow prompt.",
   ].join("\n");

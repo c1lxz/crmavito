@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-export const BACKGROUND_SLOTS = ["1", "2", "3"] as const;
+export const BACKGROUND_SLOTS = ["1", "2", "3", "4"] as const;
 export type BackgroundSlot = (typeof BACKGROUND_SLOTS)[number];
 
 const allowedTypes = {
@@ -73,7 +73,7 @@ async function findBackground(slot: BackgroundSlot): Promise<StoredBackground | 
   const directory = backgroundDirectory();
   await mkdir(directory, { recursive: true });
   const names = await readdir(directory);
-  const fileName = names.find((name) => /^background-[123]\.(jpg|png|webp)$/.test(name) && name.startsWith(`background-${slot}.`));
+  const fileName = names.find((name) => /^background-[1234]\.(jpg|png|webp)$/.test(name) && name.startsWith(`background-${slot}.`));
   if (!fileName) return null;
   const extension = path.extname(fileName).slice(1);
   const mimeType = (Object.entries(allowedTypes).find(([, ext]) => ext === extension)?.[0] || "image/jpeg") as keyof typeof allowedTypes;

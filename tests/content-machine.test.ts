@@ -62,8 +62,8 @@ describe("content machine", () => {
     expect(klingJobsSource).toContain('path.resolve(process.env.CONTENT_MACHINE_DATA_DIR, "kling-jobs")');
   });
 
-  it("keeps exactly three persistent reference background slots", () => {
-    expect(storageSource).toContain('BACKGROUND_SLOTS = ["1", "2", "3"]');
+  it("keeps exactly four persistent reference background slots", () => {
+    expect(storageSource).toContain('BACKGROUND_SLOTS = ["1", "2", "3", "4"]');
     expect(storageSource).toContain("CONTENT_MACHINE_DATA_DIR");
     expect(backgroundsRouteSource).toContain("saveBackground(slot, file)");
   });
@@ -78,7 +78,7 @@ describe("content machine", () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "crmavito-flow-job-"));
     process.env.CONTENT_MACHINE_DATA_DIR = directory;
     try {
-      for (const slot of ["1", "2", "3"] as const) {
+      for (const slot of ["1", "2", "3", "4"] as const) {
         await saveBackground(slot, new File([`background-${slot}`], `background-${slot}.jpg`, { type: "image/jpeg" }) as unknown as globalThis.File);
       }
       const created = await createCodexJob(
@@ -90,7 +90,7 @@ describe("content machine", () => {
       expect(claimed?.agentStatus).toBe("processing");
       expect(await claimNextFlowJob("other-agent")).toBeNull();
 
-      await Promise.all((["1", "2", "3"] as const).map((slot) =>
+      await Promise.all((["1", "2", "3", "4"] as const).map((slot) =>
         saveFlowJobResult(created.id, {
           agentId: "test-agent",
           productIndex: 1,
@@ -101,7 +101,7 @@ describe("content machine", () => {
       ));
       const ready = await getCodexJob(created.id);
       expect(ready.status).toBe("ready");
-      expect(ready.results).toHaveLength(3);
+      expect(ready.results).toHaveLength(4);
       expect(ready.metrics?.averageGenerationMs).toBe(1200);
       expect(ready.agentStatus).toBe("complete");
       expect(ready.metrics?.totalDurationMs).toBeGreaterThanOrEqual(0);
@@ -114,25 +114,25 @@ describe("content machine", () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "crmavito-codex-job-"));
     process.env.CONTENT_MACHINE_DATA_DIR = directory;
     try {
-      for (const slot of ["1", "2", "3"] as const) {
+      for (const slot of ["1", "2", "3", "4"] as const) {
         await saveBackground(slot, new File([`background-${slot}`], `background-${slot}.jpg`, { type: "image/jpeg" }) as unknown as globalThis.File);
       }
       const product = new File(["product"], "shirt.jpg", { type: "image/jpeg" }) as unknown as globalThis.File;
       const created = await createCodexJob([product], "2K");
       expect(created.status).toBe("waiting");
-      expect(created.expectedResults).toBe(3);
+      expect(created.expectedResults).toBe(4);
       expect(created.qualityProfile).toBe("photorealistic-v4");
       expect(created.generationPrompt).toContain("tight contact shadows");
       expect(created.generationPrompt?.length).toBeLessThanOrEqual(900);
 
       const resultDirectory = path.join(directory, "codex-jobs", created.id, "results");
       await mkdir(resultDirectory, { recursive: true });
-      for (const slot of ["1", "2", "3"]) {
+      for (const slot of ["1", "2", "3", "4"]) {
         await writeFile(path.join(resultDirectory, `product-01-background-${slot}.png`), `result-${slot}`);
       }
       const ready = await getCodexJob(created.id);
       expect(ready.status).toBe("ready");
-      expect(ready.results).toHaveLength(3);
+      expect(ready.results).toHaveLength(4);
       expect(ready.results[0].url).toContain(`/codex-jobs/${created.id}/files/results/`);
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -160,6 +160,7 @@ describe("content machine", () => {
     expect(flowBrowserSource).not.toContain("Google перенаправил агента на общую страницу Labs");
     expect(flowAgentSource).toContain("normalizeFlowResult(source, imageSize)");
     expect(flowAgentSource).toContain('imageSize === "4K" ? 4096 : 2048');
+    expect(flowAgentSource).toContain("ANGLE VARIANT 4");
     expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");
     expect(flowAgentSource).toContain('child.once("exit"');
@@ -181,7 +182,7 @@ describe("content machine", () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "crmavito-flow-release-"));
     process.env.CONTENT_MACHINE_DATA_DIR = directory;
     try {
-      for (const slot of ["1", "2", "3"] as const) {
+      for (const slot of ["1", "2", "3", "4"] as const) {
         await saveBackground(slot, new File([`background-${slot}`], `background-${slot}.jpg`, { type: "image/jpeg" }) as unknown as globalThis.File);
       }
       const product = new File(["product"], "shirt.jpg", { type: "image/jpeg" }) as unknown as globalThis.File;
@@ -197,11 +198,11 @@ describe("content machine", () => {
     }
   });
 
-  it("creates three original-design variants from multiple views of one proven product", async () => {
+  it("creates four original-design variants from multiple views of one proven product", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "crmavito-design-job-"));
     process.env.CONTENT_MACHINE_DATA_DIR = directory;
     try {
-      for (const slot of ["1", "2", "3"] as const) {
+      for (const slot of ["1", "2", "3", "4"] as const) {
         await saveBackground(slot, new File([`background-${slot}`], `background-${slot}.jpg`, { type: "image/jpeg" }) as unknown as globalThis.File);
       }
       const winner = new File(["winner"], "winner-long-sleeve.jpg", { type: "image/jpeg" }) as unknown as globalThis.File;
@@ -213,7 +214,7 @@ describe("content machine", () => {
       });
       expect(created.mode).toBe("original-design");
       expect(created.products).toHaveLength(2);
-      expect(created.expectedResults).toBe(3);
+      expect(created.expectedResults).toBe(4);
       expect(created.inspirationQuery).toBe("vintage gothic long sleeve");
       expect(created.designNote).toBe("Make the graphic smaller and vary the camera angle.");
       expect(created.labelStyleReference).toBe("minimal archival luxury");

@@ -28,7 +28,7 @@ describe("Flow local browser agent", () => {
     const context = await browser.newContext();
     const started = Date.now();
     try {
-      const timings = await Promise.all([1, 2, 3].map(async (index) => {
+      const timings = await Promise.all([1, 2, 3, 4].map(async (index) => {
         const page = await context.newPage();
         try {
           return await generateFlowImage({
@@ -45,10 +45,10 @@ describe("Flow local browser agent", () => {
         }
       }));
       const elapsed = Date.now() - started;
-      expect(await Promise.all([1, 2, 3].map((index) => readFile(path.join(directory, `result-${index}.png`))))).toSatisfy(
+      expect(await Promise.all([1, 2, 3, 4].map((index) => readFile(path.join(directory, `result-${index}.png`))))).toSatisfy(
         (files: Buffer[]) => files.every((file) => file.length > 50),
       );
-      expect(await Promise.all([1, 2, 3].map((index) => sharp(path.join(directory, `result-${index}.png`)).metadata())))
+      expect(await Promise.all([1, 2, 3, 4].map((index) => sharp(path.join(directory, `result-${index}.png`)).metadata())))
         .toSatisfy((files) => files.every((file) => file.width === 2048 && file.height === 2048));
       expect(timings.every((timing) => timing.generationMs >= 100 && timing.durationMs < 5_000)).toBe(true);
       expect(elapsed).toBeLessThan(7_000);
