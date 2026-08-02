@@ -161,6 +161,7 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain("normalizeFlowResult(source, imageSize)");
     expect(flowAgentSource).toContain('imageSize === "4K" ? 4096 : 2048');
     expect(flowAgentSource).toContain("ANGLE VARIANT 4");
+    expect(flowAgentSource).toContain('`${angleDirection} ${prompt}`');
     expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");
     expect(flowAgentSource).toContain('child.once("exit"');

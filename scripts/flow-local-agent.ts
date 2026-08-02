@@ -374,8 +374,8 @@ async function processJob(context: BrowserContext, job: AgentJob) {
             flowUrl,
             references,
             prompt: feedback
-              ? `CRITICAL RETRY: ${feedback} Use IMAGE 1 as the only product; ignore every garment, print, label, text and watermark in IMAGE 2. ${prompt} ${angleDirection}`
-              : `${prompt} ${angleDirection}`,
+              ? `CRITICAL RETRY: ${feedback} ${angleDirection} Use IMAGE 1 as the only product; ignore every garment, print, label, text and watermark in IMAGE 2. ${prompt}`
+              : `${angleDirection} ${prompt}`,
             outputPath,
             timeoutMs: generationTimeoutMs,
             maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
