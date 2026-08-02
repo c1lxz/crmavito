@@ -37,6 +37,7 @@ const agentId = process.env.FLOW_AGENT_ID || hostname();
 const concurrency = clamp(Number(process.env.FLOW_AGENT_CONCURRENCY || 3), 1, 6);
 const pollMs = clamp(Number(process.env.FLOW_AGENT_POLL_MS || 750), 250, 30_000);
 const generationTimeoutMs = clamp(Number(process.env.FLOW_GENERATION_TIMEOUT_MS || 240_000), 30_000, 600_000);
+const generationMaxAttempts = clamp(Number(process.env.FLOW_GENERATION_MAX_ATTEMPTS || 3), 1, 5);
 const qualityMaxAttempts = clamp(Number(process.env.FLOW_QUALITY_MAX_ATTEMPTS || 5), 1, 5);
 const stateDirectory = path.resolve(process.env.FLOW_AGENT_STATE_DIR || ".flow-local-agent");
 const profileDirectory = path.resolve(process.env.FLOW_AGENT_PROFILE_DIR || path.join(stateDirectory, "chrome-profile"));
@@ -355,7 +356,7 @@ async function processJob(context: BrowserContext, job: AgentJob) {
   const prompt = await resolveJobPrompt(job);
   let cursor = 0;
   const workers = Array.from({ length: Math.min(concurrency, work.length) }, async () => {
-    const page = await context.newPage();
+    let page = await context.newPage();
     try {
       while (cursor < work.length) {
         const item = work[cursor++];
@@ -369,18 +370,34 @@ async function processJob(context: BrowserContext, job: AgentJob) {
         const angleDirection = flowAngleDirection(item.background.slot);
         let feedback = "";
         for (let attempt = 1; attempt <= (requiresProductQa ? qualityMaxAttempts : 1); attempt += 1) {
-          const timing = await generateFlowImage({
-            page,
-            flowUrl,
-            references,
-            prompt: feedback
-              ? `CRITICAL RETRY: ${feedback} ${angleDirection} Use IMAGE 1 as the only product; ignore every garment, print, label, text and watermark in IMAGE 2. ${prompt}`
-              : `${angleDirection} ${prompt}`,
-            outputPath,
-            timeoutMs: generationTimeoutMs,
-            maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
-            downloadResolution: "2K",
-          });
+          let timing: Awaited<ReturnType<typeof generateFlowImage>> | undefined;
+          for (let generationAttempt = 1; generationAttempt <= generationMaxAttempts; generationAttempt += 1) {
+            try {
+              timing = await generateFlowImage({
+                page,
+                flowUrl,
+                references,
+                prompt: feedback
+                  ? `CRITICAL RETRY: ${feedback} ${angleDirection} Use IMAGE 1 as the only product; ignore every garment, print, label, text and watermark in IMAGE 2. ${prompt}`
+                  : `${angleDirection} ${prompt}`,
+                outputPath,
+                timeoutMs: generationTimeoutMs,
+                maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
+                downloadResolution: "2K",
+              });
+              break;
+            } catch (error) {
+              if (!isRetryableGenerationError(error) || generationAttempt === generationMaxAttempts) throw error;
+              const reason = sanitizeFlowAgentError(error);
+              console.warn(
+                `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: Flow retry ${generationAttempt}/${generationMaxAttempts}: ${reason}`,
+              );
+              await page.close().catch(() => undefined);
+              await delay(Math.min(2_000 * generationAttempt, 6_000));
+              page = await context.newPage();
+            }
+          }
+          if (!timing) throw new Error(`Flow generation failed for ${item.product.index}/${item.background.slot}.`);
           const verdict = requiresProductQa
             ? await evaluateFlowProductPhoto(
               { productPath, backgroundPath, candidatePath: outputPath },
@@ -406,6 +423,21 @@ async function processJob(context: BrowserContext, job: AgentJob) {
   const outcomes = await Promise.allSettled(workers);
   const failed = outcomes.find((outcome): outcome is PromiseRejectedResult => outcome.status === "rejected");
   if (failed) throw failed.reason;
+}
+
+function isRetryableGenerationError(error: unknown) {
+  const message = sanitizeFlowAgentError(error).toLowerCase();
+  return [
+    "не вернул изображение",
+    "timeout",
+    "timed out",
+    "err_timed_out",
+    "err_connection_reset",
+    "err_tunnel_connection_failed",
+    "target page",
+    "browser has been closed",
+    "download",
+  ].some((fragment) => message.includes(fragment));
 }
 
 function flowAngleDirection(slot: BackgroundSlot) {

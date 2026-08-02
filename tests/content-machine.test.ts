@@ -162,6 +162,9 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain('imageSize === "4K" ? 4096 : 2048');
     expect(flowAgentSource).toContain("ANGLE VARIANT 4");
     expect(flowAgentSource).toContain('`${angleDirection} ${prompt}`');
+    expect(flowAgentSource).toContain("FLOW_GENERATION_MAX_ATTEMPTS");
+    expect(flowAgentSource).toContain("isRetryableGenerationError");
+    expect(flowAgentSource).toContain("page = await context.newPage()");
     expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");
     expect(flowAgentSource).toContain('child.once("exit"');
