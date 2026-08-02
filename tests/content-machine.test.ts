@@ -165,6 +165,8 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain("FLOW_GENERATION_MAX_ATTEMPTS");
     expect(flowAgentSource).toContain("isRetryableGenerationError");
     expect(flowAgentSource).toContain("page = await context.newPage()");
+    expect(flowBrowserSource).toContain("Flow generation failed");
+    expect(flowBrowserSource).toContain("Что-то пошло не так");
     expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");
     expect(flowAgentSource).toContain('child.once("exit"');

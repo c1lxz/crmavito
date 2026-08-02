@@ -437,6 +437,7 @@ function isRetryableGenerationError(error: unknown) {
     "target page",
     "browser has been closed",
     "terminated",
+    "flow generation failed",
     "download",
   ].some((fragment) => message.includes(fragment));
 }

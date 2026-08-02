@@ -399,6 +399,14 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
   ];
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    const generationError = await firstVisible(page, [
+      'text="Что-то пошло не так. Повторите попытку."',
+      'text="Something went wrong. Try again."',
+      'text="Something went wrong"',
+    ]);
+    if (generationError) {
+      throw new Error("Flow generation failed: Flow showed a retryable generation error.");
+    }
     const result = await firstVisible(page, selectors);
     if (result) {
       const source = await result.evaluate((image) => (image as HTMLImageElement).src);
