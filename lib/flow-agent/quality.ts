@@ -61,29 +61,36 @@ async function requestQualityVerdict(
   prompt: string,
 ) {
   for (let attempt = 1; attempt <= 4; attempt += 1) {
-    const response = await input.fetchFn(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-goog-api-key": input.apiKey },
-        body: JSON.stringify({
-          contents: [{
-            role: "user",
-            parts: [
-              { text: prompt },
-              { text: "IMAGE A — source product that must be preserved exactly:" },
-              { inline_data: { mime_type: "image/jpeg", data: input.product } },
-              { text: "IMAGE B — scene reference; any product, print, label, text or watermark in it must NOT be copied:" },
-              { inline_data: { mime_type: "image/jpeg", data: input.background } },
-              { text: "IMAGE C — generated candidate to inspect:" },
-              { inline_data: { mime_type: "image/jpeg", data: input.candidate } },
-            ],
-          }],
-          generationConfig: { temperature: 0, responseMimeType: "application/json" },
-        }),
-        signal: AbortSignal.timeout(60_000),
-      },
-    );
+    let response: Response;
+    try {
+      response = await input.fetchFn(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-goog-api-key": input.apiKey },
+          body: JSON.stringify({
+            contents: [{
+              role: "user",
+              parts: [
+                { text: prompt },
+                { text: "IMAGE A — source product that must be preserved exactly:" },
+                { inline_data: { mime_type: "image/jpeg", data: input.product } },
+                { text: "IMAGE B — scene reference; any product, print, label, text or watermark in it must NOT be copied:" },
+                { inline_data: { mime_type: "image/jpeg", data: input.background } },
+                { text: "IMAGE C — generated candidate to inspect:" },
+                { inline_data: { mime_type: "image/jpeg", data: input.candidate } },
+              ],
+            }],
+            generationConfig: { temperature: 0, responseMimeType: "application/json" },
+          }),
+          signal: AbortSignal.timeout(60_000),
+        },
+      );
+    } catch (error) {
+      if (attempt === 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(5_000, attempt * 1_000)));
+      continue;
+    }
     const raw = await response.text();
     let data: GeminiQualityResponse = {};
     try {

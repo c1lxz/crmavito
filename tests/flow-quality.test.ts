@@ -48,6 +48,27 @@ describe("Flow product photo quality gate", () => {
     }
   });
 
+  it("retries a transient QA transport failure without regenerating the photo", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "flow-qa-network-retry-"));
+    const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+    const files = ["product.png", "background.png", "candidate.png"].map((name) => path.join(directory, name));
+    await Promise.all(files.map((file) => writeFile(file, image)));
+    const fetchFn = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockImplementation(async () => new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"pass":true,"score":97,"issues":[]}' }] } }],
+      }), { status: 200 }));
+    try {
+      await expect(evaluateFlowProductPhoto(
+        { productPath: files[0], backgroundPath: files[1], candidatePath: files[2] },
+        { apiKey: "test-key", fetchFn: fetchFn as typeof fetch },
+      )).resolves.toMatchObject({ pass: true, score: 97 });
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("requires the independent print-count audit to pass", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "flow-qa-"));
     const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
