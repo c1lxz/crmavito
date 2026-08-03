@@ -24,6 +24,10 @@ describe("Flow local agent installer", () => {
     expect(ensure).toContain("FLOW_AGENT_PROFILE_DIR");
     expect(builder).toContain("UTF8Encoding($true)");
     expect(builder).toContain("GetEncoding(1251)");
+    expect(builder).not.toContain("WINDOWS 10/11");
+    expect(builder).not.toContain("Адрес CRM");
+    expect(builder).not.toContain("Ключ подключения");
+    expect(builder).not.toContain("new TextBox");
   });
 
   it("ships the generated executable and agent package", async () => {

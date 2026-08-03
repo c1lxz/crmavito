@@ -33,8 +33,6 @@ internal static class FlowInstallerProgram
     private const string ScriptBase64 = "$scriptBase64";
     private const string PackageBase64 = "$packageBase64";
     private static readonly Color Canvas = Color.FromArgb(244, 247, 250);
-    private static readonly Color Surface = Color.White;
-    private static readonly Color Ink = Color.FromArgb(37, 54, 73);
     private static readonly Color Muted = Color.FromArgb(91, 111, 132);
     private static readonly Color Accent = Color.FromArgb(53, 103, 232);
     private static readonly Color Success = Color.FromArgb(21, 138, 91);
@@ -59,8 +57,8 @@ internal static class FlowInstallerProgram
     {
         var form = new Form {
             Text = "CRM Avito Flow Agent",
-            ClientSize = new Size(680, 520),
-            MinimumSize = new Size(696, 559),
+            ClientSize = new Size(560, 260),
+            MinimumSize = new Size(576, 299),
             StartPosition = FormStartPosition.CenterScreen,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false,
@@ -68,14 +66,14 @@ internal static class FlowInstallerProgram
             Font = new Font("Segoe UI", 9.5f)
         };
 
-        var header = new Panel { Dock = DockStyle.Top, Height = 116, BackColor = Color.FromArgb(8, 23, 39) };
+        var header = new Panel { Dock = DockStyle.Top, Height = 108, BackColor = Color.FromArgb(8, 23, 39) };
         var mark = new Label {
             Text = "F",
             TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font("Segoe UI", 17, FontStyle.Bold),
             ForeColor = Color.White,
             BackColor = Accent,
-            Location = new Point(30, 28),
+            Location = new Point(28, 25),
             Size = new Size(48, 48)
         };
         var title = new Label {
@@ -83,88 +81,38 @@ internal static class FlowInstallerProgram
             Font = new Font("Segoe UI", 19, FontStyle.Bold),
             ForeColor = Color.White,
             AutoSize = true,
-            Location = new Point(96, 25)
+            Location = new Point(94, 22)
         };
         var subtitle = new Label {
             Text = "Связывает этот компьютер с Контент-машиной CRM Avito",
             Font = new Font("Segoe UI", 9.5f),
             ForeColor = Color.FromArgb(184, 199, 211),
             AutoSize = true,
-            Location = new Point(98, 65)
+            Location = new Point(96, 62)
         };
         header.Controls.Add(mark);
         header.Controls.Add(title);
         header.Controls.Add(subtitle);
 
-        var card = new Panel { BackColor = Surface, Location = new Point(24, 136), Size = new Size(632, 302) };
-        var readyChip = new Label {
-            Text = "  WINDOWS 10/11  ",
-            AutoSize = true,
-            Font = new Font("Segoe UI Semibold", 8.5f),
-            ForeColor = Accent,
-            BackColor = Color.FromArgb(235, 241, 255),
-            Location = new Point(26, 22),
-            Padding = new Padding(4, 4, 4, 4)
-        };
-        var intro = new Label {
-            Text = "Агент работает в фоне и запускается вместе с Windows.\r\nChrome откроется только когда Контент-машине понадобится Flow.",
-            ForeColor = Ink,
-            AutoSize = false,
-            Location = new Point(26, 58),
-            Size = new Size(580, 44)
-        };
-
-        var serverLabel = new Label { Text = "Адрес CRM", ForeColor = Muted, AutoSize = true, Location = new Point(26, 117) };
-        var server = new TextBox {
-            Text = "https://crmavito.duckdns.org",
-            BorderStyle = BorderStyle.FixedSingle,
-            ForeColor = Ink,
-            Location = new Point(26, 140),
-            Size = new Size(580, 28)
-        };
-        var tokenLabel = new Label { Text = "Ключ подключения", ForeColor = Muted, AutoSize = true, Location = new Point(26, 184) };
-        var token = new TextBox {
-            BorderStyle = BorderStyle.FixedSingle,
-            ForeColor = Ink,
-            UseSystemPasswordChar = true,
-            Location = new Point(26, 207),
-            Size = new Size(580, 28)
-        };
-        var tokenHint = new Label {
-            Text = File.Exists(@"C:\crmavito\.env.local")
-                ? "Настройки CRM найдены на этом ПК — ключ подставится автоматически."
-                : "Введите ключ локального агента, выданный администратором CRM.",
-            ForeColor = File.Exists(@"C:\crmavito\.env.local") ? Success : Muted,
-            AutoSize = true,
-            Location = new Point(27, 246)
-        };
-        card.Controls.Add(readyChip);
-        card.Controls.Add(intro);
-        card.Controls.Add(serverLabel);
-        card.Controls.Add(server);
-        card.Controls.Add(tokenLabel);
-        card.Controls.Add(token);
-        card.Controls.Add(tokenHint);
-
         var statusDot = new Label {
             Text = "●",
             ForeColor = Accent,
             AutoSize = true,
-            Location = new Point(30, 465)
+            Location = new Point(28, 140)
         };
         var status = new Label {
             Text = "Готово к установке",
             ForeColor = Muted,
             AutoSize = false,
-            Location = new Point(50, 463),
-            Size = new Size(365, 23)
+            Location = new Point(48, 138),
+            Size = new Size(320, 23)
         };
         var progress = new ProgressBar {
             Visible = false,
             Style = ProgressBarStyle.Marquee,
             MarqueeAnimationSpeed = 22,
-            Location = new Point(30, 492),
-            Size = new Size(620, 4)
+            Location = new Point(28, 172),
+            Size = new Size(504, 4)
         };
         var details = new Button {
             Text = "Подробности",
@@ -173,7 +121,7 @@ internal static class FlowInstallerProgram
             ForeColor = Danger,
             BackColor = Canvas,
             Size = new Size(112, 38),
-            Location = new Point(410, 452)
+            Location = new Point(28, 198)
         };
         details.FlatAppearance.BorderColor = Color.FromArgb(217, 226, 234);
         var install = new Button {
@@ -183,7 +131,7 @@ internal static class FlowInstallerProgram
             BackColor = Accent,
             Font = new Font("Segoe UI Semibold", 9.5f),
             Size = new Size(154, 40),
-            Location = new Point(496, 450)
+            Location = new Point(378, 194)
         };
         install.FlatAppearance.BorderSize = 0;
         var installationComplete = false;
@@ -196,15 +144,13 @@ internal static class FlowInstallerProgram
                 return;
             }
             install.Enabled = false;
-            token.Enabled = false;
-            server.Enabled = false;
             details.Visible = false;
             progress.Visible = true;
             statusDot.ForeColor = Accent;
             status.Text = "Устанавливаю зависимости и настраиваю автозапуск…";
             var worker = new BackgroundWorker();
             worker.DoWork += delegate(object sender, DoWorkEventArgs eventArgs) {
-                eventArgs.Result = RunInstaller(server.Text.Trim(), token.Text.Trim());
+                eventArgs.Result = RunInstaller(null, null);
             };
             worker.RunWorkerCompleted += delegate(object sender, RunWorkerCompletedEventArgs eventArgs) {
                 progress.Visible = false;
@@ -223,15 +169,12 @@ internal static class FlowInstallerProgram
                     details.Visible = true;
                     install.Text = "Повторить";
                     install.Enabled = true;
-                    token.Enabled = true;
-                    server.Enabled = true;
                 }
             };
             worker.RunWorkerAsync();
         };
 
         form.Controls.Add(header);
-        form.Controls.Add(card);
         form.Controls.Add(statusDot);
         form.Controls.Add(status);
         form.Controls.Add(progress);
