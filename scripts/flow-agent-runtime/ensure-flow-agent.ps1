@@ -6,6 +6,7 @@ $logRoot = Join-Path $agentRoot "logs"
 $logPath = Join-Path $logRoot "agent.log"
 $errorLogPath = Join-Path $logRoot "agent-error.log"
 $entryPoint = Join-Path $agentRoot "dist\flow-agent.cjs"
+$chromeBootstrap = Join-Path $agentRoot "start-flow-chrome.ps1"
 
 New-Item -ItemType Directory -Force -Path $stateRoot, $logRoot | Out-Null
 
@@ -25,6 +26,8 @@ $node = (Get-Command node.exe -ErrorAction Stop).Source
 $environment = @{
   FLOW_AGENT_STATE_DIR = $stateRoot
   FLOW_AGENT_PROFILE_DIR = (Join-Path $stateRoot "chrome-profile")
+  FLOW_AGENT_CDP_URL = "http://127.0.0.1:9223"
+  FLOW_AGENT_CDP_BOOTSTRAP_SCRIPT = $chromeBootstrap
 }
 foreach ($item in $environment.GetEnumerator()) {
   [Environment]::SetEnvironmentVariable($item.Key, $item.Value, "Process")

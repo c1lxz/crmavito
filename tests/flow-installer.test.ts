@@ -15,6 +15,7 @@ describe("Flow local agent installer", () => {
   it("installs a bundled agent with autostart and a private local config", async () => {
     const installer = await readFile(path.join(root, "public/downloads/install-flow-agent.ps1"), "utf8");
     const ensure = await readFile(path.join(root, "scripts/flow-agent-runtime/ensure-flow-agent.ps1"), "utf8");
+    const chromeBootstrap = await readFile(path.join(root, "scripts/flow-agent-runtime/start-flow-chrome.ps1"), "utf8");
     const builder = await readFile(path.join(root, "scripts/build-flow-agent-installer.ps1"), "utf8");
     expect(installer).toContain("Register-ScheduledTask");
     expect(installer).toContain("current-user-run");
@@ -22,6 +23,12 @@ describe("Flow local agent installer", () => {
     expect(installer).toContain("FLOW_AGENT_INSTALL_OK");
     expect(ensure).toContain("dist\\flow-agent.cjs");
     expect(ensure).toContain("FLOW_AGENT_PROFILE_DIR");
+    expect(ensure).toContain("FLOW_AGENT_CDP_URL");
+    expect(ensure).toContain("FLOW_AGENT_CDP_BOOTSTRAP_SCRIPT");
+    expect(installer).toContain("start-flow-chrome.ps1");
+    expect(chromeBootstrap).toContain("--remote-debugging-port=$debugPort");
+    expect(chromeBootstrap).toContain("--user-data-dir=");
+    expect(chromeBootstrap).not.toContain("--enable-automation");
     expect(builder).toContain("UTF8Encoding($true)");
     expect(builder).toContain("GetEncoding(1251)");
     expect(builder).not.toContain("WINDOWS 10/11");

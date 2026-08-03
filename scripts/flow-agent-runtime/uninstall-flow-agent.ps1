@@ -3,9 +3,13 @@ $ErrorActionPreference = "Stop"
 $taskName = "CRM Avito Flow Content Agent"
 $agentRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $entryPoint = Join-Path $agentRoot "dist\flow-agent.cjs"
+$profileRoot = Join-Path $agentRoot "state\chrome-profile"
 
 Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
   $_.Name -eq "node.exe" -and $_.CommandLine -like "*$entryPoint*"
+} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+  $_.Name -eq "chrome.exe" -and $_.CommandLine -like "*$profileRoot*"
 } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue

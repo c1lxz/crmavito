@@ -42,6 +42,7 @@ $package = @{
 }
 $package | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $buildRoot "package.json") -Encoding UTF8
 Copy-Item -LiteralPath (Join-Path $runtimeRoot "ensure-flow-agent.ps1") -Destination $buildRoot
+Copy-Item -LiteralPath (Join-Path $runtimeRoot "start-flow-chrome.ps1") -Destination $buildRoot
 Copy-Item -LiteralPath (Join-Path $runtimeRoot "uninstall-flow-agent.ps1") -Destination $buildRoot
 
 Push-Location $buildRoot
@@ -58,4 +59,3 @@ if (Test-Path -LiteralPath $zipPath) {
 Compress-Archive -Path (Join-Path $buildRoot "*") -DestinationPath $zipPath -CompressionLevel Optimal
 Remove-Item -LiteralPath $buildRoot -Recurse -Force
 Get-Item -LiteralPath $zipPath | Select-Object FullName, Length, LastWriteTime
-

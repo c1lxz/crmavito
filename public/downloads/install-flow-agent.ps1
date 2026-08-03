@@ -83,12 +83,18 @@ try {
   Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
     $_.Name -eq "node.exe" -and $_.CommandLine -like "*$installRoot*flow-agent.cjs*"
   } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+  $profileRoot = Join-Path $installRoot "state\chrome-profile"
+  Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -eq "chrome.exe" -and $_.CommandLine -like "*$profileRoot*"
+  } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
   Copy-Item -Path (Join-Path $stageRoot "*") -Destination $installRoot -Recurse -Force
   @(
     "FLOW_AGENT_CRM_URL=$crmUrl",
     "FLOW_LOCAL_AGENT_TOKEN=$token",
-    "FLOW_AGENT_CONCURRENCY=1"
+    "FLOW_AGENT_CONCURRENCY=1",
+    "FLOW_AGENT_CDP_URL=http://127.0.0.1:9223",
+    "FLOW_AGENT_CDP_BOOTSTRAP_SCRIPT=`"$(Join-Path $installRoot 'start-flow-chrome.ps1')`""
   ) | Set-Content -LiteralPath (Join-Path $installRoot ".env.local") -Encoding UTF8
 
   Push-Location $installRoot
@@ -126,6 +132,7 @@ try {
   New-ItemProperty -Path $uninstallKey -Name UninstallString -Value "`"$powershell`" -NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $installRoot 'uninstall-flow-agent.ps1')`"" -PropertyType String -Force | Out-Null
 
   & $ensureScript
+  & (Join-Path $installRoot "start-flow-chrome.ps1")
   Start-Sleep -Seconds 2
   $running = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
     $_.Name -eq "node.exe" -and $_.CommandLine -like "*$installRoot*flow-agent.cjs*"
