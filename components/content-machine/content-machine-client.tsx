@@ -10,9 +10,11 @@ import {
   Bug,
   ImagePlus,
   Images,
+  Laptop,
   Loader2,
   RefreshCw,
   ScanSearch,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   Trash2,
@@ -414,6 +416,7 @@ export function ContentMachineClient() {
   const selectedCount = selectedIds.length;
   const designReady = mode === "product-photo" || inspirationQuery.trim().length >= 3;
   const resultCount = mode === "original-design" ? 3 : products.length * 3;
+  const agentReady = Boolean(agentStatus?.online && agentStatus.state === "ready");
 
   return (
     <div className="min-h-screen bg-background">
@@ -458,6 +461,59 @@ export function ContentMachineClient() {
       </header>
 
       <main className="content-machine-content mx-auto w-full min-w-0 max-w-[100rem] space-y-8 overflow-x-clip px-4 py-6 sm:px-6 lg:px-8">
+        <section aria-labelledby="flow-agent-install-title" className="overflow-hidden rounded-2xl border bg-card">
+          <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="flex min-w-0 items-start gap-4">
+              <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${agentReady ? "bg-success/12 text-success" : "bg-primary/10 text-primary"}`}>
+                {agentReady ? <CircleCheck className="h-6 w-6" /> : <Laptop className="h-6 w-6" />}
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 id="flow-agent-install-title" className="text-base font-semibold">Локальный агент Flow</h2>
+                  <Badge variant={agentReady ? "success" : "secondary"}>
+                    {agentReady ? "Подключён" : "Требуется установка"}
+                  </Badge>
+                </div>
+                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                  {agentReady
+                    ? `Агент работает на этом компьютере${agentStatus?.concurrency ? ` · ${agentStatus.concurrency} поток` : ""}. Он автоматически забирает задания и возвращает готовые фото.`
+                    : "Установите агент один раз: он добавится в автозапуск Windows и будет открывать Chrome только во время работы с Flow."}
+                </p>
+                {!agentReady && agentStatus?.message ? (
+                  <p className="mt-2 text-xs text-warning">{agentStatus.message}</p>
+                ) : null}
+              </div>
+            </div>
+            <Button asChild variant={agentReady ? "outline" : "default"} className="min-h-11 w-full shrink-0 sm:w-auto">
+              <a href="/downloads/install-flow-agent.exe" download>
+                <Download className="mr-2 h-4 w-4" />
+                {agentReady ? "Переустановить" : "Скачать для Windows"}
+              </a>
+            </Button>
+          </div>
+          {!agentReady ? (
+            <div className="border-t bg-secondary/25 px-5 py-4 sm:px-6">
+              <ol className="grid gap-3 text-sm sm:grid-cols-3">
+                <li className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-xs font-semibold text-primary">1</span>
+                  <span><strong className="font-medium text-foreground">Скачайте EXE</strong><span className="block text-xs text-muted-foreground">Без архива и командной строки</span></span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-xs font-semibold text-primary">2</span>
+                  <span><strong className="font-medium text-foreground">Запустите установку</strong><span className="block text-xs text-muted-foreground">Настройки CRM найдутся автоматически</span></span>
+                </li>
+                <li className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-background text-xs font-semibold text-primary">3</span>
+                  <span><strong className="font-medium text-foreground">Войдите в Google</strong><span className="block text-xs text-muted-foreground">При первом задании в окне Flow</span></span>
+                </li>
+              </ol>
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <ShieldCheck className="h-3.5 w-3.5 text-success" /> Агент хранит профиль Chrome и ключ подключения только на этом ПК.
+              </p>
+            </div>
+          ) : null}
+        </section>
+
         <section>
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
