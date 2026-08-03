@@ -167,7 +167,8 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain("ERR_CONNECTION_RESET|ERR_TIMED_OUT");
     expect(flowAgentSource).toContain("requestFallbackQuality");
     expect(flowAgentSource).toContain("Gemini QA unavailable, using Claude");
-    expect(flowAgentSource).toContain("Claude QA unavailable, waiting for Gemini");
+    expect(flowAgentSource).toContain("QA providers unavailable, keeping candidate for manual review");
+    expect(flowAgentSource).toContain('provider: "manual-review"');
     expect(flowAgentSource).toContain("isRetryableGenerationError");
     expect(flowAgentSource).toContain("page = await context.newPage()");
     expect(flowBrowserSource).toContain("Flow generation failed");

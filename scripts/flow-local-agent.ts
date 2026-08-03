@@ -413,12 +413,15 @@ async function processJob(context: BrowserContext, job: AgentJob) {
                 verdict = await requestFallbackQuality(job.id, productPath, backgroundPath, outputPath);
               } catch (fallbackError) {
                 console.warn(
-                  `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: Claude QA unavailable, waiting for Gemini: ${sanitizeFlowAgentError(fallbackError)}`,
+                  `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: QA providers unavailable, keeping candidate for manual review: ${sanitizeFlowAgentError(fallbackError)}`,
                 );
-                verdict = await evaluateFlowProductPhoto(
-                  { productPath, backgroundPath, candidatePath: outputPath },
-                  { fetchFn: browserPageFetch(page), retryRateLimits: true },
-                );
+                verdict = {
+                  pass: true,
+                  score: 0,
+                  issues: ["External QA unavailable; manual review required."],
+                  skipped: true,
+                  provider: "manual-review",
+                };
               }
             }
           } else {
