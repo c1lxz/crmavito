@@ -330,6 +330,13 @@ export function compactFlowPrompt(prompt: string) {
   if (normalized.includes("immutable product identity") && normalized.includes("REFERENCE IMAGE 1")) {
     return buildFlowProductPhotoPrompt();
   }
+  const preservesExistingProduct = normalized.includes("IMAGE 1 = ONLY immutable product")
+    || normalized.includes("Preserve IMAGE 1 exactly");
+  if (preservesExistingProduct) {
+    const prefix = normalized.slice(0, 900);
+    const boundary = Math.max(prefix.lastIndexOf(". "), prefix.lastIndexOf("; "));
+    return boundary > 760 ? prefix.slice(0, boundary + 1) : prefix;
+  }
   const labelSuffix = normalized.includes("CUSTOM MADE")
     ? " Add exactly one single-line back-neck heat-transfer marking reading 'CUSTOM MADE', printed directly on fabric; no repeat, second line, sewn tag, reference name or logo."
     : "";
