@@ -34,7 +34,7 @@ const baseUrl = (process.env.FLOW_AGENT_CRM_URL || "https://crmavito.duckdns.org
 const token = process.env.FLOW_LOCAL_AGENT_TOKEN?.trim() || "";
 const flowUrl = process.env.FLOW_URL || "https://labs.google/fx/tools/flow";
 const agentId = process.env.FLOW_AGENT_ID || hostname();
-const concurrency = clamp(Number(process.env.FLOW_AGENT_CONCURRENCY || 3), 1, 6);
+const concurrency = clamp(Number(process.env.FLOW_AGENT_CONCURRENCY || 1), 1, 6);
 const pollMs = clamp(Number(process.env.FLOW_AGENT_POLL_MS || 750), 250, 30_000);
 const generationTimeoutMs = clamp(Number(process.env.FLOW_GENERATION_TIMEOUT_MS || 240_000), 30_000, 600_000);
 const generationMaxAttempts = clamp(Number(process.env.FLOW_GENERATION_MAX_ATTEMPTS || 3), 1, 5);
@@ -108,7 +108,7 @@ async function main() {
     }).catch(async (error) => {
       const message = sanitizeFlowAgentError(error);
       console.error(`[flow-agent] ${job.id}: ${message}`);
-      const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|proxy.*(?:failed|unavailable)|туннел|terminated|TargetClosedError|browser has been closed/i.test(message);
+      const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|ERR_CONNECTION_RESET|ERR_TIMED_OUT|proxy.*(?:failed|unavailable)|туннел|terminated|TargetClosedError|browser has been closed/i.test(message);
       const publicError = publicFlowAgentError(error);
       currentAvailability = {
         state: canTryAnotherAgent ? "blocked" : "error",
