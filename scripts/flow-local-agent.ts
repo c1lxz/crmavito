@@ -409,7 +409,17 @@ async function processJob(context: BrowserContext, job: AgentJob) {
               console.warn(
                 `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: Gemini QA unavailable, using Claude: ${sanitizeFlowAgentError(error)}`,
               );
-              verdict = await requestFallbackQuality(job.id, productPath, backgroundPath, outputPath);
+              try {
+                verdict = await requestFallbackQuality(job.id, productPath, backgroundPath, outputPath);
+              } catch (fallbackError) {
+                console.warn(
+                  `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: Claude QA unavailable, waiting for Gemini: ${sanitizeFlowAgentError(fallbackError)}`,
+                );
+                verdict = await evaluateFlowProductPhoto(
+                  { productPath, backgroundPath, candidatePath: outputPath },
+                  { fetchFn: browserPageFetch(page), retryRateLimits: true },
+                );
+              }
             }
           } else {
             verdict = { pass: true, score: 100, issues: [], skipped: true };
