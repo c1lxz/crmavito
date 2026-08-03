@@ -8,7 +8,7 @@ import { generateFlowImage } from "../lib/flow-agent/browser";
 import { publicFlowAgentError, sanitizeFlowAgentError } from "../lib/flow-agent/errors";
 import { normalizeFlowResult, type FlowImageSize } from "../lib/flow-agent/image-output";
 import { buildOriginalDesignPrompt, collectMarketResearch, type MarketResearch } from "../lib/flow-agent/market-research";
-import { browserPageFetch, evaluateFlowProductPhoto } from "../lib/flow-agent/quality";
+import { browserPageFetch, evaluateFlowProductPhoto, type FlowPhotoQualityVerdict } from "../lib/flow-agent/quality";
 
 loadEnvConfig(process.cwd());
 
@@ -398,15 +398,25 @@ async function processJob(context: BrowserContext, job: AgentJob) {
             }
           }
           if (!timing) throw new Error(`Flow generation failed for ${item.product.index}/${item.background.slot}.`);
-          const verdict = requiresProductQa
-            ? await evaluateFlowProductPhoto(
-              { productPath, backgroundPath, candidatePath: outputPath },
-              { fetchFn: browserPageFetch(page) },
-            )
-            : { pass: true, score: 100, issues: [], skipped: true };
+          let verdict: FlowPhotoQualityVerdict & { provider?: string };
+          if (requiresProductQa) {
+            try {
+              verdict = await evaluateFlowProductPhoto(
+                { productPath, backgroundPath, candidatePath: outputPath },
+                { fetchFn: browserPageFetch(page), retryRateLimits: false },
+              );
+            } catch (error) {
+              console.warn(
+                `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: Gemini QA unavailable, using Claude: ${sanitizeFlowAgentError(error)}`,
+              );
+              verdict = await requestFallbackQuality(job.id, productPath, backgroundPath, outputPath);
+            }
+          } else {
+            verdict = { pass: true, score: 100, issues: [], skipped: true };
+          }
           if (verdict.pass) {
             await uploadResult(job.id, item.product.index, item.background.slot, outputPath, timing, job.imageSize);
-            console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: ${(timing.durationMs / 1000).toFixed(1)} сек; QA ${verdict.skipped ? "skipped" : verdict.score}`);
+            console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: ${(timing.durationMs / 1000).toFixed(1)} сек; QA ${verdict.skipped ? "skipped" : verdict.score}${verdict.provider ? ` (${verdict.provider})` : ""}`);
             break;
           }
           feedback = verdict.issues.join("; ").slice(0, 320) || `product fidelity score was ${verdict.score}/100`;
@@ -543,6 +553,17 @@ function clamp(value: number, min: number, max: number) {
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function requestFallbackQuality(jobId: string, productPath: string, backgroundPath: string, candidatePath: string) {
+  const form = new FormData();
+  form.set("product", new Blob([new Uint8Array(await readFile(productPath))], { type: "image/jpeg" }), path.basename(productPath));
+  form.set("background", new Blob([new Uint8Array(await readFile(backgroundPath))], { type: "image/jpeg" }), path.basename(backgroundPath));
+  form.set("candidate", new Blob([new Uint8Array(await readFile(candidatePath))], { type: "image/png" }), path.basename(candidatePath));
+  const response = await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${jobId}/quality`, { method: "POST", body: form });
+  const data = await response.json() as (FlowPhotoQualityVerdict & { provider?: string; error?: string });
+  if (!response.ok) throw new Error(data.error || `Claude QA вернула HTTP ${response.status}.`);
+  return data;
 }
 
 async function supervise() {

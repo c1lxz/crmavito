@@ -165,6 +165,8 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain("FLOW_GENERATION_MAX_ATTEMPTS");
     expect(flowAgentSource).toContain("FLOW_AGENT_CONCURRENCY || 1");
     expect(flowAgentSource).toContain("ERR_CONNECTION_RESET|ERR_TIMED_OUT");
+    expect(flowAgentSource).toContain("requestFallbackQuality");
+    expect(flowAgentSource).toContain("Gemini QA unavailable, using Claude");
     expect(flowAgentSource).toContain("isRetryableGenerationError");
     expect(flowAgentSource).toContain("page = await context.newPage()");
     expect(flowBrowserSource).toContain("Flow generation failed");

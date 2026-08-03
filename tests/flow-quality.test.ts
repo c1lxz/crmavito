@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { evaluateFlowProductPhoto, parseQualityVerdict, qualityRetryDelayMs } from "@/lib/flow-agent/quality";
+import { evaluateFlowProductPhotoWithClaude } from "@/lib/flow-agent/claude-quality";
 
 describe("Flow product photo quality gate", () => {
   it("accepts a high-confidence clean result", () => {
@@ -94,5 +95,18 @@ describe("Flow product photo quality gate", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it("uses Claude vision as a strict server-side QA fallback", async () => {
+    const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify({
+      content: [{ type: "text", text: '{"pass":true,"score":95,"issues":[]}' }],
+    }), { status: 200 }));
+    await expect(evaluateFlowProductPhotoWithClaude(
+      { product: image, background: image, candidate: image },
+      { apiKey: "claude-key", baseUrl: "https://claude.test", model: "claude-test", fetchFn: fetchFn as typeof fetch },
+    )).resolves.toEqual({ pass: true, score: 95, issues: [], provider: "claude" });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(String(fetchFn.mock.calls[0][0])).toBe("https://claude.test/v1/messages");
   });
 });

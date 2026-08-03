@@ -16,7 +16,7 @@ type GeminiQualityResponse = {
 
 export async function evaluateFlowProductPhoto(
   input: { productPath: string; backgroundPath: string; candidatePath: string },
-  options: { fetchFn?: typeof fetch; apiKey?: string; model?: string } = {},
+  options: { fetchFn?: typeof fetch; apiKey?: string; model?: string; retryRateLimits?: boolean } = {},
 ): Promise<FlowPhotoQualityVerdict> {
   const apiKey = options.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return { pass: true, score: 0, issues: ["Gemini QA не настроен"], skipped: true };
@@ -29,6 +29,7 @@ export async function evaluateFlowProductPhoto(
     prepareVisionImage(input.candidatePath),
   ]);
   const baseRequest = { apiKey, fetchFn: options.fetchFn || fetch, product, background, candidate };
+  const retryRateLimits = options.retryRateLimits !== false;
   const evaluateWithModel = async (activeModel: string, retryRateLimits: boolean) => {
     const request = { ...baseRequest, model: activeModel, retryRateLimits };
     const primary = await requestQualityVerdict(request, qualityPrompt());
@@ -42,10 +43,10 @@ export async function evaluateFlowProductPhoto(
   };
   const hasFallback = Boolean(fallbackModel && fallbackModel !== model);
   try {
-    return await evaluateWithModel(model, !hasFallback);
+    return await evaluateWithModel(model, retryRateLimits && !hasFallback);
   } catch (error) {
     if (!(error instanceof GeminiQualityHttpError) || error.status !== 429 || !hasFallback) throw error;
-    return evaluateWithModel(fallbackModel, true);
+    return evaluateWithModel(fallbackModel, retryRateLimits);
   }
 }
 
