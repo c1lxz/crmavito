@@ -1,8 +1,7 @@
 import { File } from "node:buffer";
 import sharp from "sharp";
-import { fetchAvitoItemImageWithToken } from "@/lib/avito/api";
 import { fetchAvitoAdsAnalytics, type AvitoAdAnalyticsItem } from "@/lib/avito/ads-analytics";
-import { downloadImageAsBuffer } from "@/lib/avito/fetch-image";
+import { downloadImageAsBuffer, resolveProductImage } from "@/lib/avito/fetch-image";
 import { getAvitoCredentials, listAvitoProfilesWithCredentials } from "@/lib/avito/profile-store";
 import { getAvitoStockToken, type AvitoCredentials } from "@/lib/avito/stocks";
 import { createCodexJob, type CodexJob } from "@/lib/ai/content-machine-jobs";
@@ -115,7 +114,11 @@ async function loadWinnerSource(winner: PrivateWinner) {
   let imageUrl = winner.imageUrl;
   if (!imageUrl) {
     const token = await getAvitoStockToken(winner.credentials);
-    const resolved = await fetchAvitoItemImageWithToken(winner.itemId, token);
+    const resolved = await resolveProductImage({
+      name: winner.title,
+      avitoItemId: winner.itemId,
+      avitoListingUrl: winner.url,
+    }, { avitoToken: token });
     if (resolved.ok) imageUrl = resolved.value;
   }
   if (!imageUrl) throw new Error(`У позиции Avito ${winner.itemId} не найдено исходное фото.`);

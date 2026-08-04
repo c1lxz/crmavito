@@ -5,6 +5,8 @@ import {
   selectAnalyticsWinners,
   type AnalyticsWinner,
 } from "@/lib/ai/content-machine-auto";
+import fs from "node:fs";
+import path from "node:path";
 
 function winner(overrides: Partial<AnalyticsWinner>): AnalyticsWinner {
   return {
@@ -27,6 +29,13 @@ function winner(overrides: Partial<AnalyticsWinner>): AnalyticsWinner {
 }
 
 describe("content-machine analytics automation", () => {
+  it("falls back to listing and BotV image resolution when analytics has no image", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "lib/ai/content-machine-auto.ts"), "utf8");
+    expect(source).toContain("resolveProductImage({");
+    expect(source).toContain("avitoListingUrl: winner.url");
+    expect(source).toContain("name: winner.title");
+  });
+
   it("clamps requested positions to the supported 1..100 range", () => {
     expect(normalizeDesignCount(0)).toBe(1);
     expect(normalizeDesignCount(17.6)).toBe(18);
