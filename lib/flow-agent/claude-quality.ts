@@ -77,6 +77,7 @@ function qualityPrompt() {
     "Act as a strict product identity and photorealism gate.",
     "Compare A and C exactly. Count every printed motif; compare outline/fill, color, scale, position, cut, seams, collar, sleeves and fabric.",
     "Transcribe all visible words, letters and neck-label marks in A and C. Reject any missing, added, changed, mirrored, hidden or illegible detail.",
+    "Reject every hang tag, paper tag, sewn label, woven tab, white collar locator, plastic fastener, string or cropped tag fragment. A heat-transfer marking is permitted only inside the back-neck panel and must never appear on the outer chest or outer back.",
     "B supplies only surface, perspective and light. Reject any garment, artwork, label, logo, text or watermark copied from B.",
     "Reject CGI, pasted edges, floating cloth, broken geometry or duplicated details. Natural folds, crop, angle and lighting may differ.",
     "Return only JSON: {\"pass\":boolean,\"score\":integer 0..100,\"issues\":[short strings]}. Pass requires score >= 85 and exact product identity.",

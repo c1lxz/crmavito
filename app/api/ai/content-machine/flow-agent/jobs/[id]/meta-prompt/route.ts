@@ -9,8 +9,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!authorizeFlowAgent(request)) return flowAgentUnauthorized();
   try {
     const { id } = await context.params;
-    const body = await request.json() as { agentId?: string };
+    const body = await request.json() as { agentId?: string; prompt?: string; source?: "gemini" | "claude" | "fallback" };
     if (!body.agentId) return Response.json({ error: "Не указан локальный агент." }, { status: 400 });
+    if (body.prompt) {
+      const prompt = body.prompt.trim();
+      if (prompt.length < 300 || prompt.length > 12_000 || !["gemini", "claude", "fallback"].includes(body.source || "")) {
+        return Response.json({ error: "Некорректный локальный дизайн-бриф." }, { status: 400 });
+      }
+      await saveFlowDesignPrompt(id, body.agentId, prompt, body.source!);
+      return Response.json({ prompt, source: body.source });
+    }
     const promptContext = await getFlowDesignPromptContext(id, body.agentId);
     if (promptContext.designPrompt) return Response.json({ prompt: promptContext.designPrompt, source: "cache" });
     try {

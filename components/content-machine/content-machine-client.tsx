@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  BarChart3,
   Check,
   CircleCheck,
   Clock3,
@@ -80,8 +81,9 @@ type FlowJob = {
   marketResearch?: {
     topSignals: string[];
     sourceCounts: Record<"grailed" | "mercari" | "rakuma", number>;
+    listings?: Array<{ source: "grailed" | "mercari" | "rakuma"; title: string; url: string; imageUrl?: string }>;
   };
-  metaPromptSource?: "claude" | "fallback";
+  metaPromptSource?: "gemini" | "claude" | "fallback";
   metrics?: {
     totalDurationMs?: number;
     averageGenerationMs?: number;
@@ -100,10 +102,15 @@ export function ContentMachineClient() {
   const [products, setProducts] = useState<ProductPhoto[]>([]);
   const [imageSize, setImageSize] = useState<"2K" | "4K">("2K");
   const [mode, setMode] = useState<"product-photo" | "original-design">("product-photo");
+  const [designSource, setDesignSource] = useState<"upload" | "analytics">("upload");
+  const [designCount, setDesignCount] = useState(1);
+  const [analyticsPeriodDays, setAnalyticsPeriodDays] = useState(30);
   const [inspirationQuery, setInspirationQuery] = useState("");
   const [designNote, setDesignNote] = useState("");
   const [labelStyleReference, setLabelStyleReference] = useState("");
   const [job, setJob] = useState<FlowJob | null>(null);
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [batchJobs, setBatchJobs] = useState<FlowJob[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
   const [refreshingJob, setRefreshingJob] = useState(false);
@@ -123,6 +130,12 @@ export function ContentMachineClient() {
     void restoreDraft();
     const statusTimer = window.setInterval(() => void loadAgentStatus(), 5000);
     const savedJobId = window.localStorage.getItem("content-machine-flow-job");
+    let savedBatchIds: unknown = [];
+    try {
+      savedBatchIds = JSON.parse(window.localStorage.getItem("content-machine-flow-batch") || "[]") as unknown;
+    } catch {
+      window.localStorage.removeItem("content-machine-flow-batch");
+    }
     try {
       const savedIncidents = JSON.parse(window.localStorage.getItem("content-machine-diagnostic-incidents") || "[]") as DiagnosticIncident[];
       if (Array.isArray(savedIncidents)) {
@@ -133,7 +146,11 @@ export function ContentMachineClient() {
     } catch {
       window.localStorage.removeItem("content-machine-diagnostic-incidents");
     }
-    if (savedJobId) void loadJob(savedJobId, false);
+    if (Array.isArray(savedBatchIds) && savedBatchIds.every((id) => typeof id === "string") && savedBatchIds.length) {
+      void loadBatchJobs(savedBatchIds.slice(0, 100));
+    } else if (savedJobId) {
+      void loadJob(savedJobId, false);
+    }
     const handleWindowError = (event: ErrorEvent) => reportIncident("Ошибка интерфейса", event.error || event.message);
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => reportIncident("Необработанная ошибка", event.reason);
     window.addEventListener("error", handleWindowError);
@@ -151,6 +168,9 @@ export function ContentMachineClient() {
     const timer = window.setTimeout(() => {
       void saveContentMachineDraft({
         mode,
+        designSource,
+        designCount,
+        analyticsPeriodDays,
         imageSize,
         inspirationQuery,
         designNote,
@@ -160,13 +180,19 @@ export function ContentMachineClient() {
       }).catch((error) => reportIncident("Сохранение черновика", error));
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [draftRestored, mode, imageSize, inspirationQuery, designNote, labelStyleReference, products]);
+  }, [draftRestored, mode, designSource, designCount, analyticsPeriodDays, imageSize, inspirationQuery, designNote, labelStyleReference, products]);
 
   useEffect(() => {
-    if (!job || job.status === "ready" || job.status === "failed") return;
+    if (batchJobs.length || !job || job.status === "ready" || job.status === "failed") return;
     const timer = window.setInterval(() => void loadJob(job.id, false), 2000);
     return () => window.clearInterval(timer);
-  }, [job?.id, job?.status]);
+  }, [batchJobs.length, job?.id, job?.status]);
+
+  useEffect(() => {
+    if (!batchJobs.length || batchJobs.every((item) => item.status === "ready" || item.status === "failed")) return;
+    const timer = window.setInterval(() => void loadBatchJobs(batchJobs.map((item) => item.id)), 2500);
+    return () => window.clearInterval(timer);
+  }, [batchJobs]);
 
   async function loadBackgrounds() {
     setBackgroundsLoading(true);
@@ -252,9 +278,32 @@ export function ContentMachineClient() {
   }
 
   async function createJob() {
-    if (products.length === 0 || backgrounds.some((background) => !background.url)) return;
+    const automaticDesign = mode === "original-design" && designSource === "analytics";
+    if ((!automaticDesign && products.length === 0) || backgrounds.some((background) => !background.url)) return;
     setCreatingJob(true);
     try {
+      if (automaticDesign) {
+        const response = await fetch("/api/ai/content-machine/codex-jobs/auto", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ designCount, imageSize, periodDays: analyticsPeriodDays }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(`[HTTP ${response.status}] ${data.error || "Не удалось создать автопакет Flow."}`);
+        const jobs = Array.isArray(data.jobs) ? data.jobs as FlowJob[] : [];
+        if (!jobs.length) throw new Error("Сервер не вернул задания автопакета.");
+        setBatchId(String(data.batchId || "Автопакет"));
+        setBatchJobs(jobs);
+        setJob(jobs[0]);
+        setSelectedIds([]);
+        window.localStorage.setItem("content-machine-flow-batch", JSON.stringify(jobs.map((item) => item.id)));
+        window.localStorage.removeItem("content-machine-flow-job");
+        toast({
+          title: `Поставлено в очередь: ${jobs.length} позиций`,
+          description: `Контент-машина выбрала залетевшие товары из аналитики за ${data.periodDays || analyticsPeriodDays} дней и создаст ${jobs.length * 4} фотографий.`,
+        });
+        return;
+      }
       const form = new FormData();
       products.forEach((product) => form.append("products", product.file));
       form.append("imageSize", imageSize);
@@ -268,8 +317,11 @@ export function ContentMachineClient() {
       const data = await response.json();
       if (!response.ok) throw new Error(`[HTTP ${response.status}] ${data.error || "Не удалось создать задание Flow."}`);
       setJob(data.job);
+      setBatchId(null);
+      setBatchJobs([]);
       setSelectedIds([]);
       window.localStorage.setItem("content-machine-flow-job", data.job.id);
+      window.localStorage.removeItem("content-machine-flow-batch");
       toast({ title: `Задание ${data.job.id} запущено`, description: "Локальный агент создаёт новые проекты Flow и автоматически забирает результаты." });
     } catch (error) {
       reportIncident("Создание задачи Flow", error);
@@ -298,11 +350,35 @@ export function ContentMachineClient() {
     }
   }
 
+  async function loadBatchJobs(ids: string[]) {
+    try {
+      const jobs = await Promise.all(ids.slice(0, 100).map(async (id) => {
+        const response = await fetch(`/api/ai/content-machine/codex-jobs/${encodeURIComponent(id)}`, { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(`[HTTP ${response.status}] ${data.error || `Не удалось обновить ${id}.`}`);
+        return data.job as FlowJob;
+      }));
+      setBatchId((value) => value || "Автопакет аналитики");
+      setBatchJobs(jobs);
+      setJob(jobs[0] || null);
+      if (jobs.length && jobs.every((item) => item.status === "ready")) {
+        setSelectedIds((items) => items.length ? items : jobs.flatMap((item) => item.results.map((result) => `${item.id}:${result.id}`)));
+      }
+      return true;
+    } catch (error) {
+      reportIncident("Обновление автопакета Flow", error);
+      return false;
+    }
+  }
+
   async function restoreDraft() {
     try {
       const draft = await loadContentMachineDraft();
       if (!draft) return;
       setMode(draft.mode === "original-design" ? "original-design" : "product-photo");
+      setDesignSource(draft.designSource === "analytics" ? "analytics" : "upload");
+      setDesignCount(Math.max(1, Math.min(100, Math.round(Number(draft.designCount) || 1))));
+      setAnalyticsPeriodDays(Math.max(7, Math.min(270, Math.round(Number(draft.analyticsPeriodDays) || 30))));
       setImageSize(draft.imageSize === "4K" ? "4K" : "2K");
       setInspirationQuery(String(draft.inspirationQuery || "").slice(0, 120));
       setDesignNote(String(draft.designNote || "").slice(0, 1200));
@@ -368,7 +444,7 @@ export function ContentMachineClient() {
   }
 
   async function downloadSelected() {
-    const selected = job?.results.filter((result) => selectedIds.includes(result.id)) || [];
+    const selected = displayJob?.results.filter((result) => selectedIds.includes(result.id)) || [];
     for (const result of selected) {
       await downloadResult(result);
       await new Promise((resolve) => setTimeout(resolve, 180));
@@ -412,10 +488,26 @@ export function ContentMachineClient() {
   }
 
   const allBackgroundsReady = backgrounds.every((background) => Boolean(background.url));
-  const readyResults = job?.results || [];
+  const displayJob: FlowJob | null = batchJobs.length ? {
+    ...batchJobs[0],
+    id: batchId || "Автопакет аналитики",
+    status: batchJobs.every((item) => item.status === "ready")
+      ? "ready"
+      : batchJobs.some((item) => item.status === "failed")
+        ? "failed"
+        : batchJobs.some((item) => item.results.length > 0)
+          ? "partial"
+          : "waiting",
+    expectedResults: batchJobs.reduce((sum, item) => sum + item.expectedResults, 0),
+    failedResults: batchJobs.reduce((sum, item) => sum + Number(item.failedResults || 0), 0),
+    results: batchJobs.flatMap((item) => item.results.map((result) => ({ ...result, id: `${item.id}:${result.id}` }))),
+  } : job;
+  const readyResults = displayJob?.results || [];
   const selectedCount = selectedIds.length;
-  const designReady = mode === "product-photo" || inspirationQuery.trim().length >= 3;
-  const resultCount = mode === "original-design" ? 3 : products.length * 3;
+  const automaticDesign = mode === "original-design" && designSource === "analytics";
+  const designReady = mode === "product-photo" || automaticDesign || inspirationQuery.trim().length >= 3;
+  const sourceReady = automaticDesign || products.length > 0;
+  const resultCount = mode === "original-design" ? (automaticDesign ? designCount : 1) * slots.length : products.length * slots.length;
   const agentReady = Boolean(agentStatus?.online && agentStatus.state === "ready");
 
   return (
@@ -427,7 +519,7 @@ export function ContentMachineClient() {
           </Link>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-semibold tracking-tight">Контент-машина</h1>
-            <p className="hidden text-xs text-muted-foreground sm:block">Фотореалистичные карточки товара на трёх утверждённых фонах</p>
+            <p className="hidden text-xs text-muted-foreground sm:block">Фотореалистичные карточки товара на четырёх утверждённых ракурсах фона</p>
           </div>
           <Badge
             variant={agentStatus?.online && agentStatus.state === "ready" ? "success" : "outline"}
@@ -540,18 +632,22 @@ export function ContentMachineClient() {
         <section>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="text-base font-semibold">{mode === "original-design" ? "Фото залетевшей позиции" : "Исходные фото товара"}</h2>
+              <h2 className="text-base font-semibold">{automaticDesign ? "Автоподбор залетевших позиций" : mode === "original-design" ? "Фото залетевшей позиции" : "Исходные фото товара"}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {mode === "original-design"
+                {automaticDesign
+                  ? "Исходники будут выбраны автоматически из лучших объявлений всех активных Avito-профилей."
+                  : mode === "original-design"
                   ? "Добавьте перед, спину и детали одной залетевшей позиции. Все фото считаются ракурсами одного товара и помогают понять принты с обеих сторон."
                   : "Добавьте все ракурсы одной вещи. Принт, пошив, цвет и видимая сторона сохраняются, а композиция может быть улучшена."}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">{products.length} фото → {resultCount} результата</span>
-              <Button variant="outline" size="sm" className="min-h-11" onClick={() => productInputRef.current?.click()} disabled={creatingJob || products.length >= (mode === "original-design" ? maxDesignReferences : maxProducts)}>
-                <ImagePlus className="mr-1.5 h-4 w-4" />Добавить
-              </Button>
+              <span className="text-sm text-muted-foreground">{automaticDesign ? `${designCount} позиций` : `${products.length} фото`} → {resultCount} результата</span>
+              {!automaticDesign && (
+                <Button variant="outline" size="sm" className="min-h-11" onClick={() => productInputRef.current?.click()} disabled={creatingJob || products.length >= (mode === "original-design" ? maxDesignReferences : maxProducts)}>
+                  <ImagePlus className="mr-1.5 h-4 w-4" />Добавить
+                </Button>
+              )}
             </div>
           </div>
 
@@ -581,48 +677,71 @@ export function ContentMachineClient() {
               {mode === "original-design" ? (
                 <>
                   <div>
-                    <Label htmlFor="inspiration-query">Что сравнить на площадках</Label>
-                    <div className="relative mt-1.5">
-                      <ScanSearch className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="inspiration-query"
-                        value={inspirationQuery}
-                        onChange={(event) => setInspirationQuery(event.target.value)}
-                        placeholder="Например: vintage gothic long sleeve, washed black"
-                        maxLength={120}
-                        className="h-11 pl-9"
-                        disabled={creatingJob}
-                      />
-                    </div>
-                    <p className="mt-1.5 text-xs text-muted-foreground">Агент сравнит Grailed, Mercari и Rakuma и выделит общие приёмы без копирования конкретного принта.</p>
+                    <Label htmlFor="design-source">Источник спроса</Label>
+                    <Select value={designSource} onValueChange={(value: "upload" | "analytics") => setDesignSource(value)} disabled={creatingJob}>
+                      <SelectTrigger id="design-source" className="mt-1.5 h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="analytics">Автоматически из аналитики профилей</SelectItem>
+                        <SelectItem value="upload">Загруженная залетевшая позиция</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div>
-                    <Label htmlFor="label-style-reference">Стиль бирки / бренд-референс</Label>
-                    <Input
-                      id="label-style-reference"
-                      value={labelStyleReference}
-                      onChange={(event) => setLabelStyleReference(event.target.value)}
-                      placeholder="Например: минималистичный архивный люкс"
-                      maxLength={100}
-                      className="mt-1.5 h-11"
-                      disabled={creatingJob}
-                    />
-                    <p className="mt-1.5 text-xs text-muted-foreground">Flow сделает оригинальную термобирку CUSTOM MADE в указанной эстетике, без чужого названия или логотипа.</p>
-                  </div>
-                  <div className="lg:col-span-2">
-                    <Label htmlFor="design-note">Примечание</Label>
-                    <Textarea
-                      id="design-note"
-                      value={designNote}
-                      onChange={(event) => setDesignNote(event.target.value)}
-                      placeholder={"Например:\nДай 4 фото с разных ракурсов\nРисунок меньше"}
-                      maxLength={1200}
-                      rows={3}
-                      className="mt-1.5 min-h-24 resize-y"
-                      disabled={creatingJob}
-                    />
-                    <p className="mt-1.5 text-xs text-muted-foreground">Claude учтёт пожелания при создании финального мета-промпта для Flow.</p>
-                  </div>
+                  {designSource === "analytics" ? (
+                    <>
+                      <div>
+                        <Label htmlFor="design-count">Количество новых позиций</Label>
+                        <Input
+                          id="design-count"
+                          type="number"
+                          min={1}
+                          max={100}
+                          inputMode="numeric"
+                          value={designCount}
+                          onChange={(event) => setDesignCount(Math.max(1, Math.min(100, Math.round(Number(event.target.value) || 1))))}
+                          className="mt-1.5 h-11"
+                          disabled={creatingJob}
+                        />
+                        <p className="mt-1.5 text-xs text-muted-foreground">От 1 до 100 позиций, по четыре согласованных фотографии на каждую.</p>
+                      </div>
+                      <div>
+                        <Label htmlFor="analytics-period">Период аналитики</Label>
+                        <Select value={String(analyticsPeriodDays)} onValueChange={(value) => setAnalyticsPeriodDays(Number(value))} disabled={creatingJob}>
+                          <SelectTrigger id="analytics-period" className="mt-1.5 h-11"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="7">7 дней</SelectItem>
+                            <SelectItem value="30">30 дней</SelectItem>
+                            <SelectItem value="90">90 дней</SelectItem>
+                            <SelectItem value="180">180 дней</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-start gap-3 rounded-lg bg-secondary/35 p-3 text-sm lg:self-end">
+                        <BarChart3 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <p className="text-muted-foreground">Контент-машина объединит активные Avito-профили, ранжирует позиции по контактам, избранному и просмотрам, заберёт фото лидеров и только затем сравнит дизайн с Grailed, Mercari и Rakuma.</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <Label htmlFor="inspiration-query">Что сравнить на площадках</Label>
+                        <div className="relative mt-1.5">
+                          <ScanSearch className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                          <Input id="inspiration-query" value={inspirationQuery} onChange={(event) => setInspirationQuery(event.target.value)} placeholder="Например: vintage gothic long sleeve, washed black" maxLength={120} className="h-11 pl-9" disabled={creatingJob} />
+                        </div>
+                        <p className="mt-1.5 text-xs text-muted-foreground">Агент визуально сравнит реальные лоты Grailed, Mercari и Rakuma до создания концепта. Печатная зона — до 24 × 32 см на каждой стороне.</p>
+                      </div>
+                      <div>
+                        <Label htmlFor="label-style-reference">Подсказка по внутренней термобирке</Label>
+                        <Input id="label-style-reference" value={labelStyleReference} onChange={(event) => setLabelStyleReference(event.target.value)} placeholder="Например: термопечать видна внутри горловины на фото 3" maxLength={100} className="mt-1.5 h-11" disabled={creatingJob} />
+                        <p className="mt-1.5 text-xs text-muted-foreground">Навесные, бумажные и вшивные бирки запрещены. Термобирка находится только внутри спинки и не переносится на внешний принт.</p>
+                      </div>
+                      <div className="lg:col-span-2">
+                        <Label htmlFor="design-note">Примечание</Label>
+                        <Textarea id="design-note" value={designNote} onChange={(event) => setDesignNote(event.target.value)} placeholder={"Например:\nДай 4 фото с разных ракурсов\nРисунок меньше"} maxLength={1200} rows={3} className="mt-1.5 min-h-24 resize-y" disabled={creatingJob} />
+                        <p className="mt-1.5 text-xs text-muted-foreground">Пожелания попадут в производственный метапромпт Flow.</p>
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <div className="flex items-center text-sm text-muted-foreground">
@@ -641,7 +760,15 @@ export function ContentMachineClient() {
             onChange={(event) => { addProducts(event.target.files); event.currentTarget.value = ""; }}
           />
 
-          {products.length === 0 ? (
+          {automaticDesign ? (
+            <div className="flex min-h-40 items-center gap-4 rounded-xl border border-dashed bg-secondary/20 px-5 py-6">
+              <span className="icon-tile h-11 w-11 shrink-0"><BarChart3 className="h-5 w-5" /></span>
+              <div>
+                <p className="text-sm font-semibold">Загрузка фото не требуется</p>
+                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">После запуска система сама выберет лидеров по спросу, загрузит их исходные фотографии и создаст отдельное Flow-задание для каждой новой позиции.</p>
+              </div>
+            </div>
+          ) : products.length === 0 ? (
             <button
               type="button"
               onClick={() => productInputRef.current?.click()}
@@ -682,12 +809,14 @@ export function ContentMachineClient() {
                 <p className="text-sm font-semibold">{mode === "original-design" ? "Исследовать рынок и создать оригинальные варианты" : "Запустить быстрый локальный агент Flow"}</p>
                 <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">
                   {mode === "original-design"
-                    ? "Агент разберёт фото-победитель, сравнит выдачу трёх площадок, соберёт общий тренд-промпт и вернёт три самостоятельных дизайна в CRM."
+                    ? automaticDesign
+                      ? `Система сама выберет ${designCount} лидеров из аналитики, для каждого проверит рынок и вернёт ${resultCount} согласованных фотографий.`
+                      : "Агент разберёт фото-победитель и три площадки, создаст одну новую цельную позицию и вернёт четыре согласованных фото: перед, спину, настоящий близкий ракурс и дополнительный угол."
                     : "Агент сам откроет отдельный проект Flow для каждого результата, загрузит оба референса, вставит промпт и сохранит готовое фото в CRM."}
                 </p>
               </div>
             </div>
-            <Button onClick={() => void createJob()} disabled={creatingJob || products.length === 0 || !allBackgroundsReady || !designReady} className="min-h-11 w-full shrink-0 sm:w-auto">
+            <Button onClick={() => void createJob()} disabled={creatingJob || !sourceReady || !allBackgroundsReady || !designReady} className="min-h-11 w-full shrink-0 sm:w-auto">
               {creatingJob ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               {creatingJob ? "Ставлю в очередь Flow…" : `Создать ${resultCount} фото`}
             </Button>
@@ -698,22 +827,26 @@ export function ContentMachineClient() {
           {!allBackgroundsReady && <p className="mt-2 text-xs text-warning">Перед запуском загрузите все четыре эталонных ракурса.</p>}
         </section>
 
-        {job && (
+        {displayJob && (
           <section>
-            {job.marketResearch && (
+            {displayJob.marketResearch && (
               <div className="mb-4 rounded-lg border bg-card p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <ScanSearch className="h-4 w-4 text-primary" />
                   <h2 className="text-sm font-semibold">Рынок изучен</h2>
-                  {job.metaPromptSource === "claude" && <Badge variant="success">Мета-промпт Claude</Badge>}
+                  {displayJob.metaPromptSource === "gemini" && <Badge variant="success">Визуальный бриф Gemini</Badge>}
+                  {displayJob.metaPromptSource === "claude" && <Badge variant="success">Мета-промпт Claude</Badge>}
                   {(["grailed", "mercari", "rakuma"] as const).map((source) => (
                     <Badge key={source} variant="secondary" className="capitalize">
-                      {source} · {job.marketResearch?.sourceCounts[source] || 0}
+                      {source} · {displayJob.marketResearch?.sourceCounts[source] || 0}
                     </Badge>
                   ))}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Сигналы: {job.marketResearch.topSignals.length ? job.marketResearch.topSignals.join(", ") : "выдача площадок не дала устойчивых повторов; агент использовал фото-победитель"}
+                  Сигналы: {displayJob.marketResearch.topSignals.length ? displayJob.marketResearch.topSignals.join(", ") : "выдача площадок не дала устойчивых повторов; агент использовал фото-победитель"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Визуально разобрано лотов: {displayJob.marketResearch.listings?.filter((listing) => listing.imageUrl).length || 0}. Перед Flow фиксируются сюжет, перед/спина, цвета и печатные габариты.
                 </p>
               </div>
             )}
@@ -721,44 +854,44 @@ export function ContentMachineClient() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 items-start gap-3">
                   <span className="icon-tile h-10 w-10">
-                    {job.status === "ready" ? <CircleCheck className="h-5 w-5 text-success" /> : <Clock3 className="h-5 w-5 text-primary" />}
+                    {displayJob.status === "ready" ? <CircleCheck className="h-5 w-5 text-success" /> : <Clock3 className="h-5 w-5 text-primary" />}
                   </span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-mono text-sm font-semibold">{job.id}</h2>
-                      <Badge variant={job.status === "ready" ? "success" : "secondary"}>
-                        {job.status === "ready"
+                      <h2 className="font-mono text-sm font-semibold">{displayJob.id}</h2>
+                      <Badge variant={displayJob.status === "ready" ? "success" : "secondary"}>
+                        {displayJob.status === "ready"
                           ? "Готово"
-                          : job.status === "failed"
+                          : displayJob.status === "failed"
                             ? "Ошибка агента"
-                            : job.status === "partial"
-                              ? `Готово ${job.results.length} из ${job.expectedResults}`
+                            : displayJob.status === "partial"
+                              ? `Готово ${displayJob.results.length} из ${displayJob.expectedResults}`
                               : "Локальный агент Flow работает"}
                       </Badge>
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {job.status === "ready"
+                      {displayJob.status === "ready"
                         ? "Все изображения загружены в CRM."
-                        : job.status === "failed"
-                          ? job.error || `Готово ${job.results.length} из ${job.expectedResults}. Проверьте журнал локального агента.`
+                        : displayJob.status === "failed"
+                          ? displayJob.error || `Готово ${displayJob.results.length} из ${displayJob.expectedResults}. Проверьте журнал локального агента.`
                           : "Статус обновляется автоматически; каждое фото создаётся в новом проекте Flow."}
                     </p>
-                    {job.metrics?.generations.length ? (
+                    {displayJob.metrics?.generations.length ? (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Среднее фото: {formatDuration(job.metrics.averageGenerationMs || average(job.metrics.generations.map((item) => item.durationMs)))}
-                        {job.metrics.totalDurationMs ? ` · всё за ${formatDuration(job.metrics.totalDurationMs)}` : ""}
+                        Среднее фото: {formatDuration(displayJob.metrics.averageGenerationMs || average(displayJob.metrics.generations.map((item) => item.durationMs)))}
+                        {displayJob.metrics.totalDurationMs ? ` · всё за ${formatDuration(displayJob.metrics.totalDurationMs)}` : ""}
                       </p>
                     ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {job.status === "failed" && (
-                    <Button size="sm" className="min-h-11" disabled={retryingJob} onClick={() => void retryJob(job.id)}>
+                  {displayJob.status === "failed" && !batchJobs.length && (
+                    <Button size="sm" className="min-h-11" disabled={retryingJob} onClick={() => void retryJob(displayJob.id)}>
                       {retryingJob ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}
                       {retryingJob ? "Возвращаю в очередь…" : "Повторить недостающие"}
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" className="min-h-11" disabled={refreshingJob} onClick={() => void refreshJob(job.id)}>
+                  <Button variant="outline" size="sm" className="min-h-11" disabled={refreshingJob} onClick={() => void (batchJobs.length ? loadBatchJobs(batchJobs.map((item) => item.id)) : refreshJob(displayJob.id))}>
                     {refreshConfirmed
                       ? <Check className="mr-1.5 h-4 w-4 text-success" />
                       : <RefreshCw className={`mr-1.5 h-4 w-4 ${refreshingJob ? "animate-spin" : ""}`} />}
@@ -795,7 +928,7 @@ export function ContentMachineClient() {
                 <div key={slot} className="min-w-0">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-sm font-semibold">Фон {slot}</p>
-                    <span className="text-xs text-muted-foreground">{readyResults.filter((result) => result.backgroundSlot === slot).length}/{job.expectedResults / slots.length}</span>
+                    <span className="text-xs text-muted-foreground">{readyResults.filter((result) => result.backgroundSlot === slot).length}/{displayJob.expectedResults / slots.length}</span>
                   </div>
                   <div className="space-y-3">
                     {readyResults.filter((result) => result.backgroundSlot === slot).map((result) => (

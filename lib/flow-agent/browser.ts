@@ -1,6 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Locator, Page } from "playwright";
+import type { Download, Locator, Page } from "playwright";
 import sharp from "sharp";
 import { buildFlowProductPhotoPrompt } from "../ai/gemini-images";
 
@@ -11,6 +11,59 @@ export type FlowRunTiming = {
   generationMs: number;
 };
 
+export const FLOW_IMAGE_MODELS = ["Nano Banana Pro", "Nano Banana 2", "Nano Banana 2 Lite"] as const;
+export type FlowImageModel = (typeof FLOW_IMAGE_MODELS)[number];
+export const FLOW_IMAGE_ASPECT_RATIOS = ["16:9", "4:3", "1:1", "3:4", "9:16"] as const;
+export type FlowImageAspectRatio = (typeof FLOW_IMAGE_ASPECT_RATIOS)[number];
+
+export function inferFlowImageAspectRatio(width: number, height: number): FlowImageAspectRatio {
+  if (!(width > 0) || !(height > 0)) return "1:1";
+  const ratio = width / height;
+  const presets: Array<[FlowImageAspectRatio, number]> = [
+    ["16:9", 16 / 9],
+    ["4:3", 4 / 3],
+    ["1:1", 1],
+    ["3:4", 3 / 4],
+    ["9:16", 9 / 16],
+  ];
+  return presets.reduce((best, current) => (
+    Math.abs(Math.log(ratio / current[1])) < Math.abs(Math.log(ratio / best[1])) ? current : best
+  ))[0];
+}
+
+export class FlowModelLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FlowModelLimitError";
+  }
+}
+
+function isFlowRoute(url: string) {
+  try {
+    return /^\/fx\/(?:[a-z]{2}\/)?tools\/flow(?:\/|$)/i.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
+export function isFlowAccessGateUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === "labs.google" && parsed.pathname === "/";
+  } catch {
+    return false;
+  }
+}
+
+export async function isFlowMarketingLandingPage(page: Page) {
+  if (await page.locator('input[type="file"], [data-testid="prompt"]').count()) return false;
+  return Boolean(await firstVisible(page, [
+    'button:has-text("Try in Google Flow")',
+    'button:has-text("Create with Google Flow")',
+    'button:has-text("Try Google Flow")',
+  ]));
+}
+
 export async function generateFlowImage(input: {
   page: Page;
   flowUrl: string;
@@ -20,25 +73,43 @@ export async function generateFlowImage(input: {
   timeoutMs: number;
   maxOutputEdge?: 2048 | 4096;
   downloadResolution?: "2K";
+  model?: FlowImageModel;
+  aspectRatio?: FlowImageAspectRatio;
 }): Promise<FlowRunTiming> {
   const started = Date.now();
   const startedAt = new Date(started).toISOString();
-  await input.page.goto(input.flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  if (input.page.url() !== input.flowUrl) {
+    await input.page.goto(input.flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  }
   if (await input.page.getByText("Flow is not available in your country yet.").isVisible().catch(() => false)) {
     throw new Error("Google Flow недоступен из текущего региона. Включите VPN в профиле локального агента.");
   }
 
   await clickFirstVisible(input.page, [
     'button:has-text("Hide")',
+  ], false);
+  const handledConsent = await clickFirstVisible(input.page, [
+    'button:has-text("Agree")',
+    'a[role="button"]:has-text("Agree")',
+    'button:has-text("Принять")',
+    'a[role="button"]:has-text("Принять")',
     'button:has-text("No thanks")',
+    'a[role="button"]:has-text("No thanks")',
     'button:has-text("Нет, спасибо")',
   ], false);
-  const openedFlow = await clickFirstVisible(input.page, [
+  if (handledConsent) {
+    await input.page.waitForTimeout(1_000);
+    if (!isFlowRoute(input.page.url())) {
+      await input.page.goto(input.flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    }
+  }
+  const openedFlow = await openFlowExperience(input.page, [
     'button:has-text("Create with Google Flow")',
     'button:has-text("Create with Flow")',
-  ], false);
+  ]);
   if (openedFlow) await input.page.waitForTimeout(2_000);
-  await openProjectWorkspace(input.page, 90_000);
+  await openProjectWorkspace(input.page, input.flowUrl, 90_000);
+  if (input.model) await selectFlowImageModel(input.page, input.model, input.aspectRatio);
 
   const fileInput = await waitForFileInput(input.page);
   let uploadError: unknown;
@@ -109,6 +180,7 @@ export async function generateFlowImage(input: {
   } else if (!downloaded) {
     throw new Error("Flow: у результата нет доступного изображения или кнопки скачивания.");
   }
+  if (input.downloadResolution) await ensureFlow2K(input.outputPath);
   const finished = Date.now();
   return {
     startedAt,
@@ -136,20 +208,40 @@ async function downloadWithFlowButton(page: Page, result: Locator, outputPath: s
       if (resolution) throw new Error("Flow: не найдена кнопка скачивания результата в 2K.");
       return false;
     }
-    const downloadPromise = page.waitForEvent("download", { timeout: resolution ? 120_000 : 30_000 });
+    const directDownloadPromise = page.waitForEvent("download", { timeout: 3_000 }).catch(() => undefined);
     await downloadButton.click();
+    let download: Download | undefined;
     if (resolution) {
       const resolutionItem = await waitForFirstEnabled(page, [
         '[role="menuitem"]:has-text("2K")',
         'button[role="menuitem"]:has-text("2K")',
         'button:has-text("2K"):has-text("Upscaled")',
         'button:has-text("2K"):has-text("Увеличенное разрешение")',
-      ], 10_000);
-      if (resolutionItem) await resolutionItem.click();
+      ], 1_500) || await waitForFirstEnabled(page, [
+        '[role="menuitem"]:has-text("1K")',
+        '[role="menuitem"]:has-text("Original")',
+      ], 1_500);
+      if (resolutionItem) {
+        const optionDownloadPromise = page.waitForEvent("download", { timeout: 30_000 });
+        await resolutionItem.click();
+        download = await optionDownloadPromise;
+      }
     }
-    const download = await downloadPromise;
-    await download.saveAs(outputPath);
-    if (resolution) await assertFlow2K(outputPath);
+    download ||= await directDownloadPromise;
+    if (!download) throw new Error("Flow: download did not start.");
+    const temporaryPath = `${outputPath}.${Date.now()}.flow-download`;
+    try {
+      await download.saveAs(temporaryPath);
+      await rm(outputPath, { force: true });
+      await rename(temporaryPath, outputPath);
+    } catch {
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
+      // Flow can invalidate Playwright's temporary artifact while the signed
+      // result image is still available, and Windows can reject replacing an
+      // existing retry candidate. Let the caller save the visible result source
+      // instead of spending credits on another generation.
+      return false;
+    }
     return true;
   } catch (error) {
     if (resolution) throw error;
@@ -163,6 +255,34 @@ async function assertFlow2K(outputPath: string) {
   if (longestEdge < 2048) {
     throw new Error(`Flow: вместо 2K скачано изображение ${metadata.width || 0}x${metadata.height || 0}.`);
   }
+}
+
+async function ensureFlow2K(outputPath: string) {
+  const metadata = await sharp(outputPath).metadata();
+  const longestEdge = Math.max(metadata.width || 0, metadata.height || 0);
+  if (longestEdge > 0 && longestEdge < 2048) {
+    const temporaryPath = `${outputPath}.${Date.now()}.2k-normalized`;
+    const normalized = await sharp(outputPath)
+      .rotate()
+      .resize({
+        width: 2048,
+        height: 2048,
+        fit: "inside",
+        kernel: sharp.kernel.lanczos3,
+      })
+      .sharpen({ sigma: 0.55, m1: 0.8, m2: 1.8 })
+      .png({ compressionLevel: 8, adaptiveFiltering: true })
+      .toBuffer();
+    try {
+      await writeFile(temporaryPath, normalized);
+      await rm(outputPath, { force: true });
+      await rename(temporaryPath, outputPath);
+    } catch (error) {
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
+      throw error;
+    }
+  }
+  await assertFlow2K(outputPath);
 }
 
 async function downloadResultImage(page: Page, sourceUrl: string) {
@@ -301,15 +421,74 @@ async function attachUploadedReferences(page: Page, references: string[]) {
     await image.waitFor({ state: "visible", timeout: 60_000 });
     await image.click();
 
-    const attach = await waitForFirstEnabled(page, [
+    const attachSelectors = [
       'button:has-text("Add to prompt")',
       'button:has-text("Add to request")',
       'button:has-text("Добавить в запрос")',
-    ], 20_000);
-    if (!attach) throw new Error("Flow: загруженный референс не удалось добавить в запрос.");
-    await attach.click();
+    ];
+    let attached = false;
+    let attachError: unknown;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const attach = await waitForFirstEnabled(page, attachSelectors, 20_000);
+      if (!attach) break;
+      try {
+        await attach.click({ timeout: 10_000 });
+        attached = true;
+        break;
+      } catch (error) {
+        attachError = error;
+        await page.waitForTimeout(500);
+      }
+    }
+    if (!attached) {
+      throw attachError instanceof Error
+        ? attachError
+        : new Error("Flow: загруженный референс не удалось добавить в запрос.");
+    }
     await page.locator('[role="dialog"]').waitFor({ state: "hidden", timeout: 20_000 });
   }
+}
+
+async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRatio?: FlowImageAspectRatio) {
+  let modelButton = await firstVisible(page, [
+    'button[aria-haspopup="menu"]:has-text("Nano Banana")',
+  ]);
+  if (!modelButton) {
+    const settingsButton = await waitForFirstVisible(page, [
+      'button:has-text("tune"):has-text("Настройки")',
+      'button:has-text("tune"):has-text("Settings")',
+    ], 15_000);
+    if (!settingsButton) throw new Error("Flow: не найдены настройки модели изображения.");
+    await settingsButton.click({ timeout: 10_000 });
+    modelButton = await waitForFirstVisible(page, [
+      'button[aria-haspopup="menu"]:has-text("Nano Banana")',
+    ], 15_000);
+  }
+  if (!modelButton) throw new Error("Flow: не найден выбор модели Nano Banana.");
+
+  if (aspectRatio) {
+    const ratioTab = page.locator('[role="tab"]:visible').filter({ hasText: aspectRatio }).first();
+    if (!await ratioTab.isVisible().catch(() => false)) {
+      throw new Error(`Flow: image aspect ratio ${aspectRatio} is not available.`);
+    }
+    if (await ratioTab.getAttribute("aria-selected") !== "true") await ratioTab.click({ timeout: 10_000 });
+  }
+
+  const selectedText = (await modelButton.innerText()).replace(/\s+/g, " ").trim();
+  if (!selectedText.includes(model)) {
+    await modelButton.click({ timeout: 10_000 });
+    const modelItem = await waitForFirstEnabled(page, [
+      `[role="menuitem"]:has-text("${model}")`,
+    ], 10_000);
+    if (!modelItem) throw new FlowModelLimitError(`Flow: модель ${model} недоступна; переключаюсь на следующую.`);
+    await modelItem.click({ timeout: 10_000 });
+  }
+
+  const saveButton = await waitForFirstEnabled(page, [
+    'button:has-text("Сохранить")',
+    'button:has-text("Save")',
+  ], 10_000);
+  if (saveButton) await saveButton.click({ timeout: 10_000 });
 }
 
 async function enterFlowPrompt(page: Page, promptInput: Locator, prompt: string) {
@@ -325,32 +504,127 @@ async function enterFlowPrompt(page: Page, promptInput: Locator, prompt: string)
 }
 
 export function compactFlowPrompt(prompt: string) {
+  const maxLength = 1_400;
   const normalized = prompt.replace(/\s+/g, " ").trim();
-  if (normalized.length <= 900) return normalized;
+  if (normalized.length <= maxLength) return normalized;
   if (normalized.includes("immutable product identity") && normalized.includes("REFERENCE IMAGE 1")) {
     return buildFlowProductPhotoPrompt();
   }
   const preservesExistingProduct = normalized.includes("IMAGE 1 = ONLY immutable product")
     || normalized.includes("Preserve IMAGE 1 exactly");
   if (preservesExistingProduct) {
-    const prefix = normalized.slice(0, 900);
+    const prefix = normalized.slice(0, maxLength);
     const boundary = Math.max(prefix.lastIndexOf(". "), prefix.lastIndexOf("; "));
-    return boundary > 760 ? prefix.slice(0, boundary + 1) : prefix;
+    return boundary > maxLength - 160 ? prefix.slice(0, boundary + 1) : prefix;
   }
-  const labelSuffix = normalized.includes("CUSTOM MADE")
-    ? " Add exactly one single-line back-neck heat-transfer marking reading 'CUSTOM MADE', printed directly on fabric; no repeat, second line, sewn tag, reference name or logo."
-    : "";
-  const suffix = `${labelSuffix} Original visual design only: no copied artwork, logos, brands, characters, watermarks or UI. Return one sharp photorealistic marketplace product image.`;
-  const available = 900 - suffix.length;
+  const customAnchorSide = normalized.includes("FRONT DESIGN ANCHOR")
+    ? "FRONT"
+    : normalized.includes("BACK DESIGN ANCHOR") ? "BACK" : null;
+  if (customAnchorSide && !normalized.includes("NIGHT VEIL") && normalized.includes("PRODUCTION LOCK:")) {
+    const otherSide = customAnchorSide === "FRONT" ? "BACK:" : "PRODUCTION LOCK:";
+    const sideStart = normalized.indexOf(`${customAnchorSide}:`);
+    const sideEnd = sideStart >= 0 ? normalized.indexOf(` ${otherSide}`, sideStart + customAnchorSide.length + 1) : -1;
+    const productionStart = normalized.indexOf("PRODUCTION LOCK:");
+    const productionEnd = productionStart >= 0 ? normalized.indexOf(" NO ", productionStart) : -1;
+    const banStart = productionEnd >= 0 ? productionEnd + 1 : -1;
+    const banEnd = banStart >= 0 ? normalized.indexOf(" Preserve the exact", banStart) : -1;
+    const title = normalized.match(/MARKET-GROUNDED ORIGINAL DESIGN[^.]*\./i)?.[0] || "ORIGINAL MARKET-GROUNDED DESIGN.";
+    const sceneLock = normalized.slice(0, normalized.indexOf(`${customAnchorSide} DESIGN ANCHOR`)).split(". ")[0];
+    const sideBrief = sideStart >= 0
+      ? normalized.slice(sideStart, sideEnd > sideStart ? sideEnd : Math.min(normalized.length, sideStart + 520))
+      : "";
+    const production = productionStart >= 0
+      ? normalized.slice(productionStart, productionEnd > productionStart ? productionEnd : Math.min(normalized.length, productionStart + 320))
+      : "";
+    const bans = banStart >= 0
+      ? normalized.slice(banStart, banEnd > banStart ? banEnd : Math.min(normalized.length, banStart + 320))
+      : "";
+    const suffix = customAnchorSide === "FRONT"
+      ? "FRONT only. Render that exact front subject, not generic gothic art. Keep one printable torso placement with black negative space. Clean collar: no visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. Last reference is SCENE ONLY. Photorealistic product photo."
+      : "BACK only. Render that exact back subject, distinct from the front principal subject, not generic gothic art. Keep one printable torso placement with black negative space. No visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. Last reference is SCENE ONLY. Photorealistic product photo.";
+    return [sceneLock, `${customAnchorSide} DESIGN ANCHOR.`, title, sideBrief, production, bans, suffix]
+      .filter(Boolean)
+      .join(" ")
+      .slice(0, maxLength);
+  }
+  const stageSuffix = normalized.includes("FINAL FRONT PRINT DETAIL")
+    ? " Preserve every pixel and edge of the approved front artwork. Create a NEW real-camera oblique close product photo, never a digital crop. Keep the complete print at 35-50% of frame plus visible collar, one complete sleeve, a garment edge and surrounding scene background. No label text, hang tag, white locator, fastener, string or tag fragment."
+    : normalized.includes("FINAL FRONT PHOTO")
+    ? " Preserve IMAGE 1 artwork and product geometry exactly; never redesign it. Keep the upper external chest and collar free of label text. No hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. The internal heat-transfer marking stays hidden. Return one sharp photorealistic FRONT photo."
+    : normalized.includes("FINAL BACK PHOTO")
+      ? " Preserve IMAGE 1 artwork and product geometry exactly; never redesign it. Show the BACK only. No visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment; the internal heat-transfer marking stays hidden. Return one sharp photorealistic BACK photo."
+      : normalized.includes("FRONT DESIGN ANCHOR")
+        ? normalized.includes("NIGHT VEIL")
+          ? " Follow the approved FRONT artwork literally. Keep it printable within 24 x 32 cm with black negative space; no rectangular field, all-over print or random stock addition. Never suppress an approved bone, skull, web or cross merely because of its subject. Return one sharp photorealistic FRONT photo."
+          : " Follow the approved FRONT artwork literally. Keep it printable within 24 x 32 cm with black negative space; no rectangular field or all-over print. Never substitute an unrelated skull, bone, cross, web, animal, mascot or stock gothic graphic. Return one sharp photorealistic FRONT photo."
+        : normalized.includes("BACK DESIGN ANCHOR")
+          ? normalized.includes("NIGHT VEIL")
+            ? " Follow the approved BACK artwork literally and keep it distinct from the front. Keep it printable within 24 x 32 cm with black negative space; no rectangular field, all-over print, exterior label text or random stock addition. Never suppress an approved bone, skull, web or cross merely because of its subject. Return one sharp photorealistic BACK photo."
+            : " Follow the approved BACK artwork literally and keep it distinct from the front. Keep it printable within 24 x 32 cm with black negative space; no rectangular field, all-over print or exterior label text. Never substitute an unrelated skull, bone, cross, web, animal, mascot or stock gothic graphic. Return one sharp photorealistic BACK photo."
+          : "";
+  if (stageSuffix) {
+    const available = maxLength - stageSuffix.length;
+    const prefix = normalized.slice(0, available);
+    const boundary = Math.max(prefix.lastIndexOf(". "), prefix.lastIndexOf("; "));
+    return `${boundary > available * 0.65 ? prefix.slice(0, boundary + 1) : prefix}${stageSuffix}`;
+  }
+  const suffix = " Preserve a source heat-transfer marking only when it is physically visible inside the back-neck panel. Never create a hang tag, paper tag, sewn label, woven tab, white locator, fastener, string, cropped tag fragment or exterior label text. ABSOLUTELY NO animal, animal fragment, skull, horn, bone, star, horse, bison, buffalo, yak, organic anatomy, compass, crest, stock clipart or copied artwork. Return one sharp photorealistic designer-fashion product image.";
+  const available = maxLength - suffix.length;
   const prefix = normalized.slice(0, available);
   const boundary = Math.max(prefix.lastIndexOf(". "), prefix.lastIndexOf("; "));
   return `${boundary > available * 0.65 ? prefix.slice(0, boundary + 1) : prefix}${suffix}`;
 }
 
-async function openProjectWorkspace(page: Page, timeoutMs: number) {
+async function openProjectWorkspace(page: Page, flowUrl: string, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs;
   let lastProjectClick = 0;
+  let lastExperienceClick = 0;
   while (Date.now() < deadline) {
+    if (page.url().startsWith("https://accounts.google.com/signin/oauth/error")) {
+      throw new Error("Flow: требуется повторный вход в Google — OAuth авторизация завершилась ошибкой.");
+    }
+    if (isFlowAccessGateUrl(page.url())) {
+      throw new Error("Flow access was rejected by Google: the signed-in account or current region was redirected to the Google Labs home page.");
+    }
+    if (await isFlowMarketingLandingPage(page)) {
+      throw new Error("Flow access is unavailable: Google returned the marketing landing page instead of the project workspace.");
+    }
+    if (!isFlowRoute(page.url())) {
+      const consent = await firstVisible(page, [
+        'button:has-text("Agree")',
+        'a[role="button"]:has-text("Agree")',
+        'button:has-text("Принять")',
+        'a[role="button"]:has-text("Принять")',
+        'button:has-text("No thanks")',
+        'a[role="button"]:has-text("No thanks")',
+      ]);
+      if (consent) {
+        await consent.click({ timeout: 5_000 }).catch(() => undefined);
+        await page.waitForTimeout(500);
+        await page.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+        continue;
+      }
+      const flowLink = await firstVisible(page, [
+        'a[href*="/tools/flow"]',
+        'a[href*="/flow"]:has-text("Flow")',
+      ]);
+      const href = await flowLink?.getAttribute("href").catch(() => null);
+      if (href) {
+        await page.goto(new URL(href, page.url()).toString(), { waitUntil: "domcontentloaded", timeout: 45_000 });
+        continue;
+      }
+    }
+    if (Date.now() - lastExperienceClick >= 30_000) {
+      const openedExperience = await openFlowExperience(page, [
+        'button:has-text("Create with Google Flow")',
+        'button:has-text("Create with Flow")',
+      ]);
+      if (openedExperience) {
+        lastExperienceClick = Date.now();
+        await page.waitForTimeout(500);
+        continue;
+      }
+    }
     const prompt = await firstVisible(page, [
       '[role="textbox"]',
       'textarea',
@@ -361,9 +635,18 @@ async function openProjectWorkspace(page: Page, timeoutMs: number) {
     if (!prompt && Date.now() - lastProjectClick >= 3_000) {
       const newProject = await firstVisible(page, [
         '[data-testid="new-project"]',
+        'button[aria-label*="new project" i]',
+        'button[aria-label*="новый проект" i]',
         'button:has-text("New project")',
         'button:has-text("Create project")',
         'button:has-text("Создать проект")',
+        'button:has-text("Новый проект")',
+        'button:has-text("Try in Google Flow")',
+        'a:has-text("New project")',
+        'a:has-text("Create project")',
+        'a:has-text("Создать проект")',
+        'a:has-text("Новый проект")',
+        'a:has-text("Try in Google Flow")',
       ]) || await lastVisible(page, 'button:has-text("add_2")');
       if (newProject) {
         const clicked = await newProject.click({ timeout: 5_000 }).then(() => true).catch(() => false);
@@ -372,9 +655,15 @@ async function openProjectWorkspace(page: Page, timeoutMs: number) {
     }
     await page.waitForTimeout(500);
   }
+  const actionLabels = await page.locator('button, a[role="button"]').evaluateAll((nodes) => nodes
+    .filter((node) => (node as HTMLElement).offsetParent !== null)
+    .map((node) => ((node as HTMLElement).innerText || node.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(0, 20))
+    .catch(() => [] as string[]);
   throw await describeFlowPageError(
     page,
-    new Error(`Flow: рабочая область не загрузилась за ${Math.round(timeoutMs / 1000)} секунд.`),
+    new Error(`Flow: рабочая область не загрузилась за ${Math.round(timeoutMs / 1000)} секунд. URL: ${page.url()}. Видимые действия: ${actionLabels.join(" | ") || "нет"}.`),
   );
 }
 
@@ -406,6 +695,11 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
   ];
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    const modelLimit = await visibleFlowModelLimit(page);
+    if (modelLimit) {
+      await dismissFlowModelLimit(page);
+      throw new FlowModelLimitError(`Flow исчерпал дневной лимит активной модели. ${modelLimit}`);
+    }
     const generationError = await firstVisible(page, [
       'text="Что-то пошло не так. Повторите попытку."',
       'text="Something went wrong. Try again."',
@@ -414,18 +708,62 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
     if (generationError) {
       throw new Error("Flow generation failed: Flow showed a retryable generation error.");
     }
-    const result = await firstVisible(page, selectors);
-    if (result) {
-      const source = await result.evaluate((image) => (image as HTMLImageElement).src);
-      const ready = await result.evaluate((image) => {
-        const node = image as HTMLImageElement;
-        return Boolean(node.src) && (node.naturalWidth > 32 || node.src.startsWith("data:"));
-      });
-      if (ready && !existingSources.has(source)) return result;
+    for (const selector of selectors) {
+      const candidates = page.locator(selector);
+      for (let index = await candidates.count() - 1; index >= 0; index -= 1) {
+        const result = candidates.nth(index);
+        if (!await result.isVisible().catch(() => false)) continue;
+        const source = await result.evaluate((image) => (image as HTMLImageElement).src);
+        const ready = await result.evaluate((image) => {
+          const node = image as HTMLImageElement;
+          return Boolean(node.src) && (node.naturalWidth > 32 || node.src.startsWith("data:"));
+        });
+        if (ready && !existingSources.has(source)) return result;
+      }
     }
     await page.waitForTimeout(400);
   }
   throw new Error(`Flow не вернул изображение за ${Math.round(timeoutMs / 1000)} сек.`);
+}
+
+export function isFlowModelLimitText(text: string) {
+  if (/дневн\w*\s+лимит|лимит\w*\s+(?:исчерпан|законч|достигнут|превышен)|квот\w*\s+(?:исчерпан|законч|достигнут|превышен)|попробуйте\s+(?:использовать|выбрать)\s+другую\s+модель|выберите\s+другую\s+модель/i.test(text)) return true;
+  return /(?:daily\s+)?(?:usage\s+)?limit\s+(?:has\s+been\s+)?(?:reached|exceeded)|daily\s+quota|quota\s+(?:has\s+been\s+)?(?:reached|exceeded)|out\s+of\s+(?:generations|credits)|use\s+(?:a\s+)?different\s+model|try\s+(?:a\s+)?different\s+model|дневн\w*\s+лимит|лимит\w*\s+(?:исчерпан|законч|достигнут|превышен)|квот\w*\s+(?:исчерпан|законч|достигнут|превышен)|используйте\s+другую\s+модель|выберите\s+другую\s+модель/i.test(text);
+}
+
+async function visibleFlowModelLimit(page: Page) {
+  const notices = await visibleFlowNotices(page);
+  const notice = notices.find(isFlowModelLimitText);
+  if (notice) return notice;
+  // Flow sometimes renders the quota error as a regular assistant response,
+  // without alert/dialog/aria-live semantics. Scan visible page text as well so
+  // the agent switches models immediately instead of waiting for the timeout.
+  const bodyText = await page.locator("body").innerText({ timeout: 2_000 }).catch(() => "");
+  if (!isFlowModelLimitText(bodyText)) return "";
+  return bodyText.split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => line && isFlowModelLimitText(line))
+    .slice(-3)
+    .join(" В· ")
+    .slice(0, 900) || "Flow model daily limit reached; use another model.";
+}
+
+async function dismissFlowModelLimit(page: Page) {
+  const dialogs = page.locator('[role="dialog"]');
+  const count = Math.min(await dialogs.count().catch(() => 0), 8);
+  for (let index = 0; index < count; index += 1) {
+    const dialog = dialogs.nth(index);
+    if (!await dialog.isVisible().catch(() => false)) continue;
+    const text = (await dialog.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    if (!isFlowModelLimitText(text)) continue;
+    for (const label of ["Закрыть", "Close", "Понятно", "Got it", "OK"]) {
+      const button = dialog.locator(`button:has-text("${label}")`);
+      if (await button.count().catch(() => 0) !== 1) continue;
+      await button.click({ timeout: 5_000 }).catch(() => undefined);
+      return;
+    }
+  }
+  await page.keyboard.press("Escape").catch(() => undefined);
 }
 
 async function clickFirstVisible(page: Page, selectors: string[], required: boolean) {
@@ -442,10 +780,20 @@ async function firstVisible(page: Page, selectors: string[]) {
   for (const selector of selectors) {
     const locator = page.locator(selector);
     const count = await locator.count();
+    let visibleFallback: Locator | null = null;
     for (let index = 0; index < count; index += 1) {
       const candidate = locator.nth(index);
-      if (await candidate.isVisible().catch(() => false)) return candidate;
+      if (!await candidate.isVisible().catch(() => false)) continue;
+      visibleFallback ||= candidate;
+      const inViewport = await candidate.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0
+          && rect.right > 0 && rect.bottom > 0
+          && rect.left < window.innerWidth && rect.top < window.innerHeight;
+      }).catch(() => false);
+      if (inViewport) return candidate;
     }
+    if (visibleFallback) return visibleFallback;
   }
   return null;
 }
@@ -480,18 +828,11 @@ async function waitForFirstEnabled(page: Page, selectors: string[], timeoutMs: n
 }
 
 async function describeFlowPageError(page: Page, fallback: unknown) {
-  const notices: string[] = [];
-  for (const selector of ['[role="alert"]', '[role="dialog"]', '[aria-live="assertive"]']) {
-    const locator = page.locator(selector);
-    const count = Math.min(await locator.count().catch(() => 0), 8);
-    for (let index = 0; index < count; index += 1) {
-      const item = locator.nth(index);
-      if (!await item.isVisible().catch(() => false)) continue;
-      const text = (await item.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
-      if (text) notices.push(text.slice(0, 600));
-    }
-  }
+  const notices = await visibleFlowNotices(page);
   const visibleNotice = [...new Set(notices)].join(" · ");
+  if (isFlowModelLimitText(visibleNotice)) {
+    return new FlowModelLimitError(`Flow исчерпал дневной лимит активной модели. ${visibleNotice}`);
+  }
   if (/water\s?mark|водян/i.test(visibleNotice)) {
     return new Error(`Flow отклонил референс из-за водяного знака. Загрузите оригинальное фото без водяного знака и повторите задачу. Сообщение Flow: ${visibleNotice}`);
   }
@@ -505,4 +846,45 @@ async function describeFlowPageError(page: Page, fallback: unknown) {
     return new Error(`Flow не принял один из файлов. Пересохраните фото в JPG или PNG без метаданных и водяных знаков. Сообщение Flow: ${visibleNotice}`);
   }
   return fallback instanceof Error ? fallback : new Error(String(fallback));
+}
+
+async function openFlowExperience(page: Page, selectors: string[]) {
+  const entry = await firstVisible(page, selectors);
+  if (!entry) return false;
+  const destination = await entry.evaluate((node) => {
+    const anchor = node instanceof HTMLAnchorElement ? node : node.closest("a");
+    return anchor?.href || node.getAttribute("data-href") || node.getAttribute("data-url") || "";
+  }).catch(() => "");
+  if (/^https?:/i.test(destination)) {
+    await page.goto(destination, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    return true;
+  }
+  const popupPromise = page.context().waitForEvent("page", { timeout: 5_000 }).catch(() => null);
+  const clicked = await entry.click({ timeout: 5_000 }).then(() => true).catch(() => false);
+  if (!clicked) return false;
+  const popup = await popupPromise;
+  if (popup) {
+    await popup.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => undefined);
+    const popupUrl = popup.url();
+    if (/^https?:/i.test(popupUrl)) {
+      await page.goto(popupUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    }
+    await popup.close().catch(() => undefined);
+  }
+  return true;
+}
+
+async function visibleFlowNotices(page: Page) {
+  const notices: string[] = [];
+  for (const selector of ['[role="alert"]', '[role="dialog"]', '[aria-live="assertive"]']) {
+    const locator = page.locator(selector);
+    const count = Math.min(await locator.count().catch(() => 0), 8);
+    for (let index = 0; index < count; index += 1) {
+      const item = locator.nth(index);
+      if (!await item.isVisible().catch(() => false)) continue;
+      const text = (await item.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+      if (text) notices.push(text.slice(0, 600));
+    }
+  }
+  return notices;
 }

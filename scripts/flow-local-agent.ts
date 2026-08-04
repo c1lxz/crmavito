@@ -1,14 +1,42 @@
 import { hostname } from "node:os";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
-import { chromium, type Browser, type BrowserContext } from "playwright";
-import { generateFlowImage } from "../lib/flow-agent/browser";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import sharp from "sharp";
+import {
+  FLOW_IMAGE_MODELS,
+  FlowModelLimitError,
+  generateFlowImage,
+  inferFlowImageAspectRatio,
+  isFlowAccessGateUrl,
+  isFlowMarketingLandingPage,
+  type FlowImageModel,
+} from "../lib/flow-agent/browser";
 import { publicFlowAgentError, sanitizeFlowAgentError } from "../lib/flow-agent/errors";
-import { normalizeFlowResult, type FlowImageSize } from "../lib/flow-agent/image-output";
+import {
+  compareFlowImageGeometry,
+  normalizeFlowResult,
+  type FlowImageSize,
+} from "../lib/flow-agent/image-output";
 import { buildOriginalDesignPrompt, collectMarketResearch, type MarketResearch } from "../lib/flow-agent/market-research";
-import { browserPageFetch, evaluateFlowProductPhoto, type FlowPhotoQualityVerdict } from "../lib/flow-agent/quality";
+import {
+  browserPageFetch,
+  evaluateCentralPrintPresence,
+  evaluateFlowOriginalDesignAnchor,
+  evaluateFlowOriginalDesignPair,
+  evaluateFlowProductPhoto,
+  type FlowPhotoQualityVerdict,
+} from "../lib/flow-agent/quality";
+import { buildOriginalStagePrompt, type OriginalDesignStage } from "../lib/flow-agent/original-design";
+import { evaluateShotDiversity } from "../lib/flow-agent/shot-diversity";
+import {
+  createClaudeApparelDesignPrompt,
+  createGeminiApparelDesignPrompt,
+  inferWinnerMarketQuery,
+} from "../lib/flow-agent/design-brief";
 
 loadEnvConfig(process.cwd());
 
@@ -23,16 +51,16 @@ type AgentJob = {
   labelStyleReference?: string;
   marketResearch?: MarketResearch;
   designPrompt?: string;
-  metaPromptSource?: "claude" | "fallback";
+  metaPromptSource?: "gemini" | "claude" | "fallback";
   products: Array<{ index: number; fileName: string }>;
   backgrounds: Array<{ slot: BackgroundSlot; fileName: string }>;
-  results: Array<{ productIndex: number; backgroundSlot: BackgroundSlot }>;
+  results: Array<{ productIndex: number; backgroundSlot: BackgroundSlot; fileName?: string }>;
 };
 type FlowAvailability = { state: "ready" | "blocked" | "auth_required" | "error"; message: string };
 
 const baseUrl = (process.env.FLOW_AGENT_CRM_URL || "https://crmavito.duckdns.org").replace(/\/+$/, "");
 const token = process.env.FLOW_LOCAL_AGENT_TOKEN?.trim() || "";
-const flowUrl = process.env.FLOW_URL || "https://labs.google/fx/tools/flow";
+const flowUrl = process.env.FLOW_URL || "https://labs.google/fx/ru/tools/flow";
 const agentId = process.env.FLOW_AGENT_ID || hostname();
 const concurrency = clamp(Number(process.env.FLOW_AGENT_CONCURRENCY || 1), 1, 6);
 const pollMs = clamp(Number(process.env.FLOW_AGENT_POLL_MS || 750), 250, 30_000);
@@ -42,7 +70,9 @@ const qualityMaxAttempts = clamp(Number(process.env.FLOW_QUALITY_MAX_ATTEMPTS ||
 const stateDirectory = path.resolve(process.env.FLOW_AGENT_STATE_DIR || ".flow-local-agent");
 const profileDirectory = path.resolve(process.env.FLOW_AGENT_PROFILE_DIR || path.join(stateDirectory, "chrome-profile"));
 const workDirectory = path.join(stateDirectory, "work");
+const backgroundPlatesDirectory = path.join(stateDirectory, "background-plates");
 const diagnosticsDirectory = path.join(stateDirectory, "diagnostics");
+const flowProjectStatePath = path.join(stateDirectory, "last-flow-project-url.txt");
 const proxyServer = process.env.FLOW_AGENT_PROXY_SERVER?.trim();
 const proxyUsername = process.env.FLOW_AGENT_PROXY_USERNAME?.trim();
 const proxyPassword = process.env.FLOW_AGENT_PROXY_PASSWORD?.trim();
@@ -81,46 +111,55 @@ async function main() {
     message: "Агент готов; Flow откроется только при запуске генерации.",
   };
   let currentAvailability = idleAvailability;
-  let nextHeartbeatAt = 0;
-  while (true) {
-    if (Date.now() >= nextHeartbeatAt) {
-      await reportStatus(currentAvailability).catch((error) => {
+  await reportStatus(currentAvailability).catch((error) => {
+    console.error(`[flow-agent] heartbeat failed: ${error instanceof Error ? error.message : String(error)}`);
+  });
+  const heartbeatTimer = setInterval(() => {
+    void reportStatus(currentAvailability).catch((error) => {
         console.error(`[flow-agent] heartbeat failed: ${error instanceof Error ? error.message : String(error)}`);
       });
-      nextHeartbeatAt = Date.now() + 15_000;
-    }
-    let job: AgentJob | null;
-    try {
-      job = await claimJob();
-    } catch (error) {
-      console.error(`[flow-agent] CRM poll failed: ${error instanceof Error ? error.message : String(error)}`);
-      await delay(Math.max(2_000, pollMs));
-      continue;
-    }
-    if (!job) {
-      await delay(pollMs);
-      continue;
-    }
-    await runJobInFlow(job, (availability) => {
-      currentAvailability = availability;
-    }).then(() => {
-      currentAvailability = idleAvailability;
-    }).catch(async (error) => {
-      const message = sanitizeFlowAgentError(error);
-      console.error(`[flow-agent] ${job.id}: ${message}`);
-      const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|ERR_CONNECTION_RESET|ERR_TIMED_OUT|proxy.*(?:failed|unavailable)|туннел|terminated|TargetClosedError|browser has been closed/i.test(message);
-      const publicError = publicFlowAgentError(error);
+  }, 15_000);
+  try {
+    while (true) {
+      let job: AgentJob | null;
+      try {
+        job = await claimJob();
+      } catch (error) {
+        console.error(`[flow-agent] CRM poll failed: ${error instanceof Error ? error.message : String(error)}`);
+        await delay(Math.max(2_000, pollMs));
+        continue;
+      }
+      if (!job) {
+        await delay(pollMs);
+        continue;
+      }
       currentAvailability = {
-        state: canTryAnotherAgent ? "blocked" : "error",
-        message: publicError.split("\n")[0].replace(/^Error:\s*/, ""),
+        state: "ready",
+        message: `Flow обрабатывает ${job.id}; готовые фото сразу отправляются в CRM.`,
       };
-      await reportStatus(currentAvailability).catch(() => undefined);
-      await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${job.id}/${canTryAnotherAgent ? "release" : "fail"}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ agentId, error: publicError }),
-      }).catch(() => undefined);
-    });
+      await runJobInFlow(job, (availability) => {
+        currentAvailability = availability;
+      }).then(() => {
+        currentAvailability = idleAvailability;
+      }).catch(async (error) => {
+        const message = sanitizeFlowAgentError(error);
+        console.error(`[flow-agent] ${job.id}: ${message}`);
+        const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|ERR_CONNECTION_RESET|ERR_TIMED_OUT|proxy.*(?:failed|unavailable)|туннел|terminated|TargetClosedError|browser has been closed/i.test(message);
+        const publicError = publicFlowAgentError(error);
+        currentAvailability = {
+          state: canTryAnotherAgent ? "blocked" : "error",
+          message: publicError.split("\n")[0].replace(/^Error:\s*/, ""),
+        };
+        await reportStatus(currentAvailability).catch(() => undefined);
+        await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${job.id}/${canTryAnotherAgent ? "release" : "fail"}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ agentId, error: publicError }),
+        }).catch(() => undefined);
+      });
+    }
+  } finally {
+    clearInterval(heartbeatTimer);
   }
 }
 
@@ -231,7 +270,7 @@ async function runJobInFlow(job: AgentJob, onAvailability?: (availability: FlowA
         void minimizeBrowserWindow(context, controlPage).catch(() => undefined);
       }
     }, 10_000);
-    await processJob(context, job);
+    await processJob(context, job, controlPage);
   } catch (error) {
     if (controlPage && !controlPage.isClosed()) {
       await mkdir(diagnosticsDirectory, { recursive: true }).catch(() => undefined);
@@ -277,8 +316,31 @@ async function minimizeBrowserWindow(context: BrowserContext, page: import("play
 
 async function probeFlow(page: import("playwright").Page): Promise<FlowAvailability> {
   try {
-    await page.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const savedProjectUrl = await readFile(flowProjectStatePath, "utf8")
+      .then((value) => value.trim())
+      .catch(() => "");
+    const currentUrl = page.url();
+    const targetUrl = /\/tools\/flow\/project\//i.test(currentUrl)
+      ? currentUrl
+      : /\/tools\/flow\/project\//i.test(savedProjectUrl)
+        ? savedProjectUrl
+        : flowUrl;
+    if (currentUrl !== targetUrl) {
+      await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    }
     const url = page.url();
+    if (isFlowAccessGateUrl(url)) {
+      return {
+        state: "blocked",
+        message: "Google redirected Flow to the Labs home page. The signed-in account or current region does not have Flow access.",
+      };
+    }
+    if (await isFlowMarketingLandingPage(page)) {
+      return {
+        state: "blocked",
+        message: "Google returned the Flow marketing page instead of the project workspace.",
+      };
+    }
     const unsupportedVisible = await page.getByText(/Flow is not available in your country/i)
       .isVisible()
       .catch(() => false);
@@ -325,7 +387,7 @@ async function claimJob(): Promise<AgentJob | null> {
   return data.job;
 }
 
-async function processJob(context: BrowserContext, job: AgentJob) {
+async function processJob(context: BrowserContext, job: AgentJob, preferredPage?: Page | null) {
   const jobDirectory = path.join(workDirectory, job.id);
   await rm(jobDirectory, { recursive: true, force: true });
   await mkdir(jobDirectory, { recursive: true });
@@ -343,7 +405,6 @@ async function processJob(context: BrowserContext, job: AgentJob) {
       backgrounds.set(background.slot, target);
     }),
   ]);
-
   const completed = new Set(job.results.map((result) => `${result.productIndex}:${result.backgroundSlot}`));
   const work = job.mode === "original-design"
     ? job.backgrounds
@@ -353,99 +414,377 @@ async function processJob(context: BrowserContext, job: AgentJob) {
       .filter((background) => !completed.has(`${product.index}:${background.slot}`))
       .map((background) => ({ product, background })));
   console.log(`[flow-agent] ${job.id}: ${work.length} фото`);
-  const prompt = await resolveJobPrompt(job);
+  const prompt = await resolveJobPrompt(job, products, context);
+  const originalAnchors = new Map<"front" | "back", string>();
+  const persistedProjectUrl = job.mode === "original-design"
+    ? await readFile(flowProjectStatePath, "utf8").then((value) => value.trim()).catch(() => "")
+    : "";
+  let originalProjectUrl = job.mode === "original-design"
+    ? context.pages().map((candidate) => candidate.url()).find((url) => /\/tools\/flow\/project\//i.test(url))
+      || (/\/tools\/flow\/project\//i.test(persistedProjectUrl) ? persistedProjectUrl : undefined)
+    : undefined;
+  if (job.mode === "original-design") {
+    console.log(`[flow-agent] ${job.id}: project page ${preferredPage?.url() || "none"}; saved project ${originalProjectUrl || "none"}`);
+  }
+  if (job.mode === "original-design") {
+    for (const [slot, side] of [["1", "front"], ["2", "back"]] as const) {
+      const result = job.results.find((item) => item.productIndex === 1 && item.backgroundSlot === slot);
+      if (!result) continue;
+      const target = path.join(jobDirectory, `anchor-${side}.png`);
+      await downloadAsset(job.id, "results", result.fileName || `product-01-background-${slot}.png`, target);
+      originalAnchors.set(side, target);
+    }
+  }
   let cursor = 0;
-  const workers = Array.from({ length: Math.min(concurrency, work.length) }, async () => {
-    let page = await context.newPage();
+  let activeModelIndex = 0;
+  const failures: string[] = [];
+  const workers = Array.from({ length: Math.min(job.mode === "original-design" ? 1 : concurrency, work.length) }, async (_, workerIndex) => {
+    let page = job.mode === "original-design" && workerIndex === 0 && preferredPage && !preferredPage.isClosed()
+      ? preferredPage
+      : await context.newPage();
+    const shouldClosePage = page !== preferredPage;
     try {
       while (cursor < work.length) {
         const item = work[cursor++];
-        const outputPath = path.join(jobDirectory, `product-${String(item.product.index).padStart(2, "0")}-background-${item.background.slot}.png`);
-        const productPath = products.get(item.product.index)!;
-        const backgroundPath = backgrounds.get(item.background.slot)!;
-        const references = job.mode === "original-design"
-          ? [...job.products.map((product) => products.get(product.index)!), backgroundPath]
-          : [productPath, backgroundPath];
-        const requiresProductQa = job.mode !== "original-design";
-        const angleDirection = flowAngleDirection(item.background.slot);
-        let feedback = "";
-        for (let attempt = 1; attempt <= (requiresProductQa ? qualityMaxAttempts : 1); attempt += 1) {
-          let timing: Awaited<ReturnType<typeof generateFlowImage>> | undefined;
-          for (let generationAttempt = 1; generationAttempt <= generationMaxAttempts; generationAttempt += 1) {
-            try {
-              timing = await generateFlowImage({
-                page,
-                flowUrl,
-                references,
-                prompt: feedback
-                  ? `CRITICAL RETRY: ${feedback} ${angleDirection} Use IMAGE 1 as the only product; ignore every garment, print, label, text and watermark in IMAGE 2. ${prompt}`
-                  : `${angleDirection} ${prompt}`,
-                outputPath,
-                timeoutMs: generationTimeoutMs,
-                maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
-                downloadResolution: "2K",
-              });
-              break;
-            } catch (error) {
-              if (!isRetryableGenerationError(error) || generationAttempt === generationMaxAttempts) throw error;
-              const reason = sanitizeFlowAgentError(error);
-              console.warn(
-                `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: Flow retry ${generationAttempt}/${generationMaxAttempts}: ${reason}`,
-              );
-              await page.close().catch(() => undefined);
-              await delay(Math.min(2_000 * generationAttempt, 6_000));
-              page = await context.newPage();
+        try {
+          const outputPath = path.join(jobDirectory, `product-${String(item.product.index).padStart(2, "0")}-background-${item.background.slot}.png`);
+          const sourceProductPath = products.get(item.product.index)!;
+          const backgroundPath = backgrounds.get(item.background.slot)!;
+          const backgroundMetadata = await sharp(backgroundPath).metadata();
+          const backgroundWidth = backgroundMetadata.width || 0;
+          const backgroundHeight = backgroundMetadata.height || 0;
+          const aspectRatio = inferFlowImageAspectRatio(backgroundWidth, backgroundHeight);
+          const canvasLock = `OUTPUT CANVAS LOCK: use ${aspectRatio} and preserve the SCENE reference image's ${backgroundWidth}x${backgroundHeight} orientation, crop, perspective and composition. Never rotate, widen, extend or replace its background.`;
+          const garmentLayoutLock = "PRODUCT LAYOUT LOCK: show one fully unfolded flat short-sleeve T-shirt at natural full-frame scale. Collar, entire hem and both complete sleeves must be visible; the garment must occupy roughly 75-85% of frame height. Never fold, stack, roll, crop, hang or turn it into a sweatshirt.";
+          let sceneBackgroundPath = backgroundPath;
+          if (job.mode === "original-design") {
+            await mkdir(backgroundPlatesDirectory, { recursive: true });
+            const backgroundHash = createHash("sha256").update(await readFile(backgroundPath)).digest("hex");
+            const platePath = path.join(backgroundPlatesDirectory, `${backgroundHash}.png`);
+            const platePrompt = [
+              `EMPTY SCENE PLATE. Keep exactly ${aspectRatio} and the same camera, crop, perspective, quilt/bed surface, seams, folds, texture, lighting, shadows and room edges as IMAGE 1.`,
+              "Remove the entire garment and reconstruct the naturally exposed surface underneath it.",
+              "The result must contain NO clothing, fabric product, print, label, letters, logo, animal, star, graphic, person, prop or added object anywhere.",
+              "Return one photorealistic empty background plate only; do not redesign or beautify the scene.",
+            ].join(" ");
+            const cachedPlate = await sharp(platePath).metadata().then((metadata) => (
+              compareFlowImageGeometry(
+                { width: backgroundWidth, height: backgroundHeight },
+                { width: metadata.width || 0, height: metadata.height || 0 },
+              ).pass
+            )).catch(() => false);
+            if (cachedPlate) {
+              console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: использует сохранённую чистую фоновую сцену.`);
+              sceneBackgroundPath = platePath;
+            } else {
+              console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: очищает фоновую сцену от исходного товара…`);
+            let plateTiming: Awaited<ReturnType<typeof generateFlowImage>> | undefined;
+            let plateAttempt = 1;
+            while (plateAttempt <= generationMaxAttempts) {
+              const activeModel = FLOW_IMAGE_MODELS[activeModelIndex];
+              try {
+                plateTiming = await withProgressLog(generateFlowImage({
+                  page,
+                  flowUrl: originalProjectUrl || flowUrl,
+                  references: [backgroundPath],
+                  prompt: platePrompt,
+                  outputPath: platePath,
+                  timeoutMs: generationTimeoutMs,
+                  maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
+                  downloadResolution: "2K",
+                  model: activeModel,
+                  aspectRatio,
+                }), job.id, item.product.index, item.background.slot, activeModel);
+                if (/\/tools\/flow\/project\//i.test(page.url())) {
+                  originalProjectUrl = page.url();
+                  await writeFile(flowProjectStatePath, originalProjectUrl, "utf8");
+                }
+                break;
+              } catch (error) {
+                if (error instanceof FlowModelLimitError) {
+                  if (activeModelIndex >= FLOW_IMAGE_MODELS.length - 1) throw error;
+                  activeModelIndex += 1;
+                  if (job.mode === "original-design") {
+                    await delay(1_500);
+                  } else {
+                    await page.close().catch(() => undefined);
+                    page = await context.newPage();
+                  }
+                  continue;
+                }
+                if (!isRetryableGenerationError(error) || plateAttempt === generationMaxAttempts) throw error;
+                await delay(Math.min(2_000 * plateAttempt, 6_000));
+                if (job.mode !== "original-design") {
+                  await page.close().catch(() => undefined);
+                  page = await context.newPage();
+                } else if (originalProjectUrl && page.url() !== originalProjectUrl) {
+                  await page.goto(originalProjectUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+                }
+                plateAttempt += 1;
+              }
+            }
+            if (!plateTiming) throw new Error(`Flow background extraction failed for slot ${item.background.slot}.`);
+            const plateMetadata = await sharp(platePath).metadata();
+            const plateGeometry = compareFlowImageGeometry(
+              { width: backgroundWidth, height: backgroundHeight },
+              { width: plateMetadata.width || 0, height: plateMetadata.height || 0 },
+            );
+            if (!plateGeometry.pass) throw new Error(plateGeometry.issue);
+            sceneBackgroundPath = platePath;
             }
           }
-          if (!timing) throw new Error(`Flow generation failed for ${item.product.index}/${item.background.slot}.`);
-          let verdict: FlowPhotoQualityVerdict & { provider?: string };
-          if (requiresProductQa) {
-            try {
-              verdict = await evaluateFlowProductPhoto(
-                { productPath, backgroundPath, candidatePath: outputPath },
-                { fetchFn: browserPageFetch(page), retryRateLimits: false },
-              );
-            } catch (error) {
-              console.warn(
-                `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: Gemini QA unavailable, using Claude: ${sanitizeFlowAgentError(error)}`,
-              );
+          const originalStage = job.mode === "original-design" ? originalDesignStage(item.background.slot) : null;
+          const anchorProductPath = originalStage === "front-photo" || originalStage === "front-detail"
+            ? requireAnchor(originalAnchors, "front")
+            : originalStage === "back-photo" ? requireAnchor(originalAnchors, "back") : undefined;
+          const productPath = anchorProductPath || sourceProductPath;
+          const references = job.mode !== "original-design"
+            ? [productPath, backgroundPath]
+            : originalStage === "front-anchor"
+              ? [sourceProductPath, sceneBackgroundPath]
+              : originalStage === "back-anchor"
+                ? [requireAnchor(originalAnchors, "front"), sceneBackgroundPath]
+                : [productPath, sceneBackgroundPath];
+          const requiresProductQa = job.mode !== "original-design" || originalStage === "front-photo" || originalStage === "front-detail" || originalStage === "back-photo";
+          const requiresOriginalAnchorQa = originalStage === "front-anchor";
+          const requiresDesignPairQa = originalStage === "back-anchor";
+          const angleDirection = originalStage === "front-detail"
+            ? "DETAIL VARIANT: move the real camera closer and lower for an oblique three-quarter product photograph. Keep the entire print, collar, at least one complete sleeve, a garment edge and surrounding scene visible."
+            : flowAngleDirection(item.background.slot);
+          const stageLayoutLock = originalStage === "front-detail"
+            ? "PRODUCT DETAIL LOCK: this is a genuine close product photograph, never a digital crop or texture-only macro. The complete print occupies 35-50% of frame, while enough shirt silhouette and background remain visible to prove a real camera angle."
+            : garmentLayoutLock;
+          const baseGenerationPrompt = job.mode === "original-design"
+            ? `${canvasLock} ${stageLayoutLock} ${angleDirection} ${buildOriginalStagePrompt(originalStage!, prompt, 1)}`
+            : `${canvasLock} ${angleDirection} ${prompt}`;
+          let feedback = "";
+          for (let attempt = 1; attempt <= (requiresProductQa || requiresOriginalAnchorQa || requiresDesignPairQa ? qualityMaxAttempts : 1); attempt += 1) {
+            let timing: Awaited<ReturnType<typeof generateFlowImage>> | undefined;
+            let usedModel: FlowImageModel = FLOW_IMAGE_MODELS[activeModelIndex];
+            let generationAttempt = 1;
+            while (generationAttempt <= generationMaxAttempts) {
+              const activeModel = FLOW_IMAGE_MODELS[activeModelIndex];
+              usedModel = activeModel;
               try {
-                verdict = await requestFallbackQuality(job.id, productPath, backgroundPath, outputPath);
-              } catch (fallbackError) {
+                if (job.mode === "original-design") {
+                  console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: page before generation ${page.url()}; target ${originalProjectUrl || flowUrl}`);
+                }
+                timing = await withProgressLog(
+                  generateFlowImage({
+                    page,
+                    flowUrl: originalProjectUrl || flowUrl,
+                    references,
+                    prompt: feedback
+                      ? `CRITICAL RETRY: ${feedback} ${baseGenerationPrompt}`
+                      : baseGenerationPrompt,
+                    outputPath,
+                    timeoutMs: generationTimeoutMs,
+                    maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
+                    downloadResolution: "2K",
+                    model: activeModel,
+                    aspectRatio,
+                  }),
+                  job.id,
+                  item.product.index,
+                  item.background.slot,
+                  activeModel,
+                );
+                if (/\/tools\/flow\/project\//i.test(page.url())) {
+                  originalProjectUrl = page.url();
+                  await writeFile(flowProjectStatePath, originalProjectUrl, "utf8");
+                }
+                break;
+              } catch (error) {
+                if (error instanceof FlowModelLimitError) {
+                  if (activeModelIndex >= FLOW_IMAGE_MODELS.length - 1) {
+                    throw new Error("Flow: дневной лимит исчерпан у Nano Banana Pro, Nano Banana 2 и Nano Banana 2 Lite.");
+                  }
+                  const previousModel = FLOW_IMAGE_MODELS[activeModelIndex];
+                  activeModelIndex += 1;
+                  console.warn(`[flow-agent] ${job.id}: лимит ${previousModel}; переключаюсь на ${FLOW_IMAGE_MODELS[activeModelIndex]}.`);
+                  if (job.mode === "original-design") {
+                    await delay(1_500);
+                  } else {
+                    await page.close().catch(() => undefined);
+                    page = await context.newPage();
+                  }
+                  continue;
+                }
+                if (!isRetryableGenerationError(error) || generationAttempt === generationMaxAttempts) throw error;
+                const reason = sanitizeFlowAgentError(error);
                 console.warn(
-                  `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: QA providers unavailable, keeping candidate for manual review: ${sanitizeFlowAgentError(fallbackError)}`,
+                  `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: Flow retry ${generationAttempt}/${generationMaxAttempts}: ${reason}`,
+                );
+                await delay(Math.min(2_000 * generationAttempt, 6_000));
+                if (job.mode !== "original-design") {
+                  await page.close().catch(() => undefined);
+                  page = await context.newPage();
+                } else if (originalProjectUrl && page.url() !== originalProjectUrl) {
+                  await page.goto(originalProjectUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+                }
+                generationAttempt += 1;
+              }
+            }
+            if (!timing) throw new Error(`Flow generation failed for ${item.product.index}/${item.background.slot}.`);
+            let verdict: FlowPhotoQualityVerdict & { provider?: string };
+            const candidateMetadata = await sharp(outputPath).metadata();
+            const geometry = compareFlowImageGeometry(
+              { width: backgroundWidth, height: backgroundHeight },
+              { width: candidateMetadata.width || 0, height: candidateMetadata.height || 0 },
+            );
+            if (!geometry.pass) {
+              verdict = { pass: false, score: 0, issues: [geometry.issue], provider: "geometry" };
+            } else if ((originalStage === "front-photo" || originalStage === "front-detail" || originalStage === "back-photo") && anchorProductPath) {
+              const diversity = await evaluateShotDiversity(anchorProductPath, outputPath);
+              if (!diversity.pass) {
+                verdict = { pass: false, score: 0, issues: [diversity.issue!], provider: "shot-diversity" };
+              } else {
+                try {
+                  verdict = await evaluateFlowProductPhoto(
+                    {
+                      productPath,
+                      backgroundPath: sceneBackgroundPath,
+                      candidatePath: outputPath,
+                      ...(originalStage === "front-detail" ? { composition: "detail" as const } : {}),
+                    },
+                    { fetchFn: browserPageFetch(page), retryRateLimits: false },
+                  );
+                  verdict.provider = "identity-and-composition";
+                } catch (error) {
+                  console.warn(
+                    `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: final-photo QA unavailable, using Claude: ${sanitizeFlowAgentError(error)}`,
+                  );
+                  try {
+                    verdict = await requestFallbackQuality(job.id, productPath, sceneBackgroundPath, outputPath);
+                    verdict.provider = "claude-fallback";
+                  } catch (fallbackError) {
+                    console.warn(
+                      `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: final-photo QA providers unavailable, keeping candidate for manual review: ${sanitizeFlowAgentError(fallbackError)}`,
+                    );
+                    verdict = {
+                      pass: true,
+                      score: 0,
+                      issues: ["Final-photo QA unavailable; manual review required."],
+                      skipped: true,
+                      provider: "manual-review",
+                    };
+                  }
+                }
+              }
+            } else if (requiresOriginalAnchorQa) {
+              const printPresence = await evaluateCentralPrintPresence(outputPath);
+              if (!printPresence.pass) {
+                verdict = { ...printPresence, provider: "local-print-presence" };
+              } else {
+              try {
+                verdict = await evaluateFlowOriginalDesignAnchor(
+                  {
+                    candidatePath: outputPath,
+                    sourcePaths: job.products.map((product) => products.get(product.index)!),
+                    side: "front",
+                    designBrief: prompt,
+                  },
+                  { fetchFn: browserPageFetch(page) },
+                );
+              } catch (error) {
+                console.warn(
+                  `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: original-design QA unavailable, keeping candidate for manual review: ${sanitizeFlowAgentError(error)}`,
                 );
                 verdict = {
                   pass: true,
                   score: 0,
-                  issues: ["External QA unavailable; manual review required."],
+                  issues: ["Original-design QA unavailable; manual review required."],
                   skipped: true,
                   provider: "manual-review",
                 };
               }
+              }
+            } else if (requiresDesignPairQa) {
+              const printPresence = await evaluateCentralPrintPresence(outputPath);
+              if (!printPresence.pass) {
+                verdict = { ...printPresence, provider: "local-print-presence" };
+              } else {
+              try {
+                verdict = await evaluateFlowOriginalDesignPair(
+                  {
+                    frontPath: requireAnchor(originalAnchors, "front"),
+                    backPath: outputPath,
+                    sourcePaths: job.products.map((product) => products.get(product.index)!),
+                    designBrief: prompt,
+                  },
+                  { fetchFn: browserPageFetch(page) },
+                );
+              } catch (error) {
+                console.warn(
+                  `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: design-pair QA unavailable, keeping candidate for manual review: ${sanitizeFlowAgentError(error)}`,
+                );
+                verdict = {
+                  pass: true,
+                  score: 0,
+                  issues: ["Design-pair QA unavailable; manual review required."],
+                  skipped: true,
+                  provider: "manual-review",
+                };
+              }
+              }
+            } else if (requiresProductQa) {
+              try {
+                verdict = await evaluateFlowProductPhoto(
+                  { productPath, backgroundPath, candidatePath: outputPath },
+                  { fetchFn: browserPageFetch(page), retryRateLimits: false },
+                );
+              } catch (error) {
+                console.warn(
+                  `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: Gemini QA unavailable, using Claude: ${sanitizeFlowAgentError(error)}`,
+                );
+                try {
+                  verdict = await requestFallbackQuality(job.id, productPath, backgroundPath, outputPath);
+                } catch (fallbackError) {
+                  console.warn(
+                    `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: QA providers unavailable, keeping candidate for manual review: ${sanitizeFlowAgentError(fallbackError)}`,
+                  );
+                  verdict = {
+                    pass: true,
+                    score: 0,
+                    issues: ["External QA unavailable; manual review required."],
+                    skipped: true,
+                    provider: "manual-review",
+                  };
+                }
+              }
+            } else {
+              verdict = { pass: true, score: 100, issues: [], skipped: true };
             }
-          } else {
-            verdict = { pass: true, score: 100, issues: [], skipped: true };
+            if (verdict.pass) {
+              await uploadResult(job.id, item.product.index, item.background.slot, outputPath, timing, job.imageSize);
+              if (originalStage === "front-anchor") originalAnchors.set("front", outputPath);
+              if (originalStage === "back-anchor") originalAnchors.set("back", outputPath);
+              console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: ${(timing.durationMs / 1000).toFixed(1)} сек; ${usedModel}; QA ${verdict.skipped ? "skipped" : verdict.score}${verdict.provider ? ` (${verdict.provider})` : ""}`);
+              break;
+            }
+            feedback = verdict.issues.join("; ").slice(0, 320) || `product fidelity score was ${verdict.score}/100`;
+            console.warn(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: QA ${verdict.score}, retry ${attempt}/${qualityMaxAttempts}: ${feedback}`);
+            if (attempt === qualityMaxAttempts) {
+              throw new Error(`Flow QA rejected ${item.product.index}/${item.background.slot} after ${qualityMaxAttempts} attempts: ${feedback}`);
+            }
           }
-          if (verdict.pass) {
-            await uploadResult(job.id, item.product.index, item.background.slot, outputPath, timing, job.imageSize);
-            console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: ${(timing.durationMs / 1000).toFixed(1)} сек; QA ${verdict.skipped ? "skipped" : verdict.score}${verdict.provider ? ` (${verdict.provider})` : ""}`);
-            break;
+        } catch (error) {
+          const reason = sanitizeFlowAgentError(error);
+          if (job.mode === "original-design") {
+            throw new Error(`${item.product.index}/${item.background.slot}: ${reason}`, { cause: error });
           }
-          feedback = verdict.issues.join("; ").slice(0, 320) || `product fidelity score was ${verdict.score}/100`;
-          console.warn(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: QA ${verdict.score}, retry ${attempt}/${qualityMaxAttempts}: ${feedback}`);
-          if (attempt === qualityMaxAttempts) {
-            throw new Error(`Flow QA rejected ${item.product.index}/${item.background.slot} after ${qualityMaxAttempts} attempts: ${feedback}`);
-          }
+          failures.push(`${item.product.index}/${item.background.slot}: ${reason}`);
+          console.error(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: ${reason}; продолжаю остальные фото.`);
         }
       }
     } finally {
-      await page.close();
+      if (shouldClosePage) await page.close();
     }
   });
   const outcomes = await Promise.allSettled(workers);
   const failed = outcomes.find((outcome): outcome is PromiseRejectedResult => outcome.status === "rejected");
   if (failed) throw failed.reason;
+  if (failures.length) throw new Error(`Flow не завершил ${failures.length} фото: ${failures.join(" | ")}`);
 }
 
 function isRetryableGenerationError(error: unknown) {
@@ -461,6 +800,8 @@ function isRetryableGenerationError(error: unknown) {
     "browser has been closed",
     "terminated",
     "flow generation failed",
+    "workspace did not load",
+    "рабочая область не загрузилась",
     "download",
   ].some((fragment) => message.includes(fragment));
 }
@@ -475,30 +816,140 @@ function flowAngleDirection(slot: BackgroundSlot) {
   return directions[slot];
 }
 
-async function resolveJobPrompt(job: AgentJob) {
+function originalDesignStage(slot: BackgroundSlot): OriginalDesignStage {
+  return ({
+    "1": "front-anchor",
+    "2": "back-anchor",
+    "3": "front-detail",
+    "4": "back-photo",
+  } as const)[slot];
+}
+
+function requireAnchor(anchors: Map<"front" | "back", string>, side: "front" | "back") {
+  const anchor = anchors.get(side);
+  if (!anchor) throw new Error(`Flow: не создан опорный ${side === "front" ? "передний" : "задний"} вид нового изделия.`);
+  return anchor;
+}
+
+async function withProgressLog<T>(
+  operation: Promise<T>,
+  jobId: string,
+  productIndex: number,
+  backgroundSlot: BackgroundSlot,
+  model: FlowImageModel,
+) {
+  const started = Date.now();
+  const timer = setInterval(() => {
+    console.log(`[flow-agent] ${jobId} ${productIndex}/${backgroundSlot}: ${model} работает, ${Math.round((Date.now() - started) / 1_000)} сек.`);
+  }, 30_000);
+  try {
+    return await operation;
+  } finally {
+    clearInterval(timer);
+  }
+}
+
+async function resolveJobPrompt(job: AgentJob, products: Map<number, string>, context: BrowserContext) {
   if (job.mode !== "original-design") return job.generationPrompt || defaultPrompt();
-  if (job.designPrompt) return job.designPrompt;
-  let research = job.marketResearch;
+  if (job.designPrompt && job.designPrompt.includes("PRODUCTION LOCK") && job.designPrompt.includes("24")) return job.designPrompt;
+  let designPage: Page | undefined;
+  let visionFetch: typeof fetch | undefined;
+  try {
+    designPage = await context.newPage();
+    await designPage.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    visionFetch = browserPageFetch(designPage);
+  } catch (error) {
+    await designPage?.close().catch(() => undefined);
+    designPage = undefined;
+    console.warn(`[flow-agent] Browser-backed design analysis unavailable: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  let research = isVisualResearchReady(job.marketResearch) ? job.marketResearch : undefined;
   if (!research) {
-    const query = job.inspirationQuery?.trim();
+    let query = job.inspirationQuery?.trim();
     if (!query) throw new Error("Для режима нового дизайна не задан рыночный запрос.");
+    try {
+      const winner = await withStageProgress(job.id, "анализирует бренд победителя", inferWinnerMarketQuery(
+          job.products.map((product) => products.get(product.index)!),
+          query,
+          visionFetch ? { fetchFn: visionFetch } : {},
+        ));
+      query = winner.query;
+      console.log(`[flow-agent] ${job.id}: winner brand analysis — ${winner.brand}, ${winner.garmentType}; market query "${query}".`);
+    } catch (error) {
+      console.warn(`[flow-agent] Winner brand analysis failed, using user query: ${error instanceof Error ? error.message : String(error)}`);
+    }
     let browser: Browser | null = null;
     try {
       browser = await chromium.launch({
         channel: "chrome",
-        headless: process.env.FLOW_RESEARCH_HEADLESS !== "0",
+        headless: process.env.FLOW_RESEARCH_HEADLESS === "1",
       });
-      research = await collectMarketResearch(browser, query);
+      research = await withStageProgress(job.id, "сравнивает Grailed, Mercari и Rakuma", collectMarketResearch(browser, query));
     } finally {
       await browser?.close();
     }
     await saveResearch(job.id, research);
   }
   try {
-    return await requestMetaPrompt(job.id);
+    const generated = await withStageProgress(job.id, "собирает производственный дизайн-бриф Gemini", createGeminiApparelDesignPrompt({
+      sourcePaths: job.products.map((product) => products.get(product.index)!),
+      research,
+      designNote: job.designNote,
+      labelStyleReference: job.labelStyleReference,
+    }, visionFetch ? { fetchFn: visionFetch } : {}));
+    console.log(`[flow-agent] ${job.id}: Gemini analyzed winner + ${generated.visualReferenceCount} marketplace images; concept ${generated.brief.conceptName}.`);
+    await saveMetaPrompt(job.id, generated.prompt, "gemini");
+    await designPage?.close().catch(() => undefined);
+    return generated.prompt;
   } catch (error) {
-    console.warn(`[flow-agent] Claude meta-prompt failed, using fallback: ${error instanceof Error ? error.message : String(error)}`);
-    return buildOriginalDesignPrompt(research, job.designNote, job.labelStyleReference, job.products.length);
+    console.warn(`[flow-agent] Gemini visual design brief failed, asking CRM meta-prompt: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    const generated = await withStageProgress(job.id, "собирает резервный дизайн-бриф Claude", createClaudeApparelDesignPrompt({
+      sourcePaths: job.products.map((product) => products.get(product.index)!),
+      research,
+      designNote: job.designNote,
+      labelStyleReference: job.labelStyleReference,
+    }));
+    console.log(`[flow-agent] ${job.id}: Claude analyzed winner + ${generated.visualReferenceCount} marketplace images; concept ${generated.brief.conceptName}.`);
+    await saveMetaPrompt(job.id, generated.prompt, "claude");
+    await designPage?.close().catch(() => undefined);
+    return generated.prompt;
+  } catch (error) {
+    console.warn(`[flow-agent] Claude visual design brief failed, asking CRM meta-prompt: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    const prompt = await requestMetaPrompt(job.id);
+    if (!prompt.includes("PRODUCTION LOCK") || !prompt.includes("24") || !prompt.includes("32")) {
+      throw new Error("CRM meta-prompt is missing the production print lock.");
+    }
+    await designPage?.close().catch(() => undefined);
+    return prompt;
+  } catch (error) {
+    console.warn(`[flow-agent] CRM meta-prompt failed, using production fallback: ${error instanceof Error ? error.message : String(error)}`);
+    const prompt = buildOriginalDesignPrompt(research, job.designNote, job.labelStyleReference, job.products.length);
+    await saveMetaPrompt(job.id, prompt, "fallback").catch(() => undefined);
+    await designPage?.close().catch(() => undefined);
+    return prompt;
+  }
+}
+
+function isVisualResearchReady(research?: MarketResearch) {
+  if (!research) return false;
+  const visualCount = research.listings.filter((listing) => Boolean(listing.imageUrl)).length;
+  return visualCount >= 6 && Object.values(research.sourceCounts).every((count) => count > 0);
+}
+
+async function withStageProgress<T>(jobId: string, stage: string, operation: Promise<T>) {
+  const started = Date.now();
+  console.log(`[flow-agent] ${jobId}: ${stage}…`);
+  const timer = setInterval(() => {
+    console.log(`[flow-agent] ${jobId}: ${stage}, ${Math.round((Date.now() - started) / 1_000)} сек.`);
+  }, 15_000);
+  try {
+    return await operation;
+  } finally {
+    clearInterval(timer);
   }
 }
 
@@ -520,6 +971,15 @@ async function requestMetaPrompt(jobId: string) {
   const data = await response.json() as { prompt?: string; error?: string };
   if (!response.ok || !data.prompt) throw new Error(data.error || `CRM вернула HTTP ${response.status}.`);
   return data.prompt;
+}
+
+async function saveMetaPrompt(jobId: string, prompt: string, source: "gemini" | "claude" | "fallback") {
+  const response = await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${jobId}/meta-prompt`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ agentId, prompt, source }),
+  });
+  if (!response.ok) throw new Error(`CRM did not save the ${source} design brief: HTTP ${response.status} ${await response.text()}`);
 }
 
 async function downloadAsset(jobId: string, kind: string, fileName: string, target: string) {

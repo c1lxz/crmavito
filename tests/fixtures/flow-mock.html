@@ -43,6 +43,10 @@
       document.querySelector("[data-testid=generate]").addEventListener("click", () => {
         if (attachCount !== 2 || !document.querySelector("[data-testid=prompt]").value.trim()) return;
         setTimeout(() => {
+          if (new URLSearchParams(location.search).has("limit")) {
+            document.querySelector("#result").innerHTML = `<div>Вы достигли дневного лимита на генерацию. Попробуйте использовать другую модель.</div>`;
+            return;
+          }
           document.querySelector("#result").innerHTML = `<img data-testid="result-image" alt="Generated image" src="${generatedPng}"><button data-testid="result-download">Download</button><div role="menu" hidden><button role="menuitem">2K Upscaled</button></div>`;
           document.querySelector("[data-testid=result-download]").addEventListener("click", () => {
             document.querySelector("[role=menu]").hidden = false;

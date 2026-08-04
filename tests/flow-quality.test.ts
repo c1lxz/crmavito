@@ -2,10 +2,59 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { evaluateFlowProductPhoto, parseQualityVerdict, qualityRetryDelayMs } from "@/lib/flow-agent/quality";
+import sharp from "sharp";
+import {
+  evaluateCentralPrintPresence,
+  evaluateFlowOriginalDesignAnchor,
+  evaluateFlowProductPhoto,
+  parseQualityVerdict,
+  qualityRetryDelayMs,
+} from "@/lib/flow-agent/quality";
 import { evaluateFlowProductPhotoWithClaude } from "@/lib/flow-agent/claude-quality";
 
 describe("Flow product photo quality gate", () => {
+  it("sends the approved design brief to original-design QA", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "flow-approved-brief-"));
+    const imagePath = path.join(directory, "candidate.png");
+    await sharp({ create: { width: 32, height: 32, channels: 3, background: "#222" } }).png().toFile(imagePath);
+    const fetchFn = vi.fn(async (_url: URL | RequestInfo, init?: RequestInit) => {
+      expect(String(init?.body)).toContain("AFTERTONE");
+      expect(String(init?.body)).toContain("APPROVED PRODUCTION BRIEF");
+      expect(String(init?.body)).toContain("never require or penalize absence of the opposite side");
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"pass":true,"score":95,"issues":[]}' }] } }],
+      }), { status: 200 });
+    });
+    try {
+      await expect(evaluateFlowOriginalDesignAnchor({
+        candidatePath: imagePath,
+        sourcePaths: [imagePath],
+        side: "front",
+        designBrief: "FRONT: exact word AFTERTONE in distressed typography.",
+      }, { apiKey: "test-key", fetchFn: fetchFn as typeof fetch })).resolves.toMatchObject({ pass: true, score: 95 });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a blank dark garment anchor before external vision QA can approve it", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "flow-print-presence-"));
+    const blankPath = path.join(directory, "blank.png");
+    const printedPath = path.join(directory, "printed.png");
+    try {
+      const blank = await sharp({ create: { width: 600, height: 900, channels: 3, background: "#111217" } }).png().toBuffer();
+      await writeFile(blankPath, blank);
+      await sharp(blank)
+        .composite([{ input: { create: { width: 140, height: 220, channels: 3, background: "#ddd8c8" } }, left: 230, top: 360 }])
+        .png()
+        .toFile(printedPath);
+      await expect(evaluateCentralPrintPresence(blankPath)).resolves.toMatchObject({ pass: false, score: 0 });
+      await expect(evaluateCentralPrintPresence(printedPath)).resolves.toMatchObject({ pass: true, score: 100 });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("accepts a high-confidence clean result", () => {
     expect(parseQualityVerdict('{"pass":true,"score":91,"issues":[]}')).toEqual({
       pass: true,

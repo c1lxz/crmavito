@@ -30,14 +30,14 @@ function Read-EnvValue([string]$path, [string]$name) {
   return ($line -replace "^[^=]+=", "").Trim().Trim('"').Trim("'")
 }
 
-function Find-LocalToken {
+function Find-LocalEnvValue([string]$name) {
   $candidates = @(
     (Join-Path $PWD ".env.local"),
     "C:\crmavito\.env.local",
     (Join-Path $installRoot ".env.local")
   ) | Select-Object -Unique
   foreach ($candidate in $candidates) {
-    $value = Read-EnvValue $candidate "FLOW_LOCAL_AGENT_TOKEN"
+    $value = Read-EnvValue $candidate $name
     if ($value) { return $value }
   }
   return $null
@@ -58,12 +58,19 @@ $chromeCandidates = @(
 ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 if (-not $chromeCandidates) { throw "Не найден Google Chrome. Установите Chrome и повторите установку." }
 
-$token = if ($env:FLOW_LOCAL_AGENT_TOKEN) { $env:FLOW_LOCAL_AGENT_TOKEN.Trim() } else { Find-LocalToken }
+$token = if ($env:FLOW_LOCAL_AGENT_TOKEN) { $env:FLOW_LOCAL_AGENT_TOKEN.Trim() } else { Find-LocalEnvValue "FLOW_LOCAL_AGENT_TOKEN" }
 if (-not $token) {
   throw "Не найден ключ подключения. Вставьте ключ в установщике или запустите его на ПК с C:\crmavito\.env.local."
 }
 $crmUrl = if ($env:FLOW_AGENT_CRM_URL) { $env:FLOW_AGENT_CRM_URL.Trim().TrimEnd("/") } else { "https://crmavito.duckdns.org" }
 if ($crmUrl -notmatch '^https?://') { throw "Адрес CRM должен начинаться с https:// или http://." }
+
+$qaEnvironment = @()
+foreach ($name in @("GEMINI_API_KEY", "GEMINI_QA_MODEL", "GEMINI_QA_FALLBACK_MODEL", "GEMINI_DESIGN_MODEL", "GEMINI_DESIGN_FALLBACK_MODEL", "ANTHROPIC_API_KEY", "CLAUDE_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL")) {
+  $processValue = [Environment]::GetEnvironmentVariable($name, "Process")
+  $value = if ($processValue) { $processValue.Trim() } else { Find-LocalEnvValue $name }
+  if ($value) { $qaEnvironment += "$name=$value" }
+}
 
 $packagePath = $env:FLOW_AGENT_PACKAGE_PATH
 $tempRoot = Join-Path $env:TEMP ("crm-avito-flow-install-" + [guid]::NewGuid().ToString("N"))
@@ -89,13 +96,15 @@ try {
   } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
   Copy-Item -Path (Join-Path $stageRoot "*") -Destination $installRoot -Recurse -Force
-  @(
+  $agentEnvironment = @(
     "FLOW_AGENT_CRM_URL=$crmUrl",
     "FLOW_LOCAL_AGENT_TOKEN=$token",
     "FLOW_AGENT_CONCURRENCY=1",
     "FLOW_AGENT_CDP_URL=http://127.0.0.1:9223",
-    "FLOW_AGENT_CDP_BOOTSTRAP_SCRIPT=`"$(Join-Path $installRoot 'start-flow-chrome.ps1')`""
-  ) | Set-Content -LiteralPath (Join-Path $installRoot ".env.local") -Encoding UTF8
+    "FLOW_AGENT_CDP_BOOTSTRAP_SCRIPT=`"$(Join-Path $installRoot 'start-flow-chrome.ps1')`"",
+    "FLOW_AGENT_PROFILE_DIR=`"$(Join-Path $installRoot 'state\chrome-profile')`""
+  ) + $qaEnvironment
+  $agentEnvironment | Set-Content -LiteralPath (Join-Path $installRoot ".env.local") -Encoding UTF8
 
   Push-Location $installRoot
   try {

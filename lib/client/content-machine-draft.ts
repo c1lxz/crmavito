@@ -2,6 +2,9 @@
 
 export type ContentMachineDraft = {
   mode: "product-photo" | "original-design";
+  designSource?: "upload" | "analytics";
+  designCount?: number;
+  analyticsPeriodDays?: number;
   imageSize: "2K" | "4K";
   inspirationQuery: string;
   designNote: string;

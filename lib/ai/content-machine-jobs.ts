@@ -32,7 +32,7 @@ type JobManifest = {
   labelStyleReference?: string;
   marketResearch?: MarketResearch;
   designPrompt?: string;
-  metaPromptSource?: "claude" | "fallback";
+  metaPromptSource?: "gemini" | "claude" | "fallback";
   products: JobProduct[];
   backgrounds: JobBackground[];
 };
@@ -154,7 +154,7 @@ export async function createCodexJob(
 }
 
 export async function getCodexJob(id: string): Promise<CodexJob> {
-  const manifest = JSON.parse(await readFile(path.join(jobDirectory(id), "manifest.json"), "utf8")) as JobManifest;
+      const manifest = JSON.parse(await readFile(path.join(jobDirectory(id), "manifest.json"), "utf8")) as JobManifest;
   return hydrateJob(manifest);
 }
 
@@ -202,12 +202,18 @@ async function hydrateJob(manifest: JobManifest): Promise<CodexJob> {
 export async function claimNextFlowJob(agentId: string): Promise<CodexJob | null> {
   return withMutation(async () => {
     await mkdir(jobsDirectory(), { recursive: true });
-    const ids = (await readdir(jobsDirectory())).filter((id) => /^CM-[0-9]{8}-[A-Z0-9]{6}$/.test(id)).sort();
-    for (const id of ids) {
-      const manifestPath = path.join(jobDirectory(id), "manifest.json");
-      const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as JobManifest;
+    const ids = (await readdir(jobsDirectory())).filter((id) => /^CM-[0-9]{8}-[A-Z0-9]{6}$/.test(id));
+    const manifests = await Promise.all(ids.map(async (id) =>
+      JSON.parse(await readFile(path.join(jobDirectory(id), "manifest.json"), "utf8")) as JobManifest,
+    ));
+    // A newly submitted job must not sit behind stale released QA runs merely
+    // because its random id sorts later. This also makes recovery feel live:
+    // the user's latest explicit request is claimed first.
+    manifests.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    for (const manifest of manifests) {
       const resumable = manifest.agentStatus === "processing" && manifest.agentId === agentId;
-      if (resumable && await countResultFiles(manifest) >= expectedResultCount(manifest)) {
+      if ((manifest.agentStatus === "queued" || resumable)
+        && await countResultFiles(manifest) >= expectedResultCount(manifest)) {
         completeManifest(manifest);
         await saveManifest(manifest);
         continue;
@@ -301,7 +307,7 @@ export async function saveFlowDesignPrompt(
   id: string,
   agentId: string,
   designPrompt: string,
-  source: "claude" | "fallback",
+  source: "gemini" | "claude" | "fallback",
 ) {
   return withMutation(async () => {
     const manifest = await readManifest(id);

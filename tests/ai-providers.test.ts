@@ -192,7 +192,7 @@ describe("AI providers", () => {
   it("never replaces exact branded-product preservation with an original-design instruction", () => {
     const angledProductPrompt = `ANGLE VARIANT 2: three-quarter view. ${buildFlowProductPhotoPrompt()} ${"Natural fabric detail. ".repeat(20)}`;
     const compacted = compactFlowPrompt(angledProductPrompt);
-    expect(compacted.length).toBeLessThanOrEqual(900);
+    expect(compacted.length).toBeLessThanOrEqual(1_400);
     expect(compacted).toContain("IMAGE 1 = ONLY immutable product");
     expect(compacted).toContain("visible label/neck text");
     expect(compacted).not.toContain("Original visual design only");

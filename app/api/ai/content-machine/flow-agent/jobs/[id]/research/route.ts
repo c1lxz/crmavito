@@ -23,7 +23,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
             return false;
           }
         })
-        .slice(0, 30),
+        .slice(0, 30)
+        .map((listing) => ({
+          source: listing.source,
+          title: listing.title.slice(0, 180),
+          url: listing.url,
+          ...(typeof listing.price === "string" ? { price: listing.price.slice(0, 40) } : {}),
+          ...(isTrustedMarketImage(listing.imageUrl) ? { imageUrl: listing.imageUrl } : {}),
+        })),
       topSignals: Array.isArray(submittedResearch.topSignals) ? submittedResearch.topSignals.slice(0, 12) : [],
       sourceCounts: Object.fromEntries(MARKET_SOURCES.map((source) => [
         source,
@@ -34,5 +41,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return Response.json({ job });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
+  }
+}
+
+function isTrustedMarketImage(value?: string) {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && ["media-assets.grailed.com", "static.mercdn.net", "img.fril.jp"]
+      .some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
+  } catch {
+    return false;
   }
 }

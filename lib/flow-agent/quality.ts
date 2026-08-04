@@ -15,7 +15,7 @@ type GeminiQualityResponse = {
 };
 
 export async function evaluateFlowProductPhoto(
-  input: { productPath: string; backgroundPath: string; candidatePath: string },
+  input: { productPath: string; backgroundPath: string; candidatePath: string; composition?: "detail" },
   options: { fetchFn?: typeof fetch; apiKey?: string; model?: string; retryRateLimits?: boolean } = {},
 ): Promise<FlowPhotoQualityVerdict> {
   const apiKey = options.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
@@ -32,7 +32,7 @@ export async function evaluateFlowProductPhoto(
   const retryRateLimits = options.retryRateLimits !== false;
   const evaluateWithModel = async (activeModel: string, retryRateLimits: boolean) => {
     const request = { ...baseRequest, model: activeModel, retryRateLimits };
-    const primary = await requestQualityVerdict(request, qualityPrompt());
+    const primary = await requestQualityVerdict(request, qualityPrompt(input.composition));
     if (!primary.pass) return primary;
     const identityAudit = await requestQualityVerdict(request, identityAuditPrompt());
     return {
@@ -48,6 +48,144 @@ export async function evaluateFlowProductPhoto(
     if (!(error instanceof GeminiQualityHttpError) || error.status !== 429 || !hasFallback) throw error;
     return evaluateWithModel(fallbackModel, retryRateLimits);
   }
+}
+
+export async function evaluateFlowOriginalDesignPair(
+  input: { frontPath: string; backPath: string; sourcePaths?: string[]; designBrief?: string },
+  options: { fetchFn?: typeof fetch; apiKey?: string; model?: string } = {},
+): Promise<FlowPhotoQualityVerdict> {
+  const apiKey = options.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) return { pass: true, score: 0, issues: ["Gemini design-pair QA is not configured"], skipped: true };
+
+  const model = options.model?.trim() || process.env.GEMINI_QA_MODEL?.trim() || "gemini-2.5-flash";
+  const [front, back, sources] = await Promise.all([
+    prepareVisionImage(input.frontPath),
+    prepareVisionImage(input.backPath),
+    Promise.all((input.sourcePaths || []).slice(0, 6).map(prepareVisionImage)),
+  ]);
+  return requestOriginalDesignVerdictWithFallback({
+    apiKey,
+    model,
+    fetchFn: options.fetchFn || fetch,
+    parts: [
+      { text: originalDesignPairPrompt() },
+      ...(input.designBrief ? [{ text: `APPROVED PRODUCTION BRIEF — judge literal concept compliance against this brief: ${input.designBrief.slice(0, 3_000)}` }] : []),
+      { text: "IMAGE A — intended FRONT anchor:" },
+      { inline_data: { mime_type: "image/jpeg", data: front } },
+      { text: "IMAGE B — intended BACK anchor:" },
+      { inline_data: { mime_type: "image/jpeg", data: back } },
+      ...sources.flatMap((source, index) => [
+        { text: `SOURCE ${index + 1} — proven garment inspiration; its artwork must not be copied:` },
+        { inline_data: { mime_type: "image/jpeg", data: source } },
+      ]),
+    ],
+  });
+}
+
+export async function evaluateFlowOriginalDesignAnchor(
+  input: { candidatePath: string; sourcePaths: string[]; side: "front" | "back"; designBrief?: string },
+  options: { fetchFn?: typeof fetch; apiKey?: string; model?: string } = {},
+): Promise<FlowPhotoQualityVerdict> {
+  const apiKey = options.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) return { pass: true, score: 0, issues: ["Gemini original-design QA is not configured"], skipped: true };
+  const model = options.model?.trim() || process.env.GEMINI_QA_MODEL?.trim() || "gemini-2.5-flash";
+  const [candidate, sources] = await Promise.all([
+    prepareVisionImage(input.candidatePath),
+    Promise.all(input.sourcePaths.slice(0, 6).map(prepareVisionImage)),
+  ]);
+  return requestOriginalDesignVerdictWithFallback({
+    apiKey,
+    model,
+    fetchFn: options.fetchFn || fetch,
+    parts: [
+      { text: originalDesignAnchorPrompt(input.side) },
+      ...(input.designBrief ? [{
+        text: `APPROVED PRODUCTION BRIEF — judge literal ${input.side.toUpperCase()} concept compliance against this brief. This candidate intentionally shows only the ${input.side.toUpperCase()}; never require or penalize absence of the opposite side: ${input.designBrief.slice(0, 3_000)}`,
+      }] : []),
+      { text: `CANDIDATE — intended ${input.side.toUpperCase()} anchor:` },
+      { inline_data: { mime_type: "image/jpeg", data: candidate } },
+      ...sources.flatMap((source, index) => [
+        { text: `SOURCE ${index + 1} — proven garment inspiration; preserve its garment/label rules but never copy its artwork:` },
+        { inline_data: { mime_type: "image/jpeg", data: source } },
+      ]),
+    ],
+  });
+}
+
+type OriginalDesignRequest = {
+  apiKey: string;
+  model: string;
+  fetchFn: typeof fetch;
+  parts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }>;
+};
+
+export async function evaluateCentralPrintPresence(candidatePath: string): Promise<FlowPhotoQualityVerdict> {
+  const metadata = await sharp(candidatePath).metadata();
+  const width = metadata.width || 0;
+  const height = metadata.height || 0;
+  if (width < 10 || height < 10) {
+    return { pass: false, score: 0, issues: ["Generated anchor has invalid dimensions."] };
+  }
+  const region = {
+    left: Math.round(width * 0.25),
+    top: Math.round(height * 0.36),
+    width: Math.max(1, Math.round(width * 0.5)),
+    height: Math.max(1, Math.round(height * 0.34)),
+  };
+  const { data, info } = await sharp(candidatePath)
+    .extract(region)
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let brightPixels = 0;
+  for (let offset = 0; offset < data.length; offset += info.channels) {
+    const luminance = data[offset] * 0.2126 + data[offset + 1] * 0.7152 + data[offset + 2] * 0.0722;
+    if (luminance > 115) brightPixels += 1;
+  }
+  const brightRatio = brightPixels / (data.length / info.channels);
+  if (brightRatio < 0.005) {
+    return {
+      pass: false,
+      score: 0,
+      issues: [`Mandatory central garment artwork is missing (${(brightRatio * 100).toFixed(2)}% visible print pixels).`],
+    };
+  }
+  return { pass: true, score: 100, issues: [] };
+}
+
+async function requestOriginalDesignVerdictWithFallback(input: OriginalDesignRequest) {
+  try {
+    return await requestOriginalDesignVerdict(input);
+  } catch (error) {
+    const fallbackModel = process.env.GEMINI_QA_FALLBACK_MODEL?.trim() || "gemini-2.5-flash-lite";
+    if (!(error instanceof GeminiQualityHttpError)
+      || ![429, 500, 502, 503, 504].includes(error.status)
+      || fallbackModel === input.model) throw error;
+    return requestOriginalDesignVerdict({ ...input, model: fallbackModel });
+  }
+}
+
+async function requestOriginalDesignVerdict(input: OriginalDesignRequest) {
+  const response = await input.fetchFn(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": input.apiKey },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: input.parts }],
+        generationConfig: { temperature: 0, responseMimeType: "application/json" },
+      }),
+      signal: AbortSignal.timeout(60_000),
+    },
+  );
+  const raw = await response.text();
+  if (!response.ok) throw new GeminiQualityHttpError(response.status, `Gemini original-design QA: HTTP ${response.status}.`);
+  const data = JSON.parse(raw) as GeminiQualityResponse;
+  const text = data.candidates?.flatMap((candidateItem) => candidateItem.content?.parts || [])
+    .map((part) => part.text || "")
+    .find(Boolean);
+  if (!text) throw new Error("Gemini original-design QA returned no verdict.");
+  return parseQualityVerdict(text);
 }
 
 class GeminiQualityHttpError extends Error {
@@ -162,12 +300,16 @@ async function prepareVisionImage(filePath: string) {
     .toBuffer()).toString("base64");
 }
 
-function qualityPrompt() {
+function qualityPrompt(composition?: "detail") {
   return [
     "Act as a strict product-photo quality gate. Compare the three labeled images.",
     "Pass only when IMAGE C unmistakably contains the exact garment from IMAGE A: same garment color and type, visible side, cut, collar, sleeves, seams, labels, and especially the exact artwork, letters, colors, count, shape, placement and scale of every print element.",
     "IMAGE B supplies only the supporting surface, framing, perspective and light. It often contains a different sample garment. Reject IMAGE C if it copied, mixed or retained any garment, artwork, label, text, logo or watermark from IMAGE B.",
     "Also reject obvious CGI, pasted edges, floating cloth, broken geometry, illegible changed text, duplicated details, or any marketplace watermark.",
+    "Reject every hang tag, paper tag, sewn label, woven tab, white collar locator, plastic fastener, string or cropped tag fragment. Heat-transfer neck markings belong only inside the back-neck panel and must never appear on the outer chest or outer back.",
+    composition === "detail"
+      ? "DETAIL COMPOSITION GATE: IMAGE C must be a genuinely new oblique camera photograph, not a digital crop or texture-only macro. The complete print occupies about 35-50% of frame and is not cut. Require a visible collar, at least one complete sleeve, a garment edge, natural folds and a clear band of IMAGE B background around the shirt."
+      : "",
     "Natural changes in folds, camera angle, crop and lighting are allowed. Be conservative: uncertainty about product identity is a failure.",
     "Return only JSON: {\"pass\":boolean,\"score\":integer 0..100,\"issues\":[short strings]}. Passing requires score >= 85 and no product-identity or watermark issue.",
   ].join(" ");
@@ -181,6 +323,37 @@ function identityAuditPrompt() {
     "Reject any missing, duplicated, added, merged, recolored or restyled motif even if the overall garment looks convincing. Reject hidden or changed labels and any watermark.",
     "Camera angle, folds, crop and lighting may change, but they cannot hide an identity detail visible in A.",
     "Return only JSON: {\"pass\":boolean,\"score\":integer 0..100,\"issues\":[short strings including element counts when relevant]}. Pass only if every counted motif and all visible text match exactly.",
+  ].join(" ");
+}
+
+function originalDesignPairPrompt() {
+  return [
+    "Act as a strict fashion design front/back quality gate.",
+    "IMAGE A must visibly be the FRONT of one garment with a clean crew-neck shape. The internal heat-transfer neck marking is physically hidden inside the back-neck panel and no label wording may appear on the outer chest.",
+    "IMAGE B must visibly be the BACK of the same garment: higher closed rear neckline, with no inside label text printed on the exterior.",
+    "The sides must share garment cut, color, ink palette, distress treatment and one coherent story, while using clearly different primary subjects and silhouettes. The front is a restrained secondary hook and the back is the hero statement. Reject if B repeats, mirrors, enlarges, fragments or merely re-photographs A's principal object, figure, hand, face, symbol or graphic.",
+    "Reject every hang tag, paper tag, sewn label, woven tab, white collar locator, plastic fastener, string or cropped tag fragment. The only permitted label construction is an internal heat-transfer marking hidden inside the back-neck panel; no label wording may appear on either exterior.",
+    "Production gate: on each side the complete artwork must occupy one compact rectangular torso print zone equivalent to at most 24 x 32 cm, with clear fabric margins from collar, shoulders, sleeves, sides and hem. Reject all-over, tiled, wraparound, sleeve, seam-crossing or edge-to-edge artwork and reject graphics covering most of the garment.",
+    "Reject random abstract squares, rectangles, grids, panels or color fields. A distressed halftone portrait/figure is allowed when integrated without a rectangular edge. A text-led editorial system is also valid when the APPROVED PRODUCTION BRIEF explicitly requests typography. Require a specific coherent concept and intentional front/back hierarchy rather than arbitrary decoration.",
+    "All SOURCE images are inspiration only. Reject if either candidate reuses a recognizable source subject, symbol, silhouette or motif (including any source stars, horse/equine figure or exact composition), even when moved, resized or redrawn.",
+    "Reject generic animals, buffalo/yak/bear/wolf/horse, the winner's stars, unrelated clipart, an unrequested lone chest logo, CUSTOM MADE, visible brand-label text on the back exterior, obvious CGI, malformed clothing or unreadable fake typography. An exact word or phrase required by the APPROVED PRODUCTION BRIEF is not a logo and must be judged by that brief.",
+    "Return only JSON: {\"pass\":boolean,\"score\":integer 0..100,\"issues\":[short actionable strings]}. Passing requires score >= 85 and every orientation/coherence rule to pass.",
+  ].filter(Boolean).join(" ");
+}
+
+function originalDesignAnchorPrompt(side: "front" | "back") {
+  return [
+    `Act as a strict original designer-fashion ${side} anchor gate.`,
+    side === "front"
+      ? "The candidate must unmistakably show the FRONT with a clean crew-neck shape. The internal heat-transfer marking is hidden inside the back-neck panel; no label wording may appear on the outer chest."
+      : "The candidate must unmistakably show the BACK: higher closed rear neckline and no label wording printed on the exterior.",
+    "Reject every hang tag, paper tag, sewn label, woven tab, white collar locator, plastic fastener, string or cropped tag fragment. Do not accept L.G.B., size text or any label wording anywhere visible in this exterior product shot.",
+    "The candidate must be a genuinely new, commercially credible archive-fashion design with intentional hierarchy, asymmetry, negative space and physical screen-print integration.",
+    "Production gate: the entire artwork must fit one compact torso rectangle equivalent to at most 24 x 32 cm and leave clearly visible margins from collar, shoulders, sleeves, sides and hem. Reject all-over, tiled, wraparound, sleeve, seam-crossing, edge-to-edge or garment-dominating graphics.",
+    "Reject random abstract squares, rectangles, grids, panels and color fields. A distressed halftone portrait/figure is allowed when integrated without a rectangular edge. A text-led editorial composition is also valid when the APPROVED PRODUCTION BRIEF explicitly requests typography. Require one specific coherent concept, not arbitrary decoration.",
+    "SOURCE images teach garment construction and design quality only. Reject any recognizable reuse of their subject, symbol, silhouette or motif—including source stars, horse/equine imagery or the same composition—even if moved, resized, mirrored or redrawn.",
+    "Reject generic animals, buffalo/yak/bear/wolf/horse, the winner's stars, unrelated stock clipart, an unrequested lone chest logo, CUSTOM MADE, random fake text, obvious CGI, malformed clothing or pasted artwork. An exact word required by the APPROVED PRODUCTION BRIEF is not a logo and must be judged by the requested typographic treatment.",
+    "Return only JSON: {\"pass\":boolean,\"score\":integer 0..100,\"issues\":[short actionable strings]}. Passing requires score >= 85 and no originality, orientation, label or fashion-quality issue.",
   ].join(" ");
 }
 

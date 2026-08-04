@@ -29,6 +29,7 @@ export function buildProductPhotoPrompt(additionalInstructions?: string): string
     "Create exactly ONE physically believable, photorealistic e-commerce product photograph from the two reference images. It must look like a real camera photo, never a render, collage or pasted cutout.",
     "REFERENCE IMAGE 1 is the PRODUCT PHOTO. REFERENCE IMAGE 2 is the ONLY ALLOWED BACKGROUND.",
     "The garment is an immutable product identity. Preserve it exactly: silhouette, cut, proportions, seams, stitching, fabric texture, folds, sleeves, collar, labels, wear, color, print artwork, every letter, font, spacing, print placement and print texture.",
+    "LABEL CONSTRUCTION LOCK: never create a hang tag, paper tag, sewn label, woven tab, white locator, plastic fastener, string or cropped tag fragment. Preserve a source heat-transfer marking only when it is genuinely visible inside the back-neck panel; never relocate it onto the outer chest or back.",
     "You may improve the garment's placement, camera angle, crop and fold arrangement to create a natural professional flat-lay composition. Keep the same visible side (front or back) and never mirror the image or reveal, hide or invent product details.",
     "Do not redesign, retouch, simplify, repair, remove or add any part of the garment. A composition change must never change its product identity, construction or artwork.",
     "Replace only the original background. Use the actual texture and visual identity of REFERENCE IMAGE 2 across the entire background. Do not create a similar texture and do not introduce any other surface.",
@@ -47,12 +48,13 @@ export function buildProductPhotoPrompt(additionalInstructions?: string): string
 export function buildFlowProductPhotoPrompt(): string {
   return [
     "Create one natural photorealistic marketplace camera photo; no CGI or collage.",
-    "IMAGE 1 = ONLY immutable product. IMAGE 2 may contain another garment: ignore that garment and all its print, label, text, logo and watermark; copy scene, surface and light only.",
-    "Preserve IMAGE 1 exactly: cut, seams, collar, sleeves, fabric, color, every visible label/neck text and every print line/letter/font/spacing/texture/placement. Keep text readable in place. Same visible side; never mirror, redesign, add, remove or hide details.",
-    "Result must be IMAGE 1's garment, never IMAGE 2's garment or a mixture. Change only placement, crop, camera angle and folds.",
-    "Match IMAGE 2 perspective, exposure, focus, daylight.",
+    "IMAGE 1 = ONLY immutable product. IMAGE 2 is scene-only: copy surface/light; ignore its garment, print, label, text and logo.",
+    "Preserve IMAGE 1: cut, seams, collar, sleeves, fabric, color, every visible label/neck text and every print line/letter/font/spacing/texture/placement. Same side; never mirror, redesign or hide details.",
+    "LABEL LOCK: no hang/paper/sewn/woven tag, white locator, fastener, string or tag fragment. Heat-transfer text stays inside the back neck, never outside.",
+    "Use only IMAGE 1. Change placement, crop, camera angle and folds.",
+    "Match IMAGE 2 perspective, exposure, focus and light.",
     "Real weave, gravity and wrinkles; tight contact shadows and soft occlusion under collar, sleeves and hems.",
-    "No overlays, halos, floating edges, CGI, added text or watermarks. Return only final photo.",
+    "No overlays, halos, floating edges, CGI, text or watermarks. Return only final photo.",
   ].join(" ");
 }
 

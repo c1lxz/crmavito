@@ -1,6 +1,7 @@
 import { fetchWithRetry, fetchAllAvitoItems, type AvitoListItem } from "@/lib/avito/sync";
 import { extractAvitoErrorText, getAvitoStockToken, type AvitoCredentials } from "@/lib/avito/stocks";
 import { fetchAvitoAccountProfile } from "@/lib/avito/profile";
+import { findFirstImageUrl } from "@/lib/avito/api";
 
 type FetchFn = typeof fetch;
 type SleepFn = (ms: number) => Promise<void>;
@@ -26,6 +27,7 @@ export type AvitoAdAnalyticsItem = {
   price: number | null;
   description: string | null;
   imageCount: number | null;
+  imageUrl: string | null;
 };
 
 export type AvitoAdsAnalyticsResult = {
@@ -216,6 +218,7 @@ export async function fetchAvitoAdsAnalytics(
       price: priceFrom(item),
       description: descriptionFrom(item),
       imageCount: imageCountFrom(item),
+      imageUrl: findFirstImageUrl(item),
     };
   }).sort((a, b) => (b.views - a.views) || (b.contacts - a.contacts) || (b.favorites - a.favorites));
 

@@ -87,6 +87,9 @@ describe("Telegram group notifications", () => {
     expect(notifySource).toContain("sendOrderToGroup");
     expect(notifySource).toContain("sendMediaGroup");
     expect(notifySource).toContain("generateBarcodePng");
+    expect(notifySource).toContain("fetchWbOrderStickerBarcode");
+    expect(notifySource).toContain("generateQrCodePng");
+    expect(queueSource).toContain("marketplace: order.marketplace");
   });
 
   it("retries failed notifications through the production worker", () => {

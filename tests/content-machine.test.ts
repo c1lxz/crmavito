@@ -27,6 +27,8 @@ const generateRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-
 const backgroundsRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-machine/backgrounds/route.ts"), "utf8");
 const storageSource = fs.readFileSync(path.join(root, "lib/ai/content-machine.ts"), "utf8");
 const jobsSource = fs.readFileSync(path.join(root, "lib/ai/content-machine-jobs.ts"), "utf8");
+const autoJobsSource = fs.readFileSync(path.join(root, "lib/ai/content-machine-auto.ts"), "utf8");
+const autoRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-machine/codex-jobs/auto/route.ts"), "utf8");
 const deploySource = fs.readFileSync(path.join(root, "deploy.sh"), "utf8");
 const nginxContentMachineSource = fs.readFileSync(path.join(root, "scripts/configure-nginx-content-machine.py"), "utf8");
 const klingSource = fs.readFileSync(path.join(root, "lib/ai/kling-images.ts"), "utf8");
@@ -110,6 +112,33 @@ describe("content machine", () => {
     }
   });
 
+  it("launches Flow in its dedicated Chrome profile with the installed proxy extension", () => {
+    const startChromeSource = fs.readFileSync(path.join(process.cwd(), "scripts/flow-agent-runtime/start-flow-chrome.ps1"), "utf8");
+    expect(startChromeSource).toContain("FLOW_AGENT_PROFILE_DIR");
+    expect(startChromeSource).toContain("FLOW_AGENT_PROXY_EXTENSION_PATH");
+    expect(startChromeSource).toContain("pcboajngloecgmaailkmphmpbacmbcfb");
+    expect(startChromeSource).toContain("--disable-extensions-except");
+    expect(startChromeSource).toContain("--load-extension");
+  });
+
+  it("claims the newest queued Flow job before stale queued work", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "crmavito-flow-order-"));
+    process.env.CONTENT_MACHINE_DATA_DIR = directory;
+    try {
+      for (const slot of ["1", "2", "3", "4"] as const) {
+        await saveBackground(slot, new File([`background-${slot}`], `background-${slot}.jpg`, { type: "image/jpeg" }) as unknown as globalThis.File);
+      }
+      const product = new File(["product"], "shirt.jpg", { type: "image/jpeg" }) as unknown as globalThis.File;
+      const stale = await createCodexJob([product], "2K");
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const latest = await createCodexJob([product], "2K");
+      expect((await claimNextFlowJob("test-agent"))?.id).toBe(latest.id);
+      expect((await getCodexJob(stale.id)).status).toBe("waiting");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("moves a job from waiting to ready when Codex result files appear", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "crmavito-codex-job-"));
     process.env.CONTENT_MACHINE_DATA_DIR = directory;
@@ -130,9 +159,11 @@ describe("content machine", () => {
       for (const slot of ["1", "2", "3", "4"]) {
         await writeFile(path.join(resultDirectory, `product-01-background-${slot}.png`), `result-${slot}`);
       }
+      expect(await claimNextFlowJob("test-agent")).toBeNull();
       const ready = await getCodexJob(created.id);
       expect(ready.status).toBe("ready");
       expect(ready.results).toHaveLength(4);
+      expect(ready.agentStatus).toBe("complete");
       expect(ready.results[0].url).toContain(`/codex-jobs/${created.id}/files/results/`);
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -151,17 +182,29 @@ describe("content machine", () => {
     expect(clientSource).toContain("content-machine-diagnostic-incidents");
     expect(clientSource).toContain("loadContentMachineDraft");
     expect(clientSource).toContain("Повторить недостающие");
-    expect(clientSource).toContain("disabled={creatingJob || products.length === 0 || !allBackgroundsReady || !designReady}");
+    expect(clientSource).toContain("disabled={creatingJob || !sourceReady || !allBackgroundsReady || !designReady}");
     expect(clientSource).not.toContain("agentStatus !== null && !agentReady");
     expect(draftSource).toContain("indexedDB.open");
     expect(draftSource).toContain("products: Array<{ id: string; file: File }>");
     expect(flowBrowserSource).toContain("downloadResultInsideBrowser");
+    expect(flowBrowserSource).toContain(".flow-download");
+    expect(flowBrowserSource).toContain("await rm(outputPath, { force: true })");
     expect(flowBrowserSource).toContain("водяного знака");
     expect(flowBrowserSource).not.toContain("Google перенаправил агента на общую страницу Labs");
     expect(flowAgentSource).toContain("normalizeFlowResult(source, imageSize)");
     expect(flowAgentSource).toContain('imageSize === "4K" ? 4096 : 2048');
     expect(flowAgentSource).toContain("ANGLE VARIANT 4");
-    expect(flowAgentSource).toContain('`${angleDirection} ${prompt}`');
+    expect(flowAgentSource).toContain('`${canvasLock} ${angleDirection} ${prompt}`');
+    expect(flowAgentSource).toContain("inferFlowImageAspectRatio");
+    expect(flowAgentSource).toContain("compareFlowImageGeometry");
+    expect(flowAgentSource).not.toContain("labelReferences.get(job.products[0].index)");
+    expect(flowAgentSource).not.toContain("createExactFrontPrintDetail");
+    expect(flowAgentSource).toContain('composition: "detail"');
+    expect(flowAgentSource).toContain("genuine close product photograph, never a digital crop");
+    expect(flowAgentSource).toContain("EMPTY SCENE PLATE");
+    expect(flowAgentSource).toContain("sceneBackgroundPath");
+    expect(flowAgentSource).toContain("PRODUCT LAYOUT LOCK");
+    expect(flowAgentSource).toContain("backgroundPlatesDirectory");
     expect(flowAgentSource).toContain("FLOW_GENERATION_MAX_ATTEMPTS");
     expect(flowAgentSource).toContain("FLOW_AGENT_CONCURRENCY || 1");
     expect(flowAgentSource).toContain("ERR_CONNECTION_RESET|ERR_TIMED_OUT");
@@ -244,16 +287,19 @@ describe("content machine", () => {
       }, undefined, "minimal archival luxury", 2);
       expect(prompt).toContain("Grailed, Mercari and Rakuma");
       expect(prompt).toContain("gothic, distressed, oversized");
-      expect(prompt).toContain("Do not reproduce");
-      expect(prompt).toContain("CUSTOM MADE");
-      expect(prompt).toContain("HARD TEXT CONSTRAINT");
-      expect(prompt).toContain("No microtext");
+      expect(prompt).toContain("do not copy or merely move its artwork");
+      expect(prompt).toContain("LABEL CONSTRUCTION LOCK");
+      expect(prompt).toContain("NO hang tags, paper tags, sewn labels or woven tabs");
+      expect(prompt).toContain("winner's stars and horse/equine artwork");
       expect(prompt).toContain("minimal archival luxury");
-      expect(prompt).toContain("Never show the reference name");
-      expect(prompt).toContain("REFERENCE IMAGES 1-2");
-      expect(prompt).toContain("REFERENCE IMAGE 3");
+      expect(prompt).toContain("IMAGES 1-2");
+      expect(prompt).toContain("IMAGE 3 is SCENE ONLY");
+      expect(prompt).toContain("24 cm wide by 32 cm high");
+      expect(prompt).toContain("random abstract squares, rectangles, grids");
+      expect(prompt).toContain("MARKET-GROUNDED FALLBACK");
+      expect(prompt).not.toContain("shortwave receiver");
       expect(prompt).toContain(
-        "Preserve the background identity, perspective and light from REFERENCE IMAGE 3",
+        "copy only its real surface, camera, crop and light",
       );
     } finally {
       await rm(directory, { recursive: true, force: true });
@@ -301,14 +347,26 @@ describe("content machine", () => {
     expect(requestBody).toContain("Grailed 3, Mercari 3, Rakuma 3");
     expect(requestBody).toContain("Mandatory user note");
     expect(requestBody).toContain("Make the graphic smaller and provide varied camera angles.");
-    expect(requestBody).toContain("Neck-label aesthetic reference: minimal archival luxury");
-    expect(requestBody).toContain("CUSTOM MADE");
-    expect(requestBody).toContain("hard text constraint");
-    expect(requestBody).toContain("pseudo-words");
-    expect(requestBody).toContain("never render the reference name");
+    expect(requestBody).toContain("Internal heat-transfer identification hint: minimal archival luxury");
+    expect(requestBody).toContain("There are no hang tags, paper tags, sewn labels or woven tabs");
+    expect(requestBody).toContain("buffalo, yak, bear, wolf");
+    expect(requestBody).toContain("24 x 32 cm");
+    expect(requestBody).toContain("random abstract squares, rectangles, grids");
     expect(requestBody).toContain("REFERENCE IMAGES 1-2");
     expect(requestBody).toContain("REFERENCE IMAGE 3");
     expect(requestBody).toContain("exactly one image per run");
     expect(requestBody).toContain("Do not explain your analysis");
+  });
+
+  it("supports automatic analytics batches from 1 to 100 positions", () => {
+    expect(clientSource).toContain('value="analytics"');
+    expect(clientSource).toContain('max={100}');
+    expect(clientSource).toContain('fetch("/api/ai/content-machine/codex-jobs/auto"');
+    expect(clientSource).toContain("Контент-машина объединит активные Avito-профили");
+    expect(autoRouteSource).toContain(".min(1).max(100)");
+    expect(autoRouteSource).toContain("createAnalyticsDesignJobs");
+    expect(autoJobsSource).toContain("fetchAvitoAdsAnalytics");
+    expect(autoJobsSource).toContain("contacts * 50 + item.favorites * 10 + item.views");
+    expect(autoJobsSource).toContain("No hang tags, paper tags, sewn labels, woven tabs");
   });
 });
