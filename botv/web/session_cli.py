@@ -332,19 +332,25 @@ def _move_photo(product: dict, token: str, direction: str) -> None:
     current.insert(target, item)
     product["photos"] = [str(path) for path in current]
 
-def create_from_archive(archive_path: Path, source_name: str) -> dict:
+def create_from_archive(archive_path: Path, source_name: str, *, move_archive: bool = False) -> dict:
     session_id = f"v_{int(time.time())}_{os.getpid()}"
     session_dir = _session_dir(session_id)
     if session_dir.exists():
         shutil.rmtree(session_dir)
     session_dir.mkdir(parents=True)
     local_archive = session_dir / source_name
-    shutil.copy2(archive_path, local_archive)
+    if move_archive:
+        shutil.move(str(archive_path), str(local_archive))
+    else:
+        shutil.copy2(archive_path, local_archive)
     progress = ["Архив получен", "Распаковываю архив"]
     try:
         root = extract_archive(local_archive, session_dir / "extracted")
     except ArchiveError as exc:
+        if move_archive:
+            shutil.rmtree(session_dir, ignore_errors=True)
         raise SystemExit(str(exc)) from exc
+    local_archive.unlink(missing_ok=True)
     progress.append("Сканирую папки товаров и фотографии")
     return _state_from_root(session_id, session_dir, root, source_name, progress)
 
@@ -368,6 +374,7 @@ def create_from_link(raw_link: str) -> dict:
     if archives:
         progress.append("Распаковываю скачанный архив")
         root = extract_archive(archives[0], session_dir / "extracted")
+        archives[0].unlink(missing_ok=True)
     else:
         root = local_root
     progress.append("Сканирую папки товаров и фотографии")
@@ -665,6 +672,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_create = sub.add_parser("create"); p_create.add_argument("archive"); p_create.add_argument("source_name")
+    p_create_move = sub.add_parser("create-move"); p_create_move.add_argument("archive"); p_create_move.add_argument("source_name")
     p_link = sub.add_parser("link"); p_link.add_argument("url")
     p_state = sub.add_parser("state"); p_state.add_argument("session_id")
     p_list = sub.add_parser("list"); p_list.add_argument("--limit", type=int, default=20)
@@ -674,6 +682,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.cmd == "create":
         print(json.dumps(create_from_archive(Path(args.archive), args.source_name), ensure_ascii=False))
+    elif args.cmd == "create-move":
+        print(json.dumps(create_from_archive(Path(args.archive), args.source_name, move_archive=True), ensure_ascii=False))
     elif args.cmd == "link":
         print(json.dumps(create_from_link(args.url), ensure_ascii=False))
     elif args.cmd == "state":

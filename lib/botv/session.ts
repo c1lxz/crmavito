@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export interface BotvProduct {
@@ -44,6 +44,21 @@ const botvDir = path.join(root, "botv");
 const python = path.join(botvDir, "venv", "bin", "python");
 const cli = path.join(botvDir, "web", "session_cli.py");
 const uploadDir = path.join(botvDir, "tmp", "web_uploads");
+const staleUploadAgeMs = 24 * 60 * 60 * 1000;
+
+export async function pruneStaleUploadEntries(directory: string, maxAgeMs = staleUploadAgeMs) {
+  await mkdir(directory, { recursive: true });
+  const cutoff = Date.now() - maxAgeMs;
+  const entries = await readdir(directory).catch(() => []);
+  await Promise.all(entries.map(async (entry) => {
+    const target = path.resolve(directory, entry);
+    if (!target.startsWith(path.resolve(directory) + path.sep)) return;
+    const details = await stat(target).catch(() => null);
+    if (details && details.mtimeMs < cutoff) {
+      await rm(target, { recursive: true, force: true });
+    }
+  }));
+}
 
 async function runCli(args: string[]) {
   const child = spawn(python, [cli, ...args], { cwd: botvDir, env: process.env });
@@ -65,13 +80,13 @@ export async function createSessionFromFile(file: File): Promise<BotvSession> {
 }
 
 export async function reserveUploadTarget(sourceName: string): Promise<string> {
-  await mkdir(uploadDir, { recursive: true });
+  await pruneStaleUploadEntries(uploadDir);
   const safeName = sourceName.replace(/[^a-zA-Z0-9._-]+/g, "_") || "archive.zip";
   return path.join(uploadDir, `${Date.now()}_${randomUUID()}_${safeName}`);
 }
 
 export async function createSessionFromUploadedPath(filePath: string, sourceName: string): Promise<BotvSession> {
-  return JSON.parse(await runCli(["create", filePath, sourceName])) as BotvSession;
+  return JSON.parse(await runCli(["create-move", filePath, sourceName])) as BotvSession;
 }
 
 export async function createSessionFromLink(link: string): Promise<BotvSession> {

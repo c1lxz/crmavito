@@ -186,6 +186,8 @@ describe("botv mini app UI", () => {
 
     expect(sessionSource).toContain("stdoutChunks: Buffer[]");
     expect(sessionSource).toContain("Buffer.concat(stdoutChunks).toString(\"utf8\")");
+    expect(sessionSource).toContain('["create-move", filePath, sourceName]');
+    expect(sessionSource).toContain("pruneStaleUploadEntries");
     expect(sessionSource).not.toContain("stdout += chunk");
   });
 

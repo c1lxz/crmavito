@@ -1,7 +1,7 @@
 import { appendFile, mkdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { createSessionFromUploadedPath, reserveUploadTarget } from "@/lib/botv/session";
+import { createSessionFromUploadedPath, pruneStaleUploadEntries, reserveUploadTarget } from "@/lib/botv/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -27,6 +27,7 @@ function numberField(form: FormData, name: string) {
 }
 
 async function chunkDir(uploadId: string) {
+  await pruneStaleUploadEntries(chunkRoot);
   const dir = path.resolve(chunkRoot, uploadId);
   if (!dir.startsWith(path.resolve(chunkRoot) + path.sep)) throw new Error("Некорректная сессия загрузки.");
   await mkdir(dir, { recursive: true });

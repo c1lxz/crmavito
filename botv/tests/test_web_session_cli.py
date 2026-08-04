@@ -92,6 +92,19 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert phone_xml["xml"] == replaced_phone_xml
 
 
+def test_web_session_create_move_consumes_uploaded_archive(tmp_path):
+    archive = tmp_path / "large-drop.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("Drop/Product Black/one.jpg", b"jpg")
+
+    state = _run_cli("create-move", str(archive), "large-drop.zip")
+
+    assert state["summary"]["total"] == 1
+    assert not archive.exists()
+    session_dir = Path(__file__).resolve().parents[1] / "tmp" / "web_sessions" / state["id"]
+    assert not (session_dir / "large-drop.zip").exists()
+
+
 def test_web_session_photo_reorder(tmp_path):
     archive = tmp_path / "drop.zip"
     with zipfile.ZipFile(archive, "w") as zf:
