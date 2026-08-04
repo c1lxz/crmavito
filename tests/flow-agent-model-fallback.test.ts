@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { compactFlowPrompt, FLOW_IMAGE_MODELS, inferFlowImageAspectRatio, isFlowAccessGateUrl, isFlowModelLimitText } from "@/lib/flow-agent/browser";
 import { compareFlowImageGeometry } from "@/lib/flow-agent/image-output";
 import { buildOriginalStagePrompt } from "@/lib/flow-agent/original-design";
 
+const agentSource = fs.readFileSync(path.join(process.cwd(), "scripts/flow-local-agent.ts"), "utf8");
+
 describe("Flow model fallback", () => {
+  it("releases region/marketing-page failures so another configured agent can retry", () => {
+    expect(agentSource).toContain("marketing page|redirected Flow|Flow access");
+  });
+
   it("uses the requested Pro to standard to Lite order", () => {
     expect(FLOW_IMAGE_MODELS).toEqual([
       "Nano Banana Pro",
