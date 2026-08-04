@@ -117,11 +117,13 @@ export async function getAvitoProfileAutoloadSettings(profileId?: string | null)
   if (!profileId) return {};
   const profile = await prisma.avitoProfile.findFirst({
     where: { id: profileId, isActive: true },
-    select: { name: true, reportEmail: true },
+    select: { name: true, reportEmail: true, contactPhone: true },
   });
   return {
     reportEmail: profile?.reportEmail?.trim() || undefined,
-    contactPhone: avitoXmlPhoneForProfileName(profile?.name),
+    contactPhone:
+      normalizeAvitoXmlPhone(profile?.contactPhone ?? "") ||
+      avitoXmlPhoneForProfileName(profile?.name),
   };
 }
 

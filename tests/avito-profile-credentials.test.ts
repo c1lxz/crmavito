@@ -29,6 +29,7 @@ describe("Avito credential profiles", () => {
     expect(schemaSource).toContain("clientId");
     expect(schemaSource).toContain("clientSecret");
     expect(schemaSource).toContain("reportEmail");
+    expect(schemaSource).toContain("contactPhone");
     expect(storeSource).toContain("listAvitoProfilesWithCredentials");
     expect(storeSource).toContain("getAvitoCredentials");
     expect(storeSource).toContain("getAvitoProfileReportEmail");
@@ -38,7 +39,9 @@ describe("Avito credential profiles", () => {
     expect(storeSource).toContain("normalizeAvitoXmlPhone");
     expect(storeSource).toContain("avitoXmlPhoneForProfileName");
     expect(storeSource).toContain("+7 (999) 121-23-49");
-    expect(settingsClientSource).not.toContain("Телефон XML");
+    expect(storeSource).toContain("contactPhone: true");
+    expect(storeSource).toContain("normalizeAvitoXmlPhone(profile?.contactPhone");
+    expect(settingsClientSource).toContain("Телефон XML");
   });
 
   it("exposes saved credential profiles without browser-visible secrets", () => {
