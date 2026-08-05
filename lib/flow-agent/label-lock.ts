@@ -120,12 +120,12 @@ export async function applyExactLabelOverlay(outputPath: string, overlayPath: st
   const targetWidth = Math.max(40, Math.round(detected ? detected.width * 1.02 : width * 0.055));
   const overlay = await sharp(overlayPath).resize({ width: targetWidth, withoutEnlargement: false }).png().toBuffer({ resolveWithObject: true });
   const centerX = detected ? detected.left + detected.width / 2 : width / 2;
-  const centerY = detected ? detected.top + detected.height / 2 : height * 0.31;
+  const centerY = detected ? detected.top + detected.height / 2 : height * 0.19;
   const left = Math.max(0, Math.min(width - overlay.info.width, Math.round(centerX - overlay.info.width / 2)));
   const top = Math.max(0, Math.min(height - overlay.info.height, Math.round(centerY - overlay.info.height / 2)));
   const cleanupTargets = detectedLabels.length ? detectedLabels : [{
     left: Math.round(width * 0.47),
-    top: Math.round(height * 0.295),
+    top: Math.round(height * 0.175),
     width: Math.round(width * 0.06),
     height: Math.round(height * 0.025),
   }];
@@ -153,10 +153,11 @@ export function findGeneratedLabelBoundsCandidates(data: Buffer, width: number, 
   // Oblique photos can move the collar far away from the frame centre.
   const minimumX = Math.round(width * 0.20);
   const maximumX = Math.round(width * 0.80);
-  const minimumY = Math.round(height * 0.24);
-  // Perspective can push an erroneous exterior duplicate below the collar.
-  // Stop above the printable chest zone so artwork cannot be mistaken for a label.
-  const maximumY = Math.round(height * 0.405);
+  const minimumY = Math.round(height * 0.08);
+  // A neck mark must stay inside the top quarter of a front-facing packshot.
+  // Anything lower is an exterior duplicate or chest artwork and is never a
+  // valid replacement target.
+  const maximumY = Math.round(height * 0.26);
   const radius = Math.max(3, Math.round(width * 0.006));
   const pointsByRow: number[][] = Array.from({ length: height }, () => []);
   const luminanceAt = (x: number, y: number) => {
@@ -234,7 +235,8 @@ export function findGeneratedLabelBoundsCandidates(data: Buffer, width: number, 
     const bottom = Math.max(...textPoints.map((point) => point.y));
     const bounds = { left, top, width: right - left + 1, height: bottom - top + 1 };
     const aspect = bounds.width / Math.max(1, bounds.height);
-    if (aspect >= 1.15 && bounds.width <= width * 0.14 && bounds.height <= height * 0.06) candidates.push(bounds);
+    const centerRatio = (bounds.left + bounds.width / 2) / width;
+    if (aspect >= 1.15 && centerRatio >= 0.38 && centerRatio <= 0.62 && bounds.width <= width * 0.14 && bounds.height <= height * 0.06) candidates.push(bounds);
     const padding = Math.round(rowWindow * 0.35);
     for (let y = Math.max(minimumY, top - padding); y <= Math.min(maximumY, bottom + padding); y += 1) {
       pointsByRow[y] = [];

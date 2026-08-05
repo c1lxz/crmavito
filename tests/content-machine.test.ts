@@ -33,6 +33,7 @@ const deploySource = fs.readFileSync(path.join(root, "deploy.sh"), "utf8");
 const nginxContentMachineSource = fs.readFileSync(path.join(root, "scripts/configure-nginx-content-machine.py"), "utf8");
 const klingSource = fs.readFileSync(path.join(root, "lib/ai/kling-images.ts"), "utf8");
 const klingJobsSource = fs.readFileSync(path.join(root, "lib/ai/kling-content-machine-jobs.ts"), "utf8");
+const browserFallbackSource = fs.readFileSync(path.join(root, "scripts/run-content-machine-gemini-fallback.ts"), "utf8");
 
 const originalDataDirectory = process.env.CONTENT_MACHINE_DATA_DIR;
 afterEach(() => {
@@ -60,8 +61,12 @@ describe("content machine", () => {
     expect(klingSource).toContain("https://api-singapore.klingai.com");
     expect(klingSource).toContain("/v1/images/omni-image");
     expect(klingSource).toContain("kling-v3-omni");
+    expect(klingSource).toContain("input.prompt?.trim() || KLING_PRODUCT_PHOTO_PROMPT");
     expect(klingJobsSource).toContain("createKlingImageTask");
     expect(klingJobsSource).toContain('path.resolve(process.env.CONTENT_MACHINE_DATA_DIR, "kling-jobs")');
+    expect(browserFallbackSource).toContain("browserPageFetch(page)");
+    expect(browserFallbackSource).toContain("generateKlingStage");
+    expect(browserFallbackSource).toContain("applyExactLabelOverlay");
   });
 
   it("keeps exactly four persistent reference background slots", () => {

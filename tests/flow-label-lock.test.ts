@@ -36,25 +36,24 @@ describe("Flow exact neck-label lock", () => {
 
   it("finds a generated light label inside a dark collar instead of the light background", async () => {
     const image = await sharp(Buffer.from(
-      '<svg width="1000" height="1800"><rect width="1000" height="1800" fill="#aaa"/><rect x="250" y="250" width="500" height="500" rx="180" fill="#111"/><g fill="#eee"><rect x="455" y="525" width="9" height="42"/><rect x="476" y="525" width="9" height="42"/><rect x="497" y="525" width="9" height="42"/><rect x="518" y="525" width="9" height="42"/><rect x="539" y="525" width="9" height="42"/></g></svg>',
+      '<svg width="1000" height="1800"><rect width="1000" height="1800" fill="#aaa"/><rect x="250" y="180" width="500" height="500" rx="180" fill="#111"/><g fill="#eee"><rect x="455" y="345" width="9" height="42"/><rect x="476" y="345" width="9" height="42"/><rect x="497" y="345" width="9" height="42"/><rect x="518" y="345" width="9" height="42"/><rect x="539" y="345" width="9" height="42"/></g></svg>',
     )).removeAlpha().raw().toBuffer({ resolveWithObject: true });
     const bounds = findGeneratedLabelBounds(image.data, image.info.width, image.info.height, image.info.channels);
     expect(bounds).toBeDefined();
     expect(bounds!.left).toBeGreaterThan(400);
     expect(bounds!.left + bounds!.width).toBeLessThan(650);
-    expect(bounds!.top).toBeGreaterThan(500);
-    expect(bounds!.top + bounds!.height).toBeLessThan(590);
+    expect(bounds!.top).toBeGreaterThan(320);
+    expect(bounds!.top + bounds!.height).toBeLessThan(410);
   });
 
-  it("finds separate internal and accidentally duplicated external label rows", async () => {
+  it("rejects an accidentally duplicated exterior label row", async () => {
     const image = await sharp(Buffer.from(
-      '<svg width="1000" height="1800"><rect width="1000" height="1800" fill="#aaa"/><rect x="250" y="250" width="500" height="750" rx="180" fill="#111"/><g fill="#eee"><rect x="455" y="485" width="9" height="38"/><rect x="476" y="485" width="9" height="38"/><rect x="497" y="485" width="9" height="38"/><rect x="518" y="485" width="9" height="38"/><rect x="539" y="485" width="9" height="38"/><rect x="450" y="660" width="10" height="38"/><rect x="472" y="660" width="10" height="38"/><rect x="494" y="660" width="10" height="38"/><rect x="516" y="660" width="10" height="38"/><rect x="538" y="660" width="10" height="38"/></g></svg>',
+      '<svg width="1000" height="1800"><rect width="1000" height="1800" fill="#aaa"/><rect x="250" y="180" width="500" height="750" rx="180" fill="#111"/><g fill="#eee"><rect x="455" y="345" width="9" height="38"/><rect x="476" y="345" width="9" height="38"/><rect x="497" y="345" width="9" height="38"/><rect x="518" y="345" width="9" height="38"/><rect x="539" y="345" width="9" height="38"/><rect x="450" y="660" width="10" height="38"/><rect x="472" y="660" width="10" height="38"/><rect x="494" y="660" width="10" height="38"/><rect x="516" y="660" width="10" height="38"/><rect x="538" y="660" width="10" height="38"/></g></svg>',
     )).removeAlpha().raw().toBuffer({ resolveWithObject: true });
     const candidates = findGeneratedLabelBoundsCandidates(image.data, image.info.width, image.info.height, image.info.channels);
-    expect(candidates).toHaveLength(2);
-    expect(candidates[0].top).toBeLessThan(candidates[1].top);
-    expect(candidates[0].top).toBeGreaterThan(470);
-    expect(candidates[1].top).toBeGreaterThan(640);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].top).toBeGreaterThan(320);
+    expect(candidates[0].top + candidates[0].height).toBeLessThan(410);
   });
 
   it("chooses the sharpest uploaded collar and composites its exact pixels after Flow", async () => {

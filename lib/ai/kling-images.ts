@@ -36,12 +36,13 @@ export async function createKlingImageTask(input: {
   resolution: "2k" | "4k";
   aspectRatio: KlingAspectRatio;
   externalTaskId: string;
+  prompt?: string;
 }) {
   return klingRequest<KlingImageTask>("/v1/images/omni-image", {
     method: "POST",
     body: JSON.stringify({
       model_name: process.env.KLING_IMAGE_MODEL?.trim() || DEFAULT_MODEL,
-      prompt: KLING_PRODUCT_PHOTO_PROMPT,
+      prompt: input.prompt?.trim() || KLING_PRODUCT_PHOTO_PROMPT,
       image_list: input.images.map((image) => ({ image })),
       resolution: input.resolution,
       result_type: "single",
