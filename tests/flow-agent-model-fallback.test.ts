@@ -69,6 +69,23 @@ describe("original design stages", () => {
     expect(prompt).toContain("Do not generate L.G.B.");
   });
 
+  it("preserves the winner's exact internal neck mark in automatic front views", () => {
+    const prompt = buildOriginalStagePrompt("front-anchor", base, 1, { preserveWinnerLabel: true });
+    expect(prompt).toContain("WINNER LABEL LOCK");
+    expect(prompt).toContain("exact visible internal neck label or heat-transfer marking");
+    expect(prompt).toContain("Never place it on the outer chest");
+    expect(prompt).toContain("Never invent a substitute, hang tag, fastener or exterior label");
+    expect(prompt).not.toContain("collar completely clean");
+
+    const compacted = compactFlowPrompt(prompt);
+    expect(compacted).toContain("WINNER LABEL LOCK");
+    expect(compacted).toContain("preserve the exact visible internal neck label");
+    expect(compacted).not.toContain("internal heat-transfer marking stays hidden");
+
+    const back = buildOriginalStagePrompt("back-anchor", base, 1, { preserveWinnerLabel: true });
+    expect(back).toContain("NO VISIBLE LABEL OR LABEL TEXT");
+  });
+
   it("puts the fallback subject before the rest of the front and back instructions", () => {
     const fallback = "DEMAND-GROUNDED FALLBACK CONCEPT — NIGHT VEIL.";
     const front = buildOriginalStagePrompt("front-anchor", fallback, 4);

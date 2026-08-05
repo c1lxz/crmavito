@@ -539,18 +539,26 @@ export function compactFlowPrompt(prompt: string) {
     const bans = banStart >= 0
       ? normalized.slice(banStart, banEnd > banStart ? banEnd : Math.min(normalized.length, banStart + 320))
       : "";
+    const preserveWinnerLabel = normalized.includes("WINNER LABEL LOCK");
     const suffix = customAnchorSide === "FRONT"
-      ? "FRONT only. Render that exact front subject, not generic gothic art. Keep one printable torso placement with black negative space. Clean collar: no visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. Last reference is SCENE ONLY. Photorealistic product photo."
+      ? preserveWinnerLabel
+        ? "FRONT only. Render that exact front subject. Preserve the proven garment's exact internal neck marking on the visible inside back-neck panel; never place it on the exterior chest and never add a hang tag or fastener. Last reference is SCENE ONLY. Photorealistic product photo."
+        : "FRONT only. Render that exact front subject, not generic gothic art. Keep one printable torso placement with black negative space. Clean collar: no visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. Last reference is SCENE ONLY. Photorealistic product photo."
       : "BACK only. Render that exact back subject, distinct from the front principal subject, not generic gothic art. Keep one printable torso placement with black negative space. No visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. Last reference is SCENE ONLY. Photorealistic product photo.";
     return [sceneLock, `${customAnchorSide} DESIGN ANCHOR.`, title, sideBrief, production, bans, suffix]
       .filter(Boolean)
       .join(" ")
       .slice(0, maxLength);
   }
+  const preserveWinnerLabel = normalized.includes("WINNER LABEL LOCK");
   const stageSuffix = normalized.includes("FINAL FRONT PRINT DETAIL")
-    ? " Preserve every pixel and edge of the approved front artwork. Create a NEW real-camera oblique close product photo, never a digital crop. Keep the complete print at 35-50% of frame plus visible collar, one complete sleeve, a garment edge and surrounding scene background. No label text, hang tag, white locator, fastener, string or tag fragment."
+    ? preserveWinnerLabel
+      ? " Preserve every pixel and edge of the approved front artwork and the exact internal winner neck marking. Create a NEW real-camera oblique close product photo with the inside back-neck panel visible; never add an exterior label, hang tag or fastener."
+      : " Preserve every pixel and edge of the approved front artwork. Create a NEW real-camera oblique close product photo, never a digital crop. Keep the complete print at 35-50% of frame plus visible collar, one complete sleeve, a garment edge and surrounding scene background. No label text, hang tag, white locator, fastener, string or tag fragment."
     : normalized.includes("FINAL FRONT PHOTO")
-    ? " Preserve IMAGE 1 artwork and product geometry exactly; never redesign it. Keep the upper external chest and collar free of label text. No hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. The internal heat-transfer marking stays hidden. Return one sharp photorealistic FRONT photo."
+    ? preserveWinnerLabel
+      ? " Preserve IMAGE 1 artwork, product geometry and exact internal winner neck marking. Keep the marking only on the visible inside back-neck panel; no exterior label, hang tag or fastener. Return one sharp photorealistic FRONT photo."
+      : " Preserve IMAGE 1 artwork and product geometry exactly; never redesign it. Keep the upper external chest and collar free of label text. No hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. The internal heat-transfer marking stays hidden. Return one sharp photorealistic FRONT photo."
     : normalized.includes("FINAL BACK PHOTO")
       ? " Preserve IMAGE 1 artwork and product geometry exactly; never redesign it. Show the BACK only. No visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment; the internal heat-transfer marking stays hidden. Return one sharp photorealistic BACK photo."
       : normalized.includes("FRONT DESIGN ANCHOR")

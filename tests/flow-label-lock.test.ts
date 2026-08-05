@@ -8,6 +8,7 @@ import {
   createBestLabelAssets,
   findGeneratedLabelBounds,
   findGeneratedLabelBoundsCandidates,
+  hasExtractableWinnerLabel,
   laplacianVariance,
   measureLabelBaselineAngle,
   straightenLabelOverlay,
@@ -24,6 +25,13 @@ describe("Flow exact neck-label lock", () => {
     const flat = Buffer.alloc(100, 120);
     const edges = Buffer.from(Array.from({ length: 100 }, (_, index) => index % 2 ? 255 : 0));
     expect(laplacianVariance(edges, 10, 10)).toBeGreaterThan(laplacianVariance(flat, 10, 10));
+  });
+
+  it("rejects a winner photo whose collar area has no visible label pixels", async () => {
+    const unlabeled = await sharp(Buffer.from(
+      '<svg width="1000" height="1800"><rect width="1000" height="1800" fill="#ddd"/><path d="M200 100h600v1300H200z" fill="#111"/></svg>',
+    )).jpeg().toBuffer();
+    expect(await hasExtractableWinnerLabel(unlabeled)).toBe(false);
   });
 
   it("finds a generated light label inside a dark collar instead of the light background", async () => {

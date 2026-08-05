@@ -263,11 +263,13 @@ describe("content machine", () => {
       const winner = new File(["winner"], "winner-long-sleeve.jpg", { type: "image/jpeg" }) as unknown as globalThis.File;
       const created = await createCodexJob([winner, winner], "2K", {
         mode: "original-design",
+        preserveWinnerLabel: true,
         inspirationQuery: "vintage gothic long sleeve",
         designNote: "Make the graphic smaller and vary the camera angle.",
         labelStyleReference: "minimal archival luxury",
       });
       expect(created.mode).toBe("original-design");
+      expect(created.preserveWinnerLabel).toBe(true);
       expect(created.products).toHaveLength(2);
       expect(created.expectedResults).toBe(4);
       expect(created.inspirationQuery).toBe("vintage gothic long sleeve");
@@ -367,6 +369,10 @@ describe("content machine", () => {
     expect(autoRouteSource).toContain("createAnalyticsDesignJobs");
     expect(autoJobsSource).toContain("fetchAvitoAdsAnalytics");
     expect(autoJobsSource).toContain("contacts * 50 + item.favorites * 10 + item.views");
-    expect(autoJobsSource).toContain("No hang tags, paper tags, sewn labels, woven tabs");
+    expect(autoJobsSource).toContain("preserveWinnerLabel: true");
+    expect(autoJobsSource).toContain("Preserve the winner's exact visible internal neck label");
+    expect(autoRouteSource).toContain('garmentType: z.enum(["t-shirt"])');
+    expect(flowAgentSource).toContain("createBestLabelAssets");
+    expect(flowAgentSource).toContain("applyExactLabelOverlay");
   });
 });

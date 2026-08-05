@@ -5,6 +5,7 @@ import { downloadImageAsBuffer, resolveProductImage } from "@/lib/avito/fetch-im
 import { getAvitoCredentials, listAvitoProfilesWithCredentials } from "@/lib/avito/profile-store";
 import { getAvitoStockToken, type AvitoCredentials } from "@/lib/avito/stocks";
 import { createCodexJob, type CodexJob } from "@/lib/ai/content-machine-jobs";
+import { hasExtractableWinnerLabel } from "@/lib/flow-agent/label-lock";
 
 export type AnalyticsWinner = AvitoAdAnalyticsItem & {
   profileId: string;
@@ -45,10 +46,16 @@ export async function createAnalyticsDesignJobs(input: {
   designCount: number;
   imageSize: "2K" | "4K";
   periodDays?: number;
+  profileName?: string;
+  garmentType?: "t-shirt";
 }): Promise<{ jobs: CodexJob[]; winners: AnalyticsWinner[]; periodDays: number }> {
   const designCount = normalizeDesignCount(input.designCount);
   const periodDays = Math.max(7, Math.min(270, Math.round(input.periodDays || 30)));
-  const profiles = (await listAvitoProfilesWithCredentials()).filter((profile) => profile.hasCredentials);
+  const profileName = input.profileName?.replace(/\s+/g, " ").trim();
+  const profiles = (await listAvitoProfilesWithCredentials()).filter((profile) => (
+    profile.hasCredentials
+    && (!profileName || profile.name.localeCompare(profileName, "ru", { sensitivity: "accent" }) === 0)
+  ));
   if (!profiles.length) throw new Error("Нет активных профилей Avito с сохранёнными API-ключами.");
 
   const settled = await Promise.allSettled(profiles.map(async (profile) => {
@@ -62,7 +69,9 @@ export async function createAnalyticsDesignJobs(input: {
       credentials,
     }));
   }));
-  const candidates = settled.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+  const candidates = settled
+    .flatMap((result) => result.status === "fulfilled" ? result.value : [])
+    .filter((candidate) => input.garmentType !== "t-shirt" || isTShirt(candidate));
   const winners = selectAnalyticsWinners(candidates, Math.min(24, Math.max(8, designCount)));
   if (!winners.length) throw new Error("В аналитике профилей нет позиций с просмотрами, избранным или контактами.");
 
@@ -86,13 +95,14 @@ export async function createAnalyticsDesignJobs(input: {
     if (!winner || !source) throw new Error("Ни у одной залетевшей позиции не удалось получить исходное фото.");
     jobs.push(await createCodexJob([source as unknown as globalThis.File], input.imageSize, {
       mode: "original-design",
+      preserveWinnerLabel: true,
       inspirationQuery: buildWinnerQuery(winner.title),
       designNote: [
         `AUTOMATIC ANALYTICS WINNER: ${winner.profileName}, Avito ${winner.itemId}.`,
         `Demand evidence for ${periodDays} days: ${winner.views} views, ${winner.favorites} favorites, ${winner.contacts} contacts.`,
         `Create unique design ${index + 1} of ${designCount}; retain the demand logic, not the source artwork.`,
         "Use a restrained secondary hook on the front and a distinct hero subject on the back. Never repeat the same principal object on both sides.",
-        "No hang tags, paper tags, sewn labels, woven tabs, white collar locators, fasteners, strings or tag fragments. The internal heat-transfer marking stays hidden in exterior photos.",
+        "Preserve the winner's exact visible internal neck label or heat-transfer marking on every front-facing result whenever the inside back-neck panel is visible. Never invent a replacement label and never place it on the exterior back.",
       ].join(" "),
     }));
   }
@@ -102,6 +112,11 @@ export async function createAnalyticsDesignJobs(input: {
     periodDays,
     winners: winners.map(({ credentials: _credentials, ...winner }) => winner),
   };
+}
+
+export function isTShirt(item: Pick<AvitoAdAnalyticsItem, "title" | "description">) {
+  const haystack = [item.title, item.description].filter(Boolean).join(" ").toLocaleLowerCase("ru");
+  return haystack.includes("футбол") || haystack.includes("t-shirt") || haystack.includes("tshirt") || /(^|\s)tee(\s|$)/i.test(haystack);
 }
 
 function cacheWinnerSource(winner: PrivateWinner, cache: Map<string, Promise<File>>, key: string) {
@@ -129,6 +144,9 @@ async function loadWinnerSource(winner: PrivateWinner) {
     .resize({ width: 2_400, height: 2_400, fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 92, mozjpeg: true })
     .toBuffer();
+  if (!(await hasExtractableWinnerLabel(normalized))) {
+    throw new Error(`У позиции Avito ${winner.itemId} на основном фото не видна бирка; выбрана следующая залетевшая футболка.`);
+  }
   return new File([normalized], `analytics-${winner.itemId}.jpg`, { type: "image/jpeg" });
 }
 

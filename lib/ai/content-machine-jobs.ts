@@ -30,6 +30,7 @@ type JobManifest = {
   inspirationQuery?: string;
   designNote?: string;
   labelStyleReference?: string;
+  preserveWinnerLabel?: boolean;
   marketResearch?: MarketResearch;
   designPrompt?: string;
   metaPromptSource?: "gemini" | "claude" | "fallback";
@@ -91,7 +92,13 @@ function jobDirectory(id: string) {
 export async function createCodexJob(
   products: File[],
   imageSize: "2K" | "4K",
-  options: { mode?: "product-photo" | "original-design"; inspirationQuery?: string; designNote?: string; labelStyleReference?: string } = {},
+  options: {
+    mode?: "product-photo" | "original-design";
+    inspirationQuery?: string;
+    designNote?: string;
+    labelStyleReference?: string;
+    preserveWinnerLabel?: boolean;
+  } = {},
 ): Promise<CodexJob> {
   if (products.length < 1 || products.length > 10) throw new Error("Добавьте от 1 до 10 фотографий товара.");
   products.forEach(validateImageFile);
@@ -144,6 +151,7 @@ export async function createCodexJob(
     ...(inspirationQuery ? { inspirationQuery } : {}),
     ...(mode === "original-design" && designNote ? { designNote } : {}),
     ...(mode === "original-design" && labelStyleReference ? { labelStyleReference } : {}),
+    ...(mode === "original-design" && options.preserveWinnerLabel ? { preserveWinnerLabel: true } : {}),
     products: storedProducts,
     backgrounds: storedBackgrounds,
   };

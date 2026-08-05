@@ -9,6 +9,8 @@ const requestSchema = z.object({
   designCount: z.coerce.number().int().min(1).max(100),
   imageSize: z.enum(["2K", "4K"]).default("2K"),
   periodDays: z.coerce.number().int().min(7).max(270).default(30),
+  profileName: z.string().trim().min(1).max(100).optional(),
+  garmentType: z.enum(["t-shirt"]).optional(),
 });
 
 export async function POST(request: Request) {

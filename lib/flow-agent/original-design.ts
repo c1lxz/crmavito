@@ -1,6 +1,15 @@
 export type OriginalDesignStage = "back-anchor" | "front-anchor" | "front-photo" | "front-detail" | "back-photo";
 
-export function buildOriginalStagePrompt(stage: OriginalDesignStage, basePrompt: string, referenceCount: number) {
+export function buildOriginalStagePrompt(
+  stage: OriginalDesignStage,
+  basePrompt: string,
+  referenceCount: number,
+  options: { preserveWinnerLabel?: boolean } = {},
+) {
+  const preserveWinnerLabel = options.preserveWinnerLabel === true;
+  const frontLabelRule = preserveWinnerLabel
+    ? "WINNER LABEL LOCK: preserve the exact visible internal neck label or heat-transfer marking from the proven source garment. It may appear only on the inside back-neck panel when that inner panel is visible; reproduce its original pixels, lettering, proportions and placement. Never invent a substitute, hang tag, fastener or exterior label."
+    : "ABSOLUTE LABEL LOCK: NO hang tag, paper tag, sewn label, woven tab, white locator, plastic fastener, string, cropped tag fragment or loose object at the collar. Do not generate L.G.B., a size mark or any label wording anywhere visible in this exterior product shot.";
   const usesNightVeilFallback = /NIGHT VEIL/i.test(basePrompt);
   const conciseBrief = basePrompt
     .replace(/IMAGES?\s+\d+(?:-\d+)?[^.]*\./gi, "")
@@ -16,8 +25,10 @@ export function buildOriginalStagePrompt(stage: OriginalDesignStage, basePrompt:
       ...(usesNightVeilFallback ? [] : [conciseBrief]),
       `IMAGES 1-${referenceCount} show the proven source garment. Learn only its garment construction, fabric and commercial hierarchy; do not copy its artwork, exterior text or brand marks.`,
       `IMAGE ${referenceCount + 1} is SCENE ONLY: copy its exact surface, camera and light; ignore its garment, print, label and text.`,
-      "FRONT anatomy is mandatory: keep a clean crew neck. The garment has only an internal heat-transfer neck marking on the inside back-neck panel, physically hidden unless that inner panel is genuinely visible. Never place label text on the outer chest.",
-      "ABSOLUTE LABEL LOCK: NO hang tag, paper tag, sewn label, woven tab, white locator, plastic fastener, string, cropped tag fragment or loose object at the collar. Do not generate L.G.B., a size mark or any label wording anywhere visible in this exterior product shot.",
+      preserveWinnerLabel
+        ? "FRONT anatomy is mandatory: keep a clean crew neck and expose enough of the inside back-neck panel to show the source winner's exact internal marking. Never place it on the outer chest."
+        : "FRONT anatomy is mandatory: keep a clean crew neck. The garment has only an internal heat-transfer neck marking on the inside back-neck panel, physically hidden unless that inner panel is genuinely visible. Never place label text on the outer chest.",
+      frontLabelRule,
       "Follow the approved FRONT artwork in the production brief exactly. It needs a recognizable editorial subject and intentional hierarchy, not abstract squares, rectangles, grids, tiled blocks, a lone chest logo or decorative geometry.",
       "PRINTABILITY IS MANDATORY: the complete front artwork must fit one rectangle no larger than 24 x 32 cm, entirely on the flat torso panel and at least 5 cm from collar, shoulders, sleeves, side seams and hem. No all-over, wraparound, sleeve, seam-crossing or edge-to-edge print.",
       "No generic animals, winner stars, horse/equine figure, buffalo/yak/bear/wolf or unrelated stock clipart.",
@@ -46,7 +57,7 @@ export function buildOriginalStagePrompt(stage: OriginalDesignStage, basePrompt:
       "IMAGE 2 is SCENE ONLY: reproduce only its surface, perspective and light; ignore its garment, print, label, text and objects.",
       "REAL CAMERA COMPOSITION LOCK: create a genuinely new close three-quarter product photograph, never a digital crop of IMAGE 1 and never a texture-only macro. The complete print must occupy roughly 35-50% of the frame and remain fully visible.",
       "Keep enough product context to look like a real marketplace photo: show the collar, at least one complete sleeve, one side or hem edge, natural folds and a clearly visible band of the supplied background around the garment. Do not cut through any artwork element.",
-      "The collar is clean. NO hang tag, paper tag, sewn label, woven tab, white locator, plastic fastener, string, cropped tag fragment, L.G.B. or other label wording may be visible.",
+      frontLabelRule,
       "Show absorbed ink edges, halftone texture, fine cracking and real cotton fibres in sharp focus. Keep realistic oblique perspective, micro-wrinkles and soft grazing light; no blur over artwork, patch, cleanup smear, CGI, watermark or extra object.",
       "Return one sharp photorealistic close product photo only, with garment and background visibly present.",
     ].join(" ");
@@ -56,7 +67,9 @@ export function buildOriginalStagePrompt(stage: OriginalDesignStage, basePrompt:
     `FINAL ${side.toUpperCase()} PHOTO. IMAGE 1 is the immutable ${side} anchor of the newly designed garment; preserve it exactly, pixel-faithfully: cut, color, seams, every graphic shape, placement and distress. Do not invent or relocate any neck-label pixels.`,
     "IMAGE 2 is SCENE ONLY: reproduce only its surface, perspective, crop and light; ignore its garment, print, label, text and objects.",
     side === "front"
-      ? "It must remain a FRONT view with a clean crew-neck shape. The internal heat-transfer marking is hidden inside the back-neck panel. Keep collar ribbing and upper external chest free of every label mark. NO hang tag, paper tag, sewn label, woven tab, white locator, fastener, string, cropped tag fragment, L.G.B. or size text may be visible."
+      ? preserveWinnerLabel
+        ? "It must remain a FRONT view. Preserve the source winner's exact internal neck marking on the visible inside back-neck panel while keeping the outer chest free of label text. Never add a hang tag, fastener, string or exterior label."
+        : "It must remain a FRONT view with a clean crew-neck shape. The internal heat-transfer marking is hidden inside the back-neck panel. Keep collar ribbing and upper external chest free of every label mark. NO hang tag, paper tag, sewn label, woven tab, white locator, fastener, string, cropped tag fragment, L.G.B. or size text may be visible."
       : "It must remain a BACK view with a higher closed rear neckline. The internal heat-transfer marking is hidden inside. NO hang tag, paper tag, sewn label, woven tab, white locator, fastener, string, cropped tag fragment, L.G.B. or label wording may be visible.",
     "SHOT DIVERSITY LOCK: this image must be visibly different from IMAGE 1 in camera side, oblique perspective, garment rotation and fold silhouette. A near-identical overhead duplicate is forbidden.",
     "Change only natural placement, folds and camera angle. Never redesign, mirror, add, remove, simplify or hide product details.",

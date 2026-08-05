@@ -51,7 +51,13 @@ export async function evaluateFlowProductPhoto(
 }
 
 export async function evaluateFlowOriginalDesignPair(
-  input: { frontPath: string; backPath: string; sourcePaths?: string[]; designBrief?: string },
+  input: {
+    frontPath: string;
+    backPath: string;
+    sourcePaths?: string[];
+    designBrief?: string;
+    preserveWinnerLabel?: boolean;
+  },
   options: { fetchFn?: typeof fetch; apiKey?: string; model?: string } = {},
 ): Promise<FlowPhotoQualityVerdict> {
   const apiKey = options.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
@@ -68,7 +74,7 @@ export async function evaluateFlowOriginalDesignPair(
     model,
     fetchFn: options.fetchFn || fetch,
     parts: [
-      { text: originalDesignPairPrompt() },
+      { text: originalDesignPairPrompt(input.preserveWinnerLabel) },
       ...(input.designBrief ? [{ text: `APPROVED PRODUCTION BRIEF — judge literal concept compliance against this brief: ${input.designBrief.slice(0, 3_000)}` }] : []),
       { text: "IMAGE A — intended FRONT anchor:" },
       { inline_data: { mime_type: "image/jpeg", data: front } },
@@ -83,7 +89,13 @@ export async function evaluateFlowOriginalDesignPair(
 }
 
 export async function evaluateFlowOriginalDesignAnchor(
-  input: { candidatePath: string; sourcePaths: string[]; side: "front" | "back"; designBrief?: string },
+  input: {
+    candidatePath: string;
+    sourcePaths: string[];
+    side: "front" | "back";
+    designBrief?: string;
+    preserveWinnerLabel?: boolean;
+  },
   options: { fetchFn?: typeof fetch; apiKey?: string; model?: string } = {},
 ): Promise<FlowPhotoQualityVerdict> {
   const apiKey = options.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
@@ -98,7 +110,7 @@ export async function evaluateFlowOriginalDesignAnchor(
     model,
     fetchFn: options.fetchFn || fetch,
     parts: [
-      { text: originalDesignAnchorPrompt(input.side) },
+      { text: originalDesignAnchorPrompt(input.side, input.preserveWinnerLabel) },
       ...(input.designBrief ? [{
         text: `APPROVED PRODUCTION BRIEF — judge literal ${input.side.toUpperCase()} concept compliance against this brief. This candidate intentionally shows only the ${input.side.toUpperCase()}; never require or penalize absence of the opposite side: ${input.designBrief.slice(0, 3_000)}`,
       }] : []),
@@ -326,13 +338,17 @@ function identityAuditPrompt() {
   ].join(" ");
 }
 
-function originalDesignPairPrompt() {
+function originalDesignPairPrompt(preserveWinnerLabel = false) {
   return [
     "Act as a strict fashion design front/back quality gate.",
-    "IMAGE A must visibly be the FRONT of one garment with a clean crew-neck shape. The internal heat-transfer neck marking is physically hidden inside the back-neck panel and no label wording may appear on the outer chest.",
+    preserveWinnerLabel
+      ? "IMAGE A must visibly be the FRONT of one garment. If its inside back-neck panel is visible, it must carry the exact internal label or heat-transfer marking from the SOURCE winner; that marking must never appear on the outer chest."
+      : "IMAGE A must visibly be the FRONT of one garment with a clean crew-neck shape. The internal heat-transfer neck marking is physically hidden inside the back-neck panel and no label wording may appear on the outer chest.",
     "IMAGE B must visibly be the BACK of the same garment: higher closed rear neckline, with no inside label text printed on the exterior.",
     "The sides must share garment cut, color, ink palette, distress treatment and one coherent story, while using clearly different primary subjects and silhouettes. The front is a restrained secondary hook and the back is the hero statement. Reject if B repeats, mirrors, enlarges, fragments or merely re-photographs A's principal object, figure, hand, face, symbol or graphic.",
-    "Reject every hang tag, paper tag, sewn label, woven tab, white collar locator, plastic fastener, string or cropped tag fragment. The only permitted label construction is an internal heat-transfer marking hidden inside the back-neck panel; no label wording may appear on either exterior.",
+    preserveWinnerLabel
+      ? "Require the SOURCE winner's exact internal collar marking on the visible inside panel of IMAGE A. Reject invented, changed or missing markings, hang tags, fasteners and any label text on either exterior; IMAGE B remains label-free because it shows the outside back."
+      : "Reject every hang tag, paper tag, sewn label, woven tab, white collar locator, plastic fastener, string or cropped tag fragment. The only permitted label construction is an internal heat-transfer marking hidden inside the back-neck panel; no label wording may appear on either exterior.",
     "Production gate: on each side the complete artwork must occupy one compact rectangular torso print zone equivalent to at most 24 x 32 cm, with clear fabric margins from collar, shoulders, sleeves, sides and hem. Reject all-over, tiled, wraparound, sleeve, seam-crossing or edge-to-edge artwork and reject graphics covering most of the garment.",
     "Reject random abstract squares, rectangles, grids, panels or color fields. A distressed halftone portrait/figure is allowed when integrated without a rectangular edge. A text-led editorial system is also valid when the APPROVED PRODUCTION BRIEF explicitly requests typography. Require a specific coherent concept and intentional front/back hierarchy rather than arbitrary decoration.",
     "All SOURCE images are inspiration only. Reject if either candidate reuses a recognizable source subject, symbol, silhouette or motif (including any source stars, horse/equine figure or exact composition), even when moved, resized or redrawn.",
@@ -341,13 +357,17 @@ function originalDesignPairPrompt() {
   ].filter(Boolean).join(" ");
 }
 
-function originalDesignAnchorPrompt(side: "front" | "back") {
+function originalDesignAnchorPrompt(side: "front" | "back", preserveWinnerLabel = false) {
   return [
     `Act as a strict original designer-fashion ${side} anchor gate.`,
     side === "front"
-      ? "The candidate must unmistakably show the FRONT with a clean crew-neck shape. The internal heat-transfer marking is hidden inside the back-neck panel; no label wording may appear on the outer chest."
+      ? preserveWinnerLabel
+        ? "The candidate must unmistakably show the FRONT and expose enough of the inside back-neck panel to verify the exact internal label or heat-transfer marking from the SOURCE winner. No label wording may appear on the outer chest."
+        : "The candidate must unmistakably show the FRONT with a clean crew-neck shape. The internal heat-transfer marking is hidden inside the back-neck panel; no label wording may appear on the outer chest."
       : "The candidate must unmistakably show the BACK: higher closed rear neckline and no label wording printed on the exterior.",
-    "Reject every hang tag, paper tag, sewn label, woven tab, white collar locator, plastic fastener, string or cropped tag fragment. Do not accept L.G.B., size text or any label wording anywhere visible in this exterior product shot.",
+    side === "front" && preserveWinnerLabel
+      ? "Compare the candidate's internal neck marking to the SOURCE winner exactly. Reject a missing, invented, changed, mirrored or relocated marking, plus every hang tag, fastener, string or exterior label."
+      : "Reject every hang tag, paper tag, sewn label, woven tab, white collar locator, plastic fastener, string or cropped tag fragment. Do not accept L.G.B., size text or any label wording anywhere visible in this exterior product shot.",
     "The candidate must be a genuinely new, commercially credible archive-fashion design with intentional hierarchy, asymmetry, negative space and physical screen-print integration.",
     "Production gate: the entire artwork must fit one compact torso rectangle equivalent to at most 24 x 32 cm and leave clearly visible margins from collar, shoulders, sleeves, sides and hem. Reject all-over, tiled, wraparound, sleeve, seam-crossing, edge-to-edge or garment-dominating graphics.",
     "Reject random abstract squares, rectangles, grids, panels and color fields. A distressed halftone portrait/figure is allowed when integrated without a rectangular edge. A text-led editorial composition is also valid when the APPROVED PRODUCTION BRIEF explicitly requests typography. Require one specific coherent concept, not arbitrary decoration.",

@@ -32,6 +32,7 @@ import {
 } from "../lib/flow-agent/quality";
 import { buildOriginalStagePrompt, type OriginalDesignStage } from "../lib/flow-agent/original-design";
 import { evaluateShotDiversity } from "../lib/flow-agent/shot-diversity";
+import { applyExactLabelOverlay, createBestLabelAssets } from "../lib/flow-agent/label-lock";
 import {
   createClaudeApparelDesignPrompt,
   createGeminiApparelDesignPrompt,
@@ -49,6 +50,7 @@ type AgentJob = {
   inspirationQuery?: string;
   designNote?: string;
   labelStyleReference?: string;
+  preserveWinnerLabel?: boolean;
   marketResearch?: MarketResearch;
   designPrompt?: string;
   metaPromptSource?: "gemini" | "claude" | "fallback";
@@ -416,6 +418,13 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
   console.log(`[flow-agent] ${job.id}: ${work.length} фото`);
   const prompt = await resolveJobPrompt(job, products, context);
   const originalAnchors = new Map<"front" | "back", string>();
+  let winnerLabelOverlayPath: string | undefined;
+  if (job.mode === "original-design" && job.preserveWinnerLabel) {
+    const labelReferencePath = path.join(jobDirectory, "winner-neck-label-reference.png");
+    winnerLabelOverlayPath = path.join(jobDirectory, "winner-neck-label-overlay.png");
+    await createBestLabelAssets([...products.values()], labelReferencePath, winnerLabelOverlayPath);
+    console.log(`[flow-agent] ${job.id}: exact winner neck label prepared.`);
+  }
   const persistedProjectUrl = job.mode === "original-design"
     ? await readFile(flowProjectStatePath, "utf8").then((value) => value.trim()).catch(() => "")
     : "";
@@ -555,7 +564,7 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
             ? "PRODUCT DETAIL LOCK: this is a genuine close product photograph, never a digital crop or texture-only macro. The complete print occupies 35-50% of frame, while enough shirt silhouette and background remain visible to prove a real camera angle."
             : garmentLayoutLock;
           const baseGenerationPrompt = job.mode === "original-design"
-            ? `${canvasLock} ${stageLayoutLock} ${angleDirection} ${buildOriginalStagePrompt(originalStage!, prompt, 1)}`
+            ? `${canvasLock} ${stageLayoutLock} ${angleDirection} ${buildOriginalStagePrompt(originalStage!, prompt, 1, { preserveWinnerLabel: job.preserveWinnerLabel })}`
             : `${canvasLock} ${angleDirection} ${prompt}`;
           let feedback = "";
           for (let attempt = 1; attempt <= (requiresProductQa || requiresOriginalAnchorQa || requiresDesignPairQa ? qualityMaxAttempts : 1); attempt += 1) {
@@ -626,6 +635,9 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
               }
             }
             if (!timing) throw new Error(`Flow generation failed for ${item.product.index}/${item.background.slot}.`);
+            if (winnerLabelOverlayPath && originalStage !== "back-anchor" && originalStage !== "back-photo") {
+              await applyExactLabelOverlay(outputPath, winnerLabelOverlayPath);
+            }
             let verdict: FlowPhotoQualityVerdict & { provider?: string };
             const candidateMetadata = await sharp(outputPath).metadata();
             const geometry = compareFlowImageGeometry(
@@ -683,6 +695,7 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
                     sourcePaths: job.products.map((product) => products.get(product.index)!),
                     side: "front",
                     designBrief: prompt,
+                    preserveWinnerLabel: job.preserveWinnerLabel,
                   },
                   { fetchFn: browserPageFetch(page) },
                 );
@@ -711,6 +724,7 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
                     backPath: outputPath,
                     sourcePaths: job.products.map((product) => products.get(product.index)!),
                     designBrief: prompt,
+                    preserveWinnerLabel: job.preserveWinnerLabel,
                   },
                   { fetchFn: browserPageFetch(page) },
                 );

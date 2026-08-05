@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   analyticsWinnerScore,
+  isTShirt,
   normalizeDesignCount,
   selectAnalyticsWinners,
   type AnalyticsWinner,
@@ -45,6 +46,21 @@ describe("content-machine analytics automation", () => {
   it("weights contacts and favorites above passive views", () => {
     expect(analyticsWinnerScore({ views: 100, favorites: 2, contacts: 1 })).toBe(170);
     expect(analyticsWinnerScore({ views: 140, favorites: 0, contacts: 0 })).toBe(140);
+  });
+
+  it("limits a requested apparel batch to t-shirts", () => {
+    expect(isTShirt({ title: "Футболка STROK archive", description: null })).toBe(true);
+    expect(isTShirt({ title: "Vintage graphic tee", description: null })).toBe(true);
+    expect(isTShirt({ title: "Худи STROK", description: "плотный свитшот" })).toBe(false);
+  });
+
+  it("enables the exact winner-label lock for analytics jobs", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "lib/ai/content-machine-auto.ts"), "utf8");
+    expect(source).toContain("preserveWinnerLabel: true");
+    expect(source).toContain("Preserve the winner's exact visible internal neck label");
+    expect(source).toContain('garmentType?: "t-shirt"');
+    expect(source).toContain("profile.name.localeCompare(profileName");
+    expect(source).toContain("hasExtractableWinnerLabel(normalized)");
   });
 
   it("deduplicates the same position across profiles and keeps strongest demand", () => {

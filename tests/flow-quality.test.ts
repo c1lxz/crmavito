@@ -37,6 +37,31 @@ describe("Flow product photo quality gate", () => {
     }
   });
 
+  it("requires an exact winner neck mark when the automatic label lock is enabled", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "flow-winner-label-"));
+    const imagePath = path.join(directory, "candidate.png");
+    await sharp({ create: { width: 32, height: 32, channels: 3, background: "#222" } }).png().toFile(imagePath);
+    const fetchFn = vi.fn(async (_url: URL | RequestInfo, init?: RequestInit) => {
+      const body = String(init?.body);
+      expect(body).toContain("exact internal label or heat-transfer marking from the SOURCE winner");
+      expect(body).toContain("missing, invented, changed, mirrored or relocated");
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: '{"pass":true,"score":96,"issues":[]}' }] } }],
+      }), { status: 200 });
+    });
+    try {
+      await expect(evaluateFlowOriginalDesignAnchor({
+        candidatePath: imagePath,
+        sourcePaths: [imagePath],
+        side: "front",
+        designBrief: "Automatic analytics winner.",
+        preserveWinnerLabel: true,
+      }, { apiKey: "test-key", fetchFn: fetchFn as typeof fetch })).resolves.toMatchObject({ pass: true, score: 96 });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("rejects a blank dark garment anchor before external vision QA can approve it", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "flow-print-presence-"));
     const blankPath = path.join(directory, "blank.png");
