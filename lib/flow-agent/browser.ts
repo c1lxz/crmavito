@@ -680,10 +680,12 @@ async function openProjectWorkspace(page: Page, flowUrl: string, timeoutMs: numb
 
 async function waitForFileInput(page: Page) {
   const direct = page.locator('input[type="file"]').first();
-  await direct.waitFor({ state: "attached", timeout: 30_000 }).catch(() => undefined);
+  await direct.waitFor({ state: "attached", timeout: 2_000 }).catch(() => undefined);
   if (await direct.count()) return direct;
   const upload = await waitForFirstVisible(page, [
     '[data-testid="upload-references"]',
+    '[data-testid="add-media"]',
+    'button:has-text("add_2")',
     'button[aria-label*="Upload" i]',
     'button:has-text("Upload")',
     'button[aria-label*="Add media" i]',
@@ -693,6 +695,17 @@ async function waitForFileInput(page: Page) {
   ], 30_000);
   if (!upload) throw new Error("Flow: не найден элемент загрузки референсов.");
   await upload.click();
+  await direct.waitFor({ state: "attached", timeout: 2_000 }).catch(() => undefined);
+  if (await direct.count()) return direct;
+  const uploadFromDevice = await waitForFirstVisible(page, [
+    '[role="menuitem"]:has-text("Upload")',
+    '[role="menuitem"]:has-text("Загрузить")',
+    'button:has-text("Upload media")',
+    'button:has-text("Upload from device")',
+    'button:has-text("Загрузить медиа")',
+    'button:has-text("С устройства")',
+  ], 10_000);
+  if (uploadFromDevice) await uploadFromDevice.click();
   await page.locator('input[type="file"]').first().waitFor({ state: "attached", timeout: 20_000 });
   return page.locator('input[type="file"]').first();
 }

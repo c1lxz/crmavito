@@ -154,6 +154,13 @@ async function main() {
           message: publicError.split("\n")[0].replace(/^Error:\s*/, ""),
         };
         await reportStatus(currentAvailability).catch(() => undefined);
+        const localInteractiveAuthBlock = Boolean(cdpUrl) && /auth_required|requires? (?:a )?(?:one-time |repeat )?sign-in|marketing page/i.test(message);
+        if (localInteractiveAuthBlock) {
+          console.warn(`[flow-agent] ${job.id}: paused on the same job until the persistent Flow Chrome profile is signed in.`);
+          await waitForLocalFlowRecovery();
+          currentAvailability = idleAvailability;
+          return;
+        }
         await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${job.id}/${canTryAnotherAgent ? "release" : "fail"}`, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -163,6 +170,28 @@ async function main() {
     }
   } finally {
     clearInterval(heartbeatTimer);
+  }
+}
+
+async function waitForLocalFlowRecovery() {
+  while (true) {
+    try {
+      const session = await launchFlowSession();
+      const page = session.context.pages().find((candidate) => candidate.url().includes("labs.google/fx/"))
+        || session.context.pages()[0];
+      if (page && isFlowRouteUrl(page.url()) && !await isFlowMarketingLandingPage(page)) return;
+    } catch {
+      // Keep the claimed job paused until the user finishes the one-time login.
+    }
+    await delay(3_000);
+  }
+}
+
+function isFlowRouteUrl(url: string) {
+  try {
+    return /^\/fx\/(?:[a-z]{2}\/)?tools\/flow(?:\/|$)/i.test(new URL(url).pathname);
+  } catch {
+    return false;
   }
 }
 
