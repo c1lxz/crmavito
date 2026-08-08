@@ -101,7 +101,7 @@ export async function createAnalyticsDesignJobs(input: {
         `AUTOMATIC ANALYTICS WINNER: ${winner.profileName}, Avito ${winner.itemId}.`,
         `Demand evidence for ${periodDays} days: ${winner.views} views, ${winner.favorites} favorites, ${winner.contacts} contacts.`,
         `Create unique design ${index + 1} of ${designCount}; retain the demand logic, not the source artwork.`,
-        "Use a restrained secondary hook on the front and a distinct hero subject on the back. Never repeat the same principal object on both sides.",
+        "Preserve the winner's actual hero-side hierarchy. Put the strongest composition on the side that carries the winner's commercial impact; make the other side a distinct, deliberate supporting composition. Never repeat the same principal object on both sides and never leave the supporting side as one tiny token.",
         "Preserve the winner's exact visible internal neck label or heat-transfer marking on every front-facing result whenever the inside back-neck panel is visible. Never invent a replacement label and never place it on the exterior back.",
       ].join(" "),
     }));

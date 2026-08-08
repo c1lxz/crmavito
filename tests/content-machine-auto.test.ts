@@ -57,6 +57,8 @@ describe("content-machine analytics automation", () => {
   it("enables the exact winner-label lock for analytics jobs", () => {
     const source = fs.readFileSync(path.join(process.cwd(), "lib/ai/content-machine-auto.ts"), "utf8");
     expect(source).toContain("preserveWinnerLabel: true");
+    expect(source).toContain("Preserve the winner's actual hero-side hierarchy");
+    expect(source).not.toContain("secondary hook on the front");
     expect(source).toContain("Preserve the winner's exact visible internal neck label");
     expect(source).toContain('garmentType?: "t-shirt"');
     expect(source).toContain("profile.name.localeCompare(profileName");
