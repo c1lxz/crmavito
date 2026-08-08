@@ -523,32 +523,25 @@ export function compactFlowPrompt(prompt: string) {
   if (customAnchorSide && !normalized.includes("NIGHT VEIL") && /\b(?:FRONT|BACK):/i.test(normalized)) {
     const otherSide = customAnchorSide === "FRONT" ? "BACK:" : "PRODUCTION LOCK:";
     const sideStart = normalized.indexOf(`${customAnchorSide}:`);
-    const sideEnd = sideStart >= 0 ? normalized.indexOf(` ${otherSide}`, sideStart + customAnchorSide.length + 1) : -1;
-    const productionStart = normalized.indexOf("PRODUCTION LOCK:");
-    const productionEnd = productionStart >= 0 ? normalized.indexOf(" NO ", productionStart) : -1;
-    const banStart = productionEnd >= 0 ? productionEnd + 1 : -1;
-    const banEnd = banStart >= 0 ? normalized.indexOf(" Preserve the exact", banStart) : -1;
+    const otherSideEnd = sideStart >= 0 ? normalized.indexOf(` ${otherSide}`, sideStart + customAnchorSide.length + 1) : -1;
+    const sentenceEnd = sideStart >= 0 ? normalized.indexOf(". ", sideStart + customAnchorSide.length + 1) : -1;
+    const sideEnd = otherSideEnd > sideStart
+      ? otherSideEnd
+      : sentenceEnd > sideStart ? sentenceEnd + 1 : -1;
     const title = normalized.match(/(?:MARKET-GROUNDED ORIGINAL DESIGN|DEMAND-GROUNDED FALLBACK CONCEPT)[^.]*\./i)?.[0] || "ORIGINAL MARKET-GROUNDED DESIGN.";
-    const sceneLock = normalized.slice(0, normalized.indexOf(`${customAnchorSide} DESIGN ANCHOR`)).split(". ")[0];
     const sideBrief = sideStart >= 0
       ? normalized.slice(sideStart, sideEnd > sideStart ? sideEnd : Math.min(normalized.length, sideStart + 520))
-      : "";
-    const production = productionStart >= 0
-      ? normalized.slice(productionStart, productionEnd > productionStart ? productionEnd : Math.min(normalized.length, productionStart + 320))
-      : "";
-    const bans = banStart >= 0
-      ? normalized.slice(banStart, banEnd > banStart ? banEnd : Math.min(normalized.length, banStart + 320))
       : "";
     const preserveWinnerLabel = normalized.includes("WINNER LABEL LOCK");
     const postprocessWinnerLabel = normalized.includes("LABEL POSTPROCESS");
     const suffix = customAnchorSide === "FRONT"
       ? preserveWinnerLabel
         ? postprocessWinnerLabel
-          ? "FRONT only. Render that exact front subject. Leave the visible inside back-neck panel blank for the programmatic label overlay; no invented letters, exterior label, hang tag or fastener. The attached scene reference is the ONLY allowed background; copy its exact surface, seams, folds, crop and light. No marketplace logo or watermark. Photorealistic product photo."
-          : "FRONT only. Render that exact front subject. Preserve the proven garment's exact internal neck marking on the visible inside back-neck panel; never place it on the exterior chest and never add a hang tag or fastener. The attached scene reference is the ONLY allowed background; copy its exact surface, seams, folds, crop and light. No marketplace logo or watermark. Photorealistic product photo."
-        : "FRONT only. Render that exact front subject, not generic gothic art. Keep one printable torso placement with black negative space. Clean collar: no visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. The attached scene reference is the ONLY allowed background; copy it exactly. No Avito, Grailed or any watermark. Photorealistic product photo."
-      : "BACK only. Render that exact back subject, distinct from the front principal subject, not generic gothic art. Keep one printable torso placement with black negative space. No visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. Last reference is SCENE ONLY and must be copied exactly. No Avito, Grailed or any watermark. Photorealistic product photo.";
-    return [sceneLock, `${customAnchorSide} DESIGN ANCHOR.`, title, sideBrief, production, bans, suffix]
+          ? "FRONT only. Put that exact subject as one restrained absorbed-ink print on a premium washed-black short-sleeve cotton T-shirt laid flat. Keep black negative space and all artwork inside the torso, away from collar, sleeves and seams. Leave the visible inside back-neck panel blank for the programmatic label overlay; no letters, exterior label, hang tag or fastener. The attached image is SCENE ONLY: copy its exact quilted surface, seams, folds, crop and light. No extra art, text, object, marketplace logo or watermark. Photorealistic product photo."
+          : "FRONT only. Put that exact subject as one restrained absorbed-ink print on a premium washed-black short-sleeve cotton T-shirt laid flat. Preserve the proven garment's exact internal neck marking only on the visible inside back-neck panel. Keep all artwork inside the torso. The attached image is SCENE ONLY: copy it exactly. No extra art, hang tag, marketplace logo or watermark. Photorealistic product photo."
+        : "FRONT only. Put that exact subject as one restrained absorbed-ink print on a premium washed-black short-sleeve cotton T-shirt laid flat. Keep all artwork inside the torso with black negative space. Clean collar with no visible label or hang tag. The attached image is SCENE ONLY: copy it exactly. No extra art, text, marketplace logo or watermark. Photorealistic product photo."
+      : "BACK only. Put that exact back subject as one restrained absorbed-ink print on the rear torso of the same premium washed-black short-sleeve cotton T-shirt laid flat. Keep black negative space and no visible label or hang tag. Last image is SCENE ONLY: copy it exactly. No extra art, text, marketplace logo or watermark. Photorealistic product photo.";
+    return [`${customAnchorSide} DESIGN ANCHOR.`, title, sideBrief, suffix]
       .filter(Boolean)
       .join(" ")
       .slice(0, maxLength);
