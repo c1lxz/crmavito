@@ -152,6 +152,20 @@ describe("original design stages", () => {
     expect(compacted).not.toContain("Never suppress an approved bone");
   });
 
+  it("keeps a fallback front subject even after long marketplace evidence", () => {
+    const custom = [
+      `ACTUAL MARKET EVIDENCE: ${"long marketplace listing; ".repeat(180)}`,
+      "PRODUCTION LOCK: maximum 24 x 32 cm.",
+      "DEMAND-GROUNDED FALLBACK CONCEPT — RED THREAD.",
+      "FRONT: one elegant human hand pinching a single wine-red thread.",
+      "BACK: two reaching human hands connected by the same wine-red thread.",
+    ].join(" ");
+    const compacted = compactFlowPrompt(buildOriginalStagePrompt("front-anchor", custom, 0, { preserveWinnerLabel: true }));
+    expect(compacted).toContain("RED THREAD");
+    expect(compacted).toContain("one elegant human hand pinching a single wine-red thread");
+    expect(compacted).toContain("programmatic label overlay");
+  });
+
   it("does not append the legacy skull-and-bone ban to NIGHT VEIL stage prompts", () => {
     const fallback = `DEMAND-GROUNDED FALLBACK CONCEPT вЂ” NIGHT VEIL. ${"Preserve the approved visual language. ".repeat(80)}`;
     const canvasLock = `${"OUTPUT CANVAS LOCK and production constraint. ".repeat(18)}`;

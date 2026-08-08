@@ -1,5 +1,17 @@
 export type OriginalDesignStage = "back-anchor" | "front-anchor" | "front-photo" | "front-detail" | "back-photo";
 
+function extractAnchorConcept(basePrompt: string, side: "FRONT" | "BACK") {
+  const normalized = basePrompt.replace(/\s+/g, " ").trim();
+  const title = normalized.match(/(?:MARKET-GROUNDED ORIGINAL DESIGN|DEMAND-GROUNDED FALLBACK CONCEPT)[^.]*\./i)?.[0] || "";
+  const sideStart = normalized.search(new RegExp(`\\b${side}:\\s*`, "i"));
+  if (sideStart < 0) return title;
+  const endMarker = side === "FRONT" ? /\sBACK:\s/i : /\s(?:PRODUCTION LOCK:|Do not reuse|LABEL CONSTRUCTION LOCK:)/i;
+  const tail = normalized.slice(sideStart);
+  const sideEnd = tail.search(endMarker);
+  const brief = tail.slice(0, sideEnd > 0 ? sideEnd : Math.min(tail.length, 600)).trim();
+  return [title, brief].filter(Boolean).join(" ");
+}
+
 export function buildOriginalStagePrompt(
   stage: OriginalDesignStage,
   basePrompt: string,
@@ -16,6 +28,7 @@ export function buildOriginalStagePrompt(
     .trim()
     .slice(0, 2_400);
   if (stage === "front-anchor") {
+    const anchorConcept = extractAnchorConcept(basePrompt, "FRONT");
     const sourceReferenceRule = referenceCount > 0
       ? `IMAGES 1-${referenceCount} show the proven source garment. Learn only its garment construction, fabric and commercial hierarchy; do not copy its artwork, exterior text, brand marks, marketplace background or watermark.`
       : "The proven marketplace photos were analyzed before this generation and are NOT attached. Follow the approved production brief for the new garment; do not invent or reproduce any marketplace background, listing overlay or watermark.";
@@ -26,6 +39,7 @@ export function buildOriginalStagePrompt(
     return [
       "FRONT DESIGN ANCHOR. Create the unmistakable FRONT view of ONE new premium archive-fashion garment.",
       "Render the approved front subject from the production brief literally; never replace it with an unrelated stock image, generic emblem, logo-core mark or abstract block.",
+      anchorConcept,
       conciseBrief,
       sourceReferenceRule,
       `IMAGE ${sceneReferenceNumber} is the ONLY SCENE REFERENCE: copy its exact surface, seams, folds, crop, perspective, camera and light. No other background is allowed. Ignore any garment, print, label and text visible in it.`,
@@ -44,9 +58,11 @@ export function buildOriginalStagePrompt(
     ].join(" ");
   }
   if (stage === "back-anchor") {
+    const anchorConcept = extractAnchorConcept(basePrompt, "BACK");
     return [
       "BACK DESIGN ANCHOR. TURN THE NEW GARMENT OVER and show its unmistakable REAR side. This is not another photo of the front. NO VISIBLE LABEL OR LABEL TEXT may appear outside below the rear collar; the internal heat-transfer marking is physically hidden inside the garment.",
       "Render the approved back subject from the production brief literally; never replace it with an unrelated stock image, generic emblem, logo-core mark or abstract block.",
+      anchorConcept,
       conciseBrief,
       "IMAGE 1 is the new FRONT ANCHOR whose garment color, cut and visual language define the same new product.",
       "IMAGE 2 is SCENE ONLY: copy surface, camera and light; ignore its garment and every marking.",

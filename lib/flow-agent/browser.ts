@@ -520,7 +520,7 @@ export function compactFlowPrompt(prompt: string) {
   const customAnchorSide = normalized.includes("FRONT DESIGN ANCHOR")
     ? "FRONT"
     : normalized.includes("BACK DESIGN ANCHOR") ? "BACK" : null;
-  if (customAnchorSide && !normalized.includes("NIGHT VEIL") && normalized.includes("PRODUCTION LOCK:")) {
+  if (customAnchorSide && !normalized.includes("NIGHT VEIL") && /\b(?:FRONT|BACK):/i.test(normalized)) {
     const otherSide = customAnchorSide === "FRONT" ? "BACK:" : "PRODUCTION LOCK:";
     const sideStart = normalized.indexOf(`${customAnchorSide}:`);
     const sideEnd = sideStart >= 0 ? normalized.indexOf(` ${otherSide}`, sideStart + customAnchorSide.length + 1) : -1;
@@ -528,7 +528,7 @@ export function compactFlowPrompt(prompt: string) {
     const productionEnd = productionStart >= 0 ? normalized.indexOf(" NO ", productionStart) : -1;
     const banStart = productionEnd >= 0 ? productionEnd + 1 : -1;
     const banEnd = banStart >= 0 ? normalized.indexOf(" Preserve the exact", banStart) : -1;
-    const title = normalized.match(/MARKET-GROUNDED ORIGINAL DESIGN[^.]*\./i)?.[0] || "ORIGINAL MARKET-GROUNDED DESIGN.";
+    const title = normalized.match(/(?:MARKET-GROUNDED ORIGINAL DESIGN|DEMAND-GROUNDED FALLBACK CONCEPT)[^.]*\./i)?.[0] || "ORIGINAL MARKET-GROUNDED DESIGN.";
     const sceneLock = normalized.slice(0, normalized.indexOf(`${customAnchorSide} DESIGN ANCHOR`)).split(". ")[0];
     const sideBrief = sideStart >= 0
       ? normalized.slice(sideStart, sideEnd > sideStart ? sideEnd : Math.min(normalized.length, sideStart + 520))
