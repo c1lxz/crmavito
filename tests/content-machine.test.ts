@@ -192,6 +192,8 @@ describe("content machine", () => {
     expect(draftSource).toContain("indexedDB.open");
     expect(draftSource).toContain("products: Array<{ id: string; file: File }>");
     expect(flowBrowserSource).toContain("downloadResultInsideBrowser");
+    expect(flowBrowserSource).toContain('button:has-text("edit_square")');
+    expect(flowBrowserSource).toContain("automaticMediaPermission");
     expect(flowBrowserSource).toContain(".flow-download");
     expect(flowBrowserSource).toContain("await rm(outputPath, { force: true })");
     expect(flowBrowserSource).toContain("водяного знака");
@@ -208,6 +210,7 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain("genuine close product photograph, never a digital crop");
     expect(flowAgentSource).toContain("EMPTY SCENE PLATE");
     expect(flowAgentSource).toContain("sceneBackgroundPath");
+    expect(flowAgentSource).toContain('originalStage === "front-anchor"\n              ? [backgroundPath]');
     expect(flowAgentSource).toContain("PRODUCT LAYOUT LOCK");
     expect(flowAgentSource).toContain("backgroundPlatesDirectory");
     expect(flowAgentSource).toContain("FLOW_GENERATION_MAX_ATTEMPTS");
@@ -218,8 +221,12 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain("QA providers unavailable, keeping candidate for manual review");
     expect(flowAgentSource).toContain('provider: "manual-review"');
     expect(flowAgentSource).toContain("isRetryableGenerationError");
+    expect(flowAgentSource).toContain("returned a generic error; switching to");
+    expect(flowAgentSource).toContain("Flow showed a retryable generation error");
     expect(flowAgentSource).toContain("page = await context.newPage()");
     expect(flowBrowserSource).toContain("Flow generation failed");
+    expect(flowBrowserSource).toContain("dismissFlowSettings");
+    expect(flowBrowserSource).toContain('button:has-text("Retry")');
     expect(flowBrowserSource).toContain("Что-то пошло не так");
     expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");
@@ -230,6 +237,8 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain("result upload retry");
     expect(flowAgentSource).toContain("did not confirm the uploaded result slot");
     expect(flowAgentSource).toContain('action: "set_proxy"');
+    expect(browserFallbackSource).toContain("? [asReference(background)]");
+    expect(browserFallbackSource).not.toContain("await browser.close()");
     expect(flowAgentSource).toContain("ERR_TUNNEL_CONNECTION_FAILED");
     expect(jobsSource).toContain("ERR_TUNNEL_CONNECTION_FAILED");
     expect(flowAgentSource).not.toContain('!url.includes("/fx/tools/flow")');

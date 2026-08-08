@@ -148,7 +148,7 @@ describe("original design stages", () => {
     expect(compacted).toContain("RED THREAD CONTACT");
     expect(compacted).toContain("one elegant human hand");
     expect(compacted).toContain("premium washed-black short-sleeve cotton T-shirt");
-    expect(compacted).toContain("SCENE ONLY");
+    expect(compacted).toContain("approved product-photo template");
     expect(compacted).not.toContain("Never suppress an approved bone");
   });
 
@@ -163,7 +163,7 @@ describe("original design stages", () => {
     const compacted = compactFlowPrompt(buildOriginalStagePrompt("front-anchor", custom, 0, { preserveWinnerLabel: true }));
     expect(compacted).toContain("RED THREAD");
     expect(compacted).toContain("one elegant human hand pinching a single wine-red thread");
-    expect(compacted).toContain("programmatic label overlay");
+    expect(compacted).toContain("Keep the neck area blank");
     expect(compacted.length).toBeLessThan(1_000);
   });
 

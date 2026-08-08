@@ -11,6 +11,7 @@ import { createGeminiApparelDesignPrompt } from "../lib/flow-agent/design-brief"
 import { applyExactLabelOverlay, createBestLabelAssets } from "../lib/flow-agent/label-lock";
 import { buildOriginalStagePrompt, type OriginalDesignStage } from "../lib/flow-agent/original-design";
 import { browserPageFetch } from "../lib/flow-agent/quality";
+import { compactFlowPrompt } from "../lib/flow-agent/browser";
 import type { MarketResearch } from "../lib/flow-agent/market-research";
 
 loadEnvConfig(process.cwd());
@@ -101,9 +102,15 @@ async function main() {
       const metadata = await sharp(background.buffer).metadata();
       const anchorSide = stage === "back-photo" ? "back" : "front";
       const references: GeminiReferenceImage[] = stage === "front-anchor"
-        ? [...products.map(asReference), asReference(background)]
+        ? [asReference(background)]
         : [{ data: anchors.get(anchorSide)!.toString("base64"), mimeType: "image/jpeg" }, asReference(background)];
-      const prompt = buildOriginalStagePrompt(stage as OriginalDesignStage, basePrompt, stage === "front-anchor" ? products.length : 1, { preserveWinnerLabel: job.preserveWinnerLabel });
+      const stagePrompt = buildOriginalStagePrompt(
+        stage as OriginalDesignStage,
+        basePrompt,
+        stage === "front-anchor" ? 0 : 1,
+        { preserveWinnerLabel: job.preserveWinnerLabel },
+      );
+      const prompt = stage === "front-anchor" ? compactFlowPrompt(stagePrompt) : stagePrompt;
       const startedAt = new Date().toISOString();
       const started = Date.now();
       console.log(`[gemini-api] ${job.id} ${slot}/4 ${stage}`);
@@ -138,7 +145,8 @@ async function main() {
     await releaseJob(job.id, error instanceof Error ? error.message : String(error)).catch(() => undefined);
     throw error;
   } finally {
-    await browser.close();
+    // This process attaches to the user's already authenticated Chrome. Let the
+    // process disconnect naturally; browser.close() would destroy that session.
     await rm(workDirectory, { recursive: true, force: true });
   }
 }
@@ -224,7 +232,10 @@ async function generateKlingStage(input: {
   throw new Error("Kling image generation timed out.");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+void main().then(
+  () => process.exit(0),
+  (error) => {
+    console.error(error);
+    process.exit(1);
+  },
+);

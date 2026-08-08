@@ -1,6 +1,6 @@
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { Download, Locator, Page } from "playwright";
+import type { Download, Locator, Page, Response } from "playwright";
 import sharp from "sharp";
 import { buildFlowProductPhotoPrompt } from "../ai/gemini-images";
 
@@ -108,7 +108,19 @@ export async function generateFlowImage(input: {
     'button:has-text("Create with Flow")',
   ]);
   if (openedFlow) await input.page.waitForTimeout(2_000);
+  await dismissFlowSettings(input.page);
   await openProjectWorkspace(input.page, input.flowUrl, 90_000);
+  // Each generation gets a clean request session. Otherwise Flow keeps the
+  // previous "Something went wrong" card visible and the result watcher can
+  // mistake that stale card for a failure of the new request.
+  const freshSessionButton = await firstVisible(input.page, [
+    'button:has-text("edit_square")',
+    'button:has-text("New session")',
+  ]);
+  const startedFreshSession = freshSessionButton
+    ? await freshSessionButton.click({ force: true, timeout: 5_000 }).then(() => true).catch(() => false)
+    : false;
+  if (startedFreshSession) await input.page.waitForTimeout(500);
   if (input.model) await selectFlowImageModel(input.page, input.model, input.aspectRatio);
 
   const fileInput = await waitForFileInput(input.page);
@@ -151,9 +163,43 @@ export async function generateFlowImage(input: {
   const existingSources = new Set(await input.page.locator("img").evaluateAll(
     (images) => images.map((image) => (image as HTMLImageElement).src).filter(Boolean),
   ));
-  await generateButton.click();
-
-  const result = await waitForResult(input.page, input.timeoutMs, existingSources);
+  const generationHttpErrors: string[] = [];
+  const captureGenerationError = async (response: Response) => {
+    if (response.status() < 400) return;
+    try {
+      const url = new URL(response.url());
+      const text = (await response.text()).replace(/\s+/g, " ").slice(0, 500);
+      generationHttpErrors.push(`${response.status()} ${url.hostname}${url.pathname}: ${text}`);
+    } catch {
+      // The visible Flow error remains the fallback when the response body is unavailable.
+    }
+  };
+  input.page.on("response", captureGenerationError);
+  let result: Locator;
+  try {
+    await generateButton.click();
+    try {
+      result = await waitForResult(input.page, input.timeoutMs, existingSources);
+    } catch (error) {
+      const retryButton = isRetryableFlowGenerationError(error)
+        ? await firstVisible(input.page, [
+          'button:has-text("Retry")',
+          'button:has-text("\u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c")',
+        ])
+        : undefined;
+      if (!retryButton) throw error;
+      await retryButton.click({ force: true, timeout: 10_000 });
+      await input.page.waitForTimeout(750);
+      result = await waitForResult(input.page, input.timeoutMs, existingSources);
+    }
+  } catch (error) {
+    if (generationHttpErrors.length) {
+      console.warn(`[flow-agent] Flow HTTP diagnostics: ${generationHttpErrors.join(" | ")}`);
+    }
+    throw error;
+  } finally {
+    input.page.off("response", captureGenerationError);
+  }
   const generatedAt = Date.now();
   await mkdir(path.dirname(input.outputPath), { recursive: true });
   const source = await result.getAttribute("src");
@@ -255,6 +301,10 @@ async function assertFlow2K(outputPath: string) {
   if (longestEdge < 2048) {
     throw new Error(`Flow: вместо 2K скачано изображение ${metadata.width || 0}x${metadata.height || 0}.`);
   }
+}
+
+function isRetryableFlowGenerationError(error: unknown) {
+  return error instanceof Error && /Flow showed a retryable generation error/i.test(error.message);
 }
 
 async function ensureFlow2K(outputPath: string) {
@@ -455,6 +505,7 @@ async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRat
   ]);
   if (!modelButton) {
     const settingsButton = await waitForFirstVisible(page, [
+      'button:has-text("tune")',
       'button:has-text("tune"):has-text("Настройки")',
       'button:has-text("tune"):has-text("Settings")',
     ], 15_000);
@@ -465,6 +516,14 @@ async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRat
     ], 15_000);
   }
   if (!modelButton) throw new Error("Flow: не найден выбор модели Nano Banana.");
+
+  const mediaPermissionRadios = page.locator('[role="radio"]:visible');
+  if (await mediaPermissionRadios.count() === 2) {
+    const automaticMediaPermission = mediaPermissionRadios.last();
+    if (await automaticMediaPermission.getAttribute("aria-checked") !== "true") {
+      await automaticMediaPermission.click({ timeout: 10_000 });
+    }
+  }
 
   if (aspectRatio) {
     const ratioTab = page.locator('[role="tab"]:visible').filter({ hasText: aspectRatio }).first();
@@ -487,8 +546,39 @@ async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRat
   const saveButton = await waitForFirstEnabled(page, [
     'button:has-text("Сохранить")',
     'button:has-text("Save")',
-  ], 10_000);
-  if (saveButton) await saveButton.click({ timeout: 10_000 });
+  ], 2_000);
+  if (saveButton) {
+    await saveButton.click({ timeout: 10_000 });
+    await page.waitForTimeout(300);
+  }
+  await dismissFlowSettings(page);
+}
+
+async function dismissFlowSettings(page: Page) {
+  const visibleRadio = page.locator('[role="radio"]:visible').first();
+  if (!await visibleRadio.isVisible().catch(() => false)) return;
+
+  const settingsPanel = visibleRadio.locator(
+    'xpath=ancestor::*[.//button[contains(normalize-space(.), "close")]][1]',
+  );
+  const panelClose = settingsPanel.locator('button:visible').filter({ hasText: "close" }).first();
+  if (await panelClose.isVisible().catch(() => false)) {
+    await panelClose.click({ force: true, timeout: 5_000 }).catch(() => undefined);
+    await page.waitForTimeout(300);
+  }
+  if (await visibleRadio.isVisible().catch(() => false)) {
+    const labelledClose = page.locator([
+      'button[aria-label="Close"]:visible',
+      'button[aria-label="\u0417\u0430\u043a\u0440\u044b\u0442\u044c"]:visible',
+    ].join(", ")).first();
+    if (await labelledClose.isVisible().catch(() => false)) {
+      await labelledClose.click({ force: true, timeout: 5_000 }).catch(() => undefined);
+      await page.waitForTimeout(300);
+    }
+  }
+  if (await visibleRadio.isVisible().catch(() => false)) {
+    throw new Error("Flow: settings panel is still covering the generation workspace.");
+  }
 }
 
 async function enterFlowPrompt(page: Page, promptInput: Locator, prompt: string) {
@@ -537,9 +627,9 @@ export function compactFlowPrompt(prompt: string) {
     const suffix = customAnchorSide === "FRONT"
       ? preserveWinnerLabel
         ? postprocessWinnerLabel
-          ? "FRONT only. Put that exact subject as one restrained absorbed-ink print on a premium washed-black short-sleeve cotton T-shirt laid flat. Keep black negative space and all artwork inside the torso, away from collar, sleeves and seams. Leave the visible inside back-neck panel blank for the programmatic label overlay; no letters, exterior label, hang tag or fastener. The attached image is SCENE ONLY: copy its exact quilted surface, seams, folds, crop and light. No extra art, text, object, marketplace logo or watermark. Photorealistic product photo."
-          : "FRONT only. Put that exact subject as one restrained absorbed-ink print on a premium washed-black short-sleeve cotton T-shirt laid flat. Preserve the proven garment's exact internal neck marking only on the visible inside back-neck panel. Keep all artwork inside the torso. The attached image is SCENE ONLY: copy it exactly. No extra art, hang tag, marketplace logo or watermark. Photorealistic product photo."
-        : "FRONT only. Put that exact subject as one restrained absorbed-ink print on a premium washed-black short-sleeve cotton T-shirt laid flat. Keep all artwork inside the torso with black negative space. Clean collar with no visible label or hang tag. The attached image is SCENE ONLY: copy it exactly. No extra art, text, marketplace logo or watermark. Photorealistic product photo."
+          ? "EDIT IMAGE 1. Keep the same real black T-shirt, grey quilted background, camera, light, folds, collar, sleeves and hem. Replace only the existing outer graphic with that exact new subject as a small premium torso print. Keep the neck area blank. Photorealistic product photo without text, logos or watermark."
+          : "FRONT only. IMAGE 1 is our approved product-photo template. Keep its exact background, camera, crop, light and garment placement, but replace every existing print with that exact new subject on a premium washed-black short-sleeve cotton T-shirt. Preserve the proven internal neck marking only on the visible inside back-neck panel. No extra art, hang tag, marketplace logo or watermark. Photorealistic product photo."
+        : "FRONT only. IMAGE 1 is our approved product-photo template. Keep its exact background, camera, crop, light and garment placement, but replace every existing print with that exact new subject on a premium washed-black short-sleeve cotton T-shirt. Keep black negative space and a clean collar with no visible label or hang tag. No extra art, text, marketplace logo or watermark. Photorealistic product photo."
       : "BACK only. Put that exact back subject as one restrained absorbed-ink print on the rear torso of the same premium washed-black short-sleeve cotton T-shirt laid flat. Keep black negative space and no visible label or hang tag. Last image is SCENE ONLY: copy it exactly. No extra art, text, marketplace logo or watermark. Photorealistic product photo.";
     return [`${customAnchorSide} DESIGN ANCHOR.`, title, sideBrief, suffix]
       .filter(Boolean)

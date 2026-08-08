@@ -68,7 +68,7 @@ const agentId = process.env.FLOW_AGENT_ID || hostname();
 const concurrency = clamp(Number(process.env.FLOW_AGENT_CONCURRENCY || 1), 1, 6);
 const pollMs = clamp(Number(process.env.FLOW_AGENT_POLL_MS || 750), 250, 30_000);
 const generationTimeoutMs = clamp(Number(process.env.FLOW_GENERATION_TIMEOUT_MS || 240_000), 30_000, 600_000);
-const generationMaxAttempts = clamp(Number(process.env.FLOW_GENERATION_MAX_ATTEMPTS || 3), 1, 5);
+const generationMaxAttempts = clamp(Number(process.env.FLOW_GENERATION_MAX_ATTEMPTS || 4), 1, 5);
 const qualityMaxAttempts = clamp(Number(process.env.FLOW_QUALITY_MAX_ATTEMPTS || 5), 1, 5);
 const stateDirectory = path.resolve(process.env.FLOW_AGENT_STATE_DIR || ".flow-local-agent");
 const profileDirectory = path.resolve(process.env.FLOW_AGENT_PROFILE_DIR || path.join(stateDirectory, "chrome-profile"));
@@ -147,7 +147,7 @@ async function main() {
       }).catch(async (error) => {
         const message = sanitizeFlowAgentError(error);
         console.error(`[flow-agent] ${job.id}: ${message}`);
-        const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|marketing page|redirected Flow|Flow access (?:is unavailable|was rejected)|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|ERR_CONNECTION_RESET|ERR_TIMED_OUT|proxy.*(?:failed|unavailable)|туннел|terminated|TargetClosedError|browser has been closed/i.test(message);
+        const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|marketing page|redirected Flow|Flow access (?:is unavailable|was rejected)|Flow showed a retryable generation error|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|ERR_CONNECTION_RESET|ERR_TIMED_OUT|proxy.*(?:failed|unavailable)|туннел|terminated|TargetClosedError|browser has been closed/i.test(message);
         const publicError = publicFlowAgentError(error);
         currentAvailability = {
           state: canTryAnotherAgent ? "blocked" : "error",
@@ -610,7 +610,7 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
           const references = job.mode !== "original-design"
             ? [productPath, backgroundPath]
             : originalStage === "front-anchor"
-              ? [sceneBackgroundPath]
+              ? [backgroundPath]
               : originalStage === "back-anchor"
                 ? [requireAnchor(originalAnchors, "front"), sceneBackgroundPath]
                 : [productPath, sceneBackgroundPath];
@@ -685,6 +685,14 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
                 console.warn(
                   `[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: Flow retry ${generationAttempt}/${generationMaxAttempts}: ${reason}`,
                 );
+                if (/Flow generation failed: Flow showed a retryable generation error/i.test(reason)
+                  && activeModelIndex < FLOW_IMAGE_MODELS.length - 1) {
+                  const previousModel = FLOW_IMAGE_MODELS[activeModelIndex];
+                  activeModelIndex += 1;
+                  console.warn(
+                    `[flow-agent] ${job.id}: ${previousModel} returned a generic error; switching to ${FLOW_IMAGE_MODELS[activeModelIndex]}.`,
+                  );
+                }
                 await delay(Math.min(2_000 * generationAttempt, 6_000));
                 if (job.mode !== "original-design") {
                   await page.close().catch(() => undefined);
