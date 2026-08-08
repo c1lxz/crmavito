@@ -25,6 +25,7 @@ import { buildOriginalDesignPrompt, collectMarketResearch, type MarketResearch }
 import {
   browserPageFetch,
   evaluateCentralPrintPresence,
+  evaluateCornerWatermarkRisk,
   evaluateFlowOriginalDesignAnchor,
   evaluateFlowOriginalDesignPair,
   evaluateFlowProductPhoto,
@@ -579,21 +580,22 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
           const references = job.mode !== "original-design"
             ? [productPath, backgroundPath]
             : originalStage === "front-anchor"
-              ? [sourceProductPath, sceneBackgroundPath]
+              ? [sceneBackgroundPath]
               : originalStage === "back-anchor"
                 ? [requireAnchor(originalAnchors, "front"), sceneBackgroundPath]
                 : [productPath, sceneBackgroundPath];
           const requiresProductQa = job.mode !== "original-design" || originalStage === "front-photo" || originalStage === "front-detail" || originalStage === "back-photo";
           const requiresOriginalAnchorQa = originalStage === "front-anchor";
           const requiresDesignPairQa = originalStage === "back-anchor";
+          const sceneReferenceNumber = originalStage === "front-anchor" ? 1 : 2;
           const angleDirection = originalStage === "front-detail"
             ? "DETAIL VARIANT: move the real camera closer and lower for an oblique three-quarter product photograph. Keep the entire print, collar, at least one complete sleeve, a garment edge and surrounding scene visible."
-            : flowAngleDirection(item.background.slot);
+            : flowAngleDirection(item.background.slot).replace("IMAGE 2", `IMAGE ${sceneReferenceNumber}`);
           const stageLayoutLock = originalStage === "front-detail"
             ? "PRODUCT DETAIL LOCK: this is a genuine close product photograph, never a digital crop or texture-only macro. The complete print occupies 35-50% of frame, while enough shirt silhouette and background remain visible to prove a real camera angle."
             : garmentLayoutLock;
           const baseGenerationPrompt = job.mode === "original-design"
-            ? `${canvasLock} ${stageLayoutLock} ${angleDirection} ${buildOriginalStagePrompt(originalStage!, prompt, 1, { preserveWinnerLabel: job.preserveWinnerLabel })}`
+            ? `${canvasLock} ${stageLayoutLock} ${angleDirection} ${buildOriginalStagePrompt(originalStage!, prompt, originalStage === "front-anchor" ? 0 : 1, { preserveWinnerLabel: job.preserveWinnerLabel })}`
             : `${canvasLock} ${angleDirection} ${prompt}`;
           let feedback = "";
           for (let attempt = 1; attempt <= (requiresProductQa || requiresOriginalAnchorQa || requiresDesignPairQa ? qualityMaxAttempts : 1); attempt += 1) {
@@ -673,8 +675,11 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
               { width: backgroundWidth, height: backgroundHeight },
               { width: candidateMetadata.width || 0, height: candidateMetadata.height || 0 },
             );
+            const watermarkRisk = geometry.pass ? await evaluateCornerWatermarkRisk(outputPath) : null;
             if (!geometry.pass) {
               verdict = { pass: false, score: 0, issues: [geometry.issue], provider: "geometry" };
+            } else if (watermarkRisk && !watermarkRisk.pass) {
+              verdict = { ...watermarkRisk, provider: "local-watermark-gate" };
             } else if ((originalStage === "front-photo" || originalStage === "front-detail" || originalStage === "back-photo") && anchorProductPath) {
               const diversity = await evaluateShotDiversity(anchorProductPath, outputPath);
               if (!diversity.pass) {
@@ -725,6 +730,7 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
                     side: "front",
                     designBrief: prompt,
                     preserveWinnerLabel: job.preserveWinnerLabel,
+                    scenePath: sceneBackgroundPath,
                   },
                   { fetchFn: browserPageFetch(page) },
                 );
@@ -754,6 +760,7 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
                     sourcePaths: job.products.map((product) => products.get(product.index)!),
                     designBrief: prompt,
                     preserveWinnerLabel: job.preserveWinnerLabel,
+                    scenePath: sceneBackgroundPath,
                   },
                   { fetchFn: browserPageFetch(page) },
                 );

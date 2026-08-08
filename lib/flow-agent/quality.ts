@@ -57,6 +57,7 @@ export async function evaluateFlowOriginalDesignPair(
     sourcePaths?: string[];
     designBrief?: string;
     preserveWinnerLabel?: boolean;
+    scenePath?: string;
   },
   options: { fetchFn?: typeof fetch; apiKey?: string; model?: string } = {},
 ): Promise<FlowPhotoQualityVerdict> {
@@ -64,10 +65,11 @@ export async function evaluateFlowOriginalDesignPair(
   if (!apiKey) return { pass: true, score: 0, issues: ["Gemini design-pair QA is not configured"], skipped: true };
 
   const model = options.model?.trim() || process.env.GEMINI_QA_MODEL?.trim() || "gemini-2.5-flash";
-  const [front, back, sources] = await Promise.all([
+  const [front, back, sources, scene] = await Promise.all([
     prepareVisionImage(input.frontPath),
     prepareVisionImage(input.backPath),
     Promise.all((input.sourcePaths || []).slice(0, 6).map(prepareVisionImage)),
+    input.scenePath ? prepareVisionImage(input.scenePath) : Promise.resolve(undefined),
   ]);
   return requestOriginalDesignVerdictWithFallback({
     apiKey,
@@ -80,6 +82,10 @@ export async function evaluateFlowOriginalDesignPair(
       { inline_data: { mime_type: "image/jpeg", data: front } },
       { text: "IMAGE B — intended BACK anchor:" },
       { inline_data: { mime_type: "image/jpeg", data: back } },
+      ...(scene ? [
+        { text: "SCENE REFERENCE — both candidates must use this exact supplied surface, seams, folds, perspective, crop and lighting. Reject any marketplace/source-photo background or visually different scene:" },
+        { inline_data: { mime_type: "image/jpeg", data: scene } },
+      ] : []),
       ...sources.flatMap((source, index) => [
         { text: `SOURCE ${index + 1} — proven garment inspiration; its artwork must not be copied:` },
         { inline_data: { mime_type: "image/jpeg", data: source } },
@@ -95,15 +101,17 @@ export async function evaluateFlowOriginalDesignAnchor(
     side: "front" | "back";
     designBrief?: string;
     preserveWinnerLabel?: boolean;
+    scenePath?: string;
   },
   options: { fetchFn?: typeof fetch; apiKey?: string; model?: string } = {},
 ): Promise<FlowPhotoQualityVerdict> {
   const apiKey = options.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return { pass: true, score: 0, issues: ["Gemini original-design QA is not configured"], skipped: true };
   const model = options.model?.trim() || process.env.GEMINI_QA_MODEL?.trim() || "gemini-2.5-flash";
-  const [candidate, sources] = await Promise.all([
+  const [candidate, sources, scene] = await Promise.all([
     prepareVisionImage(input.candidatePath),
     Promise.all(input.sourcePaths.slice(0, 6).map(prepareVisionImage)),
+    input.scenePath ? prepareVisionImage(input.scenePath) : Promise.resolve(undefined),
   ]);
   return requestOriginalDesignVerdictWithFallback({
     apiKey,
@@ -116,6 +124,10 @@ export async function evaluateFlowOriginalDesignAnchor(
       }] : []),
       { text: `CANDIDATE — intended ${input.side.toUpperCase()} anchor:` },
       { inline_data: { mime_type: "image/jpeg", data: candidate } },
+      ...(scene ? [
+        { text: "SCENE REFERENCE — the candidate must use this exact supplied surface, seams, folds, perspective, crop and lighting. Reject any marketplace/source-photo background or visually different scene:" },
+        { inline_data: { mime_type: "image/jpeg", data: scene } },
+      ] : []),
       ...sources.flatMap((source, index) => [
         { text: `SOURCE ${index + 1} — proven garment inspiration; preserve its garment/label rules but never copy its artwork:` },
         { inline_data: { mime_type: "image/jpeg", data: source } },
@@ -160,6 +172,38 @@ export async function evaluateCentralPrintPresence(candidatePath: string): Promi
       pass: false,
       score: 0,
       issues: [`Mandatory central garment artwork is missing (${(brightRatio * 100).toFixed(2)}% visible print pixels).`],
+    };
+  }
+  return { pass: true, score: 100, issues: [] };
+}
+
+export async function evaluateCornerWatermarkRisk(candidatePath: string): Promise<FlowPhotoQualityVerdict> {
+  const metadata = await sharp(candidatePath).metadata();
+  const width = metadata.width || 0;
+  const height = metadata.height || 0;
+  if (width < 40 || height < 40) return { pass: false, score: 0, issues: ["Generated image has invalid dimensions."] };
+  const region = {
+    left: Math.floor(width * 0.68),
+    top: Math.floor(height * 0.86),
+    width: Math.max(1, width - Math.floor(width * 0.68)),
+    height: Math.max(1, height - Math.floor(height * 0.86)),
+  };
+  const { data, info } = await sharp(candidatePath).extract(region).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  let brightNeutralPixels = 0;
+  for (let offset = 0; offset < data.length; offset += info.channels) {
+    const red = data[offset];
+    const green = data[offset + 1];
+    const blue = data[offset + 2];
+    if (Math.min(red, green, blue) >= 215 && Math.max(red, green, blue) - Math.min(red, green, blue) <= 30) {
+      brightNeutralPixels += 1;
+    }
+  }
+  const ratio = brightNeutralPixels / (data.length / info.channels);
+  if (ratio >= 0.012) {
+    return {
+      pass: false,
+      score: 0,
+      issues: [`Possible Avito/marketplace watermark in the bottom-right corner (${(ratio * 100).toFixed(2)}% bright mark pixels).`],
     };
   }
   return { pass: true, score: 100, issues: [] };
@@ -353,6 +397,8 @@ function originalDesignPairPrompt(preserveWinnerLabel = false) {
     "Reject random abstract squares, rectangles, grids, panels or color fields. A distressed halftone portrait/figure is allowed when integrated without a rectangular edge. A text-led editorial system is also valid when the APPROVED PRODUCTION BRIEF explicitly requests typography. Require a specific coherent concept and intentional front/back hierarchy rather than arbitrary decoration.",
     "Commercial taste gate: reject radial rings of repeated objects, eye/oval/swoosh marks, lone numbers over abstract blobs, tiny centered tokens on blank sides, esports/tech/sports branding, arbitrary badges, invented brand names, holographic or glossy-vinyl effects, and any composition that reads as a generic AI logo instead of collectible fashion. Reject a supporting side that is functionally blank.",
     "All SOURCE images are inspiration only. Reject if either candidate reuses a recognizable source subject, symbol, silhouette or motif (including any source stars, horse/equine figure or exact composition), even when moved, resized or redrawn.",
+    "Background gate: when a SCENE REFERENCE is supplied, both candidates must preserve that exact surface identity, seam/fold layout, crop, perspective and lighting. Reject every background copied from a SOURCE or marketplace listing, and reject a merely similar replacement scene.",
+    "ZERO WATERMARKS: reject Avito, Grailed, marketplace logos, listing overlays, seller marks, signatures and every visible corner watermark.",
     "Reject generic animals, buffalo/yak/bear/wolf/horse, the winner's stars, unrelated clipart, an unrequested lone chest logo, CUSTOM MADE, visible brand-label text on the back exterior, obvious CGI, malformed clothing or unreadable fake typography. An exact word or phrase required by the APPROVED PRODUCTION BRIEF is not a logo and must be judged by that brief.",
     "Return only JSON: {\"pass\":boolean,\"score\":integer 0..100,\"issues\":[short actionable strings]}. Passing requires score >= 85 and every orientation/coherence rule to pass.",
   ].filter(Boolean).join(" ");
@@ -374,6 +420,8 @@ function originalDesignAnchorPrompt(side: "front" | "back", preserveWinnerLabel 
     "Reject random abstract squares, rectangles, grids, panels and color fields. A distressed halftone portrait/figure is allowed when integrated without a rectangular edge. A text-led editorial composition is also valid when the APPROVED PRODUCTION BRIEF explicitly requests typography. Require one specific coherent concept, not arbitrary decoration.",
     "Commercial taste gate: reject radial rings of repeated objects, eye/oval/swoosh marks, lone numbers over abstract blobs, tiny centered tokens, esports/tech/sports branding, arbitrary badges, invented brand names, holographic or glossy-vinyl effects, and anything that reads as a generic AI logo rather than collectible fashion.",
     "SOURCE images teach garment construction and design quality only. Reject any recognizable reuse of their subject, symbol, silhouette or motif—including source stars, horse/equine imagery or the same composition—even if moved, resized, mirrored or redrawn.",
+    "Background gate: when a SCENE REFERENCE is supplied, the candidate must preserve that exact surface identity, seam/fold layout, crop, perspective and lighting. Reject every background copied from a SOURCE or marketplace listing, and reject a merely similar replacement scene.",
+    "ZERO WATERMARKS: reject Avito, Grailed, marketplace logos, listing overlays, seller marks, signatures and every visible corner watermark.",
     "Reject generic animals, buffalo/yak/bear/wolf/horse, the winner's stars, unrelated stock clipart, an unrequested lone chest logo, CUSTOM MADE, random fake text, obvious CGI, malformed clothing or pasted artwork. An exact word required by the APPROVED PRODUCTION BRIEF is not a logo and must be judged by the requested typographic treatment.",
     "Return only JSON: {\"pass\":boolean,\"score\":integer 0..100,\"issues\":[short actionable strings]}. Passing requires score >= 85 and no originality, orientation, label or fashion-quality issue.",
   ].join(" ");

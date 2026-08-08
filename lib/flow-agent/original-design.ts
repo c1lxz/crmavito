@@ -16,12 +16,16 @@ export function buildOriginalStagePrompt(
     .trim()
     .slice(0, 2_400);
   if (stage === "front-anchor") {
+    const sourceReferenceRule = referenceCount > 0
+      ? `IMAGES 1-${referenceCount} show the proven source garment. Learn only its garment construction, fabric and commercial hierarchy; do not copy its artwork, exterior text, brand marks, marketplace background or watermark.`
+      : "The proven marketplace photos were analyzed before this generation and are NOT attached. Follow the approved production brief for the new garment; do not invent or reproduce any marketplace background, listing overlay or watermark.";
+    const sceneReferenceNumber = referenceCount + 1;
     return [
       "FRONT DESIGN ANCHOR. Create the unmistakable FRONT view of ONE new premium archive-fashion garment.",
       "Render the approved front subject from the production brief literally; never replace it with an unrelated stock image, generic emblem, logo-core mark or abstract block.",
       conciseBrief,
-      `IMAGES 1-${referenceCount} show the proven source garment. Learn only its garment construction, fabric and commercial hierarchy; do not copy its artwork, exterior text or brand marks.`,
-      `IMAGE ${referenceCount + 1} is SCENE ONLY: copy its exact surface, camera and light; ignore its garment, print, label and text.`,
+      sourceReferenceRule,
+      `IMAGE ${sceneReferenceNumber} is the ONLY SCENE REFERENCE: copy its exact surface, seams, folds, crop, perspective, camera and light. No other background is allowed. Ignore any garment, print, label and text visible in it.`,
       preserveWinnerLabel
         ? "FRONT anatomy is mandatory: keep a clean crew neck and expose enough of the inside back-neck panel to show the source winner's exact internal marking. Never place it on the outer chest."
         : "FRONT anatomy is mandatory: keep a clean crew neck. The garment has only an internal heat-transfer neck marking on the inside back-neck panel, physically hidden unless that inner panel is genuinely visible. Never place label text on the outer chest.",
@@ -30,6 +34,7 @@ export function buildOriginalStagePrompt(
       "COMMERCIAL TASTE LOCK: no radial ring of repeated objects, eye/oval/swoosh emblem, lone number on a blob, tiny centered token, esports/tech identity, arbitrary badge, invented brand name, holographic foil or glossy vinyl. Any required words must match the brief exactly and be legible.",
       "PRINTABILITY IS MANDATORY: the complete front artwork must fit one rectangle no larger than 24 x 32 cm, entirely on the flat torso panel and at least 5 cm from collar, shoulders, sleeves, side seams and hem. No all-over, wraparound, sleeve, seam-crossing or edge-to-edge print.",
       "No generic animals, winner stars, horse/equine figure, buffalo/yak/bear/wolf or unrelated stock clipart.",
+      "ZERO WATERMARKS: no Avito, Grailed, marketplace logo, listing overlay, seller mark, signature or corner watermark anywhere in the output.",
       "Return one photorealistic FRONT-view product photo only. Do not show the back.",
     ].join(" ");
   }

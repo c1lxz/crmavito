@@ -61,12 +61,20 @@ describe("original design stages", () => {
     expect(prompt).toContain("FRONT DESIGN ANCHOR");
     expect(prompt).toContain("IMAGES 1-4");
     expect(prompt).toContain("show the proven source garment");
-    expect(prompt).toContain("IMAGE 5 is SCENE ONLY");
+    expect(prompt).toContain("IMAGE 5 is the ONLY SCENE REFERENCE");
     expect(prompt).toContain("No generic animals, winner stars, horse/equine figure");
     expect(prompt).toContain("24 x 32 cm");
     expect(prompt).toContain("not abstract squares, rectangles, grids");
     expect(prompt).toContain("NO hang tag, paper tag, sewn label, woven tab");
     expect(prompt).toContain("Do not generate L.G.B.");
+  });
+
+  it("generates the first anchor from the approved scene only, without marketplace leakage", () => {
+    const prompt = buildOriginalStagePrompt("front-anchor", base, 0, { preserveWinnerLabel: true });
+    expect(prompt).toContain("marketplace photos were analyzed before this generation and are NOT attached");
+    expect(prompt).toContain("IMAGE 1 is the ONLY SCENE REFERENCE");
+    expect(prompt).toContain("ZERO WATERMARKS");
+    expect(prompt).not.toContain("IMAGES 1-0");
   });
 
   it("preserves the winner's exact internal neck mark in automatic front views", () => {
