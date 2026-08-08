@@ -802,7 +802,10 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
     'img[alt*="Generated" i]',
     'img[alt*="generation" i]',
     'img[alt*="Сгенерирован" i]',
+    'img',
   ];
+  const started = Date.now();
+  let reportedImageCandidates = false;
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const modelLimit = await visibleFlowModelLimit(page);
@@ -819,17 +822,33 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
       throw new Error("Flow generation failed: Flow showed a retryable generation error.");
     }
     for (const selector of selectors) {
+      const requireLargeImage = selector === "img";
       const candidates = page.locator(selector);
       for (let index = await candidates.count() - 1; index >= 0; index -= 1) {
         const result = candidates.nth(index);
         if (!await result.isVisible().catch(() => false)) continue;
         const source = await result.evaluate((image) => (image as HTMLImageElement).src);
-        const ready = await result.evaluate((image) => {
+        const ready = await result.evaluate((image, largeOnly) => {
           const node = image as HTMLImageElement;
-          return Boolean(node.src) && (node.naturalWidth > 32 || node.src.startsWith("data:"));
-        });
+          if (!node.src) return false;
+          if (largeOnly) return node.naturalWidth >= 256 && node.naturalHeight >= 256;
+          return node.naturalWidth > 32 || node.src.startsWith("data:");
+        }, requireLargeImage);
         if (ready && !existingSources.has(source)) return result;
       }
+    }
+    if (!reportedImageCandidates && Date.now() - started >= 10_000) {
+      reportedImageCandidates = true;
+      const known = [...existingSources];
+      const candidates = await page.locator("img").evaluateAll((images, sources) => images
+        .map((image) => ({
+          known: sources.includes((image as HTMLImageElement).src),
+          width: (image as HTMLImageElement).naturalWidth,
+          height: (image as HTMLImageElement).naturalHeight,
+          alt: (image as HTMLImageElement).alt.slice(0, 80),
+        }))
+        .filter((image) => !image.known && (image.width >= 128 || image.height >= 128)), known);
+      if (candidates.length) console.warn(`[flow-agent] New Flow image candidates: ${JSON.stringify(candidates)}`);
     }
     await page.waitForTimeout(400);
   }

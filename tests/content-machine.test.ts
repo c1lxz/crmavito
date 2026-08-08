@@ -227,6 +227,7 @@ describe("content machine", () => {
     expect(flowBrowserSource).toContain("Flow generation failed");
     expect(flowBrowserSource).toContain("dismissFlowSettings");
     expect(flowBrowserSource).toContain('button:has-text("Retry")');
+    expect(flowBrowserSource).toContain('node.naturalWidth >= 256 && node.naturalHeight >= 256');
     expect(flowBrowserSource).toContain("Что-то пошло не так");
     expect(flowAgentSource).not.toContain(".sharpen({");
     expect(flowAgentSource).toContain("unsupportedVisible");

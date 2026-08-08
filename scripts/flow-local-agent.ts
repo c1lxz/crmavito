@@ -147,7 +147,7 @@ async function main() {
       }).catch(async (error) => {
         const message = sanitizeFlowAgentError(error);
         console.error(`[flow-agent] ${job.id}: ${message}`);
-        const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|marketing page|redirected Flow|Flow access (?:is unavailable|was rejected)|Flow showed a retryable generation error|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|ERR_CONNECTION_RESET|ERR_TIMED_OUT|proxy.*(?:failed|unavailable)|туннел|terminated|TargetClosedError|browser has been closed/i.test(message);
+        const canTryAnotherAgent = /регион|unsupported-country|требуется вход|auth_required|рабочая область не загрузилась|marketing page|redirected Flow|Flow access (?:is unavailable|was rejected)|Flow showed a retryable generation error|не вернул изображение|connectOverCDP|ECONNREFUSED|ERR_TUNNEL_CONNECTION_FAILED|ERR_CONNECTION_RESET|ERR_TIMED_OUT|proxy.*(?:failed|unavailable)|туннел|terminated|TargetClosedError|browser has been closed/i.test(message);
         const publicError = publicFlowAgentError(error);
         currentAvailability = {
           state: canTryAnotherAgent ? "blocked" : "error",
