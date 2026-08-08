@@ -13,34 +13,37 @@ export async function createBestLabelAssets(
   overlayPath: string,
 ) {
   if (!sourcePaths.length) throw new Error("No product photos are available for the neck-label lock.");
-  const candidates = await Promise.all(sourcePaths.map(createLabelCandidate));
-  const best = candidates.sort((left, right) => right.score - left.score)[0];
-  await sharp(best.crop).resize({ width: 1_200, withoutEnlargement: true }).png().toFile(referencePath);
-
-  const metadata = await sharp(best.crop).metadata();
-  const width = metadata.width || 1;
-  const height = metadata.height || 1;
-  const tightWidth = Math.max(1, Math.round(width * 0.46));
-  const tightHeight = Math.max(1, Math.round(height * 0.45));
-  const tightLeft = Math.max(0, Math.round(width * 0.48));
-  const tightTop = Math.max(0, Math.round(height * 0.55));
-  const tight = await sharp(best.crop)
-    .extract({ left: tightLeft, top: tightTop, width: tightWidth, height: Math.min(tightHeight, height - tightTop) })
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const pixels = Buffer.from(tight.data);
-  for (let index = 0; index < pixels.length; index += 4) {
-    const luminance = Math.round(0.2126 * pixels[index] + 0.7152 * pixels[index + 1] + 0.0722 * pixels[index + 2]);
-    pixels[index + 3] = Math.max(0, Math.min(255, (luminance - 135) * 3));
+  const candidates = (await Promise.all(sourcePaths.map(createLabelCandidate)))
+    .sort((left, right) => right.score - left.score);
+  let selected: { candidate: LabelCandidate; overlay: Buffer } | undefined;
+  for (const candidate of candidates) {
+    const metadata = await sharp(candidate.crop).metadata();
+    const width = metadata.width || 1;
+    const height = metadata.height || 1;
+    const tightLeft = Math.max(0, Math.round(width * 0.10));
+    const tightTop = Math.max(0, Math.round(height * 0.25));
+    const tight = await sharp(candidate.crop)
+      .extract({
+        left: tightLeft,
+        top: tightTop,
+        width: Math.min(Math.max(1, Math.round(width * 0.80)), width - tightLeft),
+        height: Math.min(Math.max(1, Math.round(height * 0.75)), height - tightTop),
+      })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const overlay = await extractBestLabelOverlay(tight.data, tight.info);
+    if (overlay) {
+      selected = { candidate, overlay };
+      break;
+    }
   }
-  keepLowerLabelComponents(pixels, tight.info.width, tight.info.height);
-  const extractedOverlay = await finalizeLabelOverlay(pixels, tight.info);
-  if (!(await hasMeaningfulLabelPixels(extractedOverlay))) {
+  if (!selected) {
     throw new Error("The winner photo does not show a usable internal neck label or heat-transfer marking.");
   }
-  await sharp(extractedOverlay).png().toFile(overlayPath);
-  return { sourcePath: best.sourcePath, score: best.score };
+  await sharp(selected.candidate.crop).resize({ width: 1_200, withoutEnlargement: true }).png().toFile(referencePath);
+  await sharp(selected.overlay).png().toFile(overlayPath);
+  return { sourcePath: selected.candidate.sourcePath, score: selected.candidate.score };
 }
 
 export async function hasExtractableWinnerLabel(input: Buffer) {
@@ -50,21 +53,36 @@ export async function hasExtractableWinnerLabel(input: Buffer) {
   const height = metadata.height || 1;
   const tight = await sharp(candidate.crop)
     .extract({
-      left: Math.max(0, Math.round(width * 0.48)),
-      top: Math.max(0, Math.round(height * 0.55)),
-      width: Math.max(1, Math.round(width * 0.46)),
-      height: Math.min(Math.max(1, Math.round(height * 0.45)), height - Math.max(0, Math.round(height * 0.55))),
+      left: Math.max(0, Math.round(width * 0.10)),
+      top: Math.max(0, Math.round(height * 0.25)),
+      width: Math.min(Math.max(1, Math.round(width * 0.80)), width - Math.max(0, Math.round(width * 0.10))),
+      height: Math.min(Math.max(1, Math.round(height * 0.75)), height - Math.max(0, Math.round(height * 0.25))),
     })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
-  const pixels = Buffer.from(tight.data);
-  for (let index = 0; index < pixels.length; index += 4) {
-    const luminance = Math.round(0.2126 * pixels[index] + 0.7152 * pixels[index + 1] + 0.0722 * pixels[index + 2]);
-    pixels[index + 3] = Math.max(0, Math.min(255, (luminance - 135) * 3));
+  return Boolean(await extractBestLabelOverlay(tight.data, tight.info));
+}
+
+async function extractBestLabelOverlay(
+  source: Buffer,
+  info: { width: number; height: number; channels: 1 | 2 | 3 | 4 },
+) {
+  const candidates: Array<{ overlay: Buffer; strongPixels: number }> = [];
+  for (const polarity of ["light", "dark"] as const) {
+    const pixels = Buffer.from(source);
+    for (let index = 0; index < pixels.length; index += 4) {
+      const luminance = Math.round(0.2126 * pixels[index] + 0.7152 * pixels[index + 1] + 0.0722 * pixels[index + 2]);
+      pixels[index + 3] = polarity === "light"
+        ? Math.max(0, Math.min(255, (luminance - 135) * 3))
+        : Math.max(0, Math.min(255, (120 - luminance) * 3));
+    }
+    keepLowerLabelComponents(pixels, info.width, info.height);
+    const overlay = await finalizeLabelOverlay(pixels, info);
+    const strongPixels = await countMeaningfulLabelPixels(overlay);
+    if (strongPixels >= 40) candidates.push({ overlay, strongPixels });
   }
-  keepLowerLabelComponents(pixels, tight.info.width, tight.info.height);
-  return hasMeaningfulLabelPixels(await finalizeLabelOverlay(pixels, tight.info));
+  return candidates.sort((left, right) => right.strongPixels - left.strongPixels)[0]?.overlay;
 }
 
 export async function measureLabelBaselineAngle(input: Buffer) {
@@ -326,12 +344,16 @@ async function finalizeLabelOverlay(
 }
 
 async function hasMeaningfulLabelPixels(input: Buffer) {
+  return (await countMeaningfulLabelPixels(input)) >= 40;
+}
+
+async function countMeaningfulLabelPixels(input: Buffer) {
   const raw = await sharp(input).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   let strongPixels = 0;
   for (let index = 3; index < raw.data.length; index += 4) {
     if (raw.data[index] >= 80) strongPixels += 1;
   }
-  return strongPixels >= 40;
+  return strongPixels;
 }
 
 export function laplacianVariance(data: Buffer, width: number, height: number) {
@@ -355,7 +377,7 @@ export function laplacianVariance(data: Buffer, width: number, height: number) {
 function keepLowerLabelComponents(pixels: Buffer, width: number, height: number) {
   const visited = new Uint8Array(width * height);
   const keep = new Uint8Array(width * height);
-  const minimumY = Math.round(height * 0.45);
+  const minimumY = Math.round(height * 0.08);
   for (let seed = 0; seed < visited.length; seed += 1) {
     if (visited[seed] || pixels[seed * 4 + 3] < 80) continue;
     const queue = [seed];
@@ -382,7 +404,9 @@ function keepLowerLabelComponents(pixels: Buffer, width: number, height: number)
         }
       }
     }
-    if (component.length >= 50 && top >= minimumY) component.forEach((index) => { keep[index] = 1; });
+    if (component.length >= 40 && component.length <= width * height * 0.35 && top >= minimumY) {
+      component.forEach((index) => { keep[index] = 1; });
+    }
   }
   for (let index = 0; index < keep.length; index += 1) {
     if (!keep[index]) pixels[index * 4 + 3] = 0;

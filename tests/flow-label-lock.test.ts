@@ -76,6 +76,13 @@ describe("Flow exact neck-label lock", () => {
     expect(await sharp(outputPath).metadata()).toMatchObject({ width: 1000, height: 1800, format: "jpeg" });
   });
 
+  it("extracts a dark heat-transfer neck mark from a light winner shirt", async () => {
+    const winner = await sharp(Buffer.from(
+      '<svg width="1000" height="1800"><rect width="1000" height="1800" fill="#eee"/><text x="500" y="310" fill="#111" font-size="72" font-family="Arial" font-weight="900">VIVIENNE</text><text x="510" y="365" fill="#111" font-size="58" font-family="Arial" font-weight="900">WESTWOOD</text></svg>',
+    )).jpeg().toBuffer();
+    expect(await hasExtractableWinnerLabel(winner)).toBe(true);
+  });
+
   it("straightens an angled exact label before compositing it", async () => {
     const angled = await sharp(Buffer.from(
       '<svg width="260" height="120"><rect width="260" height="120" fill="none"/><g transform="rotate(14 130 60)" fill="#eee"><rect x="45" y="48" width="170" height="18"/><rect x="55" y="30" width="12" height="45"/><rect x="190" y="30" width="12" height="45"/></g></svg>',
