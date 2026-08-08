@@ -670,9 +670,11 @@ export function compactFlowPrompt(prompt: string) {
 }
 
 async function openProjectWorkspace(page: Page, flowUrl: string, timeoutMs: number) {
+  const started = Date.now();
   const deadline = Date.now() + timeoutMs;
   let lastProjectClick = 0;
   let lastExperienceClick = 0;
+  let reloadedBlankWorkspace = false;
   while (Date.now() < deadline) {
     if (page.url().startsWith("https://accounts.google.com/")) {
       throw new Error("Flow auth_required: complete the one-time Google sign-in in the persistent local Flow Chrome profile.");
@@ -728,6 +730,16 @@ async function openProjectWorkspace(page: Page, flowUrl: string, timeoutMs: numb
       '[contenteditable="true"]',
     ]);
     if (prompt && (page.url().includes("/project/") || await page.locator('[data-testid="prompt"]').count())) return;
+
+    if (!prompt && !reloadedBlankWorkspace && page.url().includes("/project/") && Date.now() - started >= 10_000) {
+      const bodyText = await page.locator("body").innerText({ timeout: 2_000 }).catch(() => "");
+      if (bodyText.trim().length < 40) {
+        reloadedBlankWorkspace = true;
+        await page.reload({ waitUntil: "domcontentloaded", timeout: 45_000 });
+        await page.waitForTimeout(1_000);
+        continue;
+      }
+    }
 
     if (!prompt && Date.now() - lastProjectClick >= 3_000) {
       const newProject = await firstVisible(page, [
