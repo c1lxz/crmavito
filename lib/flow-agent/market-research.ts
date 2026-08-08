@@ -113,7 +113,7 @@ export function buildOriginalDesignPrompt(
   const evidence = research.listings.slice(0, 15)
     .map((listing) => `${listing.source}: ${listing.title}${listing.price ? ` (${listing.price})` : ""}`)
     .join("; ");
-  const fallbackConcept = "MARKET-GROUNDED FALLBACK: if marketplace evidence is thin, use the proven winner itself as the primary quality and hierarchy reference, then invent an adjacent subject. Never fall back to an arbitrary gothic symbol, tech logo, number, mascot or made-up brand name.";
+  const fallbackConcept = fallbackDesignConcept(note);
   return [
     "Create ONE premium, genuinely new designer-fashion garment and one photorealistic marketplace photo.",
     `IMAGES 1-${referenceCount} are views of the same proven garment: study its construction, front/back hierarchy, print scale, asymmetry, negative space and distressed ink, but do not copy or merely move its artwork.`,
@@ -132,6 +132,29 @@ export function buildOriginalDesignPrompt(
     labelHint ? `Label identification hint only: ${labelHint}.` : "",
     "Return only one sharp high-resolution final photo.",
   ].filter(Boolean).join(" ");
+}
+
+function fallbackDesignConcept(note?: string) {
+  const concepts = [
+    ["QUIET TRUCE", "a narrow off-register newspaper photograph of two empty chairs facing each other, with the exact small caption QUIET TRUCE", "a larger torn-paper editorial composition of an empty meeting table and one oxblood underline"],
+    ["VEILED FRAME", "a restrained halftone side-profile portrait partly obscured by one translucent vertical ink pass", "a larger rear three-quarter portrait crop with a single oxblood registration line and the exact caption VEILED FRAME"],
+    ["OPEN COLUMN", "one elegant hand resting on a weathered stone column, drawn as a compact two-ink editorial plate", "two reaching hands separated by a broken classical column, with generous black negative space"],
+    ["NIGHT ROUTE", "a cropped analog road photograph with one thin oxblood route line and the exact caption NIGHT ROUTE", "a larger night-road contact sheet of three uneven frames, no badge, crest or vehicle logo"],
+    ["AFTER HOURS", "a grainy doorway silhouette with one offset oxblood shadow, composed as a small editorial hook", "a larger cinema-still composition of an empty corridor and curtains, with the exact caption AFTER HOURS"],
+    ["ROUGH NOTE", "one scanned handwritten line crossed by a compact torn-paper portrait fragment", "a larger layered notebook-page composition with one hand, one red pencil mark and the exact words ROUGH NOTE"],
+    ["STATIC WEATHER", "a monochrome storm-cloud photograph cropped into an irregular soft-edged halftone", "a larger weather-archive composition with rain streaks, one oxblood overprint and the exact caption STATIC WEATHER"],
+    ["BLUE HOUR", "a restrained blue-grey architectural shadow photograph with one narrow vertical crop", "a larger concrete stairwell study with deep blue overprint and the exact caption BLUE HOUR"],
+    ["FIELD STUDY", "one fine botanical branch drawing interrupted by a small xerox portrait fragment", "a larger herbarium-style composition of two branches, measured spacing and the exact caption FIELD STUDY"],
+    ["RED THREAD", "one elegant human hand pinching a single wine-red thread, rendered as a compact distressed editorial illustration", "two reaching human hands connected by the same wine-red thread, with strong negative space and no symbols"],
+  ] as const;
+  const requested = Number(note?.match(/design\s+(\d+)\s+of\s+10/i)?.[1] || 1);
+  const [title, front, back] = concepts[Math.max(0, Math.min(concepts.length - 1, requested - 1))];
+  return [
+    "MARKET-GROUNDED FALLBACK: if marketplace evidence is thin, use the proven winner itself as the primary quality and hierarchy reference, then invent an adjacent subject. Never fall back to an arbitrary gothic symbol, tech logo, number, mascot or made-up brand name.",
+    `DEMAND-GROUNDED FALLBACK CONCEPT — ${title}.`,
+    `FRONT: ${front}.`,
+    `BACK: ${back}.`,
+  ].join(" ");
 }
 
 async function collectSource(page: Page, source: MarketSource, query: string, limit: number) {

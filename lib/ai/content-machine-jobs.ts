@@ -398,6 +398,7 @@ export async function retryFlowJob(id: string) {
       delete manifest.completedAt;
       delete manifest.error;
       delete manifest.metrics;
+      delete manifest.agentExclusions;
     }
     await saveManifest(manifest);
     return hydrateJob(manifest);

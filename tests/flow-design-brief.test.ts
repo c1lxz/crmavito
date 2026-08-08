@@ -90,6 +90,8 @@ describe("Flow apparel production brief", () => {
     expect(prompt).toContain("¥22,000");
     expect(prompt).not.toContain("NIGHT VEIL");
     expect(prompt).not.toContain("shortwave receiver");
+    expect(prompt).toContain("FRONT:");
+    expect(prompt).toContain("BACK:");
   });
 
   it("chooses a marketplace-grounded typography direction when message shirts dominate", () => {

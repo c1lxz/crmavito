@@ -20,6 +20,9 @@ export function buildOriginalStagePrompt(
       ? `IMAGES 1-${referenceCount} show the proven source garment. Learn only its garment construction, fabric and commercial hierarchy; do not copy its artwork, exterior text, brand marks, marketplace background or watermark.`
       : "The proven marketplace photos were analyzed before this generation and are NOT attached. Follow the approved production brief for the new garment; do not invent or reproduce any marketplace background, listing overlay or watermark.";
     const sceneReferenceNumber = referenceCount + 1;
+    const frontAnchorLabelRule = preserveWinnerLabel && referenceCount === 0
+      ? "WINNER LABEL LOCK — LABEL POSTPROCESS: leave the visible inside back-neck panel clean and blank, with no letters, logo or invented marking. The program applies the winner's exact extracted marking after generation. Never add a hang tag, fastener, string or exterior label."
+      : frontLabelRule;
     return [
       "FRONT DESIGN ANCHOR. Create the unmistakable FRONT view of ONE new premium archive-fashion garment.",
       "Render the approved front subject from the production brief literally; never replace it with an unrelated stock image, generic emblem, logo-core mark or abstract block.",
@@ -27,9 +30,11 @@ export function buildOriginalStagePrompt(
       sourceReferenceRule,
       `IMAGE ${sceneReferenceNumber} is the ONLY SCENE REFERENCE: copy its exact surface, seams, folds, crop, perspective, camera and light. No other background is allowed. Ignore any garment, print, label and text visible in it.`,
       preserveWinnerLabel
-        ? "FRONT anatomy is mandatory: keep a clean crew neck and expose enough of the inside back-neck panel to show the source winner's exact internal marking. Never place it on the outer chest."
+        ? referenceCount === 0
+          ? "FRONT anatomy is mandatory: keep a clean crew neck and expose enough of the blank inside back-neck panel for the programmatic winner-label overlay. Never place any label text on the outer chest."
+          : "FRONT anatomy is mandatory: keep a clean crew neck and expose enough of the inside back-neck panel to show the source winner's exact internal marking. Never place it on the outer chest."
         : "FRONT anatomy is mandatory: keep a clean crew neck. The garment has only an internal heat-transfer neck marking on the inside back-neck panel, physically hidden unless that inner panel is genuinely visible. Never place label text on the outer chest.",
-      frontLabelRule,
+      frontAnchorLabelRule,
       "Follow the approved FRONT artwork in the production brief exactly. It needs a recognizable editorial subject and intentional hierarchy, not abstract squares, rectangles, grids, tiled blocks, a lone chest logo or decorative geometry.",
       "COMMERCIAL TASTE LOCK: no radial ring of repeated objects, eye/oval/swoosh emblem, lone number on a blob, tiny centered token, esports/tech identity, arbitrary badge, invented brand name, holographic foil or glossy vinyl. Any required words must match the brief exactly and be legible.",
       "PRINTABILITY IS MANDATORY: the complete front artwork must fit one rectangle no larger than 24 x 32 cm, entirely on the flat torso panel and at least 5 cm from collar, shoulders, sleeves, side seams and hem. No all-over, wraparound, sleeve, seam-crossing or edge-to-edge print.",

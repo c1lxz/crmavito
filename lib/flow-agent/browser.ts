@@ -540,9 +540,12 @@ export function compactFlowPrompt(prompt: string) {
       ? normalized.slice(banStart, banEnd > banStart ? banEnd : Math.min(normalized.length, banStart + 320))
       : "";
     const preserveWinnerLabel = normalized.includes("WINNER LABEL LOCK");
+    const postprocessWinnerLabel = normalized.includes("LABEL POSTPROCESS");
     const suffix = customAnchorSide === "FRONT"
       ? preserveWinnerLabel
-        ? "FRONT only. Render that exact front subject. Preserve the proven garment's exact internal neck marking on the visible inside back-neck panel; never place it on the exterior chest and never add a hang tag or fastener. The attached scene reference is the ONLY allowed background; copy its exact surface, seams, folds, crop and light. No Avito, Grailed or any watermark. Photorealistic product photo."
+        ? postprocessWinnerLabel
+          ? "FRONT only. Render that exact front subject. Leave the visible inside back-neck panel blank for the programmatic label overlay; no invented letters, exterior label, hang tag or fastener. The attached scene reference is the ONLY allowed background; copy its exact surface, seams, folds, crop and light. No marketplace logo or watermark. Photorealistic product photo."
+          : "FRONT only. Render that exact front subject. Preserve the proven garment's exact internal neck marking on the visible inside back-neck panel; never place it on the exterior chest and never add a hang tag or fastener. The attached scene reference is the ONLY allowed background; copy its exact surface, seams, folds, crop and light. No marketplace logo or watermark. Photorealistic product photo."
         : "FRONT only. Render that exact front subject, not generic gothic art. Keep one printable torso placement with black negative space. Clean collar: no visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. The attached scene reference is the ONLY allowed background; copy it exactly. No Avito, Grailed or any watermark. Photorealistic product photo."
       : "BACK only. Render that exact back subject, distinct from the front principal subject, not generic gothic art. Keep one printable torso placement with black negative space. No visible label text, hang tag, paper tag, woven tab, white locator, fastener, string or tag fragment. Last reference is SCENE ONLY and must be copied exactly. No Avito, Grailed or any watermark. Photorealistic product photo.";
     return [sceneLock, `${customAnchorSide} DESIGN ANCHOR.`, title, sideBrief, production, bans, suffix]

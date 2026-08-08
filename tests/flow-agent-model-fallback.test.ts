@@ -75,6 +75,8 @@ describe("original design stages", () => {
     expect(prompt).toContain("IMAGE 1 is the ONLY SCENE REFERENCE");
     expect(prompt).toContain("ZERO WATERMARKS");
     expect(prompt).not.toContain("IMAGES 1-0");
+    expect(prompt).toContain("LABEL POSTPROCESS");
+    expect(prompt).toContain("leave the visible inside back-neck panel clean and blank");
   });
 
   it("preserves the winner's exact internal neck mark in automatic front views", () => {

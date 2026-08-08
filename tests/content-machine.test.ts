@@ -258,6 +258,7 @@ describe("content machine", () => {
       expect((await claimNextFlowJob("working-agent"))?.id).toBe(created.id);
       await releaseFlowJob(created.id, "working-agent", "auth_required");
       await expect(retryFlowJob(created.id)).resolves.toMatchObject({ id: created.id, status: "waiting" });
+      expect((await claimNextFlowJob("blocked-agent"))?.id).toBe(created.id);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

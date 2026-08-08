@@ -230,9 +230,10 @@ async function launchFlowSession(): Promise<FlowContextSession> {
 async function connectToShortcutChrome(): Promise<Browser> {
   if (!cdpUrl) throw new Error("FLOW_AGENT_CDP_URL не задан.");
   try {
-    const browser = rememberCdpBrowser(await chromium.connectOverCDP(cdpUrl));
-    await configureLocalProxyExtension(browser);
-    return browser;
+    // The dedicated Chrome already owns the persisted proxy extension state.
+    // Re-applying it on every agent reconnect resets live Google sessions and
+    // can send an authenticated Flow project back through OAuth mid-generation.
+    return rememberCdpBrowser(await chromium.connectOverCDP(cdpUrl));
   } catch (error) {
     if (!cdpBootstrapScript) throw error;
     console.warn("[flow-agent] Chrome из ярлыка закрыт; запускаю его тем же PowerShell-скриптом.");
