@@ -86,17 +86,16 @@ describe("original design stages", () => {
     expect(back).toContain("NO VISIBLE LABEL OR LABEL TEXT");
   });
 
-  it("puts the fallback subject before the rest of the front and back instructions", () => {
-    const fallback = "DEMAND-GROUNDED FALLBACK CONCEPT — NIGHT VEIL.";
-    const front = buildOriginalStagePrompt("front-anchor", fallback, 4);
-    const back = buildOriginalStagePrompt("back-anchor", fallback, 4);
-    expect(front.indexOf("MANDATORY FRONT ARTWORK")).toBeLessThan(front.indexOf("IMAGES 1-4"));
-    expect(front).toContain("12 x 16 cm isolated handmade cross");
-    expect(front).toContain("thin wine-red thread");
-    expect(front).toContain("ABSOLUTELY NO square, rectangle, straight crop edge");
-    expect(back.indexOf("MANDATORY BACK ARTWORK")).toBeLessThan(back.indexOf("IMAGE 1 is the new FRONT ANCHOR"));
-    expect(back).toContain("22 x 30 cm vertical three-quarter human skull profile");
-    expect(back).toContain("sparse broken spider-silk linework");
+  it("keeps the approved brief and rejects generic AI logo fallbacks", () => {
+    const brief = "APPROVED FRONT: an editorial botanical illustration with exact text. APPROVED BACK: a distinct typographic composition.";
+    const front = buildOriginalStagePrompt("front-anchor", brief, 4);
+    const back = buildOriginalStagePrompt("back-anchor", brief, 4);
+    expect(front).toContain("editorial botanical illustration");
+    expect(front).toContain("no radial ring of repeated objects");
+    expect(front).toContain("Any required words must match the brief exactly");
+    expect(back).toContain("distinct typographic composition");
+    expect(back).toContain("never one tiny token below the collar");
+    expect(back).not.toContain("NIGHT VEIL");
   });
 
   it("turns the generated front anchor over to create a distinct coordinated back", () => {

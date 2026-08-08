@@ -200,7 +200,9 @@ async function launchFlowSession(): Promise<FlowContextSession> {
 async function connectToShortcutChrome(): Promise<Browser> {
   if (!cdpUrl) throw new Error("FLOW_AGENT_CDP_URL не задан.");
   try {
-    return rememberCdpBrowser(await chromium.connectOverCDP(cdpUrl));
+    const browser = rememberCdpBrowser(await chromium.connectOverCDP(cdpUrl));
+    await configureLocalProxyExtension(browser);
+    return browser;
   } catch (error) {
     if (!cdpBootstrapScript) throw error;
     console.warn("[flow-agent] Chrome из ярлыка закрыт; запускаю его тем же PowerShell-скриптом.");
@@ -208,7 +210,34 @@ async function connectToShortcutChrome(): Promise<Browser> {
       cdpBootstrapPromise = null;
     });
     await cdpBootstrapPromise;
-    return rememberCdpBrowser(await chromium.connectOverCDP(cdpUrl));
+    const browser = rememberCdpBrowser(await chromium.connectOverCDP(cdpUrl));
+    await configureLocalProxyExtension(browser);
+    return browser;
+  }
+}
+
+async function configureLocalProxyExtension(browser: Browser) {
+  const specification = process.env.FLOW_AGENT_PROXY_SPEC?.trim();
+  if (!specification) return;
+  const match = specification.match(/^([^:@]+):([^@]+)@([^:]+):(\d+)$/);
+  if (!match) throw new Error("FLOW_AGENT_PROXY_SPEC has an invalid format.");
+  const [, user, pass, ip, port] = match;
+  const extensionId = process.env.FLOW_AGENT_PROXY_EXTENSION_ID?.trim() || "pcboajngloecgmaailkmphmpbacmbcfb";
+  const context = browser.contexts()[0];
+  if (!context) throw new Error("Chrome did not expose a profile for proxy setup.");
+  const page = await context.newPage();
+  try {
+    await page.goto(`chrome-extension://${extensionId}/popup.html`, { waitUntil: "domcontentloaded", timeout: 15_000 });
+    const response = await page.evaluate(async (proxy) => {
+      const extension = (globalThis as typeof globalThis & {
+        chrome?: { runtime?: { sendMessage?: (message: unknown) => Promise<{ status?: string }> } };
+      }).chrome;
+      if (!extension?.runtime?.sendMessage) throw new Error("Simple Proxy Switcher is not loaded.");
+      return extension.runtime.sendMessage({ action: "set_proxy", data: proxy });
+    }, { user, pass, ip, port });
+    if (response?.status !== "ok") throw new Error("Simple Proxy Switcher did not apply the proxy.");
+  } finally {
+    await page.close().catch(() => undefined);
   }
 }
 
@@ -1020,8 +1049,27 @@ async function uploadResult(
   const payload = new Uint8Array(normalized.length);
   payload.set(normalized);
   form.set("file", new Blob([payload], { type: "image/png" }), path.basename(filePath));
-  const response = await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${jobId}/result`, { method: "POST", body: form });
-  if (!response.ok) throw new Error(`CRM не приняла результат: HTTP ${response.status} ${await response.text()}`);
+  const route = `/api/ai/content-machine/flow-agent/jobs/${jobId}/result`;
+  let lastError = "unknown upload error";
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      const response = await agentFetch(route, { method: "POST", body: form });
+      const raw = await response.text();
+      if (!response.ok) throw new Error(`HTTP ${response.status} ${raw}`);
+      const data = JSON.parse(raw) as { job?: { results?: Array<{ productIndex: number; backgroundSlot: BackgroundSlot }> } };
+      const stored = data.job?.results?.some((result) =>
+        result.productIndex === productIndex && result.backgroundSlot === backgroundSlot,
+      );
+      if (!stored) throw new Error("CRM response did not confirm the uploaded result slot");
+      return;
+    } catch (error) {
+      lastError = sanitizeFlowAgentError(error);
+      if (attempt === 4) break;
+      console.warn(`[flow-agent] ${jobId} ${productIndex}/${backgroundSlot}: result upload retry ${attempt}/4: ${lastError}`);
+      await delay(attempt * 1_500);
+    }
+  }
+  throw new Error(`CRM did not persist result ${productIndex}/${backgroundSlot} after 4 attempts: ${lastError}`);
 }
 
 function agentFetch(route: string, init: RequestInit = {}) {

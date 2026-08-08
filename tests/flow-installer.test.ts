@@ -28,6 +28,8 @@ describe("Flow local agent installer", () => {
     expect(installer).toContain("start-flow-chrome.ps1");
     expect(chromeBootstrap).toContain("--remote-debugging-port=$debugPort");
     expect(chromeBootstrap).toContain("--user-data-dir=");
+    expect(chromeBootstrap).toContain("ms-playwright");
+    expect(chromeBootstrap).toContain("FLOW_AGENT_CHROME_EXECUTABLE");
     expect(chromeBootstrap).not.toContain("--enable-automation");
     expect(builder).toContain("UTF8Encoding($true)");
     expect(builder).toContain("GetEncoding(1251)");

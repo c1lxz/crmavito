@@ -45,7 +45,8 @@ describe("Flow apparel production brief", () => {
     const prompt = buildPromptFromBrief(brief, "exact source neck transfer");
     expect(prompt).toContain("24 cm wide by 32 cm high");
     expect(prompt).toContain("No all-over, tiled, wraparound, sleeve or seam-crossing print");
-    expect(prompt).toContain("never as random squares, rectangles, grids, color fields");
+    expect(prompt).toContain("not a logo exercise, stock clipart or motif salad");
+    expect(prompt).toContain("eye/oval/swoosh emblems");
     expect(prompt).toContain("marble seraph");
     expect(prompt).toContain("exact source neck transfer");
   });
@@ -72,7 +73,7 @@ describe("Flow apparel production brief", () => {
     }))).toThrow("at least two marketplaces");
   });
 
-  it("uses an L.G.B. demand-grounded fallback and never the rejected radio concept", () => {
+  it("keeps a thin-evidence fallback grounded in the winner instead of a fixed gothic concept", () => {
     const prompt = buildOriginalDesignPrompt({
       query: "L.G.B. short sleeve archive graphic",
       checkedAt: new Date().toISOString(),
@@ -83,10 +84,11 @@ describe("Flow apparel production brief", () => {
       topSignals: ["vintage wash and distressing", "front-and-back graphics"],
       sourceCounts: { grailed: 0, mercari: 1, rakuma: 1 },
     });
-    expect(prompt).toContain("NIGHT VEIL");
-    expect(prompt).toContain("cross, skull, web");
+    expect(prompt).toContain("use the proven winner itself as the primary quality and hierarchy reference");
+    expect(prompt).toContain("Never fall back to an arbitrary gothic symbol");
     expect(prompt).toContain("ACTUAL MARKET EVIDENCE");
     expect(prompt).toContain("¥22,000");
+    expect(prompt).not.toContain("NIGHT VEIL");
     expect(prompt).not.toContain("shortwave receiver");
   });
 
@@ -102,9 +104,10 @@ describe("Flow apparel production brief", () => {
       topSignals: ["distressed message-shirt hierarchy", "vintage wash"],
       sourceCounts: { grailed: 1, mercari: 1, rakuma: 1 },
     });
-    expect(prompt).toContain("AFTERTONE MANIFESTO");
-    expect(prompt).toContain("STAY UNSEEN");
-    expect(prompt).toContain("message-shirt, poem, WIND/FREEDOM");
+    expect(prompt).toContain("deliberate exact-text composition");
+    expect(prompt).toContain("specify exact short text with real correctly spelled words");
+    expect(prompt).toContain("L.G.B. FREEDOM typography shirt");
+    expect(prompt).not.toContain("AFTERTONE MANIFESTO");
     expect(prompt).not.toContain("NIGHT VEIL");
   });
 });

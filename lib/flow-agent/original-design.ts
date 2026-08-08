@@ -10,7 +10,6 @@ export function buildOriginalStagePrompt(
   const frontLabelRule = preserveWinnerLabel
     ? "WINNER LABEL LOCK: preserve the exact visible internal neck label or heat-transfer marking from the proven source garment. It may appear only on the inside back-neck panel when that inner panel is visible; reproduce its original pixels, lettering, proportions and placement. Never invent a substitute, hang tag, fastener or exterior label."
     : "ABSOLUTE LABEL LOCK: NO hang tag, paper tag, sewn label, woven tab, white locator, plastic fastener, string, cropped tag fragment or loose object at the collar. Do not generate L.G.B., a size mark or any label wording anywhere visible in this exterior product shot.";
-  const usesNightVeilFallback = /NIGHT VEIL/i.test(basePrompt);
   const conciseBrief = basePrompt
     .replace(/IMAGES?\s+\d+(?:-\d+)?[^.]*\./gi, "")
     .replace(/\s+/g, " ")
@@ -19,10 +18,8 @@ export function buildOriginalStagePrompt(
   if (stage === "front-anchor") {
     return [
       "FRONT DESIGN ANCHOR. Create the unmistakable FRONT view of ONE new premium archive-fashion garment.",
-      usesNightVeilFallback
-        ? "MANDATORY FRONT ARTWORK — NIGHT VEIL: a 12 x 16 cm isolated handmade cross assembled from four fractured bone-like strokes, loosely bound at the center by one thin wine-red thread, with sparse smoke-grey broken web-line fragments interrupting the silhouette. At least 75% of the artwork bounding area must remain untouched black shirt. ABSOLUTELY NO square, rectangle, straight crop edge, solid cream field, white field, poster, photo panel, words, badge, box, background fill, animal, star or horse artwork. It must feel like a rare 2000s Japanese alternative-rock tee, not a church souvenir, stock gothic icon, logo or random geometry."
-        : "Render the approved front subject from the production brief literally; never replace it with an unrelated stock image, rectangular photo panel or abstract block.",
-      ...(usesNightVeilFallback ? [] : [conciseBrief]),
+      "Render the approved front subject from the production brief literally; never replace it with an unrelated stock image, generic emblem, logo-core mark or abstract block.",
+      conciseBrief,
       `IMAGES 1-${referenceCount} show the proven source garment. Learn only its garment construction, fabric and commercial hierarchy; do not copy its artwork, exterior text or brand marks.`,
       `IMAGE ${referenceCount + 1} is SCENE ONLY: copy its exact surface, camera and light; ignore its garment, print, label and text.`,
       preserveWinnerLabel
@@ -30,6 +27,7 @@ export function buildOriginalStagePrompt(
         : "FRONT anatomy is mandatory: keep a clean crew neck. The garment has only an internal heat-transfer neck marking on the inside back-neck panel, physically hidden unless that inner panel is genuinely visible. Never place label text on the outer chest.",
       frontLabelRule,
       "Follow the approved FRONT artwork in the production brief exactly. It needs a recognizable editorial subject and intentional hierarchy, not abstract squares, rectangles, grids, tiled blocks, a lone chest logo or decorative geometry.",
+      "COMMERCIAL TASTE LOCK: no radial ring of repeated objects, eye/oval/swoosh emblem, lone number on a blob, tiny centered token, esports/tech identity, arbitrary badge, invented brand name, holographic foil or glossy vinyl. Any required words must match the brief exactly and be legible.",
       "PRINTABILITY IS MANDATORY: the complete front artwork must fit one rectangle no larger than 24 x 32 cm, entirely on the flat torso panel and at least 5 cm from collar, shoulders, sleeves, side seams and hem. No all-over, wraparound, sleeve, seam-crossing or edge-to-edge print.",
       "No generic animals, winner stars, horse/equine figure, buffalo/yak/bear/wolf or unrelated stock clipart.",
       "Return one photorealistic FRONT-view product photo only. Do not show the back.",
@@ -38,14 +36,13 @@ export function buildOriginalStagePrompt(
   if (stage === "back-anchor") {
     return [
       "BACK DESIGN ANCHOR. TURN THE NEW GARMENT OVER and show its unmistakable REAR side. This is not another photo of the front. NO VISIBLE LABEL OR LABEL TEXT may appear outside below the rear collar; the internal heat-transfer marking is physically hidden inside the garment.",
-      usesNightVeilFallback
-        ? "MANDATORY BACK ARTWORK — NIGHT VEIL: a 22 x 30 cm vertical three-quarter human skull profile, visibly fractured and partly erased, caught in sparse broken spider-silk linework with one incomplete wine-red halo slash. Build it from separated bone-grey halftone fragments and keep at least 60% of the bounding area as untouched black shirt. No spider body, solid light field, readable text, animal, star, horse, box, border, background fill or rectangular photo edge. It must feel like a rare Japanese archive-rock graphic, not fantasy clipart or a generic biker skull."
-        : "Render the approved back subject from the production brief literally; never replace it with an unrelated stock image, rectangular photo panel or abstract block.",
-      ...(usesNightVeilFallback ? [] : [conciseBrief]),
+      "Render the approved back subject from the production brief literally; never replace it with an unrelated stock image, generic emblem, logo-core mark or abstract block.",
+      conciseBrief,
       "IMAGE 1 is the new FRONT ANCHOR whose garment color, cut and visual language define the same new product.",
       "IMAGE 2 is SCENE ONLY: copy surface, camera and light; ignore its garment and every marking.",
       "REAR anatomy is mandatory: use the higher closed back neckline. The inside heat-transfer neck marking is physically inside the shirt and therefore NOT visible from the rear. Never add a hang tag, paper tag, sewn label, woven tab, white locator, plastic fastener, string, cropped tag fragment, L.G.B., CUSTOM MADE or label wording on the exterior.",
       "Follow the approved BACK artwork in the production brief exactly. It must develop the same story and ink palette while using a different primary subject and silhouette from the front; never repeat, mirror, enlarge, fragment or paste the front artwork.",
+      "The supporting side must still look deliberately designed and sellable, never one tiny token below the collar. No radial ring, eye/oval/swoosh, lone number and blob, esports/tech badge, invented brand, holographic foil or fake text.",
       "PRINTABILITY IS MANDATORY: the complete back artwork must fit one rectangle no larger than 24 x 32 cm, entirely on the flat torso panel and at least 5 cm from collar, shoulders, sleeves, side seams and hem. No all-over, tiled, wraparound, sleeve, seam-crossing or edge-to-edge print.",
       "No random abstract squares, rectangles, grids, generic mascot, winner stars, horse/equine artwork, buffalo/yak/bear/wolf or unrelated stock icon.",
       "Return one photorealistic BACK-view product photo only. Do not show the front neckline or front artwork.",

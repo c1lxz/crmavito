@@ -13,7 +13,14 @@ $proxyExtensionId = "pcboajngloecgmaailkmphmpbacmbcfb" # Simple Proxy Switcher
 $listening = Get-NetTCPConnection -LocalAddress 127.0.0.1 -LocalPort $debugPort -State Listen -ErrorAction SilentlyContinue
 if ($listening) { exit 0 }
 
+$playwrightChromium = Get-ChildItem -LiteralPath (Join-Path $env:LOCALAPPDATA "ms-playwright") -Directory -Filter "chromium-*" -ErrorAction SilentlyContinue |
+  Sort-Object Name -Descending |
+  ForEach-Object { Join-Path $_.FullName "chrome-win64\chrome.exe" } |
+  Where-Object { Test-Path -LiteralPath $_ } |
+  Select-Object -First 1
 $chrome = @(
+  $env:FLOW_AGENT_CHROME_EXECUTABLE,
+  $playwrightChromium,
   (Join-Path $env:ProgramFiles "Google\Chrome\Application\chrome.exe"),
   (Join-Path ${env:ProgramFiles(x86)} "Google\Chrome\Application\chrome.exe"),
   (Join-Path $env:LOCALAPPDATA "Google\Chrome\Application\chrome.exe")

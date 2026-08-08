@@ -113,34 +113,17 @@ export function buildOriginalDesignPrompt(
   const evidence = research.listings.slice(0, 15)
     .map((listing) => `${listing.source}: ${listing.title}${listing.price ? ` (${listing.price})` : ""}`)
     .join("; ");
-  const isLgb = /(?:^|\W)(?:l\.?g\.?b\.?|le grande bleu)(?:\W|$)/i.test(research.query);
-  const typographyEvidence = [
-    ...research.listings.map((listing) => listing.title),
-    ...research.topSignals,
-  ].filter((value) => /message|poem|quote|typograph|letter|word|freedom|wind|manifesto|text|メッセージ|詩/i.test(value)).length;
-  const typographyConcept = [
-    "DEMAND-GROUNDED FALLBACK CONCEPT — AFTERTONE MANIFESTO.",
-    "FRONT: an 11 x 17 cm narrow editorial composition built around the one exact original word AFTERTONE in condensed distressed italic capitals. Break the baseline into two offset registrations, add one hairline wine-red strike and a faint smoke-grey ghost impression. Keep at least 70% of the bounding area untouched black fabric. No box, badge, solid field, photo panel, skull, animal, star or generic logo.",
-    "BACK: a 22 x 30 cm stacked message reading exactly STAY UNSEEN in tall eroded condensed capitals, interrupted by sparse thread-thin wine-red registration lines and dry grey halftone loss. The words remain readable and intentional while at least 55% of the bounding area is black negative space. No rectangle, background fill, mascot, skull, cross or copied brand wording.",
-    "This is one original coordinated typography concept derived from the proven message-shirt, poem, WIND/FREEDOM and distressed Y2K hierarchy in the inspected marketplaces. It must feel like rare Japanese archive editorial merchandise, never a basic slogan tee or print-on-demand wordmark.",
-  ].join(" ");
-  const nightVeilConcept = [
-    "DEMAND-GROUNDED FALLBACK CONCEPT — NIGHT VEIL.",
-    "FRONT: a 12 x 16 cm isolated handmade cross assembled from four fractured bone-like strokes, loosely bound at the center by one thin wine-red thread. Sparse smoke-grey web-line fragments interrupt the silhouette. At least 75% of the bounding area remains untouched black shirt. No solid fill, cream field, box, badge, text, animal, star or background panel.",
-    "BACK: a 22 x 30 cm vertical three-quarter human skull profile, visibly fractured and partly erased, caught in sparse broken spider-silk linework with one incomplete wine-red halo slash. Build it from separated bone-grey halftone fragments; at least 60% of the bounding area remains untouched black fabric. No spider body, solid light field, rectangle, photo panel, text, animal or fantasy ornament.",
-    "This is one original coordinated concept derived from the proven cross, skull, web, message-shirt and distressed Y2K grammar in the inspected Grailed, Mercari and Rakuma listings; it must not copy any listed artwork or the winner's horse and stars.",
-  ].join(" ");
-  const fallbackConcept = isLgb
-    ? typographyEvidence >= 2 ? typographyConcept : nightVeilConcept
-    : "MARKET-GROUNDED FALLBACK: derive one original adjacent subject only from the concrete inspected listing evidence below; reject any subject with no visual or title support in at least two marketplaces.";
+  const fallbackConcept = "MARKET-GROUNDED FALLBACK: if marketplace evidence is thin, use the proven winner itself as the primary quality and hierarchy reference, then invent an adjacent subject. Never fall back to an arbitrary gothic symbol, tech logo, number, mascot or made-up brand name.";
   return [
     "Create ONE premium, genuinely new designer-fashion garment and one photorealistic marketplace photo.",
     `IMAGES 1-${referenceCount} are views of the same proven garment: study its construction, front/back hierarchy, print scale, asymmetry, negative space and distressed ink, but do not copy or merely move its artwork.`,
     `IMAGE ${referenceCount + 1} is SCENE ONLY: copy only its real surface, camera, crop and light; ignore its garment, print, label, text and objects.`,
-    `Build one coherent coordinated front-and-back graphic system informed by the actually inspected Grailed, Mercari and Rakuma listings (${signals}); it must feel like a collectible alternative-rockstar archive piece with swag, not print-on-demand clipart. The front is a restrained secondary hook and the back is the hero statement; never repeat the same principal object, figure, hand, face, symbol or silhouette on both sides.`,
+    `Build one coherent coordinated front-and-back graphic system informed by the actually inspected Grailed, Mercari and Rakuma listings (${signals}); it must feel like a collectible STROK SHOP piece, not print-on-demand clipart. Preserve the winner's actual commercial hierarchy: whichever side carries its hero should remain the hero side. The second side must be a distinct supporting composition, never a repeated, mirrored or enlarged copy of the same principal subject.`,
     `ACTUAL MARKET EVIDENCE: ${evidence || "No credible listings were captured; do not invent an unrelated subject."}`,
     "PRODUCTION LOCK: every artwork must fit inside one flat printable rectangle no larger than 24 cm wide by 32 cm high. Keep at least 5 cm clear of collar, shoulder, sleeve, side and hem seams. No all-over print, tiled panels, wraparound artwork, sleeve print, seam crossing or edge-to-edge blocks.",
-    "Use a specific, recognizable editorial subject with a coherent story and a restrained one-to-three-ink palette. Do not substitute random abstract squares, rectangles, grids, color fields or decorative geometry for an actual design idea.",
+    "Use one specific recognizable editorial subject and a coherent story with a restrained one-to-three-ink palette. Valid directions include an illustrated hero, editorial human figure/collage, deliberate exact-text composition, or distressed poster panel only when that grammar is visibly supported by the winner or market references. Do not substitute random abstract squares, rectangles, grids or decorative geometry for an actual design idea.",
+    "COMMERCIAL TASTE LOCK: no radial ring of repeated sticks, eye/oval/swoosh emblem, lone number over an abstract blob, tiny symbol centered on an otherwise blank side, esports/tech/sports identity, arbitrary geometric badge, invented two-word brand name, or motif salad. The design needs a clear subject, hierarchy and reason to exist at thumbnail size.",
+    "If typography is used, specify exact short text with real correctly spelled words. Never ask Flow to improvise fake letters. Avoid holographic foil, glossy vinyl and synthetic 3D effects; use believable absorbed ink, halftone, overprint and controlled distress.",
     fallbackConcept,
     "Do not reuse any recognizable winner subject, symbol, silhouette or composition—even if moved, resized, mirrored or redrawn. Explicitly exclude the winner's stars and horse/equine artwork. Use specific art direction, layered placement and deliberate visual tension.",
     "LABEL CONSTRUCTION LOCK: there are NO hang tags, paper tags, sewn labels or woven tabs. The only label is a heat-transfer marking printed inside the back-neck panel and hidden in exterior product views. Never generate visible label letters, L.G.B., a white locator, fastener, string or cropped tag fragment on the collar, chest or outer back.",

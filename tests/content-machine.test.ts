@@ -225,6 +225,11 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain("unsupportedVisible");
     expect(flowAgentSource).toContain('child.once("exit"');
     expect(flowAgentSource).not.toContain("child.unref()");
+    expect(flowAgentSource).toContain("configureLocalProxyExtension");
+    expect(flowAgentSource).toContain("FLOW_AGENT_PROXY_SPEC");
+    expect(flowAgentSource).toContain("result upload retry");
+    expect(flowAgentSource).toContain("did not confirm the uploaded result slot");
+    expect(flowAgentSource).toContain('action: "set_proxy"');
     expect(flowAgentSource).toContain("ERR_TUNNEL_CONNECTION_FAILED");
     expect(jobsSource).toContain("ERR_TUNNEL_CONNECTION_FAILED");
     expect(flowAgentSource).not.toContain('!url.includes("/fx/tools/flow")');
@@ -304,6 +309,9 @@ describe("content machine", () => {
       expect(prompt).toContain("24 cm wide by 32 cm high");
       expect(prompt).toContain("random abstract squares, rectangles, grids");
       expect(prompt).toContain("MARKET-GROUNDED FALLBACK");
+      expect(prompt).toContain("no radial ring of repeated sticks");
+      expect(prompt).toContain("Preserve the winner's actual commercial hierarchy");
+      expect(prompt).toContain("Never fall back to an arbitrary gothic symbol");
       expect(prompt).not.toContain("shortwave receiver");
       expect(prompt).toContain(
         "copy only its real surface, camera, crop and light",
