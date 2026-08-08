@@ -583,12 +583,9 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
                 }
                 if (!isRetryableGenerationError(error) || plateAttempt === generationMaxAttempts) throw error;
                 await delay(Math.min(2_000 * plateAttempt, 6_000));
-                if (job.mode !== "original-design" || /рабочая область не загрузилась/i.test(reason)) {
+                if (job.mode !== "original-design") {
                   await page.close().catch(() => undefined);
                   page = await context.newPage();
-                  if (job.mode === "original-design" && originalProjectUrl) {
-                    await page.goto(originalProjectUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
-                  }
                 } else if (originalProjectUrl && page.url() !== originalProjectUrl) {
                   await page.goto(originalProjectUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
                 }
@@ -697,9 +694,12 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
                   );
                 }
                 await delay(Math.min(2_000 * generationAttempt, 6_000));
-                if (job.mode !== "original-design") {
+                if (job.mode !== "original-design" || /рабочая область не загрузилась/i.test(reason)) {
                   await page.close().catch(() => undefined);
                   page = await context.newPage();
+                  if (job.mode === "original-design" && originalProjectUrl) {
+                    await page.goto(originalProjectUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+                  }
                 } else if (originalProjectUrl && page.url() !== originalProjectUrl) {
                   await page.goto(originalProjectUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
                 }
