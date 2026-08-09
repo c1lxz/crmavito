@@ -100,6 +100,11 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert "<TryOn>" not in xml["xml"]
     assert "<DeliverySubsidy>" not in xml["xml"]
 
+    repeated_xml = _run_cli("xml", state["id"])
+    assert re.findall(r"<Size>([^<]+)</Size>", repeated_xml["xml"]) == re.findall(
+        r"<Size>([^<]+)</Size>", xml["xml"]
+    )
+
     phone_xml = _run_cli("xml", state["id"], "--phone", "+7 999 111-22-33")
     assert phone_xml["adIds"] == xml["adIds"]
     assert "+79991112233" in phone_xml["xml"]

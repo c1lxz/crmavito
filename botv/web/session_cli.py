@@ -295,10 +295,10 @@ def _session_locations(state: dict, *, include_disabled: bool = False) -> list[d
 
 
 
-def _product_details(name: str, photos: list[Path], color: str | None = None) -> dict:
+def _product_details(name: str, photos: list[Path], color: str | None = None, size: str | None = None) -> dict:
     color_detector = ColorDetector(config.settings_dir / "color_rules.json")
     locations = load_locations(config.settings_dir / "locations.json")
-    sizes = choose_sizes(1)
+    sizes = [size] if size else choose_sizes(1)
     color = color or _binary_color(color_detector.detect(name))
     extra = product_extra(name, sizes[0] if sizes else "")
     return {
@@ -705,7 +705,9 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
             raise SystemExit(f"Не заполнена цена: #{idx}")
         price_fmt = f"{price:,}".replace(",", " ")
         brand = detect_brand(name, brands) or "Без бренда"
-        base_extra = product_extra(f"{name} {title}", sizes[idx - 1])
+        stored_details = product.get("details") if isinstance(product.get("details"), dict) else {}
+        product_size = str(stored_details.get("size") or "").strip() or sizes[idx - 1]
+        base_extra = product_extra(f"{name} {title}", product_size)
         photos = [Path(p) for p in product.get("photos", [])]
         needs_ai = not _description_is_manual(product) and not str(product.get("design") or "").strip()
         allow_ai = needs_ai and ai_products_left > 0
@@ -722,7 +724,7 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
         product["color"] = color
         product["design"] = design_text
         product["description"] = text
-        product["details"] = _product_details(name, photos, color)
+        product["details"] = _product_details(name, photos, color, product_size)
         images = asyncio.run(_image_urls(yd, session_id, name, photos))
         for location_index, extra in enumerate(location_extras(locations, base_extra), 1):
             fallback_number = (idx - 1) * len(locations) + location_index
