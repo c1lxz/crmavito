@@ -83,6 +83,9 @@ describe("Flow apparel production brief", () => {
     });
     expect(isApprovedContentMachineDesignPrompt(bad)).toBe(false);
     expect(isApprovedContentMachineDesignPrompt(buildPromptFromBrief(brief))).toBe(true);
+    expect(isApprovedContentMachineDesignPrompt(
+      buildPromptFromBrief(brief).replace(/ADULT STREETWEAR LOCK:[^.]+\./, ""),
+    )).toBe(false);
   });
 
   it("rejects artwork larger than the production print area", () => {

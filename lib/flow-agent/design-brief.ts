@@ -311,7 +311,7 @@ function assertProductionBrief(brief: ApparelDesignBrief) {
 }
 
 export function isApprovedContentMachineDesignPrompt(prompt?: string) {
-  if (!prompt?.includes("PRODUCTION LOCK") || !prompt.includes("24")) return false;
+  if (!prompt?.includes("PRODUCTION LOCK") || !prompt.includes("ADULT STREETWEAR LOCK") || !prompt.includes("24")) return false;
   const normalized = prompt.replace(/\s+/g, " ");
   const generatedStart = normalized.search(/\bCONCEPT\s+[^:]{1,100}:/i);
   const fallbackStart = normalized.search(/DEMAND-GROUNDED FALLBACK CONCEPT/i);
