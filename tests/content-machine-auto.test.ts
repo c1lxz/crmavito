@@ -64,6 +64,8 @@ describe("content-machine analytics automation", () => {
     expect(source).toContain('garmentType?: "t-shirt"');
     expect(source).toContain("selectStrokProfiles");
     expect(source).toContain("usedWinnerKeys");
+    expect(source).toContain("selectedWinners.push(winner)");
+    expect(source).toContain("winners: selectedWinners.map");
     expect(source).toContain("hasExtractableWinnerLabel(normalized)");
   });
 

@@ -84,6 +84,7 @@ export async function createAnalyticsDesignJobs(input: {
   const sourceCache = new Map<string, Promise<File>>();
   const usedWinnerKeys = new Set<string>();
   const jobs: CodexJob[] = [];
+  const selectedWinners: PrivateWinner[] = [];
   for (let index = 0; index < designCount; index += 1) {
     let winner: PrivateWinner | undefined;
     let source: File | undefined;
@@ -114,12 +115,13 @@ export async function createAnalyticsDesignJobs(input: {
         "Preserve the winner's exact visible internal neck label or heat-transfer marking on every front-facing result whenever the inside back-neck panel is visible. Never invent a replacement label and never place it on the exterior back.",
       ].join(" "),
     }));
+    selectedWinners.push(winner);
   }
 
   return {
     jobs,
     periodDays,
-    winners: winners.map(({ credentials: _credentials, ...winner }) => winner),
+    winners: selectedWinners.map(({ credentials: _credentials, ...winner }) => winner),
   };
 }
 
