@@ -77,10 +77,14 @@ export async function locateInsideNeckLabelTarget(
     try {
       return await locateWithClaude(prepared, fetchFn);
     } catch (claudeError) {
+      try {
+        return await locateInsideNeckLabelTargetByEdges(prepared);
+      } catch (edgeError) {
       const geminiDetail = geminiTransportError instanceof Error
         ? geminiTransportError.message
         : `HTTP ${response?.status || 500}. ${data.error?.message || "Unavailable"}`;
-      throw new Error(`Neck-panel locator unavailable. Gemini: ${geminiDetail}. Claude: ${claudeError instanceof Error ? claudeError.message : String(claudeError)}`);
+        throw new Error(`Neck-panel locator unavailable. Gemini: ${geminiDetail}. Claude: ${claudeError instanceof Error ? claudeError.message : String(claudeError)}. Local collar gate: ${edgeError instanceof Error ? edgeError.message : String(edgeError)}`);
+      }
     }
   }
   const text = data.candidates?.flatMap((candidate) => candidate.content?.parts || [])
@@ -88,6 +92,138 @@ export async function locateInsideNeckLabelTarget(
   const match = text?.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("Neck-panel locator returned invalid JSON.");
   return validateTarget(JSON.parse(match[0]) as Record<string, unknown>);
+}
+
+export async function locateInsideNeckLabelTargetByEdges(image: Buffer): Promise<NeckLabelTarget> {
+  const raw = await sharp(image).rotate().resize({ width: 480, height: 720, fit: "inside", withoutEnlargement: false })
+    .greyscale().blur(0.6).raw().toBuffer({ resolveWithObject: true });
+  const { width, height } = raw.info;
+  const gradient = new Float32Array(width * height);
+  let gradientTotal = 0;
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = y * width + x;
+      const dx = raw.data[index + 1] - raw.data[index - 1];
+      const dy = raw.data[index + width] - raw.data[index - width];
+      const value = Math.hypot(dx, dy);
+      gradient[index] = value;
+      gradientTotal += value;
+    }
+  }
+  const globalGradient = gradientTotal / Math.max(1, (width - 2) * (height - 2));
+  const backgroundLuminance = cornerLuminance(raw.data, width, height);
+  let best: { score: number; centerX: number; centerY: number; radiusX: number; rotationDeg: number } | undefined;
+  for (let centerY = Math.round(height * 0.14); centerY <= height * 0.34; centerY += 6) {
+    // Approved CRM front scenes keep the collar in the central/right torso
+    // band. Excluding the outer shoulder band prevents quilt seams and sleeve
+    // hems from masquerading as a crew-neck ellipse.
+    for (let centerX = Math.round(width * 0.54); centerX <= width * 0.78; centerX += 6) {
+      const garmentContrast = Math.abs(meanLuminance(raw.data, width, height, centerX, centerY, 8) - backgroundLuminance);
+      if (garmentContrast < 35) continue;
+      for (const radiusX of [0.065, 0.08, 0.095, 0.11, 0.125].map((ratio) => width * ratio)) {
+        for (const radiusY of [0.032, 0.044, 0.056, 0.068].map((ratio) => height * ratio)) {
+          if (garmentCoverage(raw.data, width, height, centerX, centerY, radiusX, radiusY, backgroundLuminance) < 0.72) continue;
+          for (const rotationDeg of [-14, -7, 0, 7, 14]) {
+            const outer = ellipseGradientScore(gradient, width, height, centerX, centerY, radiusX, radiusY, rotationDeg);
+            const inner = ellipseGradientScore(gradient, width, height, centerX, centerY, radiusX * 0.78, radiusY * 0.72, rotationDeg);
+            const contourScore = Math.min(outer, inner) * 0.72 + Math.max(outer, inner) * 0.28;
+            const score = contourScore * (1 + Math.min(1.2, garmentContrast / 90));
+            if (!best || score > best.score) best = { score, centerX, centerY, radiusX, rotationDeg };
+          }
+        }
+      }
+    }
+  }
+  const strength = (best?.score || 0) / Math.max(1, globalGradient);
+  if (!best || strength < 1.55) throw new Error("a reliable double collar contour was not found");
+  const detectedCenterX = best.centerX / width;
+  return {
+    // The oblique approved packshot can make one side of the rib stronger than
+    // the other. Pull the contour estimate toward the known torso centre so
+    // the mark lands on the rear panel, not on either rib edge.
+    centerX: detectedCenterX * 0.62 + 0.56 * 0.38,
+    centerY: best.centerY / height,
+    widthRatio: Math.max(0.04, Math.min(0.095, best.radiusX * 0.58 / width)),
+    rotationDeg: Math.max(-7, Math.min(7, best.rotationDeg)),
+    confidence: Math.max(0.75, Math.min(0.94, 0.7 + (strength - 1.4) * 0.12)),
+  };
+}
+
+function garmentCoverage(
+  data: Buffer,
+  width: number,
+  height: number,
+  centerX: number,
+  centerY: number,
+  radiusX: number,
+  radiusY: number,
+  background: number,
+) {
+  let garment = 0;
+  let count = 0;
+  for (const xRatio of [-0.8, -0.4, 0, 0.4, 0.8]) {
+    for (const yRatio of [-0.7, -0.35, 0, 0.35, 0.7]) {
+      if (xRatio * xRatio + yRatio * yRatio > 1) continue;
+      const x = Math.max(0, Math.min(width - 1, Math.round(centerX + radiusX * xRatio)));
+      const y = Math.max(0, Math.min(height - 1, Math.round(centerY + radiusY * yRatio)));
+      if (Math.abs(data[y * width + x] - background) >= 35) garment += 1;
+      count += 1;
+    }
+  }
+  return count ? garment / count : 0;
+}
+
+function cornerLuminance(data: Buffer, width: number, height: number) {
+  return [
+    meanLuminance(data, width, height, width * 0.05, height * 0.05, 12),
+    meanLuminance(data, width, height, width * 0.95, height * 0.05, 12),
+    meanLuminance(data, width, height, width * 0.05, height * 0.95, 12),
+    meanLuminance(data, width, height, width * 0.95, height * 0.95, 12),
+  ].sort((left, right) => left - right)[2];
+}
+
+function meanLuminance(data: Buffer, width: number, height: number, centerX: number, centerY: number, radius: number) {
+  const left = Math.max(0, Math.round(centerX - radius));
+  const right = Math.min(width - 1, Math.round(centerX + radius));
+  const top = Math.max(0, Math.round(centerY - radius));
+  const bottom = Math.min(height - 1, Math.round(centerY + radius));
+  let total = 0;
+  let count = 0;
+  for (let y = top; y <= bottom; y += 2) {
+    for (let x = left; x <= right; x += 2) {
+      total += data[y * width + x];
+      count += 1;
+    }
+  }
+  return count ? total / count : 0;
+}
+
+function ellipseGradientScore(
+  gradient: Float32Array,
+  width: number,
+  height: number,
+  centerX: number,
+  centerY: number,
+  radiusX: number,
+  radiusY: number,
+  rotationDeg: number,
+) {
+  const rotation = rotationDeg * Math.PI / 180;
+  const cosR = Math.cos(rotation);
+  const sinR = Math.sin(rotation);
+  let total = 0;
+  let count = 0;
+  for (let index = 0; index < 48; index += 1) {
+    const angle = index * Math.PI * 2 / 48;
+    const ellipseX = radiusX * Math.cos(angle);
+    const ellipseY = radiusY * Math.sin(angle);
+    const x = Math.round(centerX + ellipseX * cosR - ellipseY * sinR);
+    const y = Math.round(centerY + ellipseX * sinR + ellipseY * cosR);
+    if (x < 1 || x >= width - 1 || y < 1 || y >= height - 1) continue;
+    total += gradient[y * width + x];
+    count += 1;
+  }
+  return count ? total / count : 0;
 }
 
 async function locateWithClaude(image: Buffer, fetchFn: typeof fetch): Promise<NeckLabelTarget> {

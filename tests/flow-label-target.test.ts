@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
-import { locateInsideNeckLabelTarget } from "@/lib/flow-agent/label-target";
+import { locateInsideNeckLabelTarget, locateInsideNeckLabelTargetByEdges } from "@/lib/flow-agent/label-target";
 
 async function sampleImage() {
   return sharp({ create: { width: 500, height: 700, channels: 3, background: "#222" } }).jpeg().toBuffer();
@@ -13,6 +13,14 @@ function geminiResponse(value: Record<string, unknown>) {
 }
 
 describe("inside neck-label target locator", () => {
+  it("locates a double crew-neck contour without an external vision provider", async () => {
+    const image = await sharp(Buffer.from('<svg width="700" height="1000"><rect width="700" height="1000" fill="#aaa"/><path d="M80 120 L620 120 L690 900 L20 900 Z" fill="#181818"/><ellipse cx="390" cy="230" rx="100" ry="62" fill="none" stroke="#777" stroke-width="18"/><ellipse cx="390" cy="230" rx="78" ry="44" fill="none" stroke="#050505" stroke-width="10"/></svg>')).png().toBuffer();
+    const target = await locateInsideNeckLabelTargetByEdges(image);
+    expect(target.centerX).toBeCloseTo(390 / 700, 1);
+    expect(target.centerY).toBeCloseTo(230 / 1000, 1);
+    expect(target.confidence).toBeGreaterThanOrEqual(0.75);
+  });
+
   it("returns a safe normalized target and sends the no-exterior constraint", async () => {
     const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { contents: Array<{ parts: Array<{ text?: string }> }> };
