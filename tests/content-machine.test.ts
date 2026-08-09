@@ -215,7 +215,9 @@ describe("content machine", () => {
     expect(flowAgentSource).toContain('composition: "detail"');
     expect(flowAgentSource).toContain("genuine close product photograph, never a digital crop");
     expect(flowAgentSource).toContain("sceneBackgroundPath");
-    expect(flowAgentSource).toContain('originalStage === "front-anchor"\n              ? [backgroundPath]');
+    expect(flowAgentSource).toContain('originalStage === "front-anchor"\n              ? [frontDesignSeedPath!, backgroundPath]');
+    expect(flowAgentSource).toContain("buildOriginalFrontSeedPrompt");
+    expect(originalDesignSource).toContain("APPROVED NEW DESIGN REFERENCE");
     expect(flowAgentSource).toContain("PRODUCT LAYOUT LOCK");
     expect(originalDesignSource).toContain("GARMENT TYPE LOCK");
     expect(qualitySource).toContain("GARMENT TYPE OVERRIDE");
@@ -239,6 +241,9 @@ describe("content machine", () => {
     expect(flowBrowserSource).toContain('button:has-text("Retry")');
     expect(flowBrowserSource).toContain('node.naturalWidth >= 256 && node.naturalHeight >= 256');
     expect(flowBrowserSource).toContain("matchesAttachedReference");
+    expect(flowBrowserSource).toContain('data-flow-agent-existing');
+    expect(flowBrowserSource).toContain("if (await matchesAttachedReference(page, source, referencePaths))");
+    expect(flowBrowserSource).not.toContain("if (requireLargeImage && await matchesAttachedReference");
     expect(flowBrowserSource).toContain("Flow aspect ratio");
     expect(flowBrowserSource).toContain("reloadedBlankWorkspace");
     expect(flowBrowserSource).toContain("Что-то пошло не так");

@@ -12,13 +12,24 @@ function extractAnchorConcept(basePrompt: string, side: "FRONT" | "BACK") {
   return [title, brief].filter(Boolean).join(" ");
 }
 
+export function buildOriginalFrontSeedPrompt(basePrompt: string) {
+  return [
+    "FRONT DESIGN SOURCE. Invent one new premium adult trap/archive short-sleeve T-shirt on a plain dark neutral studio background.",
+    extractAnchorConcept(basePrompt, "FRONT"),
+    "Show the entire washed-black shirt front with both sleeves, collar and hem. The artwork is one deliberate printable torso composition with strong hierarchy and black negative space, using absorbed off-white and deep oxblood ink.",
+    "No existing stars, horse, animal, bird, owl, mascot, cartoon, moon, zodiac, flowers, esports logo, generic badge, watermark, marketplace UI, hang tag or fake brand name.",
+    "This image is a DESIGN REFERENCE for a later product-photo edit, so make the new artwork unmistakable, commercially credible and fully visible.",
+  ].filter(Boolean).join(" ");
+}
+
 export function buildOriginalStagePrompt(
   stage: OriginalDesignStage,
   basePrompt: string,
   referenceCount: number,
-  options: { preserveWinnerLabel?: boolean } = {},
+  options: { preserveWinnerLabel?: boolean; designReference?: boolean } = {},
 ) {
   const preserveWinnerLabel = options.preserveWinnerLabel === true;
+  const designReference = options.designReference === true;
   const frontLabelRule = preserveWinnerLabel
     ? "WINNER LABEL LOCK: preserve the exact visible internal neck label or heat-transfer marking from the proven source garment. It may appear only on the inside back-neck panel when that inner panel is visible; reproduce its original pixels, lettering, proportions and placement. Never invent a substitute, hang tag, fastener or exterior label."
     : "ABSOLUTE LABEL LOCK: NO hang tag, paper tag, sewn label, woven tab, white locator, plastic fastener, string, cropped tag fragment or loose object at the collar. Do not generate L.G.B., a size mark or any label wording anywhere visible in this exterior product shot.";
@@ -29,11 +40,13 @@ export function buildOriginalStagePrompt(
     .slice(0, 2_400);
   if (stage === "front-anchor") {
     const anchorConcept = extractAnchorConcept(basePrompt, "FRONT");
-    const sourceReferenceRule = referenceCount > 0
+    const sourceReferenceRule = designReference
+      ? "IMAGE 1 is the APPROVED NEW DESIGN REFERENCE. Preserve its new artwork subject, hierarchy, ink palette and placement; ignore its studio background, garment folds, labels and any accidental text."
+      : referenceCount > 0
       ? `IMAGES 1-${referenceCount} show the proven source garment. Learn only its garment construction, fabric and commercial hierarchy; do not copy its artwork, exterior text, brand marks, marketplace background or watermark.`
       : "The proven marketplace photos were analyzed before this generation and are NOT attached. Follow the approved production brief for the new garment; do not invent or reproduce any marketplace background, listing overlay or watermark.";
     const sceneReferenceNumber = referenceCount + 1;
-    const frontAnchorLabelRule = preserveWinnerLabel && referenceCount === 0
+    const frontAnchorLabelRule = preserveWinnerLabel && (referenceCount === 0 || designReference)
       ? "WINNER LABEL LOCK — LABEL POSTPROCESS: leave the visible inside back-neck panel clean and blank, with no letters, logo or invented marking. The program applies the winner's exact extracted marking after generation. Never add a hang tag, fastener, string or exterior label."
       : frontLabelRule;
     return [
@@ -45,7 +58,7 @@ export function buildOriginalStagePrompt(
       sourceReferenceRule,
       `IMAGE ${sceneReferenceNumber} is the ONLY SCENE REFERENCE: copy its exact surface, seams, folds, crop, perspective, camera and light. No other background is allowed. Ignore any garment, print, label and text visible in it.`,
       preserveWinnerLabel
-        ? referenceCount === 0
+        ? referenceCount === 0 || designReference
           ? "FRONT anatomy is mandatory: keep a clean crew neck and expose enough of the blank inside back-neck panel for the programmatic winner-label overlay. Never place any label text on the outer chest."
           : "FRONT anatomy is mandatory: keep a clean crew neck and expose enough of the inside back-neck panel to show the source winner's exact internal marking. Never place it on the outer chest."
         : "FRONT anatomy is mandatory: keep a clean crew neck. The garment has only an internal heat-transfer neck marking on the inside back-neck panel, physically hidden unless that inner panel is genuinely visible. Never place label text on the outer chest.",

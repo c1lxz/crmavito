@@ -51,7 +51,9 @@ async function main() {
   const browser = await chromium.connectOverCDP(cdpUrl);
   try {
     const context = browser.contexts()[0];
-    const page = context.pages()[0] || await context.newPage();
+    const page = context.pages().find((candidate) => /labs\.google\/fx\/.*tools\/flow/i.test(candidate.url()))
+      || context.pages().find((candidate) => /^https?:/i.test(candidate.url()))
+      || await context.newPage();
     const proxyFetch = browserPageFetch(page);
     const products = await Promise.all(job.products.map(async (product) => {
       const filePath = path.join(workDirectory, product.fileName);

@@ -30,7 +30,7 @@ import {
   evaluateFlowProductPhoto,
   type FlowPhotoQualityVerdict,
 } from "../lib/flow-agent/quality";
-import { buildOriginalStagePrompt, type OriginalDesignStage } from "../lib/flow-agent/original-design";
+import { buildOriginalFrontSeedPrompt, buildOriginalStagePrompt, type OriginalDesignStage } from "../lib/flow-agent/original-design";
 import { evaluateShotDiversity } from "../lib/flow-agent/shot-diversity";
 import { applyExactLabelOverlay, createBestLabelAssets } from "../lib/flow-agent/label-lock";
 import {
@@ -477,6 +477,7 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
   console.log(`[flow-agent] ${job.id}: ${work.length} фото`);
   const prompt = await resolveJobPrompt(job, products, context);
   const originalAnchors = new Map<"front" | "back", string>();
+  let frontDesignSeedPath: string | undefined;
   let winnerLabelOverlayPath: string | undefined;
   if (job.mode === "original-design" && job.preserveWinnerLabel) {
     const labelReferencePath = path.join(jobDirectory, "winner-neck-label-reference.png");
@@ -532,6 +533,32 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
             console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: использует исходный утверждённый фон без промежуточной генерации.`);
           }
           const originalStage = job.mode === "original-design" ? originalDesignStage(item.background.slot) : null;
+          if (originalStage === "front-anchor" && !frontDesignSeedPath) {
+            frontDesignSeedPath = path.join(jobDirectory, "front-design-seed.png");
+            console.log(`[flow-agent] ${job.id}: generating a clean front design seed before applying the approved CRM scene.`);
+            await withProgressLog(
+              generateFlowImage({
+                page,
+                flowUrl: originalProjectUrl || flowUrl,
+                references: [],
+                prompt: buildOriginalFrontSeedPrompt(prompt),
+                outputPath: frontDesignSeedPath,
+                timeoutMs: generationTimeoutMs,
+                maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
+                downloadResolution: "2K",
+                model: FLOW_IMAGE_MODELS[activeModelIndex],
+                aspectRatio,
+              }),
+              job.id,
+              item.product.index,
+              item.background.slot,
+              FLOW_IMAGE_MODELS[activeModelIndex],
+            );
+            if (/\/tools\/flow\/project\//i.test(page.url())) {
+              originalProjectUrl = page.url();
+              await writeFile(flowProjectStatePath, originalProjectUrl, "utf8");
+            }
+          }
           const anchorProductPath = originalStage === "front-photo" || originalStage === "front-detail"
             ? requireAnchor(originalAnchors, "front")
             : originalStage === "back-photo" ? requireAnchor(originalAnchors, "back") : undefined;
@@ -539,7 +566,7 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
           const references = job.mode !== "original-design"
             ? [productPath, backgroundPath]
             : originalStage === "front-anchor"
-              ? [backgroundPath]
+              ? [frontDesignSeedPath!, backgroundPath]
               : originalStage === "back-anchor"
                 ? [requireAnchor(originalAnchors, "front"), sceneBackgroundPath]
                 : [productPath, sceneBackgroundPath];
@@ -554,7 +581,7 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
             ? "PRODUCT DETAIL LOCK: this is a genuine close product photograph, never a digital crop or texture-only macro. The complete print occupies 35-50% of frame, while enough shirt silhouette and background remain visible to prove a real camera angle."
             : garmentLayoutLock;
           const baseGenerationPrompt = job.mode === "original-design"
-            ? `${canvasLock} ${stageLayoutLock} ${angleDirection} ${buildOriginalStagePrompt(originalStage!, prompt, originalStage === "front-anchor" ? 0 : 1, { preserveWinnerLabel: job.preserveWinnerLabel })}`
+            ? `${canvasLock} ${stageLayoutLock} ${angleDirection} ${buildOriginalStagePrompt(originalStage!, prompt, 1, { preserveWinnerLabel: job.preserveWinnerLabel, designReference: originalStage === "front-anchor" })}`
             : `${canvasLock} ${angleDirection} ${prompt}`;
           let feedback = "";
           for (let attempt = 1; attempt <= (requiresProductQa || requiresOriginalAnchorQa || requiresDesignPairQa ? qualityMaxAttempts : 1); attempt += 1) {

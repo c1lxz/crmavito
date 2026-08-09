@@ -121,22 +121,31 @@ export async function generateFlowImage(input: {
     ? await freshSessionButton.click({ force: true, timeout: 5_000 }).then(() => true).catch(() => false)
     : false;
   if (startedFreshSession) await input.page.waitForTimeout(500);
+  // If the worker was stopped during the screenshot fallback, its temporary
+  // full-screen clone can survive in the persistent tab and cover the entire
+  // composer. These IDs are created only by captureRenderedResult, so stale
+  // clones are safe to remove before the next request.
+  await input.page.locator('img[id^="flow-agent-capture-"]').evaluateAll((images) => {
+    for (const image of images) image.remove();
+  }).catch(() => undefined);
   if (input.model) await selectFlowImageModel(input.page, input.model, input.aspectRatio);
 
-  const fileInput = await waitForFileInput(input.page);
   let uploadError: unknown;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    try {
-      if (attempt > 1) await fileInput.setInputFiles([]);
-      await fileInput.setInputFiles(input.references);
-      await acceptRightsNotice(input.page);
-      await attachUploadedReferences(input.page, input.references);
-      uploadError = undefined;
-      break;
-    } catch (error) {
-      uploadError = await describeFlowPageError(input.page, error);
-      await input.page.keyboard.press("Escape").catch(() => undefined);
-      await input.page.waitForTimeout(1_500);
+  if (input.references.length) {
+    const fileInput = await waitForFileInput(input.page);
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        if (attempt > 1) await fileInput.setInputFiles([]);
+        await fileInput.setInputFiles(input.references);
+        await acceptRightsNotice(input.page);
+        await attachUploadedReferences(input.page, input.references);
+        uploadError = undefined;
+        break;
+      } catch (error) {
+        uploadError = await describeFlowPageError(input.page, error);
+        await input.page.keyboard.press("Escape").catch(() => undefined);
+        await input.page.waitForTimeout(1_500);
+      }
     }
   }
   if (uploadError) throw uploadError;
@@ -160,9 +169,20 @@ export async function generateFlowImage(input: {
     'button:has-text("Create")',
   ], 90_000);
   if (!generateButton) throw new Error("Flow: не найдена кнопка генерации.");
-  const existingSources = new Set(await input.page.locator("img").evaluateAll(
-    (images) => images.map((image) => (image as HTMLImageElement).src).filter(Boolean),
-  ));
+  const existingSources = new Set(await input.page.locator("img").evaluateAll((images) => images.map((image) => {
+    image.setAttribute("data-flow-agent-existing", "1");
+    return (image as HTMLImageElement).src;
+  }).filter(Boolean)));
+  const generationErrorSelectors = [
+    'text="Что-то пошло не так. Повторите попытку."',
+    'text="Something went wrong. Try again."',
+    'text="Something went wrong"',
+  ];
+  for (const selector of generationErrorSelectors) {
+    await input.page.locator(selector).evaluateAll((nodes) => {
+      for (const node of nodes) node.setAttribute("data-flow-agent-existing-error", "1");
+    }).catch(() => undefined);
+  }
   const generationHttpErrors: string[] = [];
   const captureGenerationError = async (response: Response) => {
     if (response.status() < 400) return;
@@ -177,9 +197,9 @@ export async function generateFlowImage(input: {
   input.page.on("response", captureGenerationError);
   let result: Locator;
   try {
-    await generateButton.click();
+    await generateButton.click({ force: true });
     try {
-    result = await waitForResult(input.page, input.timeoutMs, existingSources, input.references);
+    result = await waitForResult(input.page, input.timeoutMs, existingSources, input.references, generationErrorSelectors);
     } catch (error) {
       const retryButton = isRetryableFlowGenerationError(error)
         ? await firstVisible(input.page, [
@@ -190,7 +210,7 @@ export async function generateFlowImage(input: {
       if (!retryButton) throw error;
       await retryButton.click({ force: true, timeout: 10_000 });
       await input.page.waitForTimeout(750);
-      result = await waitForResult(input.page, input.timeoutMs, existingSources, input.references);
+      result = await waitForResult(input.page, input.timeoutMs, existingSources, input.references, generationErrorSelectors);
     }
   } catch (error) {
     if (generationHttpErrors.length) {
@@ -542,7 +562,7 @@ async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRat
       console.warn("[flow-agent] Flow model settings are hidden; using the current image model.");
       return;
     }
-    await settingsButton.click({ timeout: 10_000 });
+    await settingsButton.click({ force: true, timeout: 10_000 });
     modelButton = await waitForFirstVisible(page, [
       'button[aria-haspopup="menu"]:has-text("Nano Banana")',
     ], 15_000);
@@ -556,7 +576,7 @@ async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRat
   if (await mediaPermissionRadios.count() === 2) {
     const automaticMediaPermission = mediaPermissionRadios.last();
     if (await automaticMediaPermission.getAttribute("aria-checked") !== "true") {
-      await automaticMediaPermission.click({ timeout: 10_000 });
+      await automaticMediaPermission.click({ force: true, timeout: 10_000 });
     }
   }
 
@@ -565,18 +585,18 @@ async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRat
     if (!await ratioTab.isVisible().catch(() => false)) {
       console.warn(`[flow-agent] Flow aspect ratio ${aspectRatio} is hidden; using the current ratio.`);
     } else if (await ratioTab.getAttribute("aria-selected") !== "true") {
-      await ratioTab.click({ timeout: 10_000 });
+      await ratioTab.click({ force: true, timeout: 10_000 });
     }
   }
 
   const selectedText = (await modelButton.innerText()).replace(/\s+/g, " ").trim();
   if (!selectedText.includes(model)) {
-    await modelButton.click({ timeout: 10_000 });
+    await modelButton.click({ force: true, timeout: 10_000 });
     const modelItem = await waitForFirstEnabled(page, [
       `[role="menuitem"]:has-text("${model}")`,
     ], 10_000);
     if (!modelItem) throw new FlowModelLimitError(`Flow: модель ${model} недоступна; переключаюсь на следующую.`);
-    await modelItem.click({ timeout: 10_000 });
+    await modelItem.click({ force: true, timeout: 10_000 });
   }
 
   const saveButton = await waitForFirstEnabled(page, [
@@ -584,7 +604,7 @@ async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRat
     'button:has-text("Save")',
   ], 2_000);
   if (saveButton) {
-    await saveButton.click({ timeout: 10_000 });
+    await saveButton.click({ force: true, timeout: 10_000 });
     await page.waitForTimeout(300);
   }
   await dismissFlowSettings(page);
@@ -618,7 +638,7 @@ async function dismissFlowSettings(page: Page) {
 }
 
 async function enterFlowPrompt(page: Page, promptInput: Locator, prompt: string) {
-  await promptInput.click();
+  await promptInput.click({ force: true });
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.insertText(prompt);
 
@@ -661,8 +681,11 @@ export function compactFlowPrompt(prompt: string) {
       : "";
     const preserveWinnerLabel = normalized.includes("WINNER LABEL LOCK");
     const postprocessWinnerLabel = normalized.includes("LABEL POSTPROCESS");
+    const hasDesignReference = normalized.includes("APPROVED NEW DESIGN REFERENCE");
     const suffix = customAnchorSide === "FRONT"
-      ? preserveWinnerLabel
+      ? hasDesignReference
+        ? "IMAGE 1 is the approved NEW design. IMAGE 2 is our approved CRM product photo and the ONLY scene. EDIT IMAGE 2: preserve its exact grey quilted background, camera, crop, light, black short-sleeve T-shirt, folds, collar, sleeves and hem. Remove every old star and old outer graphic, then apply the distinct artwork from IMAGE 1 as one premium absorbed-ink torso print. Keep the neck area blank for programmatic label restoration. No extra symbol, text, logo, tag or watermark."
+        : preserveWinnerLabel
         ? postprocessWinnerLabel
           ? "EDIT IMAGE 1. Keep the same real black T-shirt, grey quilted background, camera, light, folds, collar, sleeves and hem. Replace only the existing outer graphic with that exact new subject as a small premium torso print. Keep the neck area blank. Photorealistic product photo without text, logos or watermark."
           : "FRONT only. IMAGE 1 is our approved product-photo template. Keep its exact background, camera, crop, light and garment placement, but replace every existing print with that exact new subject on a premium washed-black short-sleeve cotton T-shirt. Preserve the proven internal neck marking only on the visible inside back-neck panel. No extra art, hang tag, marketplace logo or watermark. Photorealistic product photo."
@@ -847,7 +870,7 @@ async function waitForFileInput(page: Page) {
   return page.locator('input[type="file"]').first();
 }
 
-async function waitForResult(page: Page, timeoutMs: number, existingSources: Set<string>, referencePaths: string[]) {
+async function waitForResult(page: Page, timeoutMs: number, existingSources: Set<string>, referencePaths: string[], generationErrorSelectors: string[]) {
   const selectors = [
     '[data-testid="result-image"]',
     'img[alt*="Generated" i]',
@@ -864,11 +887,11 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
       await dismissFlowModelLimit(page);
       throw new FlowModelLimitError(`Flow исчерпал дневной лимит активной модели. ${modelLimit}`);
     }
-    const generationError = await firstVisible(page, [
-      'text="Что-то пошло не так. Повторите попытку."',
-      'text="Something went wrong. Try again."',
-      'text="Something went wrong"',
-    ]);
+    const generationError = await firstVisibleWithoutAttribute(
+      page,
+      generationErrorSelectors,
+      "data-flow-agent-existing-error",
+    );
     if (generationError) {
       throw new Error("Flow generation failed: Flow showed a retryable generation error.");
     }
@@ -878,6 +901,7 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
       for (let index = await candidates.count() - 1; index >= 0; index -= 1) {
         const result = candidates.nth(index);
         if (!await result.isVisible().catch(() => false)) continue;
+        if (await result.getAttribute("data-flow-agent-existing") === "1") continue;
         const source = await result.evaluate((image) => (image as HTMLImageElement).src);
         const ready = await result.evaluate((image, largeOnly) => {
           const node = image as HTMLImageElement;
@@ -886,7 +910,11 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
           return node.naturalWidth > 32 || node.src.startsWith("data:");
         }, requireLargeImage);
         if (!ready || existingSources.has(source)) continue;
-        if (requireLargeImage && await matchesAttachedReference(page, source, referencePaths)) {
+        // Flow currently marks uploaded media previews with the same
+        // data-testid used by generated results. Checking references only for
+        // the broad `img` fallback lets an untouched upload escape through the
+        // more specific selectors and be uploaded to CRM as a generation.
+        if (await matchesAttachedReference(page, source, referencePaths)) {
           existingSources.add(source);
           continue;
         }
@@ -909,6 +937,18 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
     await page.waitForTimeout(400);
   }
   throw new Error(`Flow не вернул изображение за ${Math.round(timeoutMs / 1000)} сек.`);
+}
+
+async function firstVisibleWithoutAttribute(page: Page, selectors: string[], attribute: string) {
+  for (const selector of selectors) {
+    const candidates = page.locator(selector);
+    for (let index = await candidates.count() - 1; index >= 0; index -= 1) {
+      const candidate = candidates.nth(index);
+      if (await candidate.getAttribute(attribute) !== null) continue;
+      if (await candidate.isVisible().catch(() => false)) return candidate;
+    }
+  }
+  return null;
 }
 
 async function matchesAttachedReference(page: Page, source: string, referencePaths: string[]) {
