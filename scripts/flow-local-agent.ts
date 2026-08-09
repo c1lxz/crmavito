@@ -204,10 +204,8 @@ async function waitForLocalFlowRecovery() {
   while (true) {
     try {
       const session = await launchFlowSession();
-      const flowPages = session.context.pages().filter((candidate) => isFlowRouteUrl(candidate.url()));
-      for (const page of flowPages) {
-        if (!await isFlowMarketingLandingPage(page)) return;
-      }
+      const page = await prepareControlPage(session.context, undefined, session.preservePages);
+      if ((await probeFlow(page)).state === "ready") return;
     } catch {
       // Keep the claimed job paused until the user finishes the one-time login.
     }
@@ -428,7 +426,18 @@ async function probeFlow(page: import("playwright").Page): Promise<FlowAvailabil
     if (currentUrl !== targetUrl) {
       await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
     }
+    // Google can first render the saved Flow project URL and only then finish
+    // an OAuth redirect. Give that redirect a moment to settle before a job is
+    // claimed, otherwise research starts against a page that is already leaving.
+    await page.waitForTimeout(2_500);
     const url = page.url();
+    const googleSignInVisible = await page.locator('input[type="email"], input[autocomplete="username"]')
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (url.includes("accounts.google.") || googleSignInVisible) {
+      return { state: "auth_required", message: "В профиле локального агента требуется вход в Google." };
+    }
     if (isFlowAccessGateUrl(url)) {
       return {
         state: "blocked",
@@ -446,9 +455,6 @@ async function probeFlow(page: import("playwright").Page): Promise<FlowAvailabil
       .catch(() => false);
     if (url.includes("/unsupported-country") || unsupportedVisible) {
       return { state: "blocked", message: "Google Flow показывает видимую блокировку региона для этого локального агента." };
-    }
-    if (url.includes("accounts.google.")) {
-      return { state: "auth_required", message: "В профиле локального агента требуется вход в Google." };
     }
     return { state: "ready", message: "Google Flow доступен; агент готов к генерации." };
   } catch (error) {
