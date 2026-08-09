@@ -44,4 +44,19 @@ describe("inside neck-label target locator", () => {
       .resolves.toMatchObject({ centerX: 0.5, centerY: 0.2 });
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
+
+  it("falls back to Claude vision when Gemini is blocked by region", async () => {
+    vi.stubEnv("CLAUDE_API_KEY", "claude-test");
+    vi.stubEnv("CLAUDE_BASE_URL", "https://claude.example.test");
+    try {
+      const fetchFn = vi.fn(async (url: string | URL | Request) => String(url).includes("claude.example.test")
+        ? new Response(JSON.stringify({ content: [{ type: "text", text: JSON.stringify({ visiblePanel: true, confidence: 0.91, centerX: 0.48, centerY: 0.22, widthRatio: 0.07, rotationDeg: 2 }) }] }), { status: 200 })
+        : new Response(JSON.stringify({ error: { message: "User location is not supported" } }), { status: 400 }));
+      await expect(locateInsideNeckLabelTarget(await sampleImage(), { fetchFn: fetchFn as typeof fetch, apiKey: "gemini-test" }))
+        .resolves.toMatchObject({ centerX: 0.48, centerY: 0.22, confidence: 0.91 });
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

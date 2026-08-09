@@ -1,4 +1,11 @@
 import sharp from "sharp";
+import { ProxyAgent } from "undici";
+import { getClaudeStatus } from "../ai/claude";
+
+type ProxyFetchInit = RequestInit & { dispatcher?: ProxyAgent };
+
+let cachedProxyUrl: string | null = null;
+let cachedProxyAgent: ProxyAgent | null = null;
 
 export type NeckLabelTarget = {
   centerX: number;
@@ -11,6 +18,11 @@ export type NeckLabelTarget = {
 type GeminiResponse = {
   candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   error?: { message?: string };
+};
+
+type ClaudeResponse = {
+  content?: Array<{ type?: string; text?: string }>;
+  error?: { message?: string } | string;
 };
 
 export async function locateInsideNeckLabelTarget(
@@ -28,10 +40,12 @@ export async function locateInsideNeckLabelTarget(
   let response: Response | undefined;
   let raw = "";
   let data: GeminiResponse = {};
-  for (const candidateModel of models) {
-    response = await fetchFn(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent`,
-      {
+  let geminiTransportError: unknown;
+  try {
+    for (const candidateModel of models) {
+      response = await fetchFn(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent`,
+        withVisionProxy({
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
@@ -49,19 +63,70 @@ export async function locateInsideNeckLabelTarget(
         generationConfig: { temperature: 0, responseMimeType: "application/json" },
       }),
       signal: AbortSignal.timeout(60_000),
-      },
-    );
-    raw = await response.text();
-    data = {};
-    try { data = JSON.parse(raw) as GeminiResponse; } catch { /* handled below */ }
-    if (response.ok || response.status !== 429) break;
+        }, fetchFn),
+      );
+      raw = await response.text();
+      data = {};
+      try { data = JSON.parse(raw) as GeminiResponse; } catch { /* handled below */ }
+      if (response.ok || response.status !== 429) break;
+    }
+  } catch (error) {
+    geminiTransportError = error;
   }
-  if (!response?.ok) throw new Error(`Neck-panel locator: HTTP ${response?.status || 500}. ${data.error?.message || "Unavailable"}`);
+  if (!response?.ok) {
+    try {
+      return await locateWithClaude(prepared, fetchFn);
+    } catch (claudeError) {
+      const geminiDetail = geminiTransportError instanceof Error
+        ? geminiTransportError.message
+        : `HTTP ${response?.status || 500}. ${data.error?.message || "Unavailable"}`;
+      throw new Error(`Neck-panel locator unavailable. Gemini: ${geminiDetail}. Claude: ${claudeError instanceof Error ? claudeError.message : String(claudeError)}`);
+    }
+  }
   const text = data.candidates?.flatMap((candidate) => candidate.content?.parts || [])
     .map((part) => part.text || "").find(Boolean);
   const match = text?.match(/\{[\s\S]*\}/);
   if (!match) throw new Error("Neck-panel locator returned invalid JSON.");
-  const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+  return validateTarget(JSON.parse(match[0]) as Record<string, unknown>);
+}
+
+async function locateWithClaude(image: Buffer, fetchFn: typeof fetch): Promise<NeckLabelTarget> {
+  const apiKey = (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY)?.trim();
+  if (!apiKey) throw new Error("Claude neck-panel locator is not configured.");
+  const status = getClaudeStatus();
+  const response = await fetchFn(`${status.baseUrl}/v1/messages`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "accept-encoding": "identity",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: status.model,
+      max_tokens: 350,
+      temperature: 0,
+      messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: image.toString("base64") } },
+        { type: "text", text: neckPanelPrompt() },
+      ] }],
+    }),
+    signal: AbortSignal.timeout(90_000),
+  });
+  const raw = await response.text();
+  let data: ClaudeResponse = {};
+  try { data = raw ? JSON.parse(raw) as ClaudeResponse : {}; } catch { /* handled below */ }
+  if (!response.ok) {
+    const detail = (typeof data.error === "string" ? data.error : data.error?.message) || raw.slice(0, 240);
+    throw new Error(`HTTP ${response.status}. ${detail}`);
+  }
+  const text = data.content?.filter((part) => part.type === "text").map((part) => part.text || "").join("\n");
+  const match = text?.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("Claude returned invalid neck-panel JSON.");
+  return validateTarget(JSON.parse(match[0]) as Record<string, unknown>);
+}
+
+function validateTarget(parsed: Record<string, unknown>): NeckLabelTarget {
   const confidence = Number(parsed.confidence);
   const centerX = Number(parsed.centerX);
   const centerY = Number(parsed.centerY);
@@ -76,4 +141,44 @@ export async function locateInsideNeckLabelTarget(
     throw new Error("Neck-panel locator returned unsafe label coordinates.");
   }
   return { centerX, centerY, widthRatio, rotationDeg, confidence };
+}
+
+function neckPanelPrompt() {
+  return [
+    "Locate the visible INSIDE rear neck panel of this front-facing flat-lay T-shirt.",
+    "Target only the fabric enclosed just below the rear half of the crew-neck ribbing, where a heat-transfer brand mark physically belongs.",
+    "Never target outer collar rib, exterior chest, shoulder, background, seam, artwork or empty space above the shirt.",
+    "The complete label must fit inside the neck opening. If that inside panel is not clearly visible, set visiblePanel false.",
+    "Coordinates are normalized 0..1 over the full image. widthRatio normally 0.04..0.10; rotationDeg -20..20.",
+    "Return only JSON: {\"visiblePanel\":boolean,\"confidence\":number,\"centerX\":number,\"centerY\":number,\"widthRatio\":number,\"rotationDeg\":number}.",
+  ].join("\n");
+}
+
+function withVisionProxy(init: RequestInit, fetchFn: typeof fetch): RequestInit {
+  if (fetchFn !== fetch) return init;
+  const proxyUrl = getVisionProxyUrl();
+  if (!proxyUrl) return init;
+  if (cachedProxyUrl !== proxyUrl) {
+    cachedProxyUrl = proxyUrl;
+    cachedProxyAgent = new ProxyAgent(proxyUrl);
+  }
+  return { ...init, dispatcher: cachedProxyAgent || undefined } as ProxyFetchInit;
+}
+
+function getVisionProxyUrl(): string | null {
+  const raw = process.env.CONTENT_MACHINE_VISION_PROXY_URL?.trim();
+  if (!raw) return null;
+  const schemeMatch = raw.match(/^(https?):\/\/(.+)$/i);
+  const value = schemeMatch?.[2] || raw;
+  const authAtHost = value.match(/^([^:@]+):([^@]+)@([^:]+):(\d+)$/);
+  if (authAtHost) {
+    const [, username, password, host, port] = authAtHost;
+    return `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}`;
+  }
+  const parts = value.split(":");
+  if (parts.length === 4) {
+    const [host, port, username, password] = parts;
+    return `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}`;
+  }
+  return schemeMatch ? raw : `http://${raw}`;
 }
