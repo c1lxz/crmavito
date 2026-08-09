@@ -23,9 +23,15 @@ export async function locateInsideNeckLabelTarget(
   const prepared = await sharp(image).rotate()
     .resize({ width: 1400, height: 1400, fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 86, mozjpeg: true }).toBuffer();
-  const response = await (options.fetchFn || fetch)(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    {
+  const fetchFn = options.fetchFn || fetch;
+  const models = [...new Set([model, "gemini-2.5-flash-lite"])];
+  let response: Response | undefined;
+  let raw = "";
+  let data: GeminiResponse = {};
+  for (const candidateModel of models) {
+    response = await fetchFn(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent`,
+      {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
@@ -43,12 +49,14 @@ export async function locateInsideNeckLabelTarget(
         generationConfig: { temperature: 0, responseMimeType: "application/json" },
       }),
       signal: AbortSignal.timeout(60_000),
-    },
-  );
-  const raw = await response.text();
-  let data: GeminiResponse = {};
-  try { data = JSON.parse(raw) as GeminiResponse; } catch { /* handled below */ }
-  if (!response.ok) throw new Error(`Neck-panel locator: HTTP ${response.status}. ${data.error?.message || "Unavailable"}`);
+      },
+    );
+    raw = await response.text();
+    data = {};
+    try { data = JSON.parse(raw) as GeminiResponse; } catch { /* handled below */ }
+    if (response.ok || response.status !== 429) break;
+  }
+  if (!response?.ok) throw new Error(`Neck-panel locator: HTTP ${response?.status || 500}. ${data.error?.message || "Unavailable"}`);
   const text = data.candidates?.flatMap((candidate) => candidate.content?.parts || [])
     .map((part) => part.text || "").find(Boolean);
   const match = text?.match(/\{[\s\S]*\}/);

@@ -35,4 +35,13 @@ describe("inside neck-label target locator", () => {
     await expect(locateInsideNeckLabelTarget(await sampleImage(), { fetchFn: fetchFn as typeof fetch, apiKey: "test" }))
       .rejects.toThrow("unsafe label coordinates");
   });
+
+  it("falls back to Flash Lite when the primary vision model is rate limited", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => String(url).includes("flash-lite")
+      ? geminiResponse({ visiblePanel: true, confidence: 0.9, centerX: 0.5, centerY: 0.2, widthRatio: 0.06, rotationDeg: 0 })
+      : new Response(JSON.stringify({ error: { message: "quota" } }), { status: 429 }));
+    await expect(locateInsideNeckLabelTarget(await sampleImage(), { fetchFn: fetchFn as typeof fetch, apiKey: "test" }))
+      .resolves.toMatchObject({ centerX: 0.5, centerY: 0.2 });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
 });
