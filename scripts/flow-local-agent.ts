@@ -264,6 +264,13 @@ async function configureLocalProxyExtension(browser: Browser) {
         chrome?: { runtime?: { sendMessage?: (message: unknown) => Promise<{ status?: string }> } };
       }).chrome;
       if (!extension?.runtime?.sendMessage) throw new Error("Simple Proxy Switcher is not loaded.");
+      // The extension can be configured to clear cookies/cache and reload all
+      // tabs whenever a proxy is applied. That destroys the one-time Flow OAuth
+      // session, so the local agent must explicitly disable those side effects.
+      for (const key of ["remove_cookies", "remove_cache", "reload_current_tab", "reload_other_tabs"]) {
+        const option = await extension.runtime.sendMessage({ action: "set_option", key, val: false });
+        if (option?.status !== "ok") throw new Error(`Simple Proxy Switcher did not disable ${key}.`);
+      }
       return extension.runtime.sendMessage({ action: "set_proxy", data: proxy });
     }, { user, pass, ip, port });
     if (response?.status !== "ok") throw new Error("Simple Proxy Switcher did not apply the proxy.");

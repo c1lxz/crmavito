@@ -592,11 +592,34 @@ async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRat
   const selectedText = (await modelButton.innerText()).replace(/\s+/g, " ").trim();
   if (!selectedText.includes(model)) {
     await modelButton.click({ force: true, timeout: 10_000 });
-    const modelItem = await waitForFirstEnabled(page, [
-      `[role="menuitem"]:has-text("${model}")`,
-    ], 10_000);
+    const deadline = Date.now() + 10_000;
+    let modelItem: Locator | null = null;
+    while (!modelItem && Date.now() < deadline) {
+      const candidates = await page.locator('[role="menuitem"]').all();
+      for (const candidate of candidates) {
+        const label = (await candidate.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+        if (!label.endsWith(model)) continue;
+        if (!await candidate.isVisible().catch(() => false)) continue;
+        if (!await candidate.isEnabled().catch(() => false)) continue;
+        modelItem = candidate;
+        break;
+      }
+      if (!modelItem) await page.waitForTimeout(250);
+    }
     if (!modelItem) throw new FlowModelLimitError(`Flow: модель ${model} недоступна; переключаюсь на следующую.`);
-    await modelItem.click({ force: true, timeout: 10_000 });
+    // Radix can expose a visible menu item that Playwright still classifies as
+    // outside the viewport. Dispatch the same native click on the exact item.
+    await modelItem.evaluate((element) => (element as HTMLElement).click());
+    await page.waitForTimeout(200);
+    const updatedModelButton = await firstVisible(page, [
+      'button[aria-haspopup="menu"]:has-text("Nano Banana")',
+    ]);
+    if (updatedModelButton) {
+      const updatedText = (await updatedModelButton.innerText()).replace(/\s+/g, " ").trim();
+      if (!updatedText.includes(model)) {
+        throw new Error(`Flow: model picker did not switch to ${model}.`);
+      }
+    }
   }
 
   const saveButton = await waitForFirstEnabled(page, [
@@ -614,6 +637,22 @@ async function dismissFlowSettings(page: Page) {
   const visibleRadio = page.locator('[role="radio"]:visible').first();
   if (!await visibleRadio.isVisible().catch(() => false)) return;
 
+  // Close a portalled model dropdown before closing the settings panel.
+  await page.keyboard.press("Escape").catch(() => undefined);
+  await page.waitForTimeout(100);
+  if (!await visibleRadio.isVisible().catch(() => false)) return;
+
+  // The Russian Flow UI has no accessible label on the X button, while the
+  // Save action is stable and closes the same panel without discarding state.
+  const saveAndClose = page.locator('button:visible').filter({
+    hasText: /^(?:Save|\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c)$/,
+  }).first();
+  if (await saveAndClose.isVisible().catch(() => false)) {
+    await saveAndClose.evaluate((element) => (element as HTMLElement).click()).catch(() => undefined);
+    await page.waitForTimeout(300);
+  }
+  if (!await visibleRadio.isVisible().catch(() => false)) return;
+
   const settingsPanel = visibleRadio.locator(
     'xpath=ancestor::*[.//button[contains(normalize-space(.), "close")]][1]',
   );
@@ -621,6 +660,15 @@ async function dismissFlowSettings(page: Page) {
   if (await panelClose.isVisible().catch(() => false)) {
     await panelClose.click({ force: true, timeout: 5_000 }).catch(() => undefined);
     await page.waitForTimeout(300);
+  }
+  if (await visibleRadio.isVisible().catch(() => false)) {
+    const plainClose = page.locator('button:visible').filter({ hasText: "close" }).first();
+    if (await plainClose.isVisible().catch(() => false)) {
+      await plainClose.click({ force: true, timeout: 5_000 }).catch(async () => {
+        await plainClose.evaluate((element) => (element as HTMLElement).click()).catch(() => undefined);
+      });
+      await page.waitForTimeout(300);
+    }
   }
   if (await visibleRadio.isVisible().catch(() => false)) {
     const labelledClose = page.locator([
