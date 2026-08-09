@@ -207,6 +207,15 @@ export async function resolveProductImage(
 ): Promise<AvitoResult<string>> {
   const reasons: string[] = [];
 
+  // BotV XML is authoritative for our own STROK listings and preserves the
+  // original product photo with its neck label. Avito often omits images for
+  // archived analytics winners, so avoid the unreliable network path first.
+  if (p.name) {
+    const fromBotv = await findBotvImageByTitle(p.name);
+    if (fromBotv) return { ok: true, value: fromBotv };
+    reasons.push("BOTV: нет фото в XML");
+  }
+
   if (p.avitoListingUrl) {
     const fromHtml = await fetchAvitoListingImage(p.avitoListingUrl);
     if (fromHtml.ok) return fromHtml;
@@ -223,12 +232,6 @@ export async function resolveProductImage(
     reasons.push(`API: ${fromApi.reason}`);
   } else {
     reasons.push("API: нет avitoItemId");
-  }
-
-  if (p.name) {
-    const fromBotv = await findBotvImageByTitle(p.name);
-    if (fromBotv) return { ok: true, value: fromBotv };
-    reasons.push("BOTV: нет фото в XML");
   }
 
   return { ok: false, reason: reasons.join(" | ") };
