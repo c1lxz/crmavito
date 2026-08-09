@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   masterFeedKey,
   mergeAvitoMasterXml,
+  reconcileAvitoMasterXml,
   readMasterXmlFeed,
   rollbackMasterXmlFeed,
   saveMasterXmlFeed,
@@ -13,6 +14,12 @@ import {
 function xml(ads: Array<{ id: string; title: string }>) {
   return `<?xml version="1.0" encoding="UTF-8"?><Ads formatVersion="3" target="Avito.ru">${ads
     .map((ad) => `<Ad><Id>${ad.id}</Id><Title>${ad.title}</Title></Ad>`)
+    .join("")}</Ads>`;
+}
+
+function fullXml(ads: Array<{ id: string; title: string; address: string; image?: string }>) {
+  return `<?xml version="1.0" encoding="UTF-8"?><Ads formatVersion="3" target="Avito.ru">${ads
+    .map((ad) => `<Ad><Id>${ad.id}</Id><Title>${ad.title}</Title><Address>${ad.address}</Address><Images><Image url="https://example.test/${ad.image ?? `${ad.id}.jpg`}" /></Images></Ad>`)
     .join("")}</Ads>`;
 }
 
@@ -57,5 +64,53 @@ describe("safe Avito master XML", () => {
       else process.env.BOTV_MASTER_FEEDS_DIR = previousDirectory;
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it("rebuilds the feed from active autoload ads and drops stale broken blocks", () => {
+    const result = reconcileAvitoMasterXml(
+      fullXml([
+        { id: "active-1", title: "Футболка Keep Me", address: "Москва, ул. Тестовая, 1" },
+        { id: "stale-2", title: "Broken old ad", address: "Москва, ул. Тестовая, 1" },
+      ]),
+      fullXml([{ id: "new-3", title: "Худи New Design", address: "Москва, ул. Тестовая, 1" }]),
+      {
+        activeListings: [{ avitoId: "100", externalId: "active-1", title: "Футболка Keep Me", address: "Москва, ул. Тестовая, 1" }],
+        retiredExternalIds: [],
+        activeAds: 1,
+        autoloadAds: 1,
+        manualAds: 0,
+      },
+    );
+
+    expect(result.adIds).toEqual(["active-1", "new-3"]);
+    expect(result.removedAds).toBe(1);
+    expect(result.preservedActiveAds).toBe(1);
+  });
+
+  it("skips a repeated drop already active under another XML id", () => {
+    const result = reconcileAvitoMasterXml(
+      fullXml([{ id: "active-1", title: "Футболка LGB Stars and Beast Edition", address: "Москва, Болотниковская ул., 12", image: "same.jpg" }]),
+      fullXml([{ id: "new-2", title: "Лонгслив LGB Stars and Beast", address: "Москва, Болотниковская ул., 12", image: "same.jpg" }]),
+      {
+        activeListings: [{ avitoId: "100", externalId: "active-1", title: "Футболка LGB Stars and Beast Edition", address: "Москва, Болотниковская ул., 12" }],
+        retiredExternalIds: [],
+        activeAds: 1,
+        autoloadAds: 1,
+        manualAds: 0,
+      },
+    );
+
+    expect(result.adIds).toEqual(["active-1"]);
+    expect(result.skippedDuplicateIds).toEqual(["new-2"]);
+  });
+
+  it("stops when an active XML ad cannot be reconstructed", () => {
+    expect(() => reconcileAvitoMasterXml(null, fullXml([{ id: "new-1", title: "New", address: "Москва" }]), {
+      activeListings: [{ avitoId: "100", externalId: "missing-active", title: "Existing", address: "Москва" }],
+      retiredExternalIds: [],
+      activeAds: 1,
+      autoloadAds: 1,
+      manualAds: 0,
+    })).toThrow(/missing-active/);
   });
 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getAvitoCredentials, getAvitoProfileAutoloadSettings } from "@/lib/avito/profile-store";
 import { fetchAvitoAutoloadProfile, publishAvitoXml } from "@/lib/avito/publish";
+import { fetchAvitoProfileInventory } from "@/lib/avito/profile-inventory";
 import { inspectAvitoXml } from "@/lib/botv/custom-xml-feed";
 import {
   masterFeedKey,
@@ -51,11 +52,15 @@ export async function POST(request: Request) {
     if (!profileScope) throw new Error("Выберите профиль Avito для безопасного мастер-фида.");
     const key = masterFeedKey(profileScope);
     const feedUrl = `${publicBaseUrl(request)}/v-data/botv/master-xml/${key}`;
-    const autoloadProfile = await fetchAvitoAutoloadProfile(credentials);
+    const [autoloadProfile, profileInventory] = await Promise.all([
+      fetchAvitoAutoloadProfile(credentials),
+      fetchAvitoProfileInventory(credentials),
+    ]);
     const master = await prepareMasterXmlFeed({
       key,
       incomingXml: inspected.xml,
       bootstrapFeedUrl: autoloadProfile.feeds[0]?.url,
+      profileInventory,
     });
     let saved: SavedMasterXml | null = null;
     let publish;
@@ -81,6 +86,12 @@ export async function POST(request: Request) {
         updatedAds: master.updatedAds,
         removedAds: master.removedAds,
         totalAds: master.ads,
+        skippedDuplicateAds: master.skippedDuplicateAds ?? 0,
+        skippedDuplicateIds: master.skippedDuplicateIds ?? [],
+        skippedRetiredIds: master.skippedRetiredIds ?? [],
+        activeProfileAds: master.activeProfileAds,
+        manualProfileAds: master.manualProfileAds,
+        preservedActiveAds: master.preservedActiveAds,
       },
       publish,
     });

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { buildXml } from "@/lib/botv/session";
 import { fetchAvitoAutoloadProfile, publishAvitoXml, resolveAvitoXmlContactPhone } from "@/lib/avito/publish";
+import { fetchAvitoProfileInventory } from "@/lib/avito/profile-inventory";
 import { getAvitoCredentials, getAvitoProfileAutoloadSettings } from "@/lib/avito/profile-store";
 import {
   masterFeedKey,
@@ -76,11 +77,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const xmlResult = await buildXml(id, contactPhone, { profileId: profileScope });
     const key = masterFeedKey(profileScope);
     const feedUrl = publicMasterXmlFeedUrl(request, key);
-    const autoloadProfile = await fetchAvitoAutoloadProfile(credentials);
+    const [autoloadProfile, profileInventory] = await Promise.all([
+      fetchAvitoAutoloadProfile(credentials),
+      fetchAvitoProfileInventory(credentials),
+    ]);
     const master = await prepareMasterXmlFeed({
       key,
       incomingXml: xmlResult.xml,
       bootstrapFeedUrl: autoloadProfile.feeds[0]?.url,
+      profileInventory,
     });
     let saved: SavedMasterXml | null = null;
     let publish;
@@ -106,6 +111,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         updatedAds: master.updatedAds,
         removedAds: master.removedAds,
         totalAds: master.ads,
+        skippedDuplicateAds: master.skippedDuplicateAds ?? 0,
+        skippedDuplicateIds: master.skippedDuplicateIds ?? [],
+        skippedRetiredIds: master.skippedRetiredIds ?? [],
+        activeProfileAds: master.activeProfileAds,
+        manualProfileAds: master.manualProfileAds,
+        preservedActiveAds: master.preservedActiveAds,
       },
       publish,
     });
