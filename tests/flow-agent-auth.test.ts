@@ -76,6 +76,9 @@ describe("Flow agent authentication", () => {
     expect(agent).toContain("keeping every CRM job queued until the existing profile is ready");
     expect(agent).toContain("await page.waitForTimeout(2_500)");
     expect(agent).toContain("googleSignInVisible");
+    expect(agent).toContain("requireWorkspace: true");
+    expect(agent).toContain("promptVisible");
+    expect(agent).toContain("задания остаются в очереди");
     expect(agent.indexOf("const availability = await probeLocalFlowBeforeClaim()"))
       .toBeLessThan(agent.indexOf("job = await claimJob()"));
     expect(agent).toContain("Агент готов; Flow откроется только при запуске генерации.");

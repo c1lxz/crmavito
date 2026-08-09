@@ -192,7 +192,7 @@ async function probeLocalFlowBeforeClaim(): Promise<FlowAvailability> {
   const session = await launchFlowSession();
   try {
     const page = await prepareControlPage(session.context, undefined, session.preservePages);
-    return await probeFlow(page);
+    return await probeFlow(page, { requireWorkspace: true });
   } catch (error) {
     return { state: "error", message: error instanceof Error ? error.message : String(error) };
   } finally {
@@ -205,7 +205,7 @@ async function waitForLocalFlowRecovery() {
     try {
       const session = await launchFlowSession();
       const page = await prepareControlPage(session.context, undefined, session.preservePages);
-      if ((await probeFlow(page)).state === "ready") return;
+      if ((await probeFlow(page, { requireWorkspace: true })).state === "ready") return;
     } catch {
       // Keep the claimed job paused until the user finishes the one-time login.
     }
@@ -412,7 +412,10 @@ async function minimizeBrowserWindow(context: BrowserContext, page: import("play
   }
 }
 
-async function probeFlow(page: import("playwright").Page): Promise<FlowAvailability> {
+async function probeFlow(
+  page: import("playwright").Page,
+  options: { requireWorkspace?: boolean } = {},
+): Promise<FlowAvailability> {
   try {
     const savedProjectUrl = await readFile(flowProjectStatePath, "utf8")
       .then((value) => value.trim())
@@ -455,6 +458,15 @@ async function probeFlow(page: import("playwright").Page): Promise<FlowAvailabil
       .catch(() => false);
     if (url.includes("/unsupported-country") || unsupportedVisible) {
       return { state: "blocked", message: "Google Flow показывает видимую блокировку региона для этого локального агента." };
+    }
+    if (options.requireWorkspace) {
+      const promptVisible = await page.locator('[data-testid="prompt"], textarea, [contenteditable="true"]')
+        .first()
+        .isVisible()
+        .catch(() => false);
+      if (!promptVisible || !/\/tools\/flow\/project\//i.test(url)) {
+        return { state: "error", message: "Google Flow ещё не показал рабочее поле проекта; задания остаются в очереди." };
+      }
     }
     return { state: "ready", message: "Google Flow доступен; агент готов к генерации." };
   } catch (error) {
