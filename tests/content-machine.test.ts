@@ -23,6 +23,8 @@ const diagnosticsSource = fs.readFileSync(path.join(root, "components/content-ma
 const draftSource = fs.readFileSync(path.join(root, "lib/client/content-machine-draft.ts"), "utf8");
 const flowBrowserSource = fs.readFileSync(path.join(root, "lib/flow-agent/browser.ts"), "utf8");
 const flowAgentSource = fs.readFileSync(path.join(root, "scripts/flow-local-agent.ts"), "utf8");
+const originalDesignSource = fs.readFileSync(path.join(root, "lib/flow-agent/original-design.ts"), "utf8");
+const qualitySource = fs.readFileSync(path.join(root, "lib/flow-agent/quality.ts"), "utf8");
 const generateRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-machine/generate-image/route.ts"), "utf8");
 const backgroundsRouteSource = fs.readFileSync(path.join(root, "app/api/ai/content-machine/backgrounds/route.ts"), "utf8");
 const storageSource = fs.readFileSync(path.join(root, "lib/ai/content-machine.ts"), "utf8");
@@ -192,6 +194,10 @@ describe("content machine", () => {
     expect(draftSource).toContain("indexedDB.open");
     expect(draftSource).toContain("products: Array<{ id: string; file: File }>");
     expect(flowBrowserSource).toContain("downloadResultInsideBrowser");
+    expect(flowBrowserSource).toContain("normalize it to 2K");
+    expect(flowBrowserSource).toContain("result overlay can intercept");
+    expect(flowBrowserSource).toContain("using the current image model");
+    expect(flowBrowserSource).not.toContain('throw new Error("Flow: не найдена кнопка скачивания результата в 2K.")');
     expect(flowBrowserSource).toContain('button:has-text("edit_square")');
     expect(flowBrowserSource).toContain("automaticMediaPermission");
     expect(flowBrowserSource).toContain(".flow-download");
@@ -208,11 +214,14 @@ describe("content machine", () => {
     expect(flowAgentSource).not.toContain("createExactFrontPrintDetail");
     expect(flowAgentSource).toContain('composition: "detail"');
     expect(flowAgentSource).toContain("genuine close product photograph, never a digital crop");
-    expect(flowAgentSource).toContain("EMPTY SCENE PLATE");
     expect(flowAgentSource).toContain("sceneBackgroundPath");
     expect(flowAgentSource).toContain('originalStage === "front-anchor"\n              ? [backgroundPath]');
     expect(flowAgentSource).toContain("PRODUCT LAYOUT LOCK");
-    expect(flowAgentSource).toContain("backgroundPlatesDirectory");
+    expect(originalDesignSource).toContain("GARMENT TYPE LOCK");
+    expect(qualitySource).toContain("GARMENT TYPE OVERRIDE");
+    expect(flowAgentSource).toContain("исходный утверждённый фон без промежуточной генерации");
+    expect(flowAgentSource).not.toContain("EMPTY SCENE PLATE");
+    expect(flowAgentSource).not.toContain("backgroundPlatesDirectory");
     expect(flowAgentSource).toContain("FLOW_GENERATION_MAX_ATTEMPTS");
     expect(flowAgentSource).toContain("FLOW_AGENT_CONCURRENCY || 1");
     expect(flowAgentSource).toContain("ERR_CONNECTION_RESET|ERR_TIMED_OUT");
@@ -229,6 +238,8 @@ describe("content machine", () => {
     expect(flowBrowserSource).toContain("dismissFlowSettings");
     expect(flowBrowserSource).toContain('button:has-text("Retry")');
     expect(flowBrowserSource).toContain('node.naturalWidth >= 256 && node.naturalHeight >= 256');
+    expect(flowBrowserSource).toContain("matchesAttachedReference");
+    expect(flowBrowserSource).toContain("Flow aspect ratio");
     expect(flowBrowserSource).toContain("reloadedBlankWorkspace");
     expect(flowBrowserSource).toContain("Что-то пошло не так");
     expect(flowAgentSource).not.toContain(".sharpen({");

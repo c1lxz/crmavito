@@ -38,6 +38,7 @@ export function buildOriginalStagePrompt(
       : frontLabelRule;
     return [
       "FRONT DESIGN ANCHOR. Create the unmistakable FRONT view of ONE new premium archive-fashion garment.",
+      "GARMENT TYPE LOCK: this product is a flat short-sleeve T-shirt with two complete short sleeves. Ignore any long-sleeve, longsleeve or sweatshirt wording inherited from marketplace research; never generate a long-sleeve top or sweatshirt.",
       "Render the approved front subject from the production brief literally; never replace it with an unrelated stock image, generic emblem, logo-core mark or abstract block.",
       anchorConcept,
       conciseBrief,
@@ -61,6 +62,7 @@ export function buildOriginalStagePrompt(
     const anchorConcept = extractAnchorConcept(basePrompt, "BACK");
     return [
       "BACK DESIGN ANCHOR. TURN THE NEW GARMENT OVER and show its unmistakable REAR side. This is not another photo of the front. NO VISIBLE LABEL OR LABEL TEXT may appear outside below the rear collar; the internal heat-transfer marking is physically hidden inside the garment.",
+      "GARMENT TYPE LOCK: this is the same flat short-sleeve T-shirt with two complete short sleeves. Ignore any long-sleeve, longsleeve or sweatshirt wording inherited from marketplace research.",
       "Render the approved back subject from the production brief literally; never replace it with an unrelated stock image, generic emblem, logo-core mark or abstract block.",
       anchorConcept,
       conciseBrief,

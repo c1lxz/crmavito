@@ -68,7 +68,7 @@ async function extractBestLabelOverlay(
   source: Buffer,
   info: { width: number; height: number; channels: 1 | 2 | 3 | 4 },
 ) {
-  const candidates: Array<{ overlay: Buffer; strongPixels: number }> = [];
+  const candidates: Array<{ overlay: Buffer; strongPixels: number; area: number }> = [];
   for (const polarity of ["light", "dark"] as const) {
     const pixels = Buffer.from(source);
     for (let index = 0; index < pixels.length; index += 4) {
@@ -80,9 +80,18 @@ async function extractBestLabelOverlay(
     keepLowerLabelComponents(pixels, info.width, info.height);
     const overlay = await finalizeLabelOverlay(pixels, info);
     const strongPixels = await countMeaningfulLabelPixels(overlay);
-    if (strongPixels >= 40) candidates.push({ overlay, strongPixels });
+    const metadata = await sharp(overlay).metadata();
+    const overlayWidth = metadata.width || info.width;
+    const overlayHeight = metadata.height || info.height;
+    // A collar mark is compact. A broad candidate is upholstery/collar fabric
+    // selected by the inverse polarity, not printable label pixels.
+    if (strongPixels >= 40 && overlayWidth <= info.width * 0.65 && overlayHeight <= info.height * 0.70) {
+      candidates.push({ overlay, strongPixels, area: overlayWidth * overlayHeight });
+    }
   }
-  return candidates.sort((left, right) => right.strongPixels - left.strongPixels)[0]?.overlay;
+  return candidates.sort((left, right) => (
+    right.strongPixels / Math.sqrt(right.area) - left.strongPixels / Math.sqrt(left.area)
+  ))[0]?.overlay;
 }
 
 export async function measureLabelBaselineAngle(input: Buffer) {
@@ -136,18 +145,16 @@ export async function applyExactLabelOverlay(outputPath: string, overlayPath: st
   const detectedLabels = findGeneratedLabelBoundsCandidates(rawOutput.data, width, height, rawOutput.info.channels);
   const detected = detectedLabels[0];
   const targetWidth = Math.max(40, Math.round(detected ? detected.width * 1.02 : width * 0.055));
-  const overlay = await sharp(overlayPath).resize({ width: targetWidth, withoutEnlargement: false }).png().toBuffer({ resolveWithObject: true });
+  let overlay = await sharp(overlayPath).resize({ width: targetWidth, withoutEnlargement: false }).png().toBuffer({ resolveWithObject: true });
   const centerX = detected ? detected.left + detected.width / 2 : width / 2;
-  const centerY = detected ? detected.top + detected.height / 2 : height * 0.19;
+  const centerY = detected ? detected.top + detected.height / 2 : height * 0.225;
   const left = Math.max(0, Math.min(width - overlay.info.width, Math.round(centerX - overlay.info.width / 2)));
   const top = Math.max(0, Math.min(height - overlay.info.height, Math.round(centerY - overlay.info.height / 2)));
-  const cleanupTargets = detectedLabels.length ? detectedLabels : [{
-    left: Math.round(width * 0.47),
-    top: Math.round(height * 0.175),
-    width: Math.round(width * 0.06),
-    height: Math.round(height * 0.025),
-  }];
-  const covers = await Promise.all(cleanupTargets.map((bounds) => createLabelCover(outputPath, bounds, width, height)));
+  overlay = await ensureLabelContrast(overlay.data, outputPath, left, top);
+  // A clean generated neck panel needs no fabric patch. Cover only a detected
+  // temporary/generated mark; a fallback patch creates a visible rectangle on
+  // otherwise clean black cotton.
+  const covers = await Promise.all(detectedLabels.map((bounds) => createLabelCover(outputPath, bounds, width, height)));
   const temporaryPath = `${outputPath}.label-lock.jpg`;
   await output
     .composite([
@@ -157,6 +164,38 @@ export async function applyExactLabelOverlay(outputPath: string, overlayPath: st
     .jpeg({ quality: 96, chromaSubsampling: "4:4:4" })
     .toFile(temporaryPath);
   await rename(temporaryPath, outputPath);
+}
+
+async function ensureLabelContrast(overlay: Buffer, outputPath: string, left: number, top: number) {
+  const mark = await sharp(overlay).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const fabric = await sharp(outputPath)
+    .rotate()
+    .extract({ left, top, width: mark.info.width, height: mark.info.height })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let markLuminance = 0;
+  let markWeight = 0;
+  let fabricLuminance = 0;
+  for (let index = 0, pixel = 0; index < mark.data.length; index += 4, pixel += fabric.info.channels) {
+    const alpha = mark.data[index + 3] / 255;
+    if (alpha < 0.08) continue;
+    markLuminance += (0.2126 * mark.data[index] + 0.7152 * mark.data[index + 1] + 0.0722 * mark.data[index + 2]) * alpha;
+    fabricLuminance += (0.2126 * fabric.data[pixel] + 0.7152 * fabric.data[pixel + 1] + 0.0722 * fabric.data[pixel + 2]) * alpha;
+    markWeight += alpha;
+  }
+  if (!markWeight || Math.abs(markLuminance / markWeight - fabricLuminance / markWeight) >= 75) {
+    return sharp(mark.data, { raw: mark.info }).png().toBuffer({ resolveWithObject: true });
+  }
+  const ink = fabricLuminance / markWeight < 128 ? 238 : 20;
+  const pixels = Buffer.from(mark.data);
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (pixels[index + 3] < 8) continue;
+    pixels[index] = ink;
+    pixels[index + 1] = ink;
+    pixels[index + 2] = ink;
+  }
+  return sharp(pixels, { raw: mark.info }).png().toBuffer({ resolveWithObject: true });
 }
 
 export function findGeneratedLabelBounds(data: Buffer, width: number, height: number, channels = 3) {
@@ -378,19 +417,32 @@ function keepLowerLabelComponents(pixels: Buffer, width: number, height: number)
   const visited = new Uint8Array(width * height);
   const keep = new Uint8Array(width * height);
   const minimumY = Math.round(height * 0.08);
+  const components: Array<{
+    pixels: number[];
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+  }> = [];
   for (let seed = 0; seed < visited.length; seed += 1) {
     if (visited[seed] || pixels[seed * 4 + 3] < 80) continue;
     const queue = [seed];
     const component: number[] = [];
     let cursor = 0;
+    let left = width;
+    let right = 0;
     let top = height;
+    let bottom = 0;
     visited[seed] = 1;
     while (cursor < queue.length) {
       const index = queue[cursor++];
       component.push(index);
       const x = index % width;
       const y = Math.floor(index / width);
+      left = Math.min(left, x);
+      right = Math.max(right, x);
       top = Math.min(top, y);
+      bottom = Math.max(bottom, y);
       for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
         for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
           const nextX = x + offsetX;
@@ -404,9 +456,24 @@ function keepLowerLabelComponents(pixels: Buffer, width: number, height: number)
         }
       }
     }
-    if (component.length >= 40 && component.length <= width * height * 0.35 && top >= minimumY) {
-      component.forEach((index) => { keep[index] = 1; });
-    }
+    components.push({ pixels: component, left, right, top, bottom });
+  }
+  const anchors = components.filter((component) => (
+    component.pixels.length >= 40
+    && component.pixels.length <= width * height * 0.35
+    && component.top >= minimumY
+  ));
+  for (const component of components) {
+    const belongsToLabel = component.pixels.length >= 3 && anchors.some((anchor) => {
+      const horizontalPadding = Math.max(width * 0.10, (anchor.right - anchor.left + 1) * 2.5);
+      const verticalPaddingAbove = Math.max(2, height * 0.04);
+      const verticalPaddingBelow = Math.max(height * 0.34, (anchor.bottom - anchor.top + 1) * 3);
+      return component.right >= anchor.left - horizontalPadding
+        && component.left <= anchor.right + horizontalPadding
+        && component.bottom >= anchor.top - verticalPaddingAbove
+        && component.top <= anchor.bottom + verticalPaddingBelow;
+    });
+    if (belongsToLabel) component.pixels.forEach((index) => { keep[index] = 1; });
   }
   for (let index = 0; index < keep.length; index += 1) {
     if (!keep[index]) pixels[index * 4 + 3] = 0;

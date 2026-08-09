@@ -1,6 +1,5 @@
 import { hostname } from "node:os";
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
@@ -73,7 +72,6 @@ const qualityMaxAttempts = clamp(Number(process.env.FLOW_QUALITY_MAX_ATTEMPTS ||
 const stateDirectory = path.resolve(process.env.FLOW_AGENT_STATE_DIR || ".flow-local-agent");
 const profileDirectory = path.resolve(process.env.FLOW_AGENT_PROFILE_DIR || path.join(stateDirectory, "chrome-profile"));
 const workDirectory = path.join(stateDirectory, "work");
-const backgroundPlatesDirectory = path.join(stateDirectory, "background-plates");
 const diagnosticsDirectory = path.join(stateDirectory, "diagnostics");
 const flowProjectStatePath = path.join(stateDirectory, "last-flow-project-url.txt");
 const proxyServer = process.env.FLOW_AGENT_PROXY_SERVER?.trim();
@@ -525,82 +523,12 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
           const aspectRatio = inferFlowImageAspectRatio(backgroundWidth, backgroundHeight);
           const canvasLock = `OUTPUT CANVAS LOCK: use ${aspectRatio} and preserve the SCENE reference image's ${backgroundWidth}x${backgroundHeight} orientation, crop, perspective and composition. Never rotate, widen, extend or replace its background.`;
           const garmentLayoutLock = "PRODUCT LAYOUT LOCK: show one fully unfolded flat short-sleeve T-shirt at natural full-frame scale. Collar, entire hem and both complete sleeves must be visible; the garment must occupy roughly 75-85% of frame height. Never fold, stack, roll, crop, hang or turn it into a sweatshirt.";
-          let sceneBackgroundPath = backgroundPath;
+          // The approved CRM photo is the immutable scene reference. A generated
+          // "empty plate" can silently replace the quilt/bed with another surface
+          // and then teach QA that the wrong background is correct.
+          const sceneBackgroundPath = backgroundPath;
           if (job.mode === "original-design") {
-            await mkdir(backgroundPlatesDirectory, { recursive: true });
-            const backgroundHash = createHash("sha256").update(await readFile(backgroundPath)).digest("hex");
-            const platePath = path.join(backgroundPlatesDirectory, `${backgroundHash}.png`);
-            const platePrompt = [
-              `EMPTY SCENE PLATE. Keep exactly ${aspectRatio} and the same camera, crop, perspective, quilt/bed surface, seams, folds, texture, lighting, shadows and room edges as IMAGE 1.`,
-              "Remove the entire garment and reconstruct the naturally exposed surface underneath it.",
-              "The result must contain NO clothing, fabric product, print, label, letters, logo, animal, star, graphic, person, prop or added object anywhere.",
-              "Return one photorealistic empty background plate only; do not redesign or beautify the scene.",
-            ].join(" ");
-            const cachedPlate = await sharp(platePath).metadata().then((metadata) => (
-              compareFlowImageGeometry(
-                { width: backgroundWidth, height: backgroundHeight },
-                { width: metadata.width || 0, height: metadata.height || 0 },
-              ).pass
-            )).catch(() => false);
-            if (cachedPlate) {
-              console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: использует сохранённую чистую фоновую сцену.`);
-              sceneBackgroundPath = platePath;
-            } else {
-              console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: очищает фоновую сцену от исходного товара…`);
-            let plateTiming: Awaited<ReturnType<typeof generateFlowImage>> | undefined;
-            let plateAttempt = 1;
-            while (plateAttempt <= generationMaxAttempts) {
-              const activeModel = FLOW_IMAGE_MODELS[activeModelIndex];
-              try {
-                plateTiming = await withProgressLog(generateFlowImage({
-                  page,
-                  flowUrl: originalProjectUrl || flowUrl,
-                  references: [backgroundPath],
-                  prompt: platePrompt,
-                  outputPath: platePath,
-                  timeoutMs: generationTimeoutMs,
-                  maxOutputEdge: job.imageSize === "4K" ? 4096 : 2048,
-                  downloadResolution: "2K",
-                  model: activeModel,
-                  aspectRatio,
-                }), job.id, item.product.index, item.background.slot, activeModel);
-                if (/\/tools\/flow\/project\//i.test(page.url())) {
-                  originalProjectUrl = page.url();
-                  await writeFile(flowProjectStatePath, originalProjectUrl, "utf8");
-                }
-                break;
-              } catch (error) {
-                if (error instanceof FlowModelLimitError) {
-                  if (activeModelIndex >= FLOW_IMAGE_MODELS.length - 1) throw error;
-                  activeModelIndex += 1;
-                  if (job.mode === "original-design") {
-                    await delay(1_500);
-                  } else {
-                    await page.close().catch(() => undefined);
-                    page = await context.newPage();
-                  }
-                  continue;
-                }
-                if (!isRetryableGenerationError(error) || plateAttempt === generationMaxAttempts) throw error;
-                await delay(Math.min(2_000 * plateAttempt, 6_000));
-                if (job.mode !== "original-design") {
-                  await page.close().catch(() => undefined);
-                  page = await context.newPage();
-                } else if (originalProjectUrl && page.url() !== originalProjectUrl) {
-                  await page.goto(originalProjectUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
-                }
-                plateAttempt += 1;
-              }
-            }
-            if (!plateTiming) throw new Error(`Flow background extraction failed for slot ${item.background.slot}.`);
-            const plateMetadata = await sharp(platePath).metadata();
-            const plateGeometry = compareFlowImageGeometry(
-              { width: backgroundWidth, height: backgroundHeight },
-              { width: plateMetadata.width || 0, height: plateMetadata.height || 0 },
-            );
-            if (!plateGeometry.pass) throw new Error(plateGeometry.issue);
-            sceneBackgroundPath = platePath;
-            }
+            console.log(`[flow-agent] ${job.id} ${item.product.index}/${item.background.slot}: использует исходный утверждённый фон без промежуточной генерации.`);
           }
           const originalStage = job.mode === "original-design" ? originalDesignStage(item.background.slot) : null;
           const anchorProductPath = originalStage === "front-photo" || originalStage === "front-detail"

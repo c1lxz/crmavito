@@ -83,6 +83,56 @@ describe("Flow exact neck-label lock", () => {
     expect(await hasExtractableWinnerLabel(winner)).toBe(true);
   });
 
+  it("keeps small brand letters grouped beneath a larger neck-label emblem", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "flow-label-lock-small-text-"));
+    temporaryDirectories.push(directory);
+    const winnerPath = path.join(directory, "winner.jpg");
+    const referencePath = path.join(directory, "reference.png");
+    const overlayPath = path.join(directory, "overlay.png");
+    await sharp(Buffer.from(
+      '<svg width="1000" height="1000"><rect width="1000" height="1000" fill="#777"/><rect x="250" y="35" width="500" height="260" rx="90" fill="#181818"/><circle cx="500" cy="95" r="15" fill="none" stroke="#eee" stroke-width="6"/><text x="500" y="132" text-anchor="middle" fill="#eee" font-size="18" font-family="Arial" font-weight="700">DEVIL NUT</text></svg>',
+    )).jpeg({ quality: 90 }).toFile(winnerPath);
+
+    await createBestLabelAssets([winnerPath], referencePath, overlayPath);
+    const overlay = await sharp(overlayPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const activeRows = new Set<number>();
+    for (let y = 0; y < overlay.info.height; y += 1) {
+      for (let x = 0; x < overlay.info.width; x += 1) {
+        if (overlay.data[(y * overlay.info.width + x) * 4 + 3] >= 80) activeRows.add(y);
+      }
+    }
+    expect(activeRows.size).toBeGreaterThan(12);
+    expect(overlay.info.width).toBeGreaterThan(20);
+    expect(overlay.info.width).toBeLessThan(300);
+    expect(overlay.info.height).toBeLessThan(150);
+  });
+
+  it("does not paint a fallback fabric rectangle on a clean generated collar", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "flow-label-lock-clean-collar-"));
+    temporaryDirectories.push(directory);
+    const outputPath = path.join(directory, "output.jpg");
+    const overlayPath = path.join(directory, "overlay.png");
+    await sharp({ create: { width: 1000, height: 1800, channels: 3, background: "#181818" } }).jpeg().toFile(outputPath);
+    await sharp(Buffer.from('<svg width="120" height="50"><text x="60" y="35" text-anchor="middle" fill="#eee" font-size="24" font-family="Arial">DEVIL NUT</text></svg>')).png().toFile(overlayPath);
+
+    await applyExactLabelOverlay(outputPath, overlayPath);
+    const pixel = await sharp(outputPath).extract({ left: 465, top: 320, width: 1, height: 1 }).raw().toBuffer();
+    expect(Math.max(...pixel) - Math.min(...pixel)).toBeLessThan(4);
+  });
+
+  it("keeps a dark winner marking readable on a dark generated shirt", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "flow-label-lock-contrast-"));
+    temporaryDirectories.push(directory);
+    const outputPath = path.join(directory, "output.jpg");
+    const overlayPath = path.join(directory, "overlay.png");
+    await sharp({ create: { width: 1000, height: 1800, channels: 3, background: "#181818" } }).jpeg().toFile(outputPath);
+    await sharp(Buffer.from('<svg width="120" height="50"><text x="60" y="35" text-anchor="middle" fill="#111" font-size="24" font-family="Arial">VIVIENNE</text></svg>')).png().toFile(overlayPath);
+
+    await applyExactLabelOverlay(outputPath, overlayPath);
+    const area = await sharp(outputPath).extract({ left: 450, top: 380, width: 100, height: 55 }).greyscale().raw().toBuffer();
+    expect(Math.max(...area)).toBeGreaterThan(180);
+  });
+
   it("straightens an angled exact label before compositing it", async () => {
     const angled = await sharp(Buffer.from(
       '<svg width="260" height="120"><rect width="260" height="120" fill="none"/><g transform="rotate(14 130 60)" fill="#eee"><rect x="45" y="48" width="170" height="18"/><rect x="55" y="30" width="12" height="45"/><rect x="190" y="30" width="12" height="45"/></g></svg>',

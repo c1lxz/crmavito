@@ -385,6 +385,7 @@ function identityAuditPrompt() {
 function originalDesignPairPrompt(preserveWinnerLabel = false) {
   return [
     "Act as a strict fashion design front/back quality gate.",
+    "GARMENT TYPE OVERRIDE: both candidates must be a flat short-sleeve T-shirt. Ignore any long-sleeve, longsleeve or sweatshirt wording inherited from marketplace research in the APPROVED PRODUCTION BRIEF; it describes demand signals, not the required garment construction.",
     preserveWinnerLabel
       ? "IMAGE A must visibly be the FRONT of one garment. If its inside back-neck panel is visible, it must carry the exact internal label or heat-transfer marking from the SOURCE winner; that marking must never appear on the outer chest."
       : "IMAGE A must visibly be the FRONT of one garment with a clean crew-neck shape. The internal heat-transfer neck marking is physically hidden inside the back-neck panel and no label wording may appear on the outer chest.",
@@ -407,6 +408,7 @@ function originalDesignPairPrompt(preserveWinnerLabel = false) {
 function originalDesignAnchorPrompt(side: "front" | "back", preserveWinnerLabel = false) {
   return [
     `Act as a strict original designer-fashion ${side} anchor gate.`,
+    "GARMENT TYPE OVERRIDE: the candidate must be a flat short-sleeve T-shirt. Ignore any long-sleeve, longsleeve or sweatshirt wording inherited from marketplace research in the APPROVED PRODUCTION BRIEF; it is not a garment requirement.",
     side === "front"
       ? preserveWinnerLabel
         ? "The candidate must unmistakably show the FRONT and expose enough of the inside back-neck panel to verify the exact internal label or heat-transfer marking from the SOURCE winner. No label wording may appear on the outer chest."

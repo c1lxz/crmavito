@@ -1,4 +1,4 @@
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Download, Locator, Page, Response } from "playwright";
 import sharp from "sharp";
@@ -179,7 +179,7 @@ export async function generateFlowImage(input: {
   try {
     await generateButton.click();
     try {
-      result = await waitForResult(input.page, input.timeoutMs, existingSources);
+    result = await waitForResult(input.page, input.timeoutMs, existingSources, input.references);
     } catch (error) {
       const retryButton = isRetryableFlowGenerationError(error)
         ? await firstVisible(input.page, [
@@ -190,7 +190,7 @@ export async function generateFlowImage(input: {
       if (!retryButton) throw error;
       await retryButton.click({ force: true, timeout: 10_000 });
       await input.page.waitForTimeout(750);
-      result = await waitForResult(input.page, input.timeoutMs, existingSources);
+      result = await waitForResult(input.page, input.timeoutMs, existingSources, input.references);
     }
   } catch (error) {
     if (generationHttpErrors.length) {
@@ -251,7 +251,8 @@ async function downloadWithFlowButton(page: Page, result: Locator, outputPath: s
       downloadButton = await waitForFirstVisible(page, selectors, 15_000);
     }
     if (!downloadButton) {
-      if (resolution) throw new Error("Flow: не найдена кнопка скачивания результата в 2K.");
+      // New Flow builds can expose the generated image without any download
+      // control. Let the caller fetch the image source and normalize it to 2K.
       return false;
     }
     const directDownloadPromise = page.waitForEvent("download", { timeout: 3_000 }).catch(() => undefined);
@@ -289,8 +290,9 @@ async function downloadWithFlowButton(page: Page, result: Locator, outputPath: s
       return false;
     }
     return true;
-  } catch (error) {
-    if (resolution) throw error;
+  } catch {
+    // A result overlay can intercept the download control. The caller can
+    // still fetch the generated image source and normalize it to 2K.
     return false;
   }
 }
@@ -509,13 +511,19 @@ async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRat
       'button:has-text("tune"):has-text("Настройки")',
       'button:has-text("tune"):has-text("Settings")',
     ], 15_000);
-    if (!settingsButton) throw new Error("Flow: не найдены настройки модели изображения.");
+    if (!settingsButton) {
+      console.warn("[flow-agent] Flow model settings are hidden; using the current image model.");
+      return;
+    }
     await settingsButton.click({ timeout: 10_000 });
     modelButton = await waitForFirstVisible(page, [
       'button[aria-haspopup="menu"]:has-text("Nano Banana")',
     ], 15_000);
   }
-  if (!modelButton) throw new Error("Flow: не найден выбор модели Nano Banana.");
+  if (!modelButton) {
+    console.warn("[flow-agent] Flow model picker is hidden; using the current image model.");
+    return;
+  }
 
   const mediaPermissionRadios = page.locator('[role="radio"]:visible');
   if (await mediaPermissionRadios.count() === 2) {
@@ -528,9 +536,10 @@ async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRat
   if (aspectRatio) {
     const ratioTab = page.locator('[role="tab"]:visible').filter({ hasText: aspectRatio }).first();
     if (!await ratioTab.isVisible().catch(() => false)) {
-      throw new Error(`Flow: image aspect ratio ${aspectRatio} is not available.`);
+      console.warn(`[flow-agent] Flow aspect ratio ${aspectRatio} is hidden; using the current ratio.`);
+    } else if (await ratioTab.getAttribute("aria-selected") !== "true") {
+      await ratioTab.click({ timeout: 10_000 });
     }
-    if (await ratioTab.getAttribute("aria-selected") !== "true") await ratioTab.click({ timeout: 10_000 });
   }
 
   const selectedText = (await modelButton.innerText()).replace(/\s+/g, " ").trim();
@@ -808,7 +817,7 @@ async function waitForFileInput(page: Page) {
   return page.locator('input[type="file"]').first();
 }
 
-async function waitForResult(page: Page, timeoutMs: number, existingSources: Set<string>) {
+async function waitForResult(page: Page, timeoutMs: number, existingSources: Set<string>, referencePaths: string[]) {
   const selectors = [
     '[data-testid="result-image"]',
     'img[alt*="Generated" i]',
@@ -846,7 +855,12 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
           if (largeOnly) return node.naturalWidth >= 256 && node.naturalHeight >= 256;
           return node.naturalWidth > 32 || node.src.startsWith("data:");
         }, requireLargeImage);
-        if (ready && !existingSources.has(source)) return result;
+        if (!ready || existingSources.has(source)) continue;
+        if (requireLargeImage && await matchesAttachedReference(page, source, referencePaths)) {
+          existingSources.add(source);
+          continue;
+        }
+        return result;
       }
     }
     if (!reportedImageCandidates && Date.now() - started >= 10_000) {
@@ -865,6 +879,44 @@ async function waitForResult(page: Page, timeoutMs: number, existingSources: Set
     await page.waitForTimeout(400);
   }
   throw new Error(`Flow не вернул изображение за ${Math.round(timeoutMs / 1000)} сек.`);
+}
+
+async function matchesAttachedReference(page: Page, source: string, referencePaths: string[]) {
+  if (!referencePaths.length) return false;
+  let candidate: Buffer;
+  try {
+    candidate = await downloadResultInsideBrowser(page, source);
+  } catch {
+    return false;
+  }
+  const candidatePixels = await sharp(candidate)
+    .rotate()
+    .resize(128, 128, { fit: "fill" })
+    .removeAlpha()
+    .raw()
+    .toBuffer();
+  for (const referencePath of referencePaths) {
+    const referencePixels = await sharp(await readFile(referencePath))
+      .rotate()
+      .resize(128, 128, { fit: "fill" })
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    let changedPixels = 0;
+    let totalDifference = 0;
+    for (let index = 0; index < candidatePixels.length; index += 3) {
+      const difference = Math.max(
+        Math.abs(candidatePixels[index] - referencePixels[index]),
+        Math.abs(candidatePixels[index + 1] - referencePixels[index + 1]),
+        Math.abs(candidatePixels[index + 2] - referencePixels[index + 2]),
+      );
+      totalDifference += difference;
+      if (difference > 14) changedPixels += 1;
+    }
+    const pixelCount = candidatePixels.length / 3;
+    if (changedPixels / pixelCount < 0.02 && totalDifference / pixelCount < 4.5) return true;
+  }
+  return false;
 }
 
 export function isFlowModelLimitText(text: string) {
