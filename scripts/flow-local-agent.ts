@@ -176,9 +176,10 @@ async function waitForLocalFlowRecovery() {
   while (true) {
     try {
       const session = await launchFlowSession();
-      const page = session.context.pages().find((candidate) => candidate.url().includes("labs.google/fx/"))
-        || session.context.pages()[0];
-      if (page && isFlowRouteUrl(page.url()) && !await isFlowMarketingLandingPage(page)) return;
+      const flowPages = session.context.pages().filter((candidate) => isFlowRouteUrl(candidate.url()));
+      for (const page of flowPages) {
+        if (!await isFlowMarketingLandingPage(page)) return;
+      }
     } catch {
       // Keep the claimed job paused until the user finishes the one-time login.
     }
@@ -355,7 +356,10 @@ async function prepareControlPage(
 ) {
   if (current && !current.isClosed()) return current;
   const pages = context.pages().filter((page) => !page.isClosed());
-  const controlPage = pages.find((page) => page.url().startsWith(flowUrl)) || pages[0] || await context.newPage();
+  const controlPage = pages.find((page) => /\/tools\/flow\/project\//i.test(page.url()))
+    || pages.find((page) => page.url().startsWith(flowUrl))
+    || pages[0]
+    || await context.newPage();
   if (!preservePages) {
     await Promise.all(pages.filter((page) => page !== controlPage).map((page) => page.close().catch(() => undefined)));
   }
