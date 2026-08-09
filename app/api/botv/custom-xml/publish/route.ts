@@ -92,6 +92,7 @@ export async function POST(request: Request) {
         activeProfileAds: master.activeProfileAds,
         manualProfileAds: master.manualProfileAds,
         preservedActiveAds: master.preservedActiveAds,
+        foreignAutoloadAds: master.foreignAutoloadAds,
       },
       publish,
     });

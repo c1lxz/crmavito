@@ -21,6 +21,7 @@ export type MasterXmlMerge = {
   activeProfileAds?: number;
   manualProfileAds?: number;
   preservedActiveAds?: number;
+  foreignAutoloadAds?: number;
 };
 
 export type SavedMasterXml = {
@@ -118,15 +119,12 @@ export function reconcileAvitoMasterXml(
   const activeExternalIds = new Set(
     inventory.activeListings.map((item) => item.externalId).filter((id): id is string => Boolean(id)),
   );
-  const missingActiveIds = [...activeExternalIds].filter((id) => !previousBlocks.has(id) && !incomingBlocks.has(id));
-  if (missingActiveIds.length) {
-    throw new Error(
-      `Безопасная публикация остановлена: для ${missingActiveIds.length} активных объявлений не найден исходный XML (${missingActiveIds.slice(0, 10).join(", ")}).`,
-    );
-  }
+  const managedActiveIds = new Set(
+    [...activeExternalIds].filter((id) => previousBlocks.has(id) || incomingBlocks.has(id)),
+  );
 
   const merged = new Map<string, string>();
-  for (const id of activeExternalIds) {
+  for (const id of managedActiveIds) {
     const block = incomingBlocks.get(id) ?? previousBlocks.get(id);
     if (block) merged.set(id, block);
   }
@@ -142,7 +140,7 @@ export function reconcileAvitoMasterXml(
   const skippedRetiredIds: string[] = [];
   let updatedAds = 0;
   for (const ad of adBlocks(incoming.xml)) {
-    if (activeExternalIds.has(ad.id)) {
+    if (managedActiveIds.has(ad.id)) {
       merged.set(ad.id, ad.xml);
       updatedAds += 1;
       continue;
@@ -175,7 +173,8 @@ export function reconcileAvitoMasterXml(
     skippedRetiredIds,
     activeProfileAds: inventory.activeAds,
     manualProfileAds: inventory.manualAds,
-    preservedActiveAds: activeExternalIds.size,
+    preservedActiveAds: managedActiveIds.size,
+    foreignAutoloadAds: activeExternalIds.size - managedActiveIds.size,
   };
 }
 

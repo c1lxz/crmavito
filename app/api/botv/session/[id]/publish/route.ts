@@ -117,6 +117,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         activeProfileAds: master.activeProfileAds,
         manualProfileAds: master.manualProfileAds,
         preservedActiveAds: master.preservedActiveAds,
+        foreignAutoloadAds: master.foreignAutoloadAds,
       },
       publish,
     });

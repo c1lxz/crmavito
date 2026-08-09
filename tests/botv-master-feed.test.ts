@@ -104,13 +104,16 @@ describe("safe Avito master XML", () => {
     expect(result.skippedDuplicateIds).toEqual(["new-2"]);
   });
 
-  it("stops when an active XML ad cannot be reconstructed", () => {
-    expect(() => reconcileAvitoMasterXml(null, fullXml([{ id: "new-1", title: "New", address: "Москва" }]), {
+  it("uses foreign autoload ads for deduplication without taking ownership of them", () => {
+    const result = reconcileAvitoMasterXml(null, fullXml([{ id: "new-1", title: "New", address: "Москва" }]), {
       activeListings: [{ avitoId: "100", externalId: "missing-active", title: "Existing", address: "Москва" }],
       retiredExternalIds: [],
       activeAds: 1,
       autoloadAds: 1,
       manualAds: 0,
-    })).toThrow(/missing-active/);
+    });
+    expect(result.adIds).toEqual(["new-1"]);
+    expect(result.preservedActiveAds).toBe(0);
+    expect(result.foreignAutoloadAds).toBe(1);
   });
 });
