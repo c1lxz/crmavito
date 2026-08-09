@@ -120,6 +120,33 @@ describe("Flow exact neck-label lock", () => {
     expect(Math.max(...pixel) - Math.min(...pixel)).toBeLessThan(4);
   });
 
+  it("places a fallback heat-transfer mark below the collar rim", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "flow-label-lock-inside-neck-"));
+    temporaryDirectories.push(directory);
+    const outputPath = path.join(directory, "output.jpg");
+    const overlayPath = path.join(directory, "overlay.png");
+    await sharp({ create: { width: 1000, height: 1800, channels: 3, background: "#181818" } }).jpeg().toFile(outputPath);
+    await sharp(Buffer.from('<svg width="120" height="50"><rect x="8" y="8" width="104" height="34" fill="#eee"/></svg>')).png().toFile(overlayPath);
+
+    await applyExactLabelOverlay(outputPath, overlayPath);
+    const oldRimArea = await sharp(outputPath).extract({ left: 510, top: 375, width: 100, height: 45 }).greyscale().raw().toBuffer();
+    const insideNeckArea = await sharp(outputPath).extract({ left: 510, top: 430, width: 100, height: 55 }).greyscale().raw().toBuffer();
+    expect(Math.max(...oldRimArea)).toBeLessThan(80);
+    expect(Math.max(...insideNeckArea)).toBeGreaterThan(180);
+  });
+
+  it("preserves a PNG container after applying the exact label", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "flow-label-lock-png-"));
+    temporaryDirectories.push(directory);
+    const outputPath = path.join(directory, "output.png");
+    const overlayPath = path.join(directory, "overlay.png");
+    await sharp({ create: { width: 1000, height: 1800, channels: 3, background: "#181818" } }).png().toFile(outputPath);
+    await sharp(Buffer.from('<svg width="120" height="50"><text x="60" y="35" text-anchor="middle" fill="#eee">LABEL</text></svg>')).png().toFile(overlayPath);
+
+    await applyExactLabelOverlay(outputPath, overlayPath);
+    expect(await sharp(outputPath).metadata()).toMatchObject({ format: "png", width: 1000, height: 1800 });
+  });
+
   it("keeps a dark winner marking readable on a dark generated shirt", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "flow-label-lock-contrast-"));
     temporaryDirectories.push(directory);
@@ -129,7 +156,7 @@ describe("Flow exact neck-label lock", () => {
     await sharp(Buffer.from('<svg width="120" height="50"><text x="60" y="35" text-anchor="middle" fill="#111" font-size="24" font-family="Arial">VIVIENNE</text></svg>')).png().toFile(overlayPath);
 
     await applyExactLabelOverlay(outputPath, overlayPath);
-    const area = await sharp(outputPath).extract({ left: 450, top: 380, width: 100, height: 55 }).greyscale().raw().toBuffer();
+    const area = await sharp(outputPath).extract({ left: 510, top: 430, width: 100, height: 70 }).greyscale().raw().toBuffer();
     expect(Math.max(...area)).toBeGreaterThan(180);
   });
 

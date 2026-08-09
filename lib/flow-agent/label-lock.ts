@@ -146,8 +146,14 @@ export async function applyExactLabelOverlay(outputPath: string, overlayPath: st
   const detected = detectedLabels[0];
   const targetWidth = Math.max(40, Math.round(detected ? detected.width * 1.02 : width * 0.055));
   let overlay = await sharp(overlayPath).resize({ width: targetWidth, withoutEnlargement: false }).png().toBuffer({ resolveWithObject: true });
-  const centerX = detected ? detected.left + detected.width / 2 : width / 2;
-  const centerY = detected ? detected.top + detected.height / 2 : height * 0.225;
+  // Approved CRM packshots use an oblique composition with the collar shifted
+  // slightly right of the canvas centre. Keep detected marks exact, but place
+  // a clean fallback on that rear-neck panel instead of the left collar rim.
+  const centerX = detected ? detected.left + detected.width / 2 : width * 0.56;
+  // On a clean front photo there is no generated mark to replace. Place the
+  // exact transfer inside the rear neck panel, below the collar rim. The old
+  // 22.5% fallback landed on the upper rim/background in oblique CRM shots.
+  const centerY = detected ? detected.top + detected.height / 2 : height * 0.255;
   const left = Math.max(0, Math.min(width - overlay.info.width, Math.round(centerX - overlay.info.width / 2)));
   const top = Math.max(0, Math.min(height - overlay.info.height, Math.round(centerY - overlay.info.height / 2)));
   overlay = await ensureLabelContrast(overlay.data, outputPath, left, top);
@@ -156,13 +162,15 @@ export async function applyExactLabelOverlay(outputPath: string, overlayPath: st
   // otherwise clean black cotton.
   const covers = await Promise.all(detectedLabels.map((bounds) => createLabelCover(outputPath, bounds, width, height)));
   const temporaryPath = `${outputPath}.label-lock.jpg`;
-  await output
-    .composite([
-      ...covers,
-      { input: overlay.data, left, top },
-    ])
-    .jpeg({ quality: 96, chromaSubsampling: "4:4:4" })
-    .toFile(temporaryPath);
+  const composited = output.composite([
+    ...covers,
+    { input: overlay.data, left, top },
+  ]);
+  if (metadata.format === "png") {
+    await composited.png({ compressionLevel: 7 }).toFile(temporaryPath);
+  } else {
+    await composited.jpeg({ quality: 96, chromaSubsampling: "4:4:4" }).toFile(temporaryPath);
+  }
   await rename(temporaryPath, outputPath);
 }
 
