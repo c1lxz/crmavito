@@ -75,6 +75,15 @@ class XmlGenerator:
                     rendered.add(field_name)
                 continue
 
+            if field_name == "Delivery":
+                delivery_value = merged.get("Delivery")
+                if delivery_value:
+                    delivery_el = etree.SubElement(ad_el, "Delivery")
+                    option_el = etree.SubElement(delivery_el, "Option")
+                    option_el.text = delivery_value
+                    rendered.add(field_name)
+                continue
+
             if field_name == "Brand":
                 if ad.brand:
                     _append_text(ad_el, "Brand", ad.brand)

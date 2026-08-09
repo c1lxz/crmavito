@@ -1,11 +1,41 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { disableAvitoAutoload, fetchAvitoAutoloadStatus, publishAvitoXml } from "@/lib/avito/publish";
+import { disableAvitoAutoload, fetchAvitoAutoloadStatus, publishAvitoXml, resolveAvitoXmlContactPhone } from "@/lib/avito/publish";
 
 const credentials = { clientId: "client", clientSecret: "secret" };
 
 describe("Avito XML publication", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it("uses a valid employee phone when the saved phone is stale", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes("/token")) return Response.json({ access_token: "token" });
+      if (String(url).includes("/getEmployeesV1")) {
+        return Response.json([{ employeeId: 1, phones: ["79306840311", "79159565222"] }]);
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(resolveAvitoXmlContactPhone(credentials, "+7 911 125-31-28", {
+      fetchFn,
+      sleepFn: async () => undefined,
+    })).resolves.toBe("+79306840311");
+  });
+
+  it("keeps the saved phone when it belongs to an Avito employee", async () => {
+    const fetchFn = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes("/token")) return Response.json({ access_token: "token" });
+      if (String(url).includes("/getEmployeesV1")) {
+        return Response.json([{ employeeId: 1, phones: ["79306840311"] }]);
+      }
+      return new Response("unexpected", { status: 500 });
+    }) as unknown as typeof fetch;
+
+    await expect(resolveAvitoXmlContactPhone(credentials, "8 (930) 684-03-11", {
+      fetchFn,
+      sleepFn: async () => undefined,
+    })).resolves.toBe("+79306840311");
   });
 
   it("requires a public feed url for Avito autoload", async () => {

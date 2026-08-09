@@ -56,6 +56,10 @@ export type AvitoAutoloadStatus = {
   uploads: unknown[];
 };
 
+type AvitoEmployee = {
+  phones?: string[] | null;
+};
+
 const DEFAULT_AUTOLOAD_TIMEOUT_MS = 120_000;
 
 function autoloadTimeoutMs(): number {
@@ -111,6 +115,38 @@ async function readJsonResponse(response: Response): Promise<unknown> {
   } catch {
     return { message: text };
   }
+}
+
+function normalizeContactPhone(value?: string | null): string | undefined {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("8")) return `+7${digits.slice(1)}`;
+  if (digits.length === 11 && digits.startsWith("7")) return `+${digits}`;
+  if (digits.length === 10) return `+7${digits}`;
+  return undefined;
+}
+
+export async function resolveAvitoXmlContactPhone(
+  credentials: AvitoCredentials,
+  preferredPhone?: string | null,
+  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+): Promise<string | undefined> {
+  const preferred = normalizeContactPhone(preferredPhone);
+  const token = await getAvitoStockToken(credentials, options);
+  const response = await fetchAutoload(
+    "https://api.avito.ru/getEmployeesV1",
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+    options,
+    "Получение телефонов сотрудников Avito",
+  );
+  if (!response.ok) return preferred;
+  const data = await readJsonResponse(response);
+  if (!Array.isArray(data)) return preferred;
+  const employeePhones = (data as AvitoEmployee[])
+    .flatMap((employee) => employee.phones ?? [])
+    .map(normalizeContactPhone)
+    .filter((phone): phone is string => Boolean(phone));
+  if (preferred && employeePhones.includes(preferred)) return preferred;
+  return employeePhones[0] ?? preferred;
 }
 
 function reportEmailFrom(profile: AutoloadProfile | null, explicitEmail?: string): string {

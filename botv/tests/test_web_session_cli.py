@@ -96,7 +96,8 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert "\u0413\u0440\u0430\u0444\u0438\u0447\u0435\u0441\u043a\u0438\u0439 \u0434\u0438\u0437\u0430\u0439\u043d" in xml["xml"]
     assert "&lt;br" not in xml["xml"]
     assert "<br" not in xml["xml"]
-    assert "<Delivery>" not in xml["xml"]
+    assert "<Delivery>" in xml["xml"]
+    assert "<Option>Выключена</Option>" in xml["xml"]
     assert "<TryOn>" not in xml["xml"]
     assert "<DeliverySubsidy>" not in xml["xml"]
 

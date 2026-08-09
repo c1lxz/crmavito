@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { buildXml } from "@/lib/botv/session";
-import { fetchAvitoAutoloadProfile, publishAvitoXml } from "@/lib/avito/publish";
+import { fetchAvitoAutoloadProfile, publishAvitoXml, resolveAvitoXmlContactPhone } from "@/lib/avito/publish";
 import { getAvitoCredentials, getAvitoProfileAutoloadSettings } from "@/lib/avito/profile-store";
 import {
   masterFeedKey,
@@ -72,7 +72,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!profileScope) throw new Error("Выберите профиль Avito для безопасного мастер-фида.");
     const savedSettings = await getAvitoProfileAutoloadSettings(parsed.data.profileId);
     const reportEmail = parsed.data.reportEmail?.trim() || savedSettings.reportEmail;
-    const contactPhone = savedSettings.contactPhone;
+    const contactPhone = await resolveAvitoXmlContactPhone(credentials, savedSettings.contactPhone);
     const xmlResult = await buildXml(id, contactPhone, { profileId: profileScope });
     const key = masterFeedKey(profileScope);
     const feedUrl = publicMasterXmlFeedUrl(request, key);

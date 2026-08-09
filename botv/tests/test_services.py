@@ -292,6 +292,14 @@ def test_xml_has_materials_odezhda():
     assert "<Option>Хлопок</Option>" in xml
 
 
+def test_xml_delivery_uses_avito_option_format():
+    gen, td = _make_xml_generator()
+    with td:
+        xml = gen.build([_sample_ad()]).decode("utf-8")
+    assert "<Delivery>" in xml
+    assert "<Option>ПВЗ</Option>" in xml
+
+
 def test_make_ad_id_adds_profile_scope_when_present():
     assert make_ad_id("SKU-", 7) == "SKU-7"
     assert make_ad_id("SKU-", 7, "profile_abc-123") == "SKU-profile_abc-123-7"
