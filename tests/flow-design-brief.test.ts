@@ -65,6 +65,7 @@ describe("Flow apparel production brief", () => {
       "a watchful owl perched on a crescent moon",
       "a cute cartoon raven mascot",
       "a distressed zodiac serpent",
+      "a soft botanical branch and flower study",
     ]) {
       expect(() => parseBrief(JSON.stringify({
         ...brief,
@@ -119,6 +120,9 @@ describe("Flow apparel production brief", () => {
     expect(prompt).toContain("¥22,000");
     expect(prompt).not.toContain("NIGHT VEIL");
     expect(prompt).not.toContain("shortwave receiver");
+    expect(prompt).toContain("CLOSED CIRCUIT");
+    expect(prompt).not.toContain("QUIET TRUCE");
+    expect(prompt).not.toContain("FIELD STUDY");
     expect(prompt).toContain("FRONT:");
     expect(prompt).toContain("BACK:");
   });
