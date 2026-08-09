@@ -64,11 +64,31 @@ def test_web_session_archive_update_and_xml(tmp_path):
     }, ensure_ascii=False))
     assert stock_updated["dropStockQuantity"] == 6
 
+    locations_updated = _run_cli("update", state["id"], json.dumps({
+        "locations": [
+            {
+                "city": "Москва",
+                "address": "Москва, Болотниковская ул., 12",
+                "enabled": False,
+            },
+            {
+                "city": "Казань",
+                "address": "Казань, улица Баумана, 1",
+                "enabled": True,
+                "custom": True,
+            },
+        ],
+    }, ensure_ascii=False))
+    assert locations_updated["locations"][0]["enabled"] is False
+    assert locations_updated["locations"][1]["custom"] is True
+
     xml = _run_cli("xml", state["id"])
     assert xml["products"] == 1
-    assert xml["ads"] == 3
-    assert xml["adIds"] == ["SKU-1", "SKU-2", "SKU-3"]
-    assert xml["xml"].count("<Quantity>6</Quantity>") == 3
+    assert xml["ads"] == 1
+    assert xml["adIds"] == ["SKU-1"]
+    assert xml["xml"].count("<Quantity>6</Quantity>") == 1
+    assert "<Address>Казань, улица Баумана, 1</Address>" in xml["xml"]
+    assert "Москва, Болотниковская ул., 12" not in xml["xml"]
     assert "Product Black" in xml["xml"]
     assert "Product White" not in xml["xml"]
     assert "<Color>\u0411\u0435\u043b\u044b\u0439</Color>" in xml["xml"]

@@ -26,9 +26,17 @@ export interface BotvSession {
   updatedAt: number;
   sourceName: string;
   dropStockQuantity?: number | null;
+  locations: BotvLocation[];
   products: BotvProduct[];
   summary: { total: number; active: number; deleted: number; ready: number; photos: number };
   progress: string[];
+}
+
+export interface BotvLocation {
+  city: string;
+  address: string;
+  enabled: boolean;
+  custom?: boolean;
 }
 
 export interface BotvSessionHistoryItem {

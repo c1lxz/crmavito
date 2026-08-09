@@ -12,10 +12,12 @@ import {
   ImageIcon,
   Link2,
   Loader2,
+  MapPin,
   MoreHorizontal,
   Package,
   PackageCheck,
   PanelTop,
+  Plus,
   Search,
   Send,
   SlidersHorizontal,
@@ -29,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AvitoProfileSelect, type AvitoServiceProfile } from "@/components/avito/avito-profile-select";
-import type { BotvProduct, BotvSession, BotvSessionHistoryItem } from "@/lib/botv/session";
+import type { BotvLocation, BotvProduct, BotvSession, BotvSessionHistoryItem } from "@/lib/botv/session";
 
 type Status = "idle" | "uploading" | "ready" | "saving" | "generating";
 type UploadProgress = {
@@ -311,6 +313,8 @@ export function BotvMiniApp() {
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [bulkPrice, setBulkPrice] = useState("");
   const [dropStockInput, setDropStockInput] = useState("");
+  const [newLocationCity, setNewLocationCity] = useState("");
+  const [newLocationAddress, setNewLocationAddress] = useState("");
   const [diskLink, setDiskLink] = useState("");
   const [preview, setPreview] = useState<BotvProduct | null>(null);
   const [phonePromptOpen, setPhonePromptOpen] = useState(false);
@@ -528,6 +532,43 @@ export function BotvMiniApp() {
     rememberSession(data);
     void refreshHistory();
     setStatus("ready");
+  }
+
+  async function saveLocations(locations: BotvLocation[]) {
+    await patch({ locations });
+  }
+
+  async function toggleLocation(locationIndex: number) {
+    if (!session) return;
+    const locations = session.locations.map((location, index) => (
+      index === locationIndex ? { ...location, enabled: !location.enabled } : location
+    ));
+    if (!locations.some((location) => location.enabled)) {
+      throw new Error("Для XML должен быть выбран хотя бы один город.");
+    }
+    await saveLocations(locations);
+  }
+
+  async function addLocation() {
+    if (!session) return;
+    const city = newLocationCity.trim();
+    const address = newLocationAddress.trim();
+    if (!city || !address) throw new Error("Укажите город и полный адрес с улицей и домом.");
+    if (city.toLocaleLowerCase("ru-RU") === address.toLocaleLowerCase("ru-RU")) {
+      throw new Error("Для нового города нужен полный адрес с улицей и домом.");
+    }
+    await saveLocations([...session.locations, { city, address, enabled: true, custom: true }]);
+    setNewLocationCity("");
+    setNewLocationAddress("");
+  }
+
+  async function removeLocation(locationIndex: number) {
+    if (!session) return;
+    const locations = session.locations.filter((_, index) => index !== locationIndex);
+    if (!locations.some((location) => location.enabled)) {
+      throw new Error("Нельзя удалить последний выбранный город для XML.");
+    }
+    await saveLocations(locations);
   }
 
   async function downloadXml(phone?: string) {
@@ -1113,6 +1154,76 @@ export function BotvMiniApp() {
                   Настройки публикации
                 </summary>
                 <div className="space-y-3 border-t border-border/80 p-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">Города XML</p>
+                        <p className="text-xs text-muted-foreground">На каждый отмеченный адрес создаётся отдельное объявление.</p>
+                      </div>
+                      <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                        Выбрано {session.locations.filter((location) => location.enabled).length}
+                      </span>
+                    </div>
+                    <div className="divide-y divide-border/70 rounded-md border border-border/80 bg-background">
+                      {session.locations.map((location, locationIndex) => (
+                        <div key={`${location.city}-${location.address}`} className="flex min-h-12 items-start gap-3 px-3 py-2.5">
+                          <input
+                            type="checkbox"
+                            aria-label={`Добавлять ${location.city} в XML`}
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                            checked={location.enabled}
+                            disabled={status === "saving"}
+                            onChange={() => run(() => toggleLocation(locationIndex))}
+                          />
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium leading-4">{location.city}</p>
+                            <p className="mt-1 text-xs leading-4 text-muted-foreground">{location.address}</p>
+                          </div>
+                          {location.custom && (
+                            <button
+                              type="button"
+                              aria-label={`Удалить адрес ${location.city}`}
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              disabled={status === "saving"}
+                              onClick={() => run(() => removeLocation(locationIndex))}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-[minmax(140px,0.7fr)_minmax(260px,1.3fr)_auto]">
+                      <Input
+                        aria-label="Новый город XML"
+                        placeholder="Город"
+                        value={newLocationCity}
+                        onChange={(event) => setNewLocationCity(event.target.value)}
+                      />
+                      <Input
+                        aria-label="Полный адрес нового города"
+                        placeholder="Полный адрес: улица, дом"
+                        value={newLocationAddress}
+                        onChange={(event) => setNewLocationAddress(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            run(addLocation);
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={status === "saving" || !newLocationCity.trim() || !newLocationAddress.trim()}
+                        onClick={() => run(addLocation)}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Добавить город
+                      </Button>
+                    </div>
+                  </div>
                   <div className="max-w-xl space-y-1">
                     <Label htmlFor="botv-avito-profile">Профиль Avito</Label>
                     <AvitoProfileSelect

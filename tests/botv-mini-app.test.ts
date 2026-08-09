@@ -69,6 +69,9 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("saveDropStockQuantity");
     expect(clientSource).toContain("dropStockQuantity");
     expect(clientSource).toContain("Остаток XML");
+    expect(clientSource).toContain("Города XML");
+    expect(clientSource).toContain("Добавить город");
+    expect(clientSource).toContain("saveLocations");
     expect(clientSource).toContain("Чёрный");
     expect(clientSource).toContain("Белый");
     expect(clientSource).toContain("PanelTop");

@@ -239,6 +239,7 @@ def _public_state(state: dict) -> dict:
         "updatedAt": state.get("updated_at") or state.get("created_at"),
         "sourceName": state.get("source_name"),
         "dropStockQuantity": _drop_stock_quantity(state.get("drop_stock_quantity")),
+        "locations": _session_locations(state, include_disabled=True),
         "products": [_serialize_product(i, p) for i, p in enumerate(products, 1)],
         "summary": {
             "total": len(products),
@@ -249,6 +250,48 @@ def _public_state(state: dict) -> dict:
         },
         "progress": state.get("progress", []),
     }
+
+
+def _normalize_locations(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        raise SystemExit("Адреса XML должны быть списком")
+    result: list[dict[str, object]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        city = str(item.get("city") or "").strip()
+        address = str(item.get("address") or "").strip()
+        if not city or not address:
+            raise SystemExit("Для города и полного адреса нельзя оставлять пустые поля")
+        if city.casefold() == address.casefold():
+            raise SystemExit(f"Для города {city} укажите полный адрес с улицей и домом")
+        key = (city.casefold(), address.casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append({
+            "city": city,
+            "address": address,
+            "enabled": bool(item.get("enabled", True)),
+            "custom": bool(item.get("custom", False)),
+        })
+    if not result:
+        raise SystemExit("Добавьте хотя бы один адрес XML")
+    if not any(item["enabled"] for item in result):
+        raise SystemExit("Выберите хотя бы один город для XML")
+    return result
+
+
+def _session_locations(state: dict, *, include_disabled: bool = False) -> list[dict[str, object]]:
+    stored = state.get("locations")
+    if stored is None:
+        stored = [
+            {**location, "enabled": True, "custom": False}
+            for location in load_locations(config.settings_dir / "locations.json")
+        ]
+    locations = _normalize_locations(stored)
+    return locations if include_disabled else [item for item in locations if item["enabled"]]
 
 
 
@@ -272,7 +315,7 @@ def _product_details(name: str, photos: list[Path], color: str | None = None) ->
 def _description_for_preview(name: str, title: str, price: int | None, design: str = "") -> str:
     description = DescriptionRenderer(config.settings_dir / "description_template.txt")
     price_fmt = f"{price:,}".replace(",", " ") if price is not None else ""
-    return description.render(title=name, color="", price=price_fmt, design=design)
+    return description.render(title=name, color="", product_name=f"{name} {title}", price=price_fmt, design=design)
 
 
 def _state_from_root(session_id: str, session_dir: Path, root: Path, source_name: str, progress: list[str]) -> dict:
@@ -386,6 +429,8 @@ def update_session(session_id: str, payload: dict) -> dict:
     products = state["products"]
     if "dropStockQuantity" in payload:
         state["drop_stock_quantity"] = _drop_stock_quantity(payload.get("dropStockQuantity"))
+    if "locations" in payload:
+        state["locations"] = _normalize_locations(payload.get("locations"))
     for item in payload.get("products", []):
         index = int(item.get("index") or 0) - 1
         if index < 0 or index >= len(products):
@@ -587,6 +632,7 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
     state_path = _session_dir(session_id) / "state.json"
     state = _read_json(state_path)
     products = [p for p in state["products"] if not p.get("deleted")]
+    locations = _session_locations(state)
     if phone:
         base_xml = _read_last_base_xml(state, id_scope)
         if base_xml is None:
@@ -595,18 +641,17 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
             base_xml = base_result["xml"]
         xml_text = _replace_phone(base_xml, phone)
         out_path = _write_xml_file(session_id, xml_text, phone)
-        state["progress"] = [*state.get("progress", []), f"XML with replacement phone created: {len(products) * len(load_locations(config.settings_dir / 'locations.json'))} ads"][-12:]
+        state["progress"] = [*state.get("progress", []), f"XML with replacement phone created: {len(products) * len(locations)} ads"][-12:]
         state["last_phone_xml"] = str(out_path)
         state["updated_at"] = int(time.time())
         _write_json(state_path, state)
-        return {"filename": out_path.name, "xml": xml_text, "ads": len(products) * len(load_locations(config.settings_dir / "locations.json")), "products": len(products), "adIds": _extract_xml_ad_ids(xml_text)}
+        return {"filename": out_path.name, "xml": xml_text, "ads": len(products) * len(locations), "products": len(products), "adIds": _extract_xml_ad_ids(xml_text)}
     missing = [i for i, p in enumerate(state["products"], 1) if not p.get("deleted") and (not _product_title(p) or _product_price(p) is None)]
     if missing:
         raise SystemExit("Не заполнены название или цена: " + ", ".join(f"#{i}" for i in missing))
     settings_dir = config.settings_dir
     description = DescriptionRenderer(settings_dir / "description_template.txt")
     xml_gen = XmlGenerator(defaults_path=settings_dir / "avito_defaults.json", schema_path=settings_dir / "xml_schema.json")
-    locations = load_locations(settings_dir / "locations.json")
     drop_stock_quantity = _drop_stock_quantity(state.get("drop_stock_quantity"))
     color_detector = ColorDetector(settings_dir / "color_rules.json")
     brands_path = settings_dir / "brands_cache.json"
@@ -644,7 +689,7 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
             text = _product_description(product)
         else:
             design_text = asyncio.run(_generate_product_design(product, title or name, allow_ai=allow_ai, timeout=ai_timeout))
-            text = description.render(title=name, color=color, price=price_fmt, design=design_text)
+            text = description.render(title=name, color=color, product_name=f"{name} {title}", price=price_fmt, design=design_text)
         product["color"] = color
         product["design"] = design_text
         product["description"] = text

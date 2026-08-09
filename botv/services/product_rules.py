@@ -2,10 +2,26 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from pathlib import Path
 from typing import Sequence
 
 SIZES = ("46 (S)", "48 (M)", "50 (L)")
+
+
+def product_kind(name: str) -> str:
+    value = name.casefold().replace("ё", "е")
+    if "худи" in value or "hoodie" in value:
+        return "hoodie"
+    if "лонгслив" in value or "long sleeve" in value or "longsleeve" in value:
+        return "longsleeve"
+    if "поло" in value or re.search(r"\bpolo\b", value):
+        return "polo"
+    if "свитшот" in value or "sweatshirt" in value:
+        return "sweatshirt"
+    if "футбол" in value or "t-shirt" in value or "tshirt" in value or re.search(r"\btee\b", value):
+        return "tshirt"
+    return "other"
 
 
 def load_locations(path: Path) -> list[dict[str, str]]:
@@ -38,8 +54,13 @@ def choose_sizes(count: int, choices: Sequence[str] = SIZES) -> list[str]:
 
 def product_extra(name: str, size: str) -> dict[str, str]:
     extra = {"Size": size}
-    if "лонгслив" in name.casefold():
+    kind = product_kind(name)
+    if kind == "longsleeve":
         extra["GoodsSubType"] = "Свитшот"
+    elif kind in {"hoodie", "sweatshirt"}:
+        extra["GoodsSubType"] = "Толстовка"
+    elif kind == "polo":
+        extra["GoodsSubType"] = "Поло"
     return extra
 
 

@@ -70,6 +70,7 @@ from services.product_rules import (
     load_locations,
     location_extras,
     product_extra,
+    product_kind,
 )
 
 
@@ -323,10 +324,24 @@ def test_longsleeve_uses_sweatshirt_subcategory():
         "GoodsSubType": "Свитшот",
     }
     assert product_extra("Футболка Saint Michael", "50 (L)") == {"Size": "50 (L)"}
+    assert product_extra("Худи Stussy", "48 (M)")["GoodsSubType"] == "Толстовка"
+    assert product_extra("Поло Lacoste", "48 (M)")["GoodsSubType"] == "Поло"
+    assert product_kind("Long sleeve Raf Simons") == "longsleeve"
+    assert product_kind("Необычная куртка") == "other"
     assert {choose_size() for _ in range(100)} <= set(SIZES)
     generated = choose_sizes(7)
     assert set(generated[:3]) == set(SIZES)
     assert set(generated[3:6]) == set(SIZES)
+
+
+def test_description_renderer_selects_product_template(tmp_path):
+    template = tmp_path / "description_template.txt"
+    template.write_text("Футболка: {title}", encoding="utf-8")
+    (tmp_path / "description_template_hoodie.txt").write_text("Худи: {title}", encoding="utf-8")
+    renderer = DescriptionRenderer(template)
+
+    assert renderer.render(title="Test", color="", product_name="Худи Test") == "Худи: Test"
+    assert renderer.render(title="Test", color="", product_name="Футболка Test") == "Футболка: Test"
 
 
 def test_locations_are_exact_and_generate_one_ad_per_city():

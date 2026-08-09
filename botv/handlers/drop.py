@@ -682,7 +682,7 @@ async def _process_and_send_xml(message: Message, state: FSMContext, bot: Bot, b
                 verify_ssl=config.gigachat_verify_ssl,
             ) or ""
 
-        text = description.render(title=name, color=color, price=price_fmt, design=design_text)
+        text = description.render(title=name, color=color, product_name=f"{name} {ad_title}", price=price_fmt, design=design_text)
         brand = detect_brand(name, brands or []) or "Без бренда"
         base_extra = product_extra(f"{name} {ad_title}", size)
         variants = location_extras(locations, base_extra)
