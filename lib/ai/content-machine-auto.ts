@@ -184,14 +184,21 @@ async function readWinnerCollarText(image: Buffer): Promise<string> {
     .greyscale().normalize().sharpen().resize({ width: 1_600, withoutEnlargement: false })
     .jpeg({ quality: 88 }).toBuffer();
   return new Promise((resolve) => {
-    const child = spawn("tesseract", ["stdin", "stdout", "-l", "eng", "--psm", "11"], { windowsHide: true });
+    const child = spawn("tesseract", ["stdin", "stdout", "-l", "eng", "--psm", "11", "tsv"], { windowsHide: true });
     let output = "";
     const timer = setTimeout(() => child.kill(), 15_000);
     child.stdout.setEncoding("utf8").on("data", (chunk) => { output += chunk; });
     child.on("error", () => { clearTimeout(timer); resolve(""); });
     child.on("close", (code) => {
       clearTimeout(timer);
-      resolve(code === 0 ? output.replace(/\s+/g, " ").trim() : "");
+      if (code !== 0) return resolve("");
+      const confidentWords = output.split(/\r?\n/).slice(1).flatMap((line) => {
+        const columns = line.split("\t");
+        const confidence = Number(columns[10]);
+        const word = columns[11]?.trim() || "";
+        return confidence >= 80 && /^[a-z]{4,}$/i.test(word) ? [word] : [];
+      });
+      resolve(confidentWords.join(" "));
     });
     child.stdin.end(collar);
   });
