@@ -7,6 +7,9 @@ type AnthropicResponse = {
   error?: { message?: string } | string;
 };
 
+const BANNED_DESIGN_SUBJECT = /\b(?:animal|animals|bird|birds|owl|owls|eagle|raven|crow|bison|buffalo|yak|horse|stallion|bull|wolf|bear|tiger|lion|panther|snake|serpent|dragon|butterfl(?:y|ies)|spider|insect|mascot|creature|moon|crescent|zodiac|tarot|astrology|celestial|angel|seraph|demon|ghost|skeleton|fairy|witch|halo|botanical|flower|floral|herbarium|kawaii|cute|cartoon)\b/i;
+const APPROVED_DESIGN_LANGUAGE = /\b(?:type stack|typography|typographic|legal copy|serial text|anonymous (?:adult |human |group )?(?:editorial|portrait|photograph|photography|figure|figures)|editorial (?:photo|photograph|photography|portrait)|xerox|photocop(?:y|ied)|halftone|abrasive poster|nightlife flyer|security label|torn overprint)\b/i;
+
 export async function createClaudeDesignMetaPrompt(
   input: {
     images: Array<{
@@ -83,7 +86,18 @@ export async function createClaudeDesignMetaPrompt(
     .replace(/^```(?:text)?\s*|\s*```$/gi, "")
     .trim();
   if (!prompt || prompt.length < 300) throw new Error("Claude вернул слишком короткий мета-промпт.");
+  if (!isApprovedClaudeDesignPrompt(prompt)) {
+    throw new Error("Claude returned a blocked or off-direction garment concept; generation was stopped before Flow.");
+  }
   return { prompt: prompt.slice(0, 900), model };
+}
+
+export function isApprovedClaudeDesignPrompt(prompt: string) {
+  const affirmativeCreativeDirection = prompt.replace(
+    /\b(?:do not|never|no|without|avoid|reject|prohibit)\b[^.!;]*(?:[.!;]|$)/gi,
+    " ",
+  );
+  return !BANNED_DESIGN_SUBJECT.test(affirmativeCreativeDirection) && APPROVED_DESIGN_LANGUAGE.test(prompt);
 }
 
 function buildMetaPromptRequest(
@@ -108,10 +122,12 @@ function buildMetaPromptRequest(
       : "There are no hang tags, paper tags, sewn labels or woven tabs. The only label is a heat-transfer marking printed inside the back-neck panel and physically hidden in exterior product photos.",
     "Write one production-ready English Flow prompt of 650-850 characters that creates ONE genuinely original garment design and a premium photorealistic marketplace photo.",
     "The prompt must preserve the broad demand logic while changing all protected expression. Explicitly prohibit copying or closely imitating any brand, logo, character, mascot, artwork, artist style, monogram, exact wording or distinctive composition visible in the reference.",
-    "Invent and explicitly describe a sophisticated new motif, supporting geometry, front/back relationship, layout and limited color system that are visibly different from the uploaded winner. Use a restrained secondary hook on the front and a distinct hero artwork on the back; never repeat the same principal object, figure, hand, face, symbol or silhouette on both sides.",
+    "Choose exactly ONE evidence-backed design lane: TYPE STACK (an exact original 1-3 word phrase with asymmetric serial/legal-copy hierarchy), ANONYMOUS EDITORIAL (an original unrecognizable cropped adult figure or group in high-contrast xerox/halftone treatment), or ABRASIVE POSTER (an original red/black/off-white torn urban-document field with deliberate readable type). Never mix lanes.",
+    "Explicitly describe its front/back relationship, layout and limited color system. Preserve the winner's proven hero-side hierarchy instead of automatically making the back dominant; never repeat the same principal subject or silhouette on both sides.",
     "Enforce the production limit: each side has one flat printable rectangle no larger than 24 x 32 cm, at least 5 cm from collar, shoulder, sleeve, side and hem seams. Prohibit all-over, tiled, wraparound, sleeve, seam-crossing and edge-to-edge printing.",
     "Require one specific recognizable editorial subject and coherent story. Reject random abstract squares, rectangles, grids, panels or color fields as a design concept.",
-    "Demand archive-designer fashion intelligence: asymmetric placement, controlled negative space, layered print rhythm and intentional distressing. Explicitly reject generic print-on-demand clipart, centered animal mascots (buffalo, yak, bear, wolf), compass roses, crests, stock gothic icons and a lone chest logo.",
+    "HARD SUBJECT BAN: no animals, birds, insects, owls, mascots, fantasy or mystical creatures/icons, angels, seraphs, demons, ghosts, skeletons, moon/crescent/zodiac/tarot imagery, flowers, botanical branches, cute faces, cartoons or children's-merch storytelling, even when a reference contains them.",
+    "Demand archive-designer fashion intelligence: asymmetric placement, controlled negative space, layered print rhythm and intentional distressing. Explicitly reject generic print-on-demand clipart, compass roses, crests, stock gothic icons, arbitrary badges, invented brands and a lone chest logo.",
     "Demand crisp print edges, visible cotton weave, realistic screen-print ink absorption, sharp seams, natural folds and contact shadows, neutral white balance, high micro-contrast and a clean high-resolution commercial camera result.",
     "Prefer a purely visual main graphic. If typography is essential, specify one exact original phrase of at most three words in quotation marks. Prohibit fake branding, visible label text, white collar locators, fasteners, strings and cropped tag fragments.",
     `Flow receives REFERENCE IMAGES 1-${referenceCount} as views of the same inspiration garment and REFERENCE IMAGE ${referenceCount + 1} as the exact background, perspective and light reference. Tell Flow to understand the full front/back print system without copying its protected artwork.`,

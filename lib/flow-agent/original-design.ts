@@ -17,7 +17,8 @@ export function buildOriginalFrontSeedPrompt(basePrompt: string) {
     "FRONT DESIGN SOURCE. Invent one new premium adult trap/archive short-sleeve T-shirt on a plain dark neutral studio background.",
     extractAnchorConcept(basePrompt, "FRONT"),
     "Show the entire washed-black shirt front with both sleeves, collar and hem. The artwork is one deliberate printable torso composition with strong hierarchy and black negative space, using absorbed off-white and deep oxblood ink.",
-    "No existing stars, horse, animal, bird, owl, mascot, cartoon, moon, zodiac, flowers, esports logo, generic badge, watermark, marketplace UI, hang tag or fake brand name.",
+    "Use only the approved brief's single lane: exact asymmetric TYPE STACK, anonymous adult EDITORIAL xerox/halftone, or red-black ABRASIVE POSTER. Never blend the lanes or invent a fourth motif.",
+    "No existing stars, horse, animal, bird, owl, mascot, cartoon, mystical icon, angel, seraph, demon, ghost, skeleton, moon, zodiac, tarot, flowers, esports logo, generic badge, watermark, marketplace UI, hang tag or fake brand name.",
     "This image is a DESIGN REFERENCE for a later product-photo edit, so make the new artwork unmistakable, commercially credible and fully visible.",
   ].filter(Boolean).join(" ");
 }
@@ -64,9 +65,10 @@ export function buildOriginalStagePrompt(
         : "FRONT anatomy is mandatory: keep a clean crew neck. The garment has only an internal heat-transfer neck marking on the inside back-neck panel, physically hidden unless that inner panel is genuinely visible. Never place label text on the outer chest.",
       frontAnchorLabelRule,
       "Follow the approved FRONT artwork in the production brief exactly. It needs a recognizable editorial subject and intentional hierarchy, not abstract squares, rectangles, grids, tiled blocks, a lone chest logo or decorative geometry.",
+      "DESIGN LANE LOCK: preserve exactly the brief's TYPE STACK, ANONYMOUS EDITORIAL or ABRASIVE POSTER system. Never blend lanes, introduce a mascot or invent a substitute motif.",
       "COMMERCIAL TASTE LOCK: no radial ring of repeated objects, eye/oval/swoosh emblem, lone number on a blob, tiny centered token, esports/tech identity, arbitrary badge, invented brand name, holographic foil or glossy vinyl. Any required words must match the brief exactly and be legible.",
       "PRINTABILITY IS MANDATORY: the complete front artwork must fit one rectangle no larger than 24 x 32 cm, entirely on the flat torso panel and at least 5 cm from collar, shoulders, sleeves, side seams and hem. No all-over, wraparound, sleeve, seam-crossing or edge-to-edge print.",
-      "ADULT STREETWEAR LOCK: no animals, birds, owls, insects, mascots, fantasy creatures, moon/zodiac/tarot imagery, flowers, botanical branches, cute faces, cartoons, children's-merch storytelling or unrelated stock clipart.",
+      "ADULT STREETWEAR LOCK: no animals, birds, owls, insects, mascots, fantasy or mystical creatures/icons, angels, seraphs, demons, ghosts, skeletons, moon/zodiac/tarot imagery, flowers, botanical branches, cute faces, cartoons, children's-merch storytelling or unrelated stock clipart.",
       "ZERO WATERMARKS: no Avito, Grailed, marketplace logo, listing overlay, seller mark, signature or corner watermark anywhere in the output.",
       "Return one photorealistic FRONT-view product photo only. Do not show the back.",
     ].join(" ");
@@ -83,9 +85,10 @@ export function buildOriginalStagePrompt(
       "IMAGE 2 is SCENE ONLY: copy surface, camera and light; ignore its garment and every marking.",
       "REAR anatomy is mandatory: use the higher closed back neckline. The inside heat-transfer neck marking is physically inside the shirt and therefore NOT visible from the rear. Never add a hang tag, paper tag, sewn label, woven tab, white locator, plastic fastener, string, cropped tag fragment, L.G.B., CUSTOM MADE or label wording on the exterior.",
       "Follow the approved BACK artwork in the production brief exactly. It must develop the same story and ink palette while using a different primary subject and silhouette from the front; never repeat, mirror, enlarge, fragment or paste the front artwork.",
+      "DESIGN LANE LOCK: preserve exactly the brief's TYPE STACK, ANONYMOUS EDITORIAL or ABRASIVE POSTER system. Never blend lanes, introduce a mascot or invent a substitute motif.",
       "The supporting side must still look deliberately designed and sellable, never one tiny token below the collar. No radial ring, eye/oval/swoosh, lone number and blob, esports/tech badge, invented brand, holographic foil or fake text.",
       "PRINTABILITY IS MANDATORY: the complete back artwork must fit one rectangle no larger than 24 x 32 cm, entirely on the flat torso panel and at least 5 cm from collar, shoulders, sleeves, side seams and hem. No all-over, tiled, wraparound, sleeve, seam-crossing or edge-to-edge print.",
-      "ADULT STREETWEAR LOCK: no animals, birds, owls, insects, mascots, fantasy creatures, moon/zodiac/tarot imagery, flowers, botanical branches, cute faces, cartoons, children's-merch storytelling or unrelated stock icon.",
+      "ADULT STREETWEAR LOCK: no animals, birds, owls, insects, mascots, fantasy or mystical creatures/icons, angels, seraphs, demons, ghosts, skeletons, moon/zodiac/tarot imagery, flowers, botanical branches, cute faces, cartoons, children's-merch storytelling or unrelated stock icon.",
       "Return one photorealistic BACK-view product photo only. Do not show the front neckline or front artwork.",
     ].join(" ");
   }

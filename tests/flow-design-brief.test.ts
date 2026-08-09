@@ -16,27 +16,27 @@ describe("Flow apparel production brief", () => {
       "Mercari: asymmetric message and wing graphics on washed dark jersey.",
       "Rakuma: large editorial halftone balanced by narrow exact typography.",
     ],
-    conceptName: "Fallen Afterimage",
-    conceptStory: "A cracked marble seraph image dissolves like a damaged archive photograph.",
+    conceptName: "Signal Afterimage",
+    conceptStory: "ANONYMOUS EDITORIAL: an unrecognizable cropped adult figure dissolves like a damaged archive photograph.",
     garment: "washed black slim long-sleeve cotton jersey",
     front: {
-      artwork: "distressed halftone crop of one cracked marble seraph eye with a wine-red tear",
+      artwork: "distressed halftone crop of an anonymous adult portrait with a wine-red registration mark",
       placement: "left upper torso",
       sizeCm: "10 x 7 cm",
     },
     back: {
-      artwork: "fragmented marble seraph bust with torn wings dissolving into ink dust",
+      artwork: "anonymous adult figure in a torn editorial photograph dissolving into ink dust",
       placement: "centered upper back",
       sizeCm: "22 x 29 cm",
     },
     inkColors: ["bone", "muted rust"],
     printMethod: "two-pass water-based screen print with restrained distress",
-    originalityCheck: "Uses a new marble-seraph composition without copying the winner or listings.",
+    originalityCheck: "Uses a new anonymous editorial composition without copying the winner or listings.",
   };
 
   it("parses a structured visual-analysis response", () => {
     expect(parseBrief(JSON.stringify(brief))).toMatchObject({
-      conceptName: "Fallen Afterimage",
+      conceptName: "Signal Afterimage",
       front: { sizeCm: "10 x 7 cm" },
       back: { sizeCm: "22 x 29 cm" },
     });
@@ -48,7 +48,7 @@ describe("Flow apparel production brief", () => {
     expect(prompt).toContain("No all-over, tiled, wraparound, sleeve or seam-crossing print");
     expect(prompt).toContain("not a logo exercise, stock clipart or motif salad");
     expect(prompt).toContain("eye/oval/swoosh emblems");
-    expect(prompt).toContain("marble seraph");
+    expect(prompt).toContain("anonymous adult figure");
     expect(prompt).toContain("exact source neck transfer");
   });
 
@@ -73,6 +73,15 @@ describe("Flow apparel production brief", () => {
         front: { ...brief.front, artwork },
       }))).toThrow("banned motif");
     }
+  });
+
+  it("rejects vague concepts outside the three approved adult design lanes", () => {
+    expect(() => parseBrief(JSON.stringify({
+      ...brief,
+      conceptStory: "A sophisticated new abstract motif with balanced geometry.",
+      front: { ...brief.front, artwork: "distressed geometric emblem" },
+      back: { ...brief.back, artwork: "layered abstract grid" },
+    }))).toThrow("approved adult streetwear lane");
   });
 
   it("invalidates an already cached owl brief so the local agent regenerates it", () => {

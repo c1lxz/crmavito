@@ -15,7 +15,7 @@ import {
 } from "@/lib/ai/content-machine-jobs";
 import { saveBackground } from "@/lib/ai/content-machine";
 import { buildOriginalDesignPrompt } from "@/lib/flow-agent/market-research";
-import { createClaudeDesignMetaPrompt } from "@/lib/ai/claude-content-design";
+import { createClaudeDesignMetaPrompt, isApprovedClaudeDesignPrompt } from "@/lib/ai/claude-content-design";
 
 const root = path.resolve(__dirname, "..");
 const clientSource = fs.readFileSync(path.join(root, "components/content-machine/content-machine-client.tsx"), "utf8");
@@ -354,7 +354,7 @@ describe("content machine", () => {
   it("asks Claude vision for a production-ready Flow meta-prompt", async () => {
     let requestBody = "";
     const expectedPrompt = [
-      "Create one original black long-sleeve garment with a newly composed high-contrast screen print.",
+      "Create one original black long-sleeve garment with an anonymous editorial photograph in a high-contrast xerox screen print.",
       "Use reference image 1 only for broad commercial hierarchy and reference image 2 for the exact background and lighting.",
       "Preserve realistic cotton weave, seams, folds, print absorption, contact shadows, lens perspective and marketplace-camera imperfections.",
       "Do not copy any logo, mascot, character, wording, monogram, artist style or distinctive composition.",
@@ -394,13 +394,22 @@ describe("content machine", () => {
     expect(requestBody).toContain("Make the graphic smaller and provide varied camera angles.");
     expect(requestBody).toContain("Internal heat-transfer identification hint: minimal archival luxury");
     expect(requestBody).toContain("There are no hang tags, paper tags, sewn labels or woven tabs");
-    expect(requestBody).toContain("buffalo, yak, bear, wolf");
+    expect(requestBody).toContain("HARD SUBJECT BAN");
+    expect(requestBody).toContain("TYPE STACK");
+    expect(requestBody).toContain("ANONYMOUS EDITORIAL");
+    expect(requestBody).toContain("ABRASIVE POSTER");
     expect(requestBody).toContain("24 x 32 cm");
     expect(requestBody).toContain("random abstract squares, rectangles, grids");
     expect(requestBody).toContain("REFERENCE IMAGES 1-2");
     expect(requestBody).toContain("REFERENCE IMAGE 3");
     expect(requestBody).toContain("exactly one image per run");
     expect(requestBody).toContain("Do not explain your analysis");
+  });
+
+  it("blocks childish and off-direction Claude concepts before opening Flow", () => {
+    expect(isApprovedClaudeDesignPrompt("A premium halftone owl mascot on a washed shirt.")).toBe(false);
+    expect(isApprovedClaudeDesignPrompt("A sophisticated abstract emblem on a washed shirt.")).toBe(false);
+    expect(isApprovedClaudeDesignPrompt("Anonymous editorial adult portrait in distressed xerox halftone.")).toBe(true);
   });
 
   it("supports automatic analytics batches from 1 to 100 positions", () => {
@@ -417,5 +426,8 @@ describe("content machine", () => {
     expect(autoRouteSource).toContain('garmentType: z.enum(["t-shirt"])');
     expect(flowAgentSource).toContain("createBestLabelAssets");
     expect(flowAgentSource).toContain("applyExactLabelOverlay");
+    expect(originalDesignSource).toContain("DESIGN LANE LOCK");
+    expect(originalDesignSource).toContain("ANONYMOUS EDITORIAL");
+    expect(originalDesignSource).toContain("ABRASIVE POSTER");
   });
 });
