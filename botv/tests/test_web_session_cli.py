@@ -97,7 +97,7 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert "&lt;br" not in xml["xml"]
     assert "<br" not in xml["xml"]
     assert "<Delivery>" in xml["xml"]
-    assert "<Option>Выключена</Option>" in xml["xml"]
+    assert "<Option>ПВЗ</Option>" in xml["xml"]
     assert "<TryOn>" not in xml["xml"]
     assert "<DeliverySubsidy>" not in xml["xml"]
 
