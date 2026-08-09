@@ -72,6 +72,10 @@ describe("Flow agent authentication", () => {
     expect(agent).toContain("CRM poll failed");
     expect(agent).toContain("CRM вернула не-JSON ответ");
     expect(agent).toContain("probeFlow");
+    expect(agent).toContain("probeLocalFlowBeforeClaim");
+    expect(agent).toContain("keeping every CRM job queued until the existing profile is ready");
+    expect(agent.indexOf("const availability = await probeLocalFlowBeforeClaim()"))
+      .toBeLessThan(agent.indexOf("job = await claimJob()"));
     expect(agent).toContain("Агент готов; Flow откроется только при запуске генерации.");
     expect(agent.indexOf("job = await claimJob()"))
       .toBeLessThan(agent.indexOf("await runJobInFlow(job,"));

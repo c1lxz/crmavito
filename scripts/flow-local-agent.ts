@@ -124,6 +124,21 @@ async function main() {
   }, 15_000);
   try {
     while (true) {
+      if (cdpUrl) {
+        const availability = await probeLocalFlowBeforeClaim();
+        currentAvailability = availability;
+        await reportStatus(availability).catch(() => undefined);
+        if (availability.state !== "ready") {
+          if (availability.state === "auth_required") {
+            console.warn("[flow-agent] Flow session requires sign-in; keeping every CRM job queued until the existing profile is ready.");
+            await waitForLocalFlowRecovery();
+            currentAvailability = idleAvailability;
+          } else {
+            await delay(Math.max(15_000, pollMs));
+          }
+          continue;
+        }
+      }
       let job: AgentJob | null;
       try {
         job = await claimJob();
@@ -170,6 +185,18 @@ async function main() {
     }
   } finally {
     clearInterval(heartbeatTimer);
+  }
+}
+
+async function probeLocalFlowBeforeClaim(): Promise<FlowAvailability> {
+  const session = await launchFlowSession();
+  try {
+    const page = await prepareControlPage(session.context, undefined, session.preservePages);
+    return await probeFlow(page);
+  } catch (error) {
+    return { state: "error", message: error instanceof Error ? error.message : String(error) };
+  } finally {
+    await session.close().catch(() => undefined);
   }
 }
 
