@@ -647,6 +647,7 @@ export function compactFlowPrompt(prompt: string) {
     ? "FRONT"
     : normalized.includes("BACK DESIGN ANCHOR") ? "BACK" : null;
   if (customAnchorSide && !normalized.includes("NIGHT VEIL") && /\b(?:FRONT|BACK):/i.test(normalized)) {
+    const anchorMaxLength = 950;
     const otherSide = customAnchorSide === "FRONT" ? "BACK:" : "PRODUCTION LOCK:";
     const sideStart = normalized.indexOf(`${customAnchorSide}:`);
     const otherSideEnd = sideStart >= 0 ? normalized.indexOf(` ${otherSide}`, sideStart + customAnchorSide.length + 1) : -1;
@@ -656,7 +657,7 @@ export function compactFlowPrompt(prompt: string) {
       : sentenceEnd > sideStart ? sentenceEnd + 1 : -1;
     const title = normalized.match(/(?:MARKET-GROUNDED ORIGINAL DESIGN|DEMAND-GROUNDED FALLBACK CONCEPT)[^.]*\./i)?.[0] || "ORIGINAL MARKET-GROUNDED DESIGN.";
     const sideBrief = sideStart >= 0
-      ? normalized.slice(sideStart, sideEnd > sideStart ? sideEnd : Math.min(normalized.length, sideStart + 520))
+      ? normalized.slice(sideStart, Math.min(sideEnd > sideStart ? sideEnd : normalized.length, sideStart + 360))
       : "";
     const preserveWinnerLabel = normalized.includes("WINNER LABEL LOCK");
     const postprocessWinnerLabel = normalized.includes("LABEL POSTPROCESS");
@@ -670,7 +671,7 @@ export function compactFlowPrompt(prompt: string) {
     return [`${customAnchorSide} DESIGN ANCHOR.`, title, sideBrief, suffix]
       .filter(Boolean)
       .join(" ")
-      .slice(0, maxLength);
+      .slice(0, anchorMaxLength);
   }
   const preserveWinnerLabel = normalized.includes("WINNER LABEL LOCK");
   const stageSuffix = normalized.includes("FINAL FRONT PRINT DETAIL")

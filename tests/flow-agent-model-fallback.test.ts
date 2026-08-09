@@ -165,6 +165,7 @@ describe("original design stages", () => {
     expect(compacted).toContain("premium washed-black short-sleeve cotton T-shirt");
     expect(compacted).toContain("approved product-photo template");
     expect(compacted).not.toContain("Never suppress an approved bone");
+    expect(compacted.length).toBeLessThanOrEqual(950);
   });
 
   it("keeps a fallback front subject even after long marketplace evidence", () => {
