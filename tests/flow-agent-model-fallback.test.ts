@@ -6,6 +6,7 @@ import { compareFlowImageGeometry } from "@/lib/flow-agent/image-output";
 import { buildOriginalStagePrompt } from "@/lib/flow-agent/original-design";
 
 const agentSource = fs.readFileSync(path.join(process.cwd(), "scripts/flow-local-agent.ts"), "utf8");
+const browserSource = fs.readFileSync(path.join(process.cwd(), "lib/flow-agent/browser.ts"), "utf8");
 
 describe("Flow model fallback", () => {
   it("releases region/marketing-page failures so another configured agent can retry", () => {
@@ -31,6 +32,12 @@ describe("Flow model fallback", () => {
     expect(isFlowModelLimitText("Вы достигли дневного лимита на генерацию. Попробуйте использовать другую модель.")).toBe(true);
     expect(isFlowModelLimitText("Дневной лимит исчерпан. Выберите другую модель.")).toBe(true);
     expect(isFlowModelLimitText("Something went wrong. Try again.")).toBe(false);
+  });
+
+  it("bypasses Flow notification toasts that cover uploaded references", () => {
+    expect(browserSource).toContain("dismissFlowNotifications(page)");
+    expect(browserSource).toContain("style.pointerEvents = \"none\"");
+    expect(browserSource).toContain("(element as HTMLElement).click()");
   });
 });
 

@@ -461,6 +461,7 @@ async function acceptRightsNotice(page: Page) {
 
 async function attachUploadedReferences(page: Page, references: string[]) {
   for (const reference of references) {
+    await dismissFlowNotifications(page);
     const addMedia = await waitForFirstVisible(page, [
       '[data-testid="add-media"]',
       'button:has-text("add_2")',
@@ -471,7 +472,13 @@ async function attachUploadedReferences(page: Page, references: string[]) {
     const fileName = path.basename(reference);
     const image = page.locator(`[role="dialog"] img[alt=${JSON.stringify(fileName)}]`).last();
     await image.waitFor({ state: "visible", timeout: 60_000 });
-    await image.click();
+    await dismissFlowNotifications(page);
+    await image.click({ timeout: 5_000 }).catch(async () => {
+      // Flow's upscaling/download toast can cover the media picker for tens of
+      // seconds. Dispatching the element's own click selects it without
+      // sending a pointer event through the unrelated notification overlay.
+      await image.evaluate((element) => (element as HTMLElement).click());
+    });
 
     const attachSelectors = [
       'button:has-text("Add to prompt")',
@@ -481,10 +488,13 @@ async function attachUploadedReferences(page: Page, references: string[]) {
     let attached = false;
     let attachError: unknown;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
+      await dismissFlowNotifications(page);
       const attach = await waitForFirstEnabled(page, attachSelectors, 20_000);
       if (!attach) break;
       try {
-        await attach.click({ timeout: 10_000 });
+        await attach.click({ timeout: 5_000 }).catch(async () => {
+          await attach.evaluate((element) => (element as HTMLElement).click());
+        });
         attached = true;
         break;
       } catch (error) {
@@ -499,6 +509,23 @@ async function attachUploadedReferences(page: Page, references: string[]) {
     }
     await page.locator('[role="dialog"]').waitFor({ state: "hidden", timeout: 20_000 });
   }
+}
+
+async function dismissFlowNotifications(page: Page) {
+  const notifications = page.locator('section[aria-label*="Notifications"], section[aria-live="polite"]');
+  if (!await notifications.first().isVisible().catch(() => false)) return;
+  const closeButtons = notifications.locator([
+    'button[aria-label="Close"]',
+    'button[aria-label="Dismiss"]',
+    'button[aria-label="Закрыть"]',
+    'button:has-text("Закрыть")',
+  ].join(", "));
+  for (let index = 0; index < await closeButtons.count(); index += 1) {
+    await closeButtons.nth(index).click({ force: true, timeout: 1_000 }).catch(() => undefined);
+  }
+  await notifications.evaluateAll((elements) => {
+    for (const element of elements) (element as HTMLElement).style.pointerEvents = "none";
+  }).catch(() => undefined);
 }
 
 async function selectFlowImageModel(page: Page, model: FlowImageModel, aspectRatio?: FlowImageAspectRatio) {
