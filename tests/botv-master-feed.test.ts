@@ -87,7 +87,7 @@ describe("safe Avito master XML", () => {
     expect(result.preservedActiveAds).toBe(1);
   });
 
-  it("skips a repeated drop already active under another XML id", () => {
+  it("treats every fresh archive id as a new drop", () => {
     const result = reconcileAvitoMasterXml(
       fullXml([{ id: "active-1", title: "Футболка LGB Stars and Beast Edition", address: "Москва, Болотниковская ул., 12", image: "same.jpg" }]),
       fullXml([{ id: "new-2", title: "Лонгслив LGB Stars and Beast", address: "Москва, Болотниковская ул., 12", image: "same.jpg" }]),
@@ -100,8 +100,8 @@ describe("safe Avito master XML", () => {
       },
     );
 
-    expect(result.adIds).toEqual(["active-1"]);
-    expect(result.skippedDuplicateIds).toEqual(["new-2"]);
+    expect(result.adIds).toEqual(["active-1", "new-2"]);
+    expect(result.skippedDuplicateIds).toEqual([]);
   });
 
   it("uses foreign autoload ads for deduplication without taking ownership of them", () => {

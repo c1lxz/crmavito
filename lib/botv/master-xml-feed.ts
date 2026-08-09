@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { inspectAvitoXml } from "@/lib/botv/custom-xml-feed";
-import type { AvitoProfileInventory, AvitoProfileListing } from "@/lib/avito/profile-inventory";
+import type { AvitoProfileInventory } from "@/lib/avito/profile-inventory";
 
 const defaultFeedsDir = path.join(process.cwd(), "data", "botv", "master_xml_feeds");
 const MAX_BOOTSTRAP_BYTES = 50 * 1024 * 1024;
@@ -56,57 +56,6 @@ function adBlocks(xml: string): Array<{ id: string; xml: string }> {
   });
 }
 
-function decodeXmlText(value: string): string {
-  return value
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&apos;/gi, "'");
-}
-
-function field(block: string, name: string): string {
-  return decodeXmlText(block.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`, "i"))?.[1]?.trim() ?? "");
-}
-
-function normalizedTitle(value: string): string {
-  return value
-    .toLocaleLowerCase("ru-RU")
-    .replace(/\b(?:футболк[аи]?|лонгслив(?:ы)?|худи|свитшот(?:ы)?|толстовк[аи]?|поло|майк[аи]?)\b/giu, " ")
-    .replace(/\b(?:edition|type)\b/giu, " ")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
-
-function normalizedAddress(value: string): string {
-  return value.toLocaleLowerCase("ru-RU").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-}
-
-function imageBasename(block: string): string {
-  const raw = block.match(/<Image\b[^>]*\burl=["']([^"']+)["']/i)?.[1]?.trim();
-  if (!raw) return "";
-  try {
-    return decodeURIComponent(new URL(decodeXmlText(raw)).pathname.split("/").pop() ?? "").toLocaleLowerCase("ru-RU");
-  } catch {
-    return raw.split(/[/?#]/).filter(Boolean).pop()?.toLocaleLowerCase("ru-RU") ?? "";
-  }
-}
-
-function duplicateKeys(title: string, address: string, block?: string): string[] {
-  const normalizedLocation = normalizedAddress(address);
-  const keys: string[] = [];
-  const titleKey = normalizedTitle(title);
-  if (titleKey && normalizedLocation) keys.push(`title:${titleKey}|${normalizedLocation}`);
-  const imageKey = block ? imageBasename(block) : "";
-  if (imageKey && normalizedLocation) keys.push(`image:${imageKey}|${normalizedLocation}`);
-  return keys;
-}
-
-function listingKeys(listing: AvitoProfileListing, block?: string): string[] {
-  return duplicateKeys(listing.title || (block ? field(block, "Title") : ""), listing.address || (block ? field(block, "Address") : ""), block);
-}
-
 export function reconcileAvitoMasterXml(
   previousValue: string | null,
   incomingValue: string,
@@ -129,14 +78,7 @@ export function reconcileAvitoMasterXml(
     if (block) merged.set(id, block);
   }
 
-  const knownDuplicateKeys = new Set<string>();
-  for (const listing of inventory.activeListings) {
-    const block = listing.externalId ? merged.get(listing.externalId) : undefined;
-    for (const key of listingKeys(listing, block)) knownDuplicateKeys.add(key);
-  }
-
   const retired = new Set(inventory.retiredExternalIds);
-  const skippedDuplicateIds: string[] = [];
   const skippedRetiredIds: string[] = [];
   let updatedAds = 0;
   for (const ad of adBlocks(incoming.xml)) {
@@ -149,13 +91,7 @@ export function reconcileAvitoMasterXml(
       skippedRetiredIds.push(ad.id);
       continue;
     }
-    const keys = duplicateKeys(field(ad.xml, "Title"), field(ad.xml, "Address"), ad.xml);
-    if (keys.some((key) => knownDuplicateKeys.has(key))) {
-      skippedDuplicateIds.push(ad.id);
-      continue;
-    }
     merged.set(ad.id, ad.xml);
-    for (const key of keys) knownDuplicateKeys.add(key);
   }
 
   const root = incoming.xml.match(/<Ads\b[^>]*>/i)?.[0] || '<Ads formatVersion="3" target="Avito.ru">';
@@ -168,8 +104,8 @@ export function reconcileAvitoMasterXml(
     addedAds: inspected.adIds.filter((id) => !previousBlocks.has(id)).length,
     updatedAds,
     removedAds: previousBlocks.size - retainedPreviousIds,
-    skippedDuplicateAds: skippedDuplicateIds.length,
-    skippedDuplicateIds,
+    skippedDuplicateAds: 0,
+    skippedDuplicateIds: [],
     skippedRetiredIds,
     activeProfileAds: inventory.activeAds,
     manualProfileAds: inventory.manualAds,
