@@ -1,4 +1,5 @@
 import { File } from "node:buffer";
+import { spawn } from "node:child_process";
 import sharp from "sharp";
 import { fetchAvitoAdsAnalytics, type AvitoAdAnalyticsItem } from "@/lib/avito/ads-analytics";
 import { downloadImageAsBuffer, resolveProductImage } from "@/lib/avito/fetch-image";
@@ -130,6 +131,14 @@ export function isTShirt(item: Pick<AvitoAdAnalyticsItem, "title" | "description
   return haystack.includes("футбол") || haystack.includes("t-shirt") || haystack.includes("tshirt") || /(^|\s)tee(\s|$)/i.test(haystack);
 }
 
+export function isWinnerIdentityMismatch(title: string, collarOcr: string) {
+  const ignored = new Set(["футболка", "graphic", "shirt", "tshirt", "tee", "black", "edition", "archived"]);
+  const tokens = (value: string) => value.toLocaleLowerCase("ru").match(/[\p{L}\p{N}]{3,}/gu) || [];
+  const titleTokens = new Set(tokens(title).filter((token) => !ignored.has(token)));
+  const ocrTokens = [...new Set(tokens(collarOcr).filter((token) => !ignored.has(token) && token !== "avito"))];
+  return ocrTokens.length >= 2 && !ocrTokens.some((token) => titleTokens.has(token));
+}
+
 function cacheWinnerSource(winner: PrivateWinner, cache: Map<string, Promise<File>>, key: string) {
   const pending = loadWinnerSource(winner);
   cache.set(key, pending);
@@ -158,7 +167,34 @@ async function loadWinnerSource(winner: PrivateWinner) {
   if (!(await hasExtractableWinnerLabel(normalized))) {
     throw new Error(`У позиции Avito ${winner.itemId} на основном фото не видна бирка; выбрана следующая залетевшая футболка.`);
   }
+  const collarOcr = await readWinnerCollarText(normalized);
+  if (collarOcr && isWinnerIdentityMismatch(winner.title, collarOcr)) {
+    throw new Error(`У позиции Avito ${winner.itemId} фото не совпадает с названием (${collarOcr.slice(0, 80)}); выбрана следующая залетевшая футболка.`);
+  }
   return new File([normalized], `analytics-${winner.itemId}.jpg`, { type: "image/jpeg" });
+}
+
+async function readWinnerCollarText(image: Buffer): Promise<string> {
+  const metadata = await sharp(image).metadata();
+  const width = metadata.width || 0;
+  const height = metadata.height || 0;
+  if (!width || !height) return "";
+  const collar = await sharp(image)
+    .extract({ left: 0, top: 0, width, height: Math.max(1, Math.round(height * 0.42)) })
+    .greyscale().normalize().sharpen().resize({ width: 1_600, withoutEnlargement: false })
+    .jpeg({ quality: 88 }).toBuffer();
+  return new Promise((resolve) => {
+    const child = spawn("tesseract", ["stdin", "stdout", "-l", "eng", "--psm", "11"], { windowsHide: true });
+    let output = "";
+    const timer = setTimeout(() => child.kill(), 15_000);
+    child.stdout.setEncoding("utf8").on("data", (chunk) => { output += chunk; });
+    child.on("error", () => { clearTimeout(timer); resolve(""); });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve(code === 0 ? output.replace(/\s+/g, " ").trim() : "");
+    });
+    child.stdin.end(collar);
+  });
 }
 
 function buildWinnerQuery(title: string) {

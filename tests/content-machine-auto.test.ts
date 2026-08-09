@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   analyticsWinnerScore,
+  isWinnerIdentityMismatch,
   isTShirt,
   normalizeDesignCount,
   selectAnalyticsWinners,
@@ -53,6 +54,12 @@ describe("content-machine analytics automation", () => {
     expect(isTShirt({ title: "Футболка STROK archive", description: null })).toBe(true);
     expect(isTShirt({ title: "Vintage graphic tee", description: null })).toBe(true);
     expect(isTShirt({ title: "Худи STROK", description: "плотный свитшот" })).toBe(false);
+  });
+
+  it("rejects an XML photo whose collar brand contradicts the analytics winner", () => {
+    expect(isWinnerIdentityMismatch("Футболка WLT Luck Puk Puk", "Alexander McQUEEN")).toBe(true);
+    expect(isWinnerIdentityMismatch("Футболка Joshua Jamal Silent Mask", "JOSHUA JAMAL")).toBe(false);
+    expect(isWinnerIdentityMismatch("Футболка Peace In War EU tee", "")).toBe(false);
   });
 
   it("enables the exact winner-label lock for analytics jobs", () => {
