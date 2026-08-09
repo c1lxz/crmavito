@@ -248,6 +248,7 @@ describe("content machine", () => {
     expect(flowAgentSource).not.toContain("child.unref()");
     expect(flowAgentSource).toContain("configureLocalProxyExtension");
     expect(flowAgentSource).toContain("FLOW_AGENT_PROXY_SPEC");
+    expect(flowAgentSource).toContain('user = "", pass = ""');
     expect(flowAgentSource).toContain("result upload retry");
     expect(flowAgentSource).toContain("did not confirm the uploaded result slot");
     expect(flowAgentSource).toContain('action: "set_proxy"');

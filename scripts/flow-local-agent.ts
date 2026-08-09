@@ -248,9 +248,9 @@ async function connectToShortcutChrome(): Promise<Browser> {
 async function configureLocalProxyExtension(browser: Browser) {
   const specification = process.env.FLOW_AGENT_PROXY_SPEC?.trim();
   if (!specification) return;
-  const match = specification.match(/^([^:@]+):([^@]+)@([^:]+):(\d+)$/);
+  const match = specification.match(/^(?:([^:@]+):([^@]+)@)?([^:]+):(\d+)$/);
   if (!match) throw new Error("FLOW_AGENT_PROXY_SPEC has an invalid format.");
-  const [, user, pass, ip, port] = match;
+  const [, user = "", pass = "", ip, port] = match;
   const extensionId = process.env.FLOW_AGENT_PROXY_EXTENSION_ID?.trim() || "pcboajngloecgmaailkmphmpbacmbcfb";
   const context = browser.contexts()[0];
   if (!context) throw new Error("Chrome did not expose a profile for proxy setup.");
