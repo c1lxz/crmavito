@@ -22,6 +22,12 @@ type AutoloadProfile = {
   schedule?: AutoloadScheduleItem[];
 };
 
+export type AvitoAutoloadProfileSnapshot = {
+  enabled: boolean;
+  feeds: Array<{ name: string; url: string }>;
+  reportEmail?: string;
+};
+
 type PublishOptions = {
   feedUrl: string;
   fetchFn?: FetchFn;
@@ -176,6 +182,22 @@ async function getAutoloadProfile(
     throw new Error(`Получение профиля автозагрузки Avito не прошло: ${extractAvitoErrorText(data).slice(0, 500)}`);
   }
   return data as AutoloadProfile;
+}
+
+export async function fetchAvitoAutoloadProfile(
+  credentials: AvitoCredentials,
+  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+): Promise<AvitoAutoloadProfileSnapshot> {
+  const token = await getAvitoStockToken(credentials, options);
+  const profile = await getAutoloadProfile(token, options);
+  return {
+    enabled: Boolean(profile?.autoload_enabled),
+    feeds: (profile?.feeds_data ?? []).map((feed) => ({
+      name: feed.feed_name ?? "",
+      url: feed.feed_url ?? "",
+    })).filter((feed) => Boolean(feed.url)),
+    reportEmail: profile?.report_email?.trim() || undefined,
+  };
 }
 
 async function upsertAutoloadProfile(

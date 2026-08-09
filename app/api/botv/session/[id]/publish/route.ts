@@ -2,8 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { buildXml } from "@/lib/botv/session";
-import { publishAvitoXml } from "@/lib/avito/publish";
+import { fetchAvitoAutoloadProfile, publishAvitoXml } from "@/lib/avito/publish";
 import { getAvitoCredentials, getAvitoProfileAutoloadSettings } from "@/lib/avito/profile-store";
+import {
+  masterFeedKey,
+  prepareMasterXmlFeed,
+  rollbackMasterXmlFeed,
+  saveMasterXmlFeed,
+  type SavedMasterXml,
+} from "@/lib/botv/master-xml-feed";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -28,10 +35,8 @@ function publicBaseUrl(request: Request): string {
   return `${protocol}://${host}`;
 }
 
-function publicXmlFeedUrl(request: Request, sessionId: string, profileId?: string | null): string {
-  const url = new URL(`${publicBaseUrl(request)}/v-data/botv/work/${encodeURIComponent(sessionId)}/xml`);
-  if (profileId) url.searchParams.set("profileId", profileId);
-  return url.toString();
+function publicMasterXmlFeedUrl(request: Request, key: string): string {
+  return `${publicBaseUrl(request)}/v-data/botv/master-xml/${key}`;
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -47,6 +52,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const { id } = await params;
+  if (parsed.data.legacyIds) {
+    return NextResponse.json({
+      error: "Публикация со старыми SKU-1, SKU-2 отключена: такие ID могут перезаписать другой дроп. Старые ID можно только скачать для ручного восстановления.",
+    }, { status: 409 });
+  }
   let credentials;
   try {
     credentials = await getAvitoCredentials(parsed.data);
@@ -58,25 +68,45 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const profileScope = parsed.data.legacyIds ? null : (parsed.data.profileId || parsed.data.clientId);
+    const profileScope = parsed.data.profileId || parsed.data.clientId;
+    if (!profileScope) throw new Error("Выберите профиль Avito для безопасного мастер-фида.");
     const savedSettings = await getAvitoProfileAutoloadSettings(parsed.data.profileId);
     const reportEmail = parsed.data.reportEmail?.trim() || savedSettings.reportEmail;
     const contactPhone = savedSettings.contactPhone;
     const xmlResult = await buildXml(id, contactPhone, { profileId: profileScope });
-    const publish = await publishAvitoXml(credentials, xmlResult.xml, xmlResult.filename, {
-      feedUrl: publicXmlFeedUrl(
-        request,
-        id,
-        parsed.data.legacyIds ? undefined : profileScope,
-      ),
-      reportEmail,
+    const key = masterFeedKey(profileScope);
+    const feedUrl = publicMasterXmlFeedUrl(request, key);
+    const autoloadProfile = await fetchAvitoAutoloadProfile(credentials);
+    const master = await prepareMasterXmlFeed({
+      key,
+      incomingXml: xmlResult.xml,
+      bootstrapFeedUrl: autoloadProfile.feeds[0]?.url,
     });
+    let saved: SavedMasterXml | null = null;
+    let publish;
+    try {
+      saved = await saveMasterXmlFeed(key, master.xml);
+      publish = await publishAvitoXml(credentials, master.xml, `crmavito-${key}.xml`, {
+        feedUrl,
+        reportEmail,
+      });
+    } catch (error) {
+      if (saved) await rollbackMasterXmlFeed(saved);
+      throw error;
+    }
     return NextResponse.json({
       success: true,
-      ads: xmlResult.ads,
+      ads: master.ads,
       products: xmlResult.products,
       adIds: xmlResult.adIds ?? [],
-      legacyIds: parsed.data.legacyIds,
+      legacyIds: false,
+      master: {
+        previousAds: master.previousAds,
+        addedAds: master.addedAds,
+        updatedAds: master.updatedAds,
+        removedAds: master.removedAds,
+        totalAds: master.ads,
+      },
       publish,
     });
   } catch (error) {

@@ -195,6 +195,37 @@ def test_web_session_xml_uses_product_name_when_ad_title_is_blank(tmp_path):
     assert "Product Two" not in xml["xml"]
 
 
+def test_scoped_xml_keeps_city_ids_when_city_selection_changes(tmp_path):
+    archive = tmp_path / "drop.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("Drop/Product Black/one.jpg", b"jpg")
+
+    state = _run_cli("create", str(archive), "drop.zip")
+    _run_cli("update", state["id"], json.dumps({
+        "products": [{"index": 1, "adTitle": "Stable title", "price": 1990}],
+        "locations": [
+            {"city": "Москва", "address": "Москва, улица А, 1", "enabled": True},
+            {"city": "Казань", "address": "Казань, улица Б, 2", "enabled": True},
+        ],
+    }, ensure_ascii=False))
+    first = _run_cli("xml", state["id"], "--id-scope", "profile-safe")
+    first_pairs = dict(re.findall(r"<Id>([^<]+)</Id>[\s\S]*?<Address>([^<]+)</Address>", first["xml"]))
+
+    _run_cli("update", state["id"], json.dumps({
+        "locations": [
+            {"city": "Казань", "address": "Казань, улица Б, 2", "enabled": True},
+            {"city": "Самара", "address": "Самара, улица В, 3", "enabled": True},
+        ],
+    }, ensure_ascii=False))
+    second = _run_cli("xml", state["id"], "--id-scope", "profile-safe")
+    second_pairs = dict(re.findall(r"<Id>([^<]+)</Id>[\s\S]*?<Address>([^<]+)</Address>", second["xml"]))
+
+    first_id_by_address = {address: ad_id for ad_id, address in first_pairs.items()}
+    second_id_by_address = {address: ad_id for ad_id, address in second_pairs.items()}
+    assert second_id_by_address["Казань, улица Б, 2"] == first_id_by_address["Казань, улица Б, 2"]
+    assert second_id_by_address["Самара, улица В, 3"] not in set(first_id_by_address.values())
+
+
 def test_web_session_xml_uses_manual_description(tmp_path):
     archive = tmp_path / "drop.zip"
     with zipfile.ZipFile(archive, "w") as zf:

@@ -49,6 +49,13 @@ type PublishResult = {
   uploadStatus?: number;
   adIds?: string[];
   legacyIds?: boolean;
+  master?: {
+    previousAds: number;
+    addedAds: number;
+    updatedAds: number;
+    removedAds: number;
+    totalAds: number;
+  };
 };
 
 type AutoloadUpload = {
@@ -668,7 +675,7 @@ export function BotvMiniApp() {
       const data = await readJsonResponse(res, "Не удалось опубликовать XML");
       if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать XML");
       const adIds: string[] = Array.isArray(data.adIds) ? data.adIds.map(String).filter(Boolean) : [];
-      setPublishResult({ ...(data.publish ?? {}), adIds, legacyIds: Boolean(data.legacyIds) });
+      setPublishResult({ ...(data.publish ?? {}), adIds, legacyIds: Boolean(data.legacyIds), master: data.master });
       setAutoloadStopMessage("");
       setError("");
     } finally {
@@ -708,7 +715,7 @@ export function BotvMiniApp() {
       const data = await readJsonResponse(res, "Не удалось опубликовать готовый XML");
       if (!res.ok) throw new Error(data.error ?? "Не удалось опубликовать готовый XML");
       const adIds: string[] = Array.isArray(data.adIds) ? data.adIds.map(String).filter(Boolean) : [];
-      setPublishResult({ ...(data.publish ?? {}), adIds });
+      setPublishResult({ ...(data.publish ?? {}), adIds, master: data.master });
       setLastXmlAdIds(adIds);
       setAutoloadStopMessage("");
       setCustomXmlFile(null);
@@ -1014,6 +1021,14 @@ export function BotvMiniApp() {
                 {publishResult.uploadStatus && <span>Запуск: HTTP {publishResult.uploadStatus}</span>}
                 <span>{publishResult.legacyIds ? "Старые ID" : "Новые профильные ID"}</span>
               </div>
+              {publishResult.master && (
+                <div className="mt-2 rounded-md border border-success/25 bg-background/45 p-2 text-xs">
+                  <p className="font-semibold">Защита мастер-фида: старые объявления сохранены</p>
+                  <p className="mt-1 opacity-80">
+                    Было {publishResult.master.previousAds} · добавлено {publishResult.master.addedAds} · обновлено {publishResult.master.updatedAds} · удалено {publishResult.master.removedAds} · всего {publishResult.master.totalAds}
+                  </p>
+                </div>
+              )}
             </div>
           )}
           {publishResult?.adIds && <AdIdsBlock title="ID опубликованных объявлений" adIds={publishResult.adIds} />}
@@ -1089,7 +1104,7 @@ export function BotvMiniApp() {
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={!hasPublishAuth || manualPublishCredentialsPartial || publishing}
+                  disabled={!hasPublishAuth || manualPublishCredentialsPartial || publishing || publishLegacyIds}
                   onClick={() => run(publishXml)}
                 >
                   {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -1253,11 +1268,15 @@ export function BotvMiniApp() {
                     </Button>
                     {dropStockStatus && <span className="max-w-[480px] text-xs text-muted-foreground">{dropStockStatus}</span>}
                   </div>
+                  <div className="rounded-md border border-success/25 bg-success/10 p-3 text-xs text-success">
+                    <p className="font-semibold">Безопасная публикация через мастер-фид</p>
+                    <p className="mt-1 opacity-80">Новый дроп добавляется к предыдущим объявлениям выбранного профиля. Если старые ID исчезают, публикация блокируется до отправки в Avito.</p>
+                  </div>
                   <label className="flex items-start gap-2 rounded-md border border-warning/25 bg-warning/10 p-3 text-xs text-warning">
                     <input type="checkbox" className="mt-0.5 h-4 w-4" checked={publishLegacyIds} onChange={(event) => setPublishLegacyIds(event.target.checked)} />
                     <span>
                       <span className="block font-semibold">XML и публикация со старыми ID</span>
-                      <span className="mt-1 block opacity-80">Только для восстановления старых объявлений: XML и публикация будут с ID SKU-1, SKU-2... Новые дропы скачивайте и публикуйте без этой галочки.</span>
+                      <span className="mt-1 block opacity-80">Только для ручного восстановления: XML будет скачан с ID SKU-1, SKU-2... Автопубликация со старыми ID отключена, потому что они могут перезаписать другой дроп.</span>
                     </span>
                   </label>
                 </div>

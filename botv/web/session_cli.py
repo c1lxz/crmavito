@@ -628,10 +628,38 @@ def _extract_xml_ad_ids(xml_text: str) -> list[str]:
     return re.findall(r"<Id>([^<]+)</Id>", xml_text)
 
 
+def _stable_scoped_ad_number(
+    state: dict,
+    id_scope: str,
+    product_index: int,
+    address: str,
+    fallback: int,
+) -> int:
+    if not id_scope:
+        return fallback
+    all_scopes = state.get("xml_id_numbers")
+    if not isinstance(all_scopes, dict):
+        all_scopes = {}
+        state["xml_id_numbers"] = all_scopes
+    scope_map = all_scopes.get(id_scope)
+    if not isinstance(scope_map, dict):
+        scope_map = {}
+        all_scopes[id_scope] = scope_map
+    key = hashlib.sha1(f"{product_index}:{address.strip().casefold()}".encode("utf-8")).hexdigest()[:20]
+    existing = scope_map.get(key)
+    if isinstance(existing, int) and existing > 0:
+        return existing
+    used = [value for value in scope_map.values() if isinstance(value, int) and value > 0]
+    number = max([fallback - 1, *used], default=0) + 1
+    scope_map[key] = number
+    return number
+
+
 def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") -> dict:
     state_path = _session_dir(session_id) / "state.json"
     state = _read_json(state_path)
-    products = [p for p in state["products"] if not p.get("deleted")]
+    active_products = [(index, product) for index, product in enumerate(state["products"], 1) if not product.get("deleted")]
+    products = [product for _, product in active_products]
     locations = _session_locations(state)
     if phone:
         base_xml = _read_last_base_xml(state, id_scope)
@@ -669,6 +697,7 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
     ai_timeout = _gigachat_xml_timeout()
     ads: list[AvitoAd] = []
     for idx, product in enumerate(products, 1):
+        product_state_index = active_products[idx - 1][0]
         name = product["name"]
         title = _product_title(product)
         price = _product_price(product)
@@ -696,7 +725,14 @@ def generate_xml(session_id: str, phone: str | None = None, id_scope: str = "") 
         product["details"] = _product_details(name, photos, color)
         images = asyncio.run(_image_urls(yd, session_id, name, photos))
         for location_index, extra in enumerate(location_extras(locations, base_extra), 1):
-            ad_number = (idx - 1) * len(locations) + location_index
+            fallback_number = (idx - 1) * len(locations) + location_index
+            ad_number = _stable_scoped_ad_number(
+                state,
+                id_scope,
+                product_state_index,
+                str(extra.get("Address") or ""),
+                fallback_number,
+            )
             ads.append(AvitoAd(ad_id=make_ad_id(id_prefix, ad_number, id_scope), title=title, price=price, description=text, color=color, quantity=drop_stock_quantity, images=images, brand=brand, extra=extra))
     xml_text = xml_gen.build(ads).decode("utf-8")
     out_path = _write_xml_file(session_id, xml_text)

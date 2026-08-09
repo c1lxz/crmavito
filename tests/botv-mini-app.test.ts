@@ -10,6 +10,7 @@ const autoloadStatusRouteSource = readFileSync(path.resolve(__dirname, "../app/a
 const autoloadStopRouteSource = readFileSync(path.resolve(__dirname, "../app/api/avito/autoload/stop/route.ts"), "utf8");
 const customXmlPublishRouteSource = readFileSync(path.resolve(__dirname, "../app/api/botv/custom-xml/publish/route.ts"), "utf8");
 const customXmlFeedRouteSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/custom-xml/[id]/route.ts"), "utf8");
+const masterXmlFeedRouteSource = readFileSync(path.resolve(__dirname, "../app/v-data/botv/master-xml/[key]/route.ts"), "utf8");
 
 describe("botv mini app UI", () => {
   it("does not contain mojibake or replacement characters", () => {
@@ -127,13 +128,13 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("publishXml");
     expect(clientSource).toContain("publishResult");
     expect(clientSource).toContain("profileWarning");
-    expect(clientSource).not.toContain("previousAds: Number(data.previousAds ?? 0)");
+    expect(clientSource).toContain("Защита мастер-фида: старые объявления сохранены");
     expect(clientSource).toContain("Публикация Avito запущена");
     expect(clientSource).toContain("ID опубликованных объявлений");
     expect(clientSource).toContain("const adIds");
     expect(clientSource).toContain("XML и публикация со старыми ID");
     expect(clientSource).toContain("legacyIds: publishLegacyIds");
-    expect(clientSource).toContain("Новые дропы скачивайте и публикуйте без этой галочки");
+    expect(clientSource).toContain("Автопубликация со старыми ID отключена");
     expect(clientSource).toContain("Итог публикации появится в отчётах Автозагрузки Avito");
     expect(clientSource).toContain("checkAutoloadStatus");
     expect(clientSource).toContain("/api/avito/autoload/status");
@@ -162,19 +163,17 @@ describe("botv mini app UI", () => {
     expect(clientSource).not.toContain("crmavito:botv-publish-credentials");
     expect(clientSource).not.toContain("profileName");
     expect(publishRouteSource).toContain("publishAvitoXml");
-    expect(publishRouteSource).toContain("publicXmlFeedUrl");
-    expect(publishRouteSource).toContain("/v-data/botv/work/");
-    expect(publishRouteSource).toContain("url.searchParams.set(\"profileId\", profileId)");
+    expect(publishRouteSource).toContain("publicMasterXmlFeedUrl");
+    expect(publishRouteSource).toContain("/v-data/botv/master-xml/");
     expect(publishRouteSource).toContain("legacyIds");
-    expect(publishRouteSource).toContain("parsed.data.legacyIds ? null : (parsed.data.profileId || parsed.data.clientId)");
+    expect(publishRouteSource).toContain("Публикация со старыми SKU-1, SKU-2 отключена");
     expect(publishRouteSource).toContain("parsed.data.reportEmail");
     expect(publishRouteSource).not.toContain("parsed.data.contactPhone");
     expect(publishRouteSource).toContain("getAvitoCredentials");
     expect(publishRouteSource).toContain("getAvitoProfileAutoloadSettings");
     expect(publishRouteSource).toContain("buildXml");
-    expect(publishRouteSource).not.toContain("buildPublicationXml");
-    expect(publishRouteSource).not.toContain("savePublishedXml");
-    expect(publishRouteSource).not.toContain("includePrevious");
+    expect(publishRouteSource).toContain("prepareMasterXmlFeed");
+    expect(publishRouteSource).toContain("rollbackMasterXmlFeed");
     expect(publishRouteSource).toContain("adIds: xmlResult.adIds");
   });
 
@@ -210,10 +209,13 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("selectCustomXml");
     expect(clientSource).toContain("/api/botv/custom-xml/publish");
     expect(customXmlPublishRouteSource).toContain("inspectAvitoXml");
-    expect(customXmlPublishRouteSource).toContain("saveCustomXmlFeed");
+    expect(customXmlPublishRouteSource).toContain("prepareMasterXmlFeed");
+    expect(customXmlPublishRouteSource).toContain("rollbackMasterXmlFeed");
     expect(customXmlPublishRouteSource).toContain("publishAvitoXml");
     expect(customXmlFeedRouteSource).toContain("readCustomXmlFeed");
     expect(customXmlFeedRouteSource).toContain("application/xml; charset=utf-8");
+    expect(masterXmlFeedRouteSource).toContain("readMasterXmlFeed");
+    expect(masterXmlFeedRouteSource).toContain("no-store");
   });
 
   it("shows XML stock quantity save and generation status", () => {
