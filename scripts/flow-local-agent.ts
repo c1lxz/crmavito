@@ -622,6 +622,16 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
                     `[flow-agent] ${job.id}: ${previousModel} returned a generic error; switching to ${FLOW_IMAGE_MODELS[activeModelIndex]}.`,
                   );
                 }
+                if (job.mode === "original-design"
+                  && generationAttempt >= 2
+                  && /Flow generation failed: Flow showed a retryable generation error/i.test(reason)) {
+                  console.warn(`[flow-agent] ${job.id}: repeated generic errors in the saved Flow project; rotating to a clean project in the same signed-in Chrome profile.`);
+                  await writeFile(flowProjectStatePath, "", "utf8");
+                  originalProjectUrl = undefined;
+                  activeModelIndex = 0;
+                  await page.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
+                  await delay(1_000);
+                }
                 await delay(Math.min(2_000 * generationAttempt, 6_000));
                 if (job.mode !== "original-design" || /рабочая область не загрузилась/i.test(reason)) {
                   await page.close().catch(() => undefined);

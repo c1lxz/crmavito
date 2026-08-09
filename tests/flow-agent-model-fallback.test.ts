@@ -39,6 +39,13 @@ describe("Flow model fallback", () => {
     expect(browserSource).toContain("style.pointerEvents = \"none\"");
     expect(browserSource).toContain("(element as HTMLElement).click()");
   });
+
+  it("rotates a poisoned saved Flow project without replacing the signed-in Chrome profile", () => {
+    expect(agentSource).toContain("repeated generic errors in the saved Flow project");
+    expect(agentSource).toContain('await writeFile(flowProjectStatePath, "", "utf8")');
+    expect(agentSource).toContain("originalProjectUrl = undefined");
+    expect(agentSource).toContain('await page.goto(flowUrl, { waitUntil: "domcontentloaded"');
+  });
 });
 
 describe("Flow canvas lock", () => {
