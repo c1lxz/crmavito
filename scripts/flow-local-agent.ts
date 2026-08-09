@@ -37,6 +37,7 @@ import {
   createClaudeApparelDesignPrompt,
   createGeminiApparelDesignPrompt,
   inferWinnerMarketQuery,
+  isApprovedContentMachineDesignPrompt,
 } from "../lib/flow-agent/design-brief";
 
 loadEnvConfig(process.cwd());
@@ -870,7 +871,8 @@ async function withProgressLog<T>(
 
 async function resolveJobPrompt(job: AgentJob, products: Map<number, string>, context: BrowserContext) {
   if (job.mode !== "original-design") return job.generationPrompt || defaultPrompt();
-  if (job.designPrompt && job.designPrompt.includes("PRODUCTION LOCK") && job.designPrompt.includes("24")) return job.designPrompt;
+  if (isApprovedContentMachineDesignPrompt(job.designPrompt)) return job.designPrompt!;
+  if (job.designPrompt) console.warn(`[flow-agent] ${job.id}: cached design brief failed the current adult-streetwear taste lock; regenerating it.`);
   let designPage: Page | undefined;
   let visionFetch: typeof fetch | undefined;
   try {
@@ -939,8 +941,8 @@ async function resolveJobPrompt(job: AgentJob, products: Map<number, string>, co
   }
   try {
     const prompt = await requestMetaPrompt(job.id);
-    if (!prompt.includes("PRODUCTION LOCK") || !prompt.includes("24") || !prompt.includes("32")) {
-      throw new Error("CRM meta-prompt is missing the production print lock.");
+    if (!prompt.includes("32") || !isApprovedContentMachineDesignPrompt(prompt)) {
+      throw new Error("CRM meta-prompt is missing the production/taste lock or contains a banned merch motif.");
     }
     await designPage?.close().catch(() => undefined);
     return prompt;

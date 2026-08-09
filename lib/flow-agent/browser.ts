@@ -659,7 +659,9 @@ export function compactFlowPrompt(prompt: string) {
       : normalized.includes("FRONT DESIGN ANCHOR")
         ? normalized.includes("NIGHT VEIL")
           ? " Follow the approved FRONT artwork literally. Keep it printable within 24 x 32 cm with black negative space; no rectangular field, all-over print or random stock addition. Never suppress an approved bone, skull, web or cross merely because of its subject. Return one sharp photorealistic FRONT photo."
-          : " Follow the approved FRONT artwork literally. Keep it printable within 24 x 32 cm with black negative space; no rectangular field or all-over print. Never substitute an unrelated skull, bone, cross, web, animal, mascot or stock gothic graphic. Return one sharp photorealistic FRONT photo."
+          : preserveWinnerLabel
+            ? " WINNER LABEL LOCK: preserve the exact visible internal neck label or heat-transfer marking only on the inside back-neck panel; never add exterior label text, a hang tag or fastener. Follow the approved FRONT artwork literally. Keep it printable within 24 x 32 cm with black negative space. ADULT STREETWEAR LOCK: no animal, bird, owl, mascot, moon/zodiac or childish cartoon motif. Return one sharp photorealistic FRONT photo."
+            : " Follow the approved FRONT artwork literally. Keep it printable within 24 x 32 cm with black negative space; no rectangular field or all-over print. ADULT STREETWEAR LOCK: no animal, bird, owl, mascot, moon/zodiac or childish cartoon motif. Return one sharp photorealistic FRONT photo."
         : normalized.includes("BACK DESIGN ANCHOR")
           ? normalized.includes("NIGHT VEIL")
             ? " Follow the approved BACK artwork literally and keep it distinct from the front. Keep it printable within 24 x 32 cm with black negative space; no rectangular field, all-over print, exterior label text or random stock addition. Never suppress an approved bone, skull, web or cross merely because of its subject. Return one sharp photorealistic BACK photo."

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPromptFromBrief, parseBrief } from "@/lib/flow-agent/design-brief";
+import { buildPromptFromBrief, isApprovedContentMachineDesignPrompt, parseBrief } from "@/lib/flow-agent/design-brief";
 import { buildOriginalDesignPrompt, marketSearchQuery } from "@/lib/flow-agent/market-research";
 
 describe("Flow apparel production brief", () => {
@@ -14,6 +14,7 @@ describe("Flow apparel production brief", () => {
     marketEvidence: [
       "Grailed: distressed alternative-rock portrait graphics with negative space.",
       "Mercari: asymmetric message and wing graphics on washed dark jersey.",
+      "Rakuma: large editorial halftone balanced by narrow exact typography.",
     ],
     conceptName: "Fallen Afterimage",
     conceptStory: "A cracked marble seraph image dissolves like a damaged archive photograph.",
@@ -59,6 +60,31 @@ describe("Flow apparel production brief", () => {
     }))).toThrow("banned motif");
   });
 
+  it("rejects childish animal and celestial concepts before Flow spends a generation", () => {
+    for (const artwork of [
+      "a watchful owl perched on a crescent moon",
+      "a cute cartoon raven mascot",
+      "a distressed zodiac serpent",
+    ]) {
+      expect(() => parseBrief(JSON.stringify({
+        ...brief,
+        conceptName: "Silent Nocturne",
+        front: { ...brief.front, artwork },
+      }))).toThrow("banned motif");
+    }
+  });
+
+  it("invalidates an already cached owl brief so the local agent regenerates it", () => {
+    const bad = buildPromptFromBrief({
+      ...brief,
+      conceptName: "Silent Nocturne",
+      conceptStory: "A watchful owl guards the twilight.",
+      front: { ...brief.front, artwork: "hand-sketched owl perched on a crescent moon" },
+    });
+    expect(isApprovedContentMachineDesignPrompt(bad)).toBe(false);
+    expect(isApprovedContentMachineDesignPrompt(buildPromptFromBrief(brief))).toBe(true);
+  });
+
   it("rejects artwork larger than the production print area", () => {
     expect(() => parseBrief(JSON.stringify({
       ...brief,
@@ -69,7 +95,7 @@ describe("Flow apparel production brief", () => {
   it("rejects a brief without concrete evidence from two marketplaces", () => {
     expect(() => parseBrief(JSON.stringify({
       ...brief,
-      marketEvidence: ["Grailed: vague archive styling."],
+      marketEvidence: ["Grailed: vague archive styling.", "Mercari: vague styling."],
     }))).toThrow("at least two marketplaces");
   });
 

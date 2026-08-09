@@ -62,7 +62,8 @@ describe("original design stages", () => {
     expect(prompt).toContain("IMAGES 1-4");
     expect(prompt).toContain("show the proven source garment");
     expect(prompt).toContain("IMAGE 5 is the ONLY SCENE REFERENCE");
-    expect(prompt).toContain("No generic animals, winner stars, horse/equine figure");
+    expect(prompt).toContain("ADULT STREETWEAR LOCK");
+    expect(prompt).toContain("no animals, birds, owls");
     expect(prompt).toContain("24 x 32 cm");
     expect(prompt).toContain("not abstract squares, rectangles, grids");
     expect(prompt).toContain("NO hang tag, paper tag, sewn label, woven tab");

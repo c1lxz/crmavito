@@ -53,7 +53,7 @@ export function buildOriginalStagePrompt(
       "Follow the approved FRONT artwork in the production brief exactly. It needs a recognizable editorial subject and intentional hierarchy, not abstract squares, rectangles, grids, tiled blocks, a lone chest logo or decorative geometry.",
       "COMMERCIAL TASTE LOCK: no radial ring of repeated objects, eye/oval/swoosh emblem, lone number on a blob, tiny centered token, esports/tech identity, arbitrary badge, invented brand name, holographic foil or glossy vinyl. Any required words must match the brief exactly and be legible.",
       "PRINTABILITY IS MANDATORY: the complete front artwork must fit one rectangle no larger than 24 x 32 cm, entirely on the flat torso panel and at least 5 cm from collar, shoulders, sleeves, side seams and hem. No all-over, wraparound, sleeve, seam-crossing or edge-to-edge print.",
-      "No generic animals, winner stars, horse/equine figure, buffalo/yak/bear/wolf or unrelated stock clipart.",
+      "ADULT STREETWEAR LOCK: no animals, birds, owls, insects, mascots, fantasy creatures, moon/zodiac/tarot imagery, cute faces, cartoons, children's-merch storytelling or unrelated stock clipart.",
       "ZERO WATERMARKS: no Avito, Grailed, marketplace logo, listing overlay, seller mark, signature or corner watermark anywhere in the output.",
       "Return one photorealistic FRONT-view product photo only. Do not show the back.",
     ].join(" ");
@@ -72,7 +72,7 @@ export function buildOriginalStagePrompt(
       "Follow the approved BACK artwork in the production brief exactly. It must develop the same story and ink palette while using a different primary subject and silhouette from the front; never repeat, mirror, enlarge, fragment or paste the front artwork.",
       "The supporting side must still look deliberately designed and sellable, never one tiny token below the collar. No radial ring, eye/oval/swoosh, lone number and blob, esports/tech badge, invented brand, holographic foil or fake text.",
       "PRINTABILITY IS MANDATORY: the complete back artwork must fit one rectangle no larger than 24 x 32 cm, entirely on the flat torso panel and at least 5 cm from collar, shoulders, sleeves, side seams and hem. No all-over, tiled, wraparound, sleeve, seam-crossing or edge-to-edge print.",
-      "No random abstract squares, rectangles, grids, generic mascot, winner stars, horse/equine artwork, buffalo/yak/bear/wolf or unrelated stock icon.",
+      "ADULT STREETWEAR LOCK: no animals, birds, owls, insects, mascots, fantasy creatures, moon/zodiac/tarot imagery, cute faces, cartoons, children's-merch storytelling or unrelated stock icon.",
       "Return one photorealistic BACK-view product photo only. Do not show the front neckline or front artwork.",
     ].join(" ");
   }
