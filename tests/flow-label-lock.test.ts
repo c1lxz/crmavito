@@ -135,6 +135,27 @@ describe("Flow exact neck-label lock", () => {
     expect(Math.max(...insideNeckArea)).toBeGreaterThan(180);
   });
 
+  it("places the exact mark at the server-verified inside-neck target", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "flow-label-lock-vision-target-"));
+    temporaryDirectories.push(directory);
+    const outputPath = path.join(directory, "output.png");
+    const overlayPath = path.join(directory, "overlay.png");
+    await sharp({ create: { width: 1000, height: 1000, channels: 3, background: "#181818" } }).png().toFile(outputPath);
+    await sharp(Buffer.from('<svg width="120" height="50"><rect x="5" y="5" width="110" height="40" fill="#eee"/></svg>')).png().toFile(overlayPath);
+
+    await applyExactLabelOverlay(outputPath, overlayPath, {
+      centerX: 0.42,
+      centerY: 0.19,
+      widthRatio: 0.08,
+      rotationDeg: 0,
+      confidence: 0.94,
+    });
+    const targetArea = await sharp(outputPath).extract({ left: 380, top: 160, width: 80, height: 60 }).greyscale().raw().toBuffer();
+    const oldFallbackArea = await sharp(outputPath).extract({ left: 520, top: 230, width: 80, height: 60 }).greyscale().raw().toBuffer();
+    expect(Math.max(...targetArea)).toBeGreaterThan(180);
+    expect(Math.max(...oldFallbackArea)).toBeLessThan(80);
+  });
+
   it("preserves a PNG container after applying the exact label", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "flow-label-lock-png-"));
     temporaryDirectories.push(directory);

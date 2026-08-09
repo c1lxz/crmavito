@@ -33,6 +33,7 @@ import {
 import { buildOriginalFrontSeedPrompt, buildOriginalStagePrompt, type OriginalDesignStage } from "../lib/flow-agent/original-design";
 import { evaluateShotDiversity } from "../lib/flow-agent/shot-diversity";
 import { applyExactLabelOverlay, createBestLabelAssets } from "../lib/flow-agent/label-lock";
+import type { NeckLabelTarget } from "../lib/flow-agent/label-target";
 import {
   createClaudeApparelDesignPrompt,
   createGeminiApparelDesignPrompt,
@@ -685,7 +686,8 @@ async function processJob(context: BrowserContext, job: AgentJob, preferredPage?
             }
             if (!timing) throw new Error(`Flow generation failed for ${item.product.index}/${item.background.slot}.`);
             if (winnerLabelOverlayPath && originalStage !== "back-anchor" && originalStage !== "back-photo") {
-              await applyExactLabelOverlay(outputPath, winnerLabelOverlayPath);
+              const labelTarget = await requestLabelTarget(job.id, outputPath);
+              await applyExactLabelOverlay(outputPath, winnerLabelOverlayPath, labelTarget);
             }
             let verdict: FlowPhotoQualityVerdict & { provider?: string };
             const candidateMetadata = await sharp(outputPath).metadata();
@@ -1055,6 +1057,21 @@ async function downloadAsset(jobId: string, kind: string, fileName: string, targ
   const response = await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${jobId}/asset/${kind}/${encodeURIComponent(fileName)}`);
   if (!response.ok) throw new Error(`Не удалось скачать ${fileName}: HTTP ${response.status}.`);
   await writeFile(target, Buffer.from(await response.arrayBuffer()));
+}
+
+async function requestLabelTarget(jobId: string, candidatePath: string): Promise<NeckLabelTarget> {
+  const source = await readFile(candidatePath);
+  const form = new FormData();
+  form.set("file", new Blob([new Uint8Array(source)], { type: "image/png" }), path.basename(candidatePath));
+  const response = await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${jobId}/label-target`, {
+    method: "POST",
+    body: form,
+  });
+  const data = await response.json() as { target?: NeckLabelTarget; error?: string };
+  if (!response.ok || !data.target) {
+    throw new Error(data.error || `CRM could not locate the inside neck-label panel: HTTP ${response.status}.`);
+  }
+  return data.target;
 }
 
 async function uploadResult(

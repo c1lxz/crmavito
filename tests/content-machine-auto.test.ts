@@ -4,6 +4,7 @@ import {
   isTShirt,
   normalizeDesignCount,
   selectAnalyticsWinners,
+  selectStrokProfiles,
   type AnalyticsWinner,
 } from "@/lib/ai/content-machine-auto";
 import fs from "node:fs";
@@ -61,8 +62,27 @@ describe("content-machine analytics automation", () => {
     expect(source).not.toContain("secondary hook on the front");
     expect(source).toContain("Preserve the winner's exact visible internal neck label");
     expect(source).toContain('garmentType?: "t-shirt"');
-    expect(source).toContain("profile.name.localeCompare(profileName");
+    expect(source).toContain("selectStrokProfiles");
+    expect(source).toContain("usedWinnerKeys");
     expect(source).toContain("hasExtractableWinnerLabel(normalized)");
+  });
+
+  it("uses only STROK profiles for unattended analytics batches", () => {
+    const profiles = [
+      { name: "STROK SHOP", hasCredentials: true },
+      { name: "strok shop 2", hasCredentials: true },
+      { name: "Kids animals", hasCredentials: true },
+      { name: "STROK disabled", hasCredentials: false },
+    ];
+    expect(selectStrokProfiles(profiles).map((profile) => profile.name)).toEqual(["STROK SHOP", "strok shop 2"]);
+  });
+
+  it("allows an explicitly selected credentialed profile without widening unattended batches", () => {
+    const profiles = [
+      { name: "STROK SHOP", hasCredentials: true },
+      { name: "Special profile", hasCredentials: true },
+    ];
+    expect(selectStrokProfiles(profiles, "  Special   profile ")).toEqual([profiles[1]]);
   });
 
   it("deduplicates the same position across profiles and keeps strongest demand", () => {

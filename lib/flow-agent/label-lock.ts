@@ -1,5 +1,6 @@
 import { rename } from "node:fs/promises";
 import sharp from "sharp";
+import type { NeckLabelTarget } from "./label-target";
 
 type LabelCandidate = {
   sourcePath: string;
@@ -135,7 +136,7 @@ export async function straightenLabelOverlay(input: Buffer) {
     .toBuffer();
 }
 
-export async function applyExactLabelOverlay(outputPath: string, overlayPath: string) {
+export async function applyExactLabelOverlay(outputPath: string, overlayPath: string, visionTarget?: NeckLabelTarget) {
   const output = sharp(outputPath).rotate();
   const metadata = await output.metadata();
   const width = metadata.width || 0;
@@ -144,16 +145,22 @@ export async function applyExactLabelOverlay(outputPath: string, overlayPath: st
   const rawOutput = await sharp(outputPath).rotate().removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const detectedLabels = findGeneratedLabelBoundsCandidates(rawOutput.data, width, height, rawOutput.info.channels);
   const detected = detectedLabels[0];
-  const targetWidth = Math.max(40, Math.round(detected ? detected.width * 1.02 : width * 0.055));
-  let overlay = await sharp(overlayPath).resize({ width: targetWidth, withoutEnlargement: false }).png().toBuffer({ resolveWithObject: true });
+  const targetWidth = Math.max(40, Math.round(
+    visionTarget ? width * visionTarget.widthRatio : detected ? detected.width * 1.02 : width * 0.055,
+  ));
+  let overlayPipeline = sharp(overlayPath).resize({ width: targetWidth, withoutEnlargement: false });
+  if (visionTarget && Math.abs(visionTarget.rotationDeg) >= 0.5) {
+    overlayPipeline = overlayPipeline.rotate(visionTarget.rotationDeg, { background: { r: 0, g: 0, b: 0, alpha: 0 } });
+  }
+  let overlay = await overlayPipeline.png().toBuffer({ resolveWithObject: true });
   // Approved CRM packshots use an oblique composition with the collar shifted
   // slightly right of the canvas centre. Keep detected marks exact, but place
   // a clean fallback on that rear-neck panel instead of the left collar rim.
-  const centerX = detected ? detected.left + detected.width / 2 : width * 0.56;
+  const centerX = visionTarget ? width * visionTarget.centerX : detected ? detected.left + detected.width / 2 : width * 0.56;
   // On a clean front photo there is no generated mark to replace. Place the
   // exact transfer inside the rear neck panel, below the collar rim. The old
   // 22.5% fallback landed on the upper rim/background in oblique CRM shots.
-  const centerY = detected ? detected.top + detected.height / 2 : height * 0.255;
+  const centerY = visionTarget ? height * visionTarget.centerY : detected ? detected.top + detected.height / 2 : height * 0.255;
   const left = Math.max(0, Math.min(width - overlay.info.width, Math.round(centerX - overlay.info.width / 2)));
   const top = Math.max(0, Math.min(height - overlay.info.height, Math.round(centerY - overlay.info.height / 2)));
   overlay = await ensureLabelContrast(overlay.data, outputPath, left, top);

@@ -9,6 +9,7 @@ import { generateGeminiImage, type GeminiReferenceImage } from "../lib/ai/gemini
 import { createKlingImageTask, getKlingImageTask, type KlingAspectRatio } from "../lib/ai/kling-images";
 import { createGeminiApparelDesignPrompt } from "../lib/flow-agent/design-brief";
 import { applyExactLabelOverlay, createBestLabelAssets } from "../lib/flow-agent/label-lock";
+import type { NeckLabelTarget } from "../lib/flow-agent/label-target";
 import { buildOriginalStagePrompt, type OriginalDesignStage } from "../lib/flow-agent/original-design";
 import { browserPageFetch } from "../lib/flow-agent/quality";
 import { compactFlowPrompt } from "../lib/flow-agent/browser";
@@ -136,7 +137,10 @@ async function main() {
       }
       const outputPath = path.join(workDirectory, `result-${slot}.jpg`);
       await sharp(Buffer.from(generated.data, "base64")).rotate().jpeg({ quality: 96, chromaSubsampling: "4:4:4" }).toFile(outputPath);
-      if (labelOverlayPath && (stage === "front-anchor" || stage === "front-detail")) await applyExactLabelOverlay(outputPath, labelOverlayPath);
+      if (labelOverlayPath && (stage === "front-anchor" || stage === "front-detail")) {
+        const labelTarget = await requestLabelTarget(job.id, outputPath);
+        await applyExactLabelOverlay(outputPath, labelOverlayPath, labelTarget);
+      }
       const output = await readFile(outputPath);
       if (stage === "front-anchor") anchors.set("front", output);
       if (stage === "back-anchor") anchors.set("back", output);
@@ -168,6 +172,21 @@ async function downloadAsset(jobId: string, kind: string, fileName: string, targ
   const response = await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${jobId}/asset/${kind}/${encodeURIComponent(fileName)}`);
   if (!response.ok) throw new Error(`Asset ${fileName}: CRM HTTP ${response.status}`);
   await writeFile(target, Buffer.from(await response.arrayBuffer()));
+}
+
+async function requestLabelTarget(jobId: string, candidatePath: string): Promise<NeckLabelTarget> {
+  const source = await readFile(candidatePath);
+  const form = new FormData();
+  form.set("file", new Blob([new Uint8Array(source)], { type: "image/jpeg" }), path.basename(candidatePath));
+  const response = await agentFetch(`/api/ai/content-machine/flow-agent/jobs/${jobId}/label-target`, {
+    method: "POST",
+    body: form,
+  });
+  const data = await response.json() as { target?: NeckLabelTarget; error?: string };
+  if (!response.ok || !data.target) {
+    throw new Error(data.error || `CRM could not locate the inside neck-label panel: HTTP ${response.status}.`);
+  }
+  return data.target;
 }
 
 async function uploadResult(jobId: string, slot: BackgroundSlot, filePath: string, timing: { startedAt: string; durationMs: number; generationMs: number }) {

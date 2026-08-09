@@ -42,6 +42,15 @@ export function selectAnalyticsWinners<T extends AnalyticsWinner>(items: T[], li
     .slice(0, Math.max(1, limit));
 }
 
+export function selectStrokProfiles<T extends { name: string; hasCredentials: boolean }>(profiles: T[], requestedName?: string): T[] {
+  const requested = requestedName?.replace(/\s+/g, " ").trim();
+  if (requested) {
+    return profiles.filter((profile) => profile.hasCredentials
+      && profile.name.localeCompare(requested, "ru", { sensitivity: "accent" }) === 0);
+  }
+  return profiles.filter((profile) => profile.hasCredentials && /\bstrok(?:\s+shop)?\b/i.test(profile.name));
+}
+
 export async function createAnalyticsDesignJobs(input: {
   designCount: number;
   imageSize: "2K" | "4K";
@@ -52,10 +61,7 @@ export async function createAnalyticsDesignJobs(input: {
   const designCount = normalizeDesignCount(input.designCount);
   const periodDays = Math.max(7, Math.min(270, Math.round(input.periodDays || 30)));
   const profileName = input.profileName?.replace(/\s+/g, " ").trim();
-  const profiles = (await listAvitoProfilesWithCredentials()).filter((profile) => (
-    profile.hasCredentials
-    && (!profileName || profile.name.localeCompare(profileName, "ru", { sensitivity: "accent" }) === 0)
-  ));
+  const profiles = selectStrokProfiles(await listAvitoProfilesWithCredentials(), profileName);
   if (!profiles.length) throw new Error("Нет активных профилей Avito с сохранёнными API-ключами.");
 
   const settled = await Promise.allSettled(profiles.map(async (profile) => {
@@ -76,6 +82,7 @@ export async function createAnalyticsDesignJobs(input: {
   if (!winners.length) throw new Error("В аналитике профилей нет позиций с просмотрами, избранным или контактами.");
 
   const sourceCache = new Map<string, Promise<File>>();
+  const usedWinnerKeys = new Set<string>();
   const jobs: CodexJob[] = [];
   for (let index = 0; index < designCount; index += 1) {
     let winner: PrivateWinner | undefined;
@@ -83,9 +90,11 @@ export async function createAnalyticsDesignJobs(input: {
     for (let offset = 0; offset < winners.length; offset += 1) {
       const candidate = winners[(index + offset) % winners.length];
       const cacheKey = `${candidate.profileId}:${candidate.itemId}`;
+      if (usedWinnerKeys.has(cacheKey)) continue;
       try {
         source = await (sourceCache.get(cacheKey) || cacheWinnerSource(candidate, sourceCache, cacheKey));
         winner = candidate;
+        usedWinnerKeys.add(cacheKey);
         break;
       } catch (error) {
         sourceCache.delete(cacheKey);

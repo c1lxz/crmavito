@@ -69,6 +69,8 @@ describe("content machine", () => {
     expect(browserFallbackSource).toContain("browserPageFetch(page)");
     expect(browserFallbackSource).toContain("generateKlingStage");
     expect(browserFallbackSource).toContain("applyExactLabelOverlay");
+    expect(browserFallbackSource).toContain("requestLabelTarget");
+    expect(browserFallbackSource).toContain("/label-target");
   });
 
   it("keeps exactly four persistent reference background slots", () => {
@@ -426,6 +428,8 @@ describe("content machine", () => {
     expect(autoRouteSource).toContain('garmentType: z.enum(["t-shirt"])');
     expect(flowAgentSource).toContain("createBestLabelAssets");
     expect(flowAgentSource).toContain("applyExactLabelOverlay");
+    expect(flowAgentSource).toContain("requestLabelTarget");
+    expect(flowAgentSource).toContain("/label-target");
     expect(originalDesignSource).toContain("DESIGN LANE LOCK");
     expect(originalDesignSource).toContain("ANONYMOUS EDITORIAL");
     expect(originalDesignSource).toContain("ABRASIVE POSTER");
