@@ -96,13 +96,19 @@ async function main() {
   if (!token) throw new Error("Задайте FLOW_LOCAL_AGENT_TOKEN.");
   await mkdir(workDirectory, { recursive: true });
   if (process.env.FLOW_AGENT_PREFLIGHT === "1") {
+    console.error("[flow-agent] preflight started.");
+    const watchdog = setTimeout(() => {
+      console.error("[flow-agent] preflight timed out after 40 seconds; Chrome/CDP did not answer.");
+      process.exit(2);
+    }, 40_000);
     const session = await launchFlowSession();
     try {
       const controlPage = await prepareControlPage(session.context, undefined, session.preservePages);
-      await controlPage.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
-      const summary = (await controlPage.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 500);
+      await controlPage.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 35_000 });
+      const summary = (await controlPage.locator("body").innerText({ timeout: 5_000 })).replace(/\s+/g, " ").slice(0, 500);
       console.log(JSON.stringify({ url: controlPage.url(), title: await controlPage.title(), summary }));
     } finally {
+      clearTimeout(watchdog);
       await session.close();
     }
     if (cdpUrl) process.exit(0);
@@ -1197,6 +1203,9 @@ async function supervise() {
     } catch (error) {
       const message = sanitizeFlowAgentError(error);
       console.error(`[flow-agent] session stopped: ${message}`);
+      if (process.env.FLOW_AGENT_PREFLIGHT === "1") {
+        process.exit(1);
+      }
       await reportStatus({
         state: "error",
         message: "Локальный Flow-агент перезапускается после ошибки.",

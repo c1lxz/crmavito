@@ -78,6 +78,12 @@ describe("Flow agent authentication", () => {
     expect(agent).toContain("googleSignInVisible");
     expect(agent).toContain("requireWorkspace: true");
     expect(agent).toContain("promptVisible");
+    expect(agent).toContain('process.env.FLOW_AGENT_PREFLIGHT === "1"');
+    expect(agent).toContain("process.exit(1)");
+    expect(agent).toContain('innerText({ timeout: 5_000 })');
+    expect(agent).toContain("preflight timed out after 40 seconds");
+    expect(agent).toContain("preflight started");
+    expect(agent).toContain("process.exit(2)");
     expect(agent).toContain("задания остаются в очереди");
     expect(agent.indexOf("const availability = await probeLocalFlowBeforeClaim()"))
       .toBeLessThan(agent.indexOf("job = await claimJob()"));
