@@ -58,12 +58,23 @@ $chromeCandidates = @(
 ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
 if (-not $chromeCandidates) { throw "Не найден Google Chrome. Установите Chrome и повторите установку." }
 
-$token = if ($env:FLOW_LOCAL_AGENT_TOKEN) { $env:FLOW_LOCAL_AGENT_TOKEN.Trim() } else { Find-LocalEnvValue "FLOW_LOCAL_AGENT_TOKEN" }
-if (-not $token) {
-  throw "Не найден ключ подключения. Вставьте ключ в установщике или запустите его на ПК с C:\crmavito\.env.local."
-}
 $crmUrl = if ($env:FLOW_AGENT_CRM_URL) { $env:FLOW_AGENT_CRM_URL.Trim().TrimEnd("/") } else { "https://crmavito.duckdns.org" }
 if ($crmUrl -notmatch '^https?://') { throw "Адрес CRM должен начинаться с https:// или http://." }
+$enrollmentCode = if ($env:FLOW_AGENT_ENROLLMENT_CODE) { $env:FLOW_AGENT_ENROLLMENT_CODE.Trim() } else { "" }
+$token = if ($enrollmentCode) { "" } elseif ($env:FLOW_LOCAL_AGENT_TOKEN) { $env:FLOW_LOCAL_AGENT_TOKEN.Trim() } else { Find-LocalEnvValue "FLOW_LOCAL_AGENT_TOKEN" }
+if (-not $token) {
+  if (-not $enrollmentCode) { throw "Получите одноразовый код в Контент-машине и введите его в установщике." }
+  try {
+    $enrollment = Invoke-RestMethod -Method Post -Uri "$crmUrl/api/ai/content-machine/flow-agent/enroll" -ContentType "application/json" -Body (@{
+      code = $enrollmentCode
+      agentId = $env:COMPUTERNAME
+    } | ConvertTo-Json -Compress)
+    $token = [string]$enrollment.token
+  } catch {
+    throw "Не удалось привязать этот ПК. Проверьте код подключения и получите новый при необходимости. $($_.Exception.Message)"
+  }
+  if (-not $token) { throw "CRM не вернула ключ локального агента." }
+}
 
 $qaEnvironment = @()
 foreach ($name in @("GEMINI_API_KEY", "GEMINI_QA_MODEL", "GEMINI_QA_FALLBACK_MODEL", "GEMINI_DESIGN_MODEL", "GEMINI_DESIGN_FALLBACK_MODEL", "ANTHROPIC_API_KEY", "CLAUDE_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL")) {

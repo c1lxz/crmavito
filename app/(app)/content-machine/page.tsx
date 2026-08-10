@@ -5,6 +5,5 @@ import { ContentMachineClient } from "@/components/content-machine/content-machi
 export default async function ContentMachinePage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "ADMIN") redirect("/dashboard");
-  return <ContentMachineClient />;
+  return <ContentMachineClient canManageBackgrounds={session.user.role === "ADMIN"} />;
 }

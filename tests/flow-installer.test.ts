@@ -20,6 +20,8 @@ describe("Flow local agent installer", () => {
     expect(installer).toContain("Register-ScheduledTask");
     expect(installer).toContain("current-user-run");
     expect(installer).toContain('"FLOW_LOCAL_AGENT_TOKEN=$token"');
+    expect(installer).toContain("FLOW_AGENT_ENROLLMENT_CODE");
+    expect(installer).toContain("/api/ai/content-machine/flow-agent/enroll");
     expect(installer).toContain("FLOW_AGENT_INSTALL_OK");
     expect(ensure).toContain("dist\\flow-agent.cjs");
     expect(ensure).toContain("FLOW_AGENT_PROFILE_DIR");
@@ -35,8 +37,14 @@ describe("Flow local agent installer", () => {
     expect(builder).toContain("GetEncoding(1251)");
     expect(builder).not.toContain("WINDOWS 10/11");
     expect(builder).not.toContain("Адрес CRM");
-    expect(builder).not.toContain("Ключ подключения");
-    expect(builder).not.toContain("new TextBox");
+    expect(builder).toContain("Одноразовый код из Контент-машины");
+    expect(builder).toContain("new TextBox");
+    expect(builder).toContain("FLOW_AGENT_ENROLLMENT_CODE");
+    expect(installer).not.toContain("FLOW_AGENT_PROXY_SERVER=");
+    expect(installer).not.toContain("FLOW_AGENT_EXTENSION_PATH=");
+    expect(chromeBootstrap).not.toContain("--proxy-server");
+    expect(chromeBootstrap).toContain('elseif ($env:FLOW_AGENT_PROXY_SPEC)');
+    expect(chromeBootstrap.indexOf('elseif ($env:FLOW_AGENT_PROXY_SPEC)')).toBeLessThan(chromeBootstrap.indexOf('Get-ChildItem -LiteralPath $chromeUserData'));
   });
 
   it("ships the generated executable and agent package", async () => {

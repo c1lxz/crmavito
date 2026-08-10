@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { authorizeFlowAgent } from "@/lib/ai/flow-agent-auth";
+import { consumeFlowAgentEnrollment, createFlowAgentEnrollment } from "@/lib/ai/flow-agent-enrollment";
 import { readFlowAgentStatus, saveFlowAgentStatus } from "@/lib/ai/flow-agent-status";
 
 const originalToken = process.env.FLOW_LOCAL_AGENT_TOKEN;
@@ -23,6 +24,27 @@ describe("Flow agent authentication", () => {
     process.env.FLOW_LOCAL_AGENT_TOKEN = "secret-token";
     expect(authorizeFlowAgent(new Request("http://localhost", { headers: { authorization: "Bearer wrong" } }))).toBe(false);
     expect(authorizeFlowAgent(new Request("http://localhost", { headers: { authorization: "Bearer secret-token" } }))).toBe(true);
+  });
+
+  it("issues a one-time token bound to the employee computer", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "flow-agent-enrollment-"));
+    process.env.CONTENT_MACHINE_DATA_DIR = directory;
+    delete process.env.FLOW_LOCAL_AGENT_TOKEN;
+    try {
+      const enrollment = await createFlowAgentEnrollment("employee-1");
+      const token = await consumeFlowAgentEnrollment(enrollment.code, "EMPLOYEE-PC");
+      expect(authorizeFlowAgent(new Request("http://localhost", { headers: {
+        authorization: `Bearer ${token}`,
+        "x-flow-agent-id": "EMPLOYEE-PC",
+      } }))).toBe(true);
+      expect(authorizeFlowAgent(new Request("http://localhost", { headers: {
+        authorization: `Bearer ${token}`,
+        "x-flow-agent-id": "OTHER-PC",
+      } }))).toBe(false);
+      await expect(consumeFlowAgentEnrollment(enrollment.code, "EMPLOYEE-PC")).rejects.toThrow(/already|использован/i);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("persists a fresh readiness heartbeat for the CRM UI", async () => {

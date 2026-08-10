@@ -7,7 +7,6 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const session = await auth();
   if (!session?.user) return Response.json({ error: "Не авторизован." }, { status: 401 });
-  if (session.user.role !== "ADMIN") return Response.json({ error: "Недостаточно прав." }, { status: 403 });
   return Response.json({ status: await readFlowAgentStatus() });
 }
 

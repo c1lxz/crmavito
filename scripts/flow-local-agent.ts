@@ -1169,6 +1169,7 @@ async function uploadResult(
 function agentFetch(route: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   headers.set("authorization", `Bearer ${token}`);
+  headers.set("x-flow-agent-id", agentId);
   return fetch(`${baseUrl}${route}`, { ...init, headers, signal: AbortSignal.timeout(120_000) });
 }
 

@@ -43,7 +43,7 @@ internal static class FlowInstallerProgram
     private static void Main(string[] args)
     {
         if (args.Any(x => String.Equals(x, "/quiet", StringComparison.OrdinalIgnoreCase) || String.Equals(x, "--quiet", StringComparison.OrdinalIgnoreCase))) {
-            var error = RunInstaller(null, null);
+            var error = RunInstaller(null, Environment.GetEnvironmentVariable("FLOW_AGENT_ENROLLMENT_CODE"));
             Environment.Exit(String.IsNullOrWhiteSpace(error) ? 0 : 1);
             return;
         }
@@ -57,8 +57,8 @@ internal static class FlowInstallerProgram
     {
         var form = new Form {
             Text = "CRM Avito Flow Agent",
-            ClientSize = new Size(560, 260),
-            MinimumSize = new Size(576, 299),
+            ClientSize = new Size(560, 330),
+            MinimumSize = new Size(576, 369),
             StartPosition = FormStartPosition.CenterScreen,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MaximizeBox = false,
@@ -94,24 +94,37 @@ internal static class FlowInstallerProgram
         header.Controls.Add(title);
         header.Controls.Add(subtitle);
 
+        var codeLabel = new Label {
+            Text = "Одноразовый код из Контент-машины",
+            ForeColor = Muted,
+            AutoSize = true,
+            Location = new Point(28, 126)
+        };
+        var codeInput = new TextBox {
+            CharacterCasing = CharacterCasing.Upper,
+            Font = new Font("Consolas", 12, FontStyle.Bold),
+            Location = new Point(28, 148),
+            Size = new Size(504, 30)
+        };
+
         var statusDot = new Label {
             Text = "●",
             ForeColor = Accent,
             AutoSize = true,
-            Location = new Point(28, 140)
+            Location = new Point(28, 199)
         };
         var status = new Label {
             Text = "Готово к установке",
             ForeColor = Muted,
             AutoSize = false,
-            Location = new Point(48, 138),
+            Location = new Point(48, 197),
             Size = new Size(320, 23)
         };
         var progress = new ProgressBar {
             Visible = false,
             Style = ProgressBarStyle.Marquee,
             MarqueeAnimationSpeed = 22,
-            Location = new Point(28, 172),
+            Location = new Point(28, 231),
             Size = new Size(504, 4)
         };
         var details = new Button {
@@ -121,7 +134,7 @@ internal static class FlowInstallerProgram
             ForeColor = Danger,
             BackColor = Canvas,
             Size = new Size(112, 38),
-            Location = new Point(28, 198)
+            Location = new Point(28, 268)
         };
         details.FlatAppearance.BorderColor = Color.FromArgb(217, 226, 234);
         var install = new Button {
@@ -131,7 +144,7 @@ internal static class FlowInstallerProgram
             BackColor = Accent,
             Font = new Font("Segoe UI Semibold", 9.5f),
             Size = new Size(154, 40),
-            Location = new Point(378, 194)
+            Location = new Point(378, 264)
         };
         install.FlatAppearance.BorderSize = 0;
         var installationComplete = false;
@@ -143,14 +156,22 @@ internal static class FlowInstallerProgram
                 form.Close();
                 return;
             }
+            if (String.IsNullOrWhiteSpace(codeInput.Text)) {
+                statusDot.ForeColor = Danger;
+                status.ForeColor = Danger;
+                status.Text = "Введите одноразовый код из Контент-машины";
+                codeInput.Focus();
+                return;
+            }
             install.Enabled = false;
+            codeInput.Enabled = false;
             details.Visible = false;
             progress.Visible = true;
             statusDot.ForeColor = Accent;
             status.Text = "Устанавливаю зависимости и настраиваю автозапуск…";
             var worker = new BackgroundWorker();
             worker.DoWork += delegate(object sender, DoWorkEventArgs eventArgs) {
-                eventArgs.Result = RunInstaller(null, null);
+                eventArgs.Result = RunInstaller(null, codeInput.Text.Trim());
             };
             worker.RunWorkerCompleted += delegate(object sender, RunWorkerCompletedEventArgs eventArgs) {
                 progress.Visible = false;
@@ -161,6 +182,7 @@ internal static class FlowInstallerProgram
                     status.Text = "Агент установлен и уже работает";
                     install.Text = "Закрыть";
                     install.Enabled = true;
+                    codeInput.Enabled = true;
                     installationComplete = true;
                 } else {
                     statusDot.ForeColor = Danger;
@@ -169,12 +191,15 @@ internal static class FlowInstallerProgram
                     details.Visible = true;
                     install.Text = "Повторить";
                     install.Enabled = true;
+                    codeInput.Enabled = true;
                 }
             };
             worker.RunWorkerAsync();
         };
 
         form.Controls.Add(header);
+        form.Controls.Add(codeLabel);
+        form.Controls.Add(codeInput);
         form.Controls.Add(statusDot);
         form.Controls.Add(status);
         form.Controls.Add(progress);
@@ -184,7 +209,7 @@ internal static class FlowInstallerProgram
         return form;
     }
 
-    private static string RunInstaller(string crmUrl, string token)
+    private static string RunInstaller(string crmUrl, string enrollmentCode)
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), "crm-avito-flow-installer-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempRoot);
@@ -208,7 +233,7 @@ internal static class FlowInstallerProgram
             var logPath = Path.Combine(logRoot, "install.log");
             start.EnvironmentVariables["FLOW_AGENT_INSTALLER_LOG"] = logPath;
             if (!String.IsNullOrWhiteSpace(crmUrl)) start.EnvironmentVariables["FLOW_AGENT_CRM_URL"] = crmUrl;
-            if (!String.IsNullOrWhiteSpace(token)) start.EnvironmentVariables["FLOW_LOCAL_AGENT_TOKEN"] = token;
+            if (!String.IsNullOrWhiteSpace(enrollmentCode)) start.EnvironmentVariables["FLOW_AGENT_ENROLLMENT_CODE"] = enrollmentCode;
             using (var process = Process.Start(start)) {
                 process.WaitForExit();
                 if (process.ExitCode == 0) return "";

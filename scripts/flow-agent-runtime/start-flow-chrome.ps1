@@ -8,7 +8,6 @@ $profileRoot = if ($env:FLOW_AGENT_PROFILE_DIR) {
 }
 $debugPort = 9223
 $flowUrl = "https://labs.google/fx/ru/tools/flow"
-$proxyExtensionId = "pcboajngloecgmaailkmphmpbacmbcfb" # Simple Proxy Switcher
 
 $listening = Get-NetTCPConnection -LocalAddress 127.0.0.1 -LocalPort $debugPort -State Listen -ErrorAction SilentlyContinue
 if ($listening) { exit 0 }
@@ -30,11 +29,14 @@ if (-not $chrome) { throw "Google Chrome не найден." }
 New-Item -ItemType Directory -Force -Path $profileRoot | Out-Null
 $proxyExtensionPath = if ($env:FLOW_AGENT_PROXY_EXTENSION_PATH) {
   $env:FLOW_AGENT_PROXY_EXTENSION_PATH.Trim('"')
-} else {
+} elseif ($env:FLOW_AGENT_PROXY_SPEC) {
+  $proxyExtensionId = if ($env:FLOW_AGENT_PROXY_EXTENSION_ID) { $env:FLOW_AGENT_PROXY_EXTENSION_ID.Trim() } else { "pcboajngloecgmaailkmphmpbacmbcfb" }
   $chromeUserData = Join-Path $env:LOCALAPPDATA "Google\Chrome\User Data"
   Get-ChildItem -LiteralPath $chromeUserData -Directory -ErrorAction SilentlyContinue | ForEach-Object {
     Get-ChildItem -LiteralPath (Join-Path $_.FullName "Extensions\$proxyExtensionId") -Directory -ErrorAction SilentlyContinue
   } | Sort-Object { try { [version]$_.Name } catch { [version]"0.0" } } -Descending | Select-Object -First 1 -ExpandProperty FullName
+} else {
+  $null
 }
 if ($proxyExtensionPath -and -not (Test-Path -LiteralPath (Join-Path $proxyExtensionPath "manifest.json"))) {
   throw "Папка прокси-расширения некорректна: $proxyExtensionPath"

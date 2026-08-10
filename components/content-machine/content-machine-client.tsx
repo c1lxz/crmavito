@@ -95,7 +95,7 @@ const slots: BackgroundSlot[] = ["1", "2", "3", "4"];
 const maxProducts = 10;
 const maxDesignReferences = 6;
 
-export function ContentMachineClient() {
+export function ContentMachineClient({ canManageBackgrounds = false }: { canManageBackgrounds?: boolean }) {
   const [backgrounds, setBackgrounds] = useState<Background[]>(slots.map((slot) => emptyBackground(slot)));
   const [backgroundsLoading, setBackgroundsLoading] = useState(true);
   const [uploadingSlot, setUploadingSlot] = useState<BackgroundSlot | null>(null);
@@ -118,11 +118,29 @@ export function ContentMachineClient() {
   const [refreshConfirmed, setRefreshConfirmed] = useState(false);
   const [resultRefreshKey, setResultRefreshKey] = useState(0);
   const [agentStatus, setAgentStatus] = useState<FlowAgentStatus | null>(null);
+  const [enrollment, setEnrollment] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [creatingEnrollment, setCreatingEnrollment] = useState(false);
   const [diagnosticIncidents, setDiagnosticIncidents] = useState<DiagnosticIncident[]>([]);
   const [draftRestored, setDraftRestored] = useState(false);
   const productInputRef = useRef<HTMLInputElement>(null);
   const productUrlsRef = useRef<string[]>([]);
   const incidentFingerprintsRef = useRef(new Set<string>());
+
+  async function createEnrollmentCode() {
+    setCreatingEnrollment(true);
+    try {
+      const response = await fetch("/api/ai/content-machine/flow-agent/enrollment", { method: "POST" });
+      const data = await response.json() as { code?: string; expiresAt?: string; error?: string };
+      if (!response.ok || !data.code || !data.expiresAt) throw new Error(data.error || "Не удалось создать код подключения.");
+      setEnrollment({ code: data.code, expiresAt: data.expiresAt });
+      await navigator.clipboard.writeText(data.code).catch(() => undefined);
+      toast({ title: "Код подключения создан", description: "Код скопирован. Вставьте его в установщик." });
+    } catch (error) {
+      toast({ title: "Не удалось создать код", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    } finally {
+      setCreatingEnrollment(false);
+    }
+  }
 
   useEffect(() => {
     void loadBackgrounds();
@@ -576,12 +594,24 @@ export function ContentMachineClient() {
                 ) : null}
               </div>
             </div>
-            <Button asChild variant={agentReady ? "outline" : "default"} className="min-h-11 w-full shrink-0 sm:w-auto">
-              <a href="/downloads/install-flow-agent.exe" download>
-                <Download className="mr-2 h-4 w-4" />
-                {agentReady ? "Переустановить" : "Скачать для Windows"}
-              </a>
-            </Button>
+            <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:items-end">
+              <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" disabled={creatingEnrollment} onClick={() => void createEnrollmentCode()}>
+                {creatingEnrollment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                Получить код установки
+              </Button>
+              {enrollment ? (
+                <div className="text-right">
+                  <button type="button" className="font-mono text-base font-semibold tracking-wider text-primary" onClick={() => void navigator.clipboard.writeText(enrollment.code)}>{enrollment.code}</button>
+                  <p className="text-xs text-muted-foreground">Одноразовый код действует 15 минут</p>
+                </div>
+              ) : null}
+              <Button asChild variant={agentReady ? "outline" : "default"} className="min-h-11 w-full sm:w-auto">
+                <a href="/downloads/install-flow-agent.exe" download>
+                  <Download className="mr-2 h-4 w-4" />
+                  {agentReady ? "Переустановить" : "Скачать для Windows"}
+                </a>
+              </Button>
+            </div>
           </div>
           {!agentReady ? (
             <div className="border-t bg-secondary/25 px-5 py-4 sm:px-6">
@@ -622,6 +652,7 @@ export function ContentMachineClient() {
                 key={background.slot}
                 background={background}
                 loading={backgroundsLoading || uploadingSlot === background.slot}
+                editable={canManageBackgrounds}
                 onFile={(file) => void uploadBackground(background.slot, file)}
                 onImageError={() => reportIncident(`Отображение фона ${background.slot}`, `${background.fileName || "Файл"} не открылся в браузере.`)}
               />
@@ -962,9 +993,10 @@ export function ContentMachineClient() {
   );
 }
 
-function BackgroundPanel({ background, loading, onFile, onImageError }: {
+function BackgroundPanel({ background, loading, editable, onFile, onImageError }: {
   background: Background;
   loading: boolean;
+  editable: boolean;
   onFile: (file: File | undefined) => void;
   onImageError: () => void;
 }) {
@@ -989,10 +1021,14 @@ function BackgroundPanel({ background, loading, onFile, onImageError }: {
           <p className="truncate text-sm font-medium">{background.fileName || "Добавьте оригинал"}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">{background.url ? formatBytes(background.size) : "JPG, PNG или WebP"}</p>
         </div>
-        <Label htmlFor={inputId} className="inline-flex h-11 cursor-pointer items-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent">
-          {background.url ? "Заменить" : "Загрузить"}
-        </Label>
-        <input id={inputId} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={loading} onChange={(event) => { onFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+        {editable ? (
+          <>
+            <Label htmlFor={inputId} className="inline-flex h-11 cursor-pointer items-center rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent">
+              {background.url ? "Заменить" : "Загрузить"}
+            </Label>
+            <input id={inputId} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={loading} onChange={(event) => { onFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+          </>
+        ) : null}
       </CardContent>
     </Card>
   );

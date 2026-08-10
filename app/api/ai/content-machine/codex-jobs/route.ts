@@ -7,7 +7,6 @@ export const maxDuration = 120;
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Не авторизован." }, { status: 401 });
-  if (session.user.role !== "ADMIN") return NextResponse.json({ error: "Недостаточно прав." }, { status: 403 });
   try {
     const form = await request.formData();
     const products = form.getAll("products").filter((value): value is File => value instanceof File);
