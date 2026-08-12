@@ -63,7 +63,7 @@ async function syncProfiles(profileIds?: string[]): Promise<MultiSyncResult> {
       const profileResult = await syncAvitoProducts(
         prisma,
         { clientId: profile.clientId!, clientSecret: profile.clientSecret! },
-        { profileId: profile.id },
+        { profileId: profile.id, enrichMissingImages: false },
       );
       result.profiles.push({ ...profileResult, profileName: profile.name });
       result.created += profileResult.created;

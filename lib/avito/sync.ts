@@ -356,10 +356,11 @@ async function retryUpsert(operation: () => Promise<unknown>, sleepFn: SleepFn):
 export async function syncAvitoProducts(
   prisma: SyncPrisma,
   credentials: { clientId: string; clientSecret: string },
-  options: { fetchFn?: FetchFn; sleepFn?: SleepFn; profileId?: string } = {},
+  options: { fetchFn?: FetchFn; sleepFn?: SleepFn; profileId?: string; enrichMissingImages?: boolean } = {},
 ): Promise<SyncResult> {
   const fetchFn = options.fetchFn ?? fetch;
   const sleepFn = options.sleepFn ?? defaultSleep;
+  const enrichMissingImages = options.enrichMissingImages ?? true;
   const tokenResponse = await fetchWithRetry(
     "https://api.avito.ru/token/",
     {
@@ -422,6 +423,16 @@ export async function syncAvitoProducts(
       continue;
     }
 
+    const botvImageUrl = await findBotvImageByTitle(item.title ?? item.name);
+    if (botvImageUrl) {
+      imageUrlsById.set(avitoItemId, botvImageUrl);
+      continue;
+    }
+
+    // Page HTML and detail endpoints are heavily rate-limited by Avito. The multi-profile
+    // catalog uses list images and local BotV images so one sync cannot take many minutes.
+    if (!enrichMissingImages) continue;
+
     if (!htmlBlocked && item.url && htmlImageAttempts < htmlImageLimit) {
       htmlImageAttempts++;
       const htmlImage = await fetchAvitoListingImage(item.url);
@@ -437,12 +448,6 @@ export async function syncAvitoProducts(
         if (htmlNetworkFailures >= 5) htmlBlocked = true;
       }
       if (htmlImageAttempts < htmlImageLimit && !htmlBlocked) await sleepFn(800);
-    }
-
-    const botvImageUrl = await findBotvImageByTitle(item.title ?? item.name);
-    if (botvImageUrl) {
-      imageUrlsById.set(avitoItemId, botvImageUrl);
-      continue;
     }
 
     if (imageDetailAttempts >= imageDetailLimit) continue;

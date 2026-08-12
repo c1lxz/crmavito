@@ -207,6 +207,35 @@ describe("Avito synchronization transport", () => {
     expect(result).toMatchObject({ created: 1, updated: 1, total: 2, profileId: "profile-1" });
   });
 
+  it("can skip rate-limited per-item image requests during multi-profile sync", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ access_token: "token" }))
+      .mockResolvedValueOnce(Response.json({ resources: [{ id: 21, title: "No image", price: 50 }] }))
+      .mockResolvedValueOnce(Response.json({ resources: [] })) as unknown as typeof fetch;
+    const prisma = {
+      product: {
+        findMany: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
+        findUnique: vi.fn(async () => null),
+        create: vi.fn(async () => ({ id: "product-21" })),
+        update: vi.fn(async () => ({})),
+      },
+      productAvitoListing: {
+        findMany: vi.fn(async () => []),
+        upsert: vi.fn(async () => ({})),
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+    } as unknown as Parameters<typeof syncAvitoProducts>[0];
+
+    await syncAvitoProducts(
+      prisma,
+      { clientId: "client", clientSecret: "secret" },
+      { profileId: "profile-fast", enrichMissingImages: false, fetchFn, sleepFn: async () => undefined },
+    );
+
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+  });
+
   it("fills missing images from item detail API during sync", async () => {
     const previousLimit = process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT;
     process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT = "1";
