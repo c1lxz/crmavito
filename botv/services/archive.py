@@ -50,11 +50,17 @@ def _safe_extract_member(zf: zipfile.ZipFile, member: zipfile.ZipInfo, dest_dir:
     except (UnicodeEncodeError, UnicodeDecodeError):
         raw_name = member.filename
 
-    target = (dest_dir / raw_name).resolve()
-    if not str(target).startswith(str(dest_dir.resolve())):
+    # PowerShell's Compress-Archive writes Windows backslashes into ZIP entry
+    # names. On Linux they are regular filename characters, so the archive
+    # would be extracted flat and no product directories could be scanned.
+    normalized_name = raw_name.replace("\\", "/")
+    target = (dest_dir / normalized_name).resolve()
+    try:
+        target.relative_to(dest_dir.resolve())
+    except ValueError:
         raise ArchiveError(f"Небезопасный путь в архиве: {member.filename}")
 
-    if member.is_dir():
+    if member.is_dir() or normalized_name.endswith("/"):
         target.mkdir(parents=True, exist_ok=True)
         return
 

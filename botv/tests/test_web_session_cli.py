@@ -131,6 +131,22 @@ def test_web_session_create_move_consumes_uploaded_archive(tmp_path):
     assert not (session_dir / "large-drop.zip").exists()
 
 
+def test_web_session_accepts_windows_zip_path_separators(tmp_path):
+    archive = tmp_path / "windows-drop.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr(r"Product Black\front.jpg", b"jpg")
+        zf.writestr(r"Product White\front.jpg", b"jpg")
+
+    state = _run_cli("create", str(archive), "windows-drop.zip")
+
+    assert state["summary"]["total"] == 2
+    assert [product["name"] for product in state["products"]] == [
+        "Product Black",
+        "Product White",
+    ]
+    assert state["summary"]["photos"] == 2
+
+
 def test_web_session_photo_reorder(tmp_path):
     archive = tmp_path / "drop.zip"
     with zipfile.ZipFile(archive, "w") as zf:
