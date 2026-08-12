@@ -20,9 +20,10 @@ export type SyncResult = {
   total: number;
   imagesFound: number;
   statusCounts: Record<string, number>;
+  profileId?: string;
 };
 
-type SyncPrisma = Pick<PrismaClient, "product">;
+type SyncPrisma = Pick<PrismaClient, "product" | "productAvitoListing">;
 type FetchFn = typeof fetch;
 type SleepFn = (ms: number) => Promise<void>;
 
@@ -327,6 +328,17 @@ function getPrice(value: AvitoListItem["price"]): number {
   return 0;
 }
 
+export function normalizeProductName(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("ru-RU")
+    .replace(/ё/g, "е")
+    .replace(/[\u00a0\s]+/g, " ")
+    .replace(/[‐‑‒–—―]/g, "-")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
 async function retryUpsert(operation: () => Promise<unknown>, sleepFn: SleepFn): Promise<void> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -344,7 +356,7 @@ async function retryUpsert(operation: () => Promise<unknown>, sleepFn: SleepFn):
 export async function syncAvitoProducts(
   prisma: SyncPrisma,
   credentials: { clientId: string; clientSecret: string },
-  options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
+  options: { fetchFn?: FetchFn; sleepFn?: SleepFn; profileId?: string } = {},
 ): Promise<SyncResult> {
   const fetchFn = options.fetchFn ?? fetch;
   const sleepFn = options.sleepFn ?? defaultSleep;
@@ -453,6 +465,129 @@ export async function syncAvitoProducts(
   let imagesFound = 0;
   const now = new Date();
   const batchSize = 20;
+
+  if (options.profileId) {
+    const profileId = options.profileId;
+    const existingListings = ids.length
+      ? await prisma.productAvitoListing.findMany({
+          where: { avitoProfileId: profileId, avitoItemId: { in: ids } },
+          select: { avitoItemId: true, productId: true },
+        })
+      : [];
+    const productIdsByItemId = new Map(
+      existingListings.map((listing) => [listing.avitoItemId, listing.productId]),
+    );
+    const names = [...new Set(items.map((item) => normalizeProductName(item.title ?? item.name ?? "")).filter(Boolean))];
+    const productsByName = names.length
+      ? await prisma.product.findMany({
+          where: { normalizedName: { in: names } },
+          select: { id: true, normalizedName: true },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+    const productIdsByName = new Map<string, string>();
+    for (const product of productsByName) {
+      if (product.normalizedName && !productIdsByName.has(product.normalizedName)) {
+        productIdsByName.set(product.normalizedName, product.id);
+      }
+    }
+
+    for (const item of items) {
+      const avitoItemId = String(item.id);
+      const name = item.title ?? item.name ?? `Avito ${avitoItemId}`;
+      const normalizedName = normalizeProductName(name) || `avito ${avitoItemId}`;
+      const price = getPrice(item.price);
+      const imageUrl = imageUrlsById.get(avitoItemId) ?? null;
+      let productId = productIdsByItemId.get(avitoItemId) ?? productIdsByName.get(normalizedName);
+
+      if (!productId) {
+        const legacyProduct = await prisma.product.findUnique({
+          where: { avitoItemId },
+          select: { id: true },
+        });
+        productId = legacyProduct?.id;
+      }
+
+      if (!productId) {
+        const product = await prisma.product.create({
+          data: {
+            name,
+            normalizedName,
+            salePrice: price,
+            avitoItemId,
+            avitoListingUrl: item.url ?? null,
+            avitoListingStatus: item.status ?? null,
+            imageUrl,
+            lastSyncedAt: now,
+          },
+          select: { id: true },
+        });
+        productId = product.id;
+        productIdsByName.set(normalizedName, product.id);
+        created++;
+      } else {
+        await prisma.product.update({
+          where: { id: productId },
+          data: {
+            normalizedName,
+            salePrice: price,
+            lastSyncedAt: now,
+            ...(!existingIds.has(avitoItemId) ? {} : {
+              name,
+              avitoListingUrl: item.url ?? null,
+              avitoListingStatus: item.status ?? null,
+            }),
+            ...(imageUrl ? { imageUrl } : {}),
+          },
+        });
+        updated++;
+      }
+
+      await prisma.productAvitoListing.upsert({
+        where: { avitoProfileId_avitoItemId: { avitoProfileId: profileId, avitoItemId } },
+        update: {
+          productId,
+          listingUrl: item.url ?? null,
+          listingStatus: item.status ?? null,
+          price,
+          ...(imageUrl ? { imageUrl } : {}),
+          lastSyncedAt: now,
+        },
+        create: {
+          productId,
+          avitoProfileId: profileId,
+          avitoItemId,
+          listingUrl: item.url ?? null,
+          listingStatus: item.status ?? null,
+          price,
+          imageUrl,
+          lastSyncedAt: now,
+        },
+      });
+      if (imageUrl) imagesFound++;
+    }
+
+    const archived = ids.length
+      ? await prisma.productAvitoListing.updateMany({
+          where: {
+            avitoProfileId: profileId,
+            avitoItemId: { notIn: ids },
+            listingStatus: { not: "inactive" },
+          },
+          data: { listingStatus: "inactive" },
+        })
+      : { count: 0 };
+
+    return {
+      profileId,
+      updated,
+      created,
+      archived: archived.count,
+      total: items.length,
+      imagesFound,
+      statusCounts,
+    };
+  }
 
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);

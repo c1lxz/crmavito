@@ -2,11 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fetchAllAvitoItems, fetchWithRetry, syncAvitoProducts } from "@/lib/avito/sync";
+import { fetchAllAvitoItems, fetchWithRetry, normalizeProductName, syncAvitoProducts } from "@/lib/avito/sync";
 import { __resetAvitoTokenCacheForTests } from "@/lib/avito/api";
 import { __resetBotvImageCacheForTests } from "@/lib/botv/avito-image-cache";
 
 describe("Avito synchronization transport", () => {
+  it("normalizes visually equivalent product names for the shared catalog", () => {
+    expect(normalizeProductName("  Футболка KY — Чёрная! ")).toBe("футболка ky черная");
+    expect(normalizeProductName("ФУТБОЛКА KY - ЧЕРНАЯ")).toBe("футболка ky черная");
+  });
+
   it("retries transient HTTP and network failures", async () => {
     const fetchFn = vi
       .fn()
@@ -157,6 +162,49 @@ describe("Avito synchronization transport", () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0].title).toBe("Fresh");
+  });
+
+  it("links repeated titles from a profile to one shared product", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ access_token: "token" }))
+      .mockResolvedValueOnce(Response.json({
+        resources: [
+          { id: 10, title: "Футболка KY", price: 100, images: [{ url: "https://10.avito.st/one.jpg" }] },
+          { id: 11, title: "  ФУТБОЛКА KY! ", price: 120, images: [{ url: "https://10.avito.st/two.jpg" }] },
+        ],
+      }))
+      .mockResolvedValueOnce(Response.json({ resources: [] })) as unknown as typeof fetch;
+    const create = vi.fn(async () => ({ id: "shared-product" }));
+    const listingUpsert = vi.fn(async () => ({}));
+    const prisma = {
+      product: {
+        findMany: vi.fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([]),
+        findUnique: vi.fn(async () => null),
+        create,
+        update: vi.fn(async () => ({})),
+      },
+      productAvitoListing: {
+        findMany: vi.fn(async () => []),
+        upsert: listingUpsert,
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+    } as unknown as Parameters<typeof syncAvitoProducts>[0];
+
+    const result = await syncAvitoProducts(
+      prisma,
+      { clientId: "client", clientSecret: "secret" },
+      { profileId: "profile-1", fetchFn, sleepFn: async () => undefined },
+    );
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(listingUpsert).toHaveBeenCalledTimes(2);
+    expect(listingUpsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      create: expect.objectContaining({ productId: "shared-product", avitoItemId: "11" }),
+    }));
+    expect(result).toMatchObject({ created: 1, updated: 1, total: 2, profileId: "profile-1" });
   });
 
   it("fills missing images from item detail API during sync", async () => {

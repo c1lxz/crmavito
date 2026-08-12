@@ -64,29 +64,29 @@ enum NoteVisibility {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  name         String
-  login        String?   @unique
-  email        String?   @unique
-  passwordHash String?
-  telegramId   String?   @unique
-  telegramUsername String?
-  credentialsDeliveredAt DateTime?
+  id                       String    @id @default(uuid())
+  name                     String
+  login                    String?   @unique
+  email                    String?   @unique
+  passwordHash             String?
+  telegramId               String?   @unique
+  telegramUsername         String?
+  credentialsDeliveredAt   DateTime?
   credentialsDeliveryError String?
-  role         UserRole  @default(MANAGER)
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
+  role                     UserRole  @default(MANAGER)
+  isActive                 Boolean   @default(true)
+  createdAt                DateTime  @default(now())
 
-  orders     Order[]
-  expenses   Expense[]
-  auditLogs  AuditLog[]
-  createdTasks   Task[] @relation("TaskCreatedBy")
-  assignedTasks  Task[] @relation("TaskAssignedTo")
-  taskAssignments TaskAssignee[]
-  completedTasks Task[] @relation("TaskCompletedBy")
-  notesCreated   Note[] @relation("NoteCreatedBy")
-  noteAccess     NoteViewer[]
-  noteMentions   NoteMention[]
+  orders                       Order[]
+  expenses                     Expense[]
+  auditLogs                    AuditLog[]
+  createdTasks                 Task[]                        @relation("TaskCreatedBy")
+  assignedTasks                Task[]                        @relation("TaskAssignedTo")
+  taskAssignments              TaskAssignee[]
+  completedTasks               Task[]                        @relation("TaskCompletedBy")
+  notesCreated                 Note[]                        @relation("NoteCreatedBy")
+  noteAccess                   NoteViewer[]
+  noteMentions                 NoteMention[]
   privateWbPublicationProfiles WbPrivatePublicationProfile[]
 
   @@map("users")
@@ -106,25 +106,25 @@ model WbPrivatePublicationProfile {
 }
 
 model Task {
-  id              String     @id @default(uuid())
-  title           String
-  description     String?
-  status          TaskStatus @default(OPEN)
-  scheduledAt     DateTime?
-  dueAt           DateTime
-  assigneeUserId  String
-  createdByUserId String
+  id                String     @id @default(uuid())
+  title             String
+  description       String?
+  status            TaskStatus @default(OPEN)
+  scheduledAt       DateTime?
+  dueAt             DateTime
+  assigneeUserId    String
+  createdByUserId   String
   completedByUserId String?
-  completedAt     DateTime?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  completedAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
-  assignee    User  @relation("TaskAssignedTo", fields: [assigneeUserId], references: [id])
-  createdBy   User  @relation("TaskCreatedBy", fields: [createdByUserId], references: [id])
-  completedBy User? @relation("TaskCompletedBy", fields: [completedByUserId], references: [id])
-  assignees TaskAssignee[]
-  attachments TaskAttachment[]
-  notification TaskNotification?
+  assignee             User                      @relation("TaskAssignedTo", fields: [assigneeUserId], references: [id])
+  createdBy            User                      @relation("TaskCreatedBy", fields: [createdByUserId], references: [id])
+  completedBy          User?                     @relation("TaskCompletedBy", fields: [completedByUserId], references: [id])
+  assignees            TaskAssignee[]
+  attachments          TaskAttachment[]
+  notification         TaskNotification?
   notificationCleanups TaskNotificationCleanup[]
 
   @@index([status, dueAt])
@@ -149,17 +149,17 @@ model TaskAttachment {
 }
 
 model TaskAssignee {
-  id                String   @id @default(uuid())
-  taskId            String
-  userId            String
-  notificationStatus String  @default("PENDING")
-  attempts          Int      @default(0)
-  lastError         String?
-  notifiedAt        DateTime?
-  telegramChatId    String?
-  telegramMessageId Int?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String    @id @default(uuid())
+  taskId             String
+  userId             String
+  notificationStatus String    @default("PENDING")
+  attempts           Int       @default(0)
+  lastError          String?
+  notifiedAt         DateTime?
+  telegramChatId     String?
+  telegramMessageId  Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id])
@@ -170,18 +170,18 @@ model TaskAssignee {
 }
 
 model TaskNotification {
-  id                  String   @id @default(uuid())
-  taskId              String   @unique
-  status              String   @default("PENDING")
-  attempts            Int      @default(0)
-  nextAttemptAt       DateTime @default(now())
+  id                  String    @id @default(uuid())
+  taskId              String    @unique
+  status              String    @default("PENDING")
+  attempts            Int       @default(0)
+  nextAttemptAt       DateTime  @default(now())
   processingStartedAt DateTime?
   lastError           String?
   sentAt              DateTime?
   telegramChatId      String?
   telegramMessageId   Int?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
@@ -206,6 +206,7 @@ model TaskNotificationCleanup {
 model Product {
   id                 String    @id @default(uuid())
   name               String
+  normalizedName     String?
   salePrice          Decimal   @db.Decimal(12, 2)
   avitoListingUrl    String?
   avitoListingStatus String?
@@ -215,13 +216,37 @@ model Product {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  orders   Order[]
-  orderItems OrderItem[]
-  returns  Return[]
-  notes    NoteProduct[]
+  orders        Order[]
+  orderItems    OrderItem[]
+  returns       Return[]
+  notes         NoteProduct[]
+  avitoListings ProductAvitoListing[]
 
   @@index([name])
+  @@index([normalizedName])
   @@map("products")
+}
+
+model ProductAvitoListing {
+  id             String   @id @default(uuid())
+  productId      String
+  avitoProfileId String
+  avitoItemId    String
+  listingUrl     String?
+  listingStatus  String?
+  price          Decimal  @db.Decimal(12, 2)
+  imageUrl       String?
+  lastSyncedAt   DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  avitoProfile AvitoProfile @relation(fields: [avitoProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([avitoProfileId, avitoItemId])
+  @@index([productId])
+  @@index([avitoProfileId, listingStatus])
+  @@map("product_avito_listings")
 }
 
 model Note {
@@ -245,9 +270,9 @@ model Note {
 }
 
 model NoteViewer {
-  id        String @id @default(uuid())
-  noteId    String
-  userId    String
+  id     String @id @default(uuid())
+  noteId String
+  userId String
 
   note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -258,17 +283,17 @@ model NoteViewer {
 }
 
 model NoteMention {
-  id                  String   @id @default(uuid())
+  id                  String    @id @default(uuid())
   noteId              String
   userId              String
-  status              String   @default("PENDING")
-  attempts            Int      @default(0)
-  nextAttemptAt       DateTime @default(now())
+  status              String    @default("PENDING")
+  attempts            Int       @default(0)
+  nextAttemptAt       DateTime  @default(now())
   processingStartedAt DateTime?
   lastError           String?
   notifiedAt          DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -308,7 +333,7 @@ model NoteProduct {
 }
 
 model Counterparty {
-  id          String  @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   contactInfo String?
   comment     String?
@@ -348,10 +373,10 @@ model Order {
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
 
-  product      Product      @relation(fields: [productId], references: [id])
-  counterparty Counterparty @relation(fields: [counterpartyId], references: [id])
-  avitoProfile AvitoProfile? @relation(fields: [avitoProfileId], references: [id])
-  createdBy    User         @relation(fields: [createdByUserId], references: [id])
+  product      Product            @relation(fields: [productId], references: [id])
+  counterparty Counterparty       @relation(fields: [counterpartyId], references: [id])
+  avitoProfile AvitoProfile?      @relation(fields: [avitoProfileId], references: [id])
+  createdBy    User               @relation(fields: [createdByUserId], references: [id])
   returns      Return[]
   items        OrderItem[]
   auditLogs    AuditLog[]
@@ -379,7 +404,8 @@ model AvitoProfile {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  orders Order[]
+  orders          Order[]
+  productListings ProductAvitoListing[]
 
   @@index([accountId])
   @@index([clientId])
@@ -387,17 +413,17 @@ model AvitoProfile {
 }
 
 model OrderNotification {
-  id                  String   @id @default(uuid())
-  orderId             String   @unique
-  status              String   @default("PENDING")
-  attempts            Int      @default(0)
-  sentBatches         Int      @default(0)
-  nextAttemptAt       DateTime @default(now())
+  id                  String    @id @default(uuid())
+  orderId             String    @unique
+  status              String    @default("PENDING")
+  attempts            Int       @default(0)
+  sentBatches         Int       @default(0)
+  nextAttemptAt       DateTime  @default(now())
   processingStartedAt DateTime?
   lastError           String?
   sentAt              DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 

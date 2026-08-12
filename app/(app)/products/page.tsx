@@ -9,6 +9,10 @@ async function getProducts() {
     orderBy: { name: "asc" },
     include: {
       _count: { select: { orders: true } },
+      avitoListings: {
+        include: { avitoProfile: { select: { id: true, name: true, color: true } } },
+        orderBy: { updatedAt: "desc" },
+      },
     },
   });
 
@@ -22,15 +26,35 @@ async function getProducts() {
     imageUrl: p.imageUrl,
     lastSyncedAt: p.lastSyncedAt?.toISOString() ?? null,
     ordersCount: p._count.orders,
+    listings: p.avitoListings.map((listing) => ({
+      id: listing.id,
+      profileId: listing.avitoProfile.id,
+      profileName: listing.avitoProfile.name,
+      profileColor: listing.avitoProfile.color,
+      avitoItemId: listing.avitoItemId,
+      listingUrl: listing.listingUrl,
+      listingStatus: listing.listingStatus,
+    })),
   }));
+}
+
+async function getProfiles() {
+  return prisma.avitoProfile.findMany({
+    where: { isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, color: true, clientId: true, clientSecret: true },
+  }).then((profiles) => profiles.map(({ clientId, clientSecret, ...profile }) => ({
+    ...profile,
+    hasCredentials: Boolean(clientId && clientSecret),
+  })));
 }
 
 export default async function ProductsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const products = await getProducts();
+  const [products, profiles] = await Promise.all([getProducts(), getProfiles()]);
   const isAdmin = session.user.role === "ADMIN";
 
-  return <ProductsClient products={products} isAdmin={isAdmin} />;
+  return <ProductsClient products={products} profiles={profiles} isAdmin={isAdmin} />;
 }
