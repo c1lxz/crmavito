@@ -1,5 +1,22 @@
 import bwipjs from "bwip-js/node";
+import { ProxyAgent } from "undici";
 import { downloadImageAsBuffer } from "@/lib/avito/fetch-image";
+import { fetchWbOrderStickerBarcode } from "@/lib/wb/stickers";
+
+type TelegramFetchInit = RequestInit & { dispatcher?: ProxyAgent };
+
+let telegramProxyUrl: string | null = null;
+let telegramProxyAgent: ProxyAgent | null = null;
+
+function withTelegramProxy(init: RequestInit): RequestInit {
+  const proxyUrl = process.env.TELEGRAM_PROXY_URL?.trim() || null;
+  if (!proxyUrl) return init;
+  if (telegramProxyUrl !== proxyUrl) {
+    telegramProxyUrl = proxyUrl;
+    telegramProxyAgent = new ProxyAgent(proxyUrl);
+  }
+  return { ...init, dispatcher: telegramProxyAgent ?? undefined } as TelegramFetchInit;
+}
 
 export interface NotificationItem {
   productName: string;
@@ -12,6 +29,7 @@ export interface NotificationItem {
 
 export interface OrderNotification {
   orderNumber: string;
+  marketplace: "AVITO" | "WB";
   items: NotificationItem[];
   trackingNumber: string;
   carrier: string;
@@ -61,7 +79,8 @@ async function tgFetch(token: string, method: string, form: FormData): Promise<u
     method: "POST",
     body: form,
     signal: AbortSignal.timeout(15_000),
-  });
+    ...withTelegramProxy({}),
+  } as TelegramFetchInit);
   const json = (await response.json().catch(() => ({}))) as {
     ok?: boolean;
     description?: string;
@@ -75,6 +94,22 @@ async function tgFetch(token: string, method: string, form: FormData): Promise<u
   return json;
 }
 
+async function generateQrCodePng(text: string): Promise<Buffer> {
+  try {
+    return (await bwipjs.toBuffer({
+      bcid: "qrcode",
+      text,
+      scale: 8,
+      paddingwidth: 12,
+      paddingheight: 12,
+      backgroundcolor: "FFFFFF",
+    })) as Buffer;
+  } catch (error) {
+    console.error("[telegram] QR gen failed", error);
+    throw error;
+  }
+}
+
 async function tgJsonFetch<T>(
   token: string,
   method: string,
@@ -85,7 +120,8 @@ async function tgJsonFetch<T>(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
-  });
+    ...withTelegramProxy({}),
+  } as TelegramFetchInit);
   const json = (await response.json().catch(() => ({}))) as {
     ok?: boolean;
     description?: string;
@@ -236,12 +272,40 @@ export async function deleteTaskNotificationMessage(
   });
 }
 
-async function downloadRequiredImage(url: string): Promise<Buffer> {
+async function downloadOptionalImage(url: string): Promise<Buffer | null> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const image = await downloadImageAsBuffer(url);
     if (image?.length) return image;
   }
-  throw new Error(`Не удалось скачать фото товара: ${url.slice(0, 120)}`);
+  console.warn(`[telegram] skipping unavailable order image: ${url.slice(0, 120)}`);
+  return null;
+}
+
+async function generateOrderCode(order: OrderNotification): Promise<{
+  image: Buffer;
+  filename: string;
+}> {
+  if (order.marketplace !== "WB") {
+    return {
+      image: await generateBarcodePng(order.trackingNumber),
+      filename: "barcode.png",
+    };
+  }
+
+  try {
+    const barcode = await fetchWbOrderStickerBarcode(order.trackingNumber);
+    return {
+      image: await generateQrCodePng(barcode),
+      filename: "wb-qr.png",
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[telegram] WB QR unavailable, using order barcode: ${message}`);
+    return {
+      image: await generateBarcodePng(order.trackingNumber),
+      filename: "barcode.png",
+    };
+  }
 }
 
 export async function sendOrderToGroup(
@@ -263,11 +327,13 @@ export async function sendOrderToGroup(
     sizes: order.items.map((item) => item.size),
   });
   const imageUrls = order.items.flatMap((item) => item.imageUrls);
-  const [barcode, ...downloadedImages] = await Promise.all([
-    generateBarcodePng(order.trackingNumber),
-    ...imageUrls.map(downloadRequiredImage),
+  const [orderCode, ...downloadedImages] = await Promise.all([
+    generateOrderCode(order),
+    ...imageUrls.map(downloadOptionalImage),
   ]);
-  const productImages = downloadedImages;
+  const productImages = downloadedImages.filter(
+    (image): image is Buffer => image !== null
+  );
 
   const allImages = [
       ...productImages.map((image, index) => ({
@@ -277,8 +343,8 @@ export async function sendOrderToGroup(
         isLast: false,
       })),
       {
-        image: barcode,
-        filename: "barcode.png",
+        image: orderCode.image,
+        filename: orderCode.filename,
         contentType: "image/png",
         isLast: true,
       },

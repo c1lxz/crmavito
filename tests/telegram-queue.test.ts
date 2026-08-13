@@ -35,6 +35,7 @@ vi.mock("@/lib/avito/fetch-image", () => ({
 import {
   getNotificationRetryDelay,
   processOrderNotification,
+  processPendingOrderNotifications,
 } from "@/lib/telegram/order-notification-queue";
 
 const claimedNotification = {
@@ -49,6 +50,7 @@ const claimedNotification = {
 const order = {
   id: "order-1",
   orderNumber: "0001",
+  marketplace: "WB",
   productNameSnapshot: "Товар",
   variant: null,
   size: null,
@@ -112,6 +114,13 @@ describe("durable Telegram order queue", () => {
         lastError: null,
       }),
     });
+    expect(mocks.sendOrderToGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        marketplace: "WB",
+        trackingNumber: "TRACK",
+      }),
+      expect.anything(),
+    );
   });
 
   it("stores a failed attempt for automatic retry instead of losing the order", async () => {
@@ -130,6 +139,26 @@ describe("durable Telegram order queue", () => {
     });
   });
 
+  it("keeps retrying temporary Telegram failures after many attempts", async () => {
+    mocks.prisma.orderNotification.findUnique.mockResolvedValue({
+      ...claimedNotification,
+      attempts: 20,
+    });
+    mocks.sendOrderToGroup.mockRejectedValue(new Error("Telegram timeout"));
+
+    await expect(processOrderNotification("notification-1")).resolves.toBe(false);
+
+    expect(mocks.prisma.orderNotification.update).toHaveBeenLastCalledWith({
+      where: { id: "notification-1" },
+      data: expect.objectContaining({
+        status: "RETRY",
+        attempts: 21,
+        nextAttemptAt: expect.any(Date),
+        lastError: "Telegram timeout",
+      }),
+    });
+  });
+
   it("does not send the same notification concurrently when claim fails", async () => {
     mocks.prisma.orderNotification.updateMany.mockResolvedValue({ count: 0 });
 
@@ -141,5 +170,28 @@ describe("durable Telegram order queue", () => {
     expect(getNotificationRetryDelay(1)).toBe(15_000);
     expect(getNotificationRetryDelay(2)).toBe(30_000);
     expect(getNotificationRetryDelay(20)).toBe(10 * 60_000);
+  });
+
+  it("recovers notifications previously failed only because of the old retry cap", async () => {
+    mocks.prisma.orderNotification.findMany.mockResolvedValue([]);
+    mocks.prisma.orderNotification.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(processPendingOrderNotifications()).resolves.toBe(0);
+
+    expect(mocks.prisma.orderNotification.updateMany).toHaveBeenCalledWith({
+      where: {
+        status: "FAILED",
+        NOT: [
+          { lastError: { contains: "chat not found", mode: "insensitive" } },
+          { lastError: { contains: "bot was blocked", mode: "insensitive" } },
+          { lastError: { contains: "user is deactivated", mode: "insensitive" } },
+        ],
+      },
+      data: {
+        status: "RETRY",
+        nextAttemptAt: expect.any(Date),
+        processingStartedAt: null,
+      },
+    });
   });
 });

@@ -8,7 +8,6 @@ import {
 
 const PROCESSING_TIMEOUT_MS = 5 * 60_000;
 const MAX_RETRY_DELAY_MS = 10 * 60_000;
-const MAX_NOTIFICATION_ATTEMPTS = 8;
 
 function isPermanentTelegramError(message: string): boolean {
   const normalized = message.toLowerCase();
@@ -114,6 +113,7 @@ async function buildOrderNotification(
 
   return {
     orderNumber: order.orderNumber,
+    marketplace: order.marketplace,
     items,
     trackingNumber: order.trackingNumber,
     carrier: order.carrier ?? "",
@@ -198,8 +198,7 @@ export async function processOrderNotification(notificationId: string): Promise<
   } catch (error) {
     const attempts = notification.attempts + 1;
     const message = error instanceof Error ? error.message : String(error);
-    const permanentFailure =
-      isPermanentTelegramError(message) || attempts >= MAX_NOTIFICATION_ATTEMPTS;
+    const permanentFailure = isPermanentTelegramError(message);
     console.error(
       `[telegram-queue] order ${notification.orderId}, attempt ${attempts}: ${message}`
     );
@@ -229,6 +228,22 @@ export async function processOrderNotificationByOrderId(orderId: string): Promis
 
 export async function processPendingOrderNotifications(limit = 10): Promise<number> {
   const now = new Date();
+  await prisma.orderNotification.updateMany({
+    where: {
+      status: "FAILED",
+      NOT: [
+        { lastError: { contains: "chat not found", mode: "insensitive" } },
+        { lastError: { contains: "bot was blocked", mode: "insensitive" } },
+        { lastError: { contains: "user is deactivated", mode: "insensitive" } },
+      ],
+    },
+    data: {
+      status: "RETRY",
+      nextAttemptAt: now,
+      processingStartedAt: null,
+    },
+  });
+
   await prisma.orderNotification.updateMany({
     where: {
       status: "PROCESSING",
