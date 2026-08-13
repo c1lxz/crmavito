@@ -3,8 +3,10 @@
 import { useEffect } from "react";
 import Script from "next/script";
 import { useTheme } from "next-themes";
+import { preserveTelegramInitData } from "@/lib/telegram/client-init-data";
 
 interface TgWebApp {
+  initData?: string;
   ready?: () => void;
   expand?: () => void;
   disableVerticalSwipes?: () => void;
@@ -38,6 +40,8 @@ export function TelegramInit() {
   const { resolvedTheme } = useTheme();
 
   useEffect(() => {
+    preserveTelegramInitData(window);
+
     const init = () => {
       const tg = window.Telegram?.WebApp;
       if (!tg) {

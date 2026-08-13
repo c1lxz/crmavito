@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, X } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { readTelegramInitData } from "@/lib/telegram/client-init-data";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,9 +18,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     const tg = (window as { Telegram?: { WebApp?: { initData?: string; ready?: () => void; expand?: () => void } } }).Telegram?.WebApp;
-    if (tg?.initData) {
-      tg.ready?.();
-      tg.expand?.();
+    const initData = readTelegramInitData(window);
+    if (initData) {
+      tg?.ready?.();
+      tg?.expand?.();
       setMode("telegram-loading");
       // Fetch the CSRF token explicitly for Telegram WebApp.
       const loadTelegramSession = async () => {
@@ -27,7 +29,7 @@ export default function LoginPage() {
         const { csrfToken } = await csrfRes.json();
 
         const res = await signIn("telegram", {
-          initData: tg.initData,
+          initData,
           redirect: false,
           callbackUrl: "/dashboard",
           csrfToken,
