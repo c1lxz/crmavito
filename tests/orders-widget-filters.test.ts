@@ -3,16 +3,14 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("orders summary widgets", () => {
-  it("recalculates revenue and profit from the currently filtered received orders", () => {
+  it("uses the server summary for the full filtered order set", () => {
     const source = readFileSync(
       path.resolve(__dirname, "../components/orders/orders-client.tsx"),
       "utf8",
     );
 
-    expect(source).toContain("const filteredReceivedTotals = useMemo");
-    expect(source).toContain('if (order.status === "RECEIVED")');
-    expect(source).toContain("totals.revenue += order.revenue");
-    expect(source).toContain("totals.profit += order.netProfit");
+    expect(source).toContain("const filteredReceivedTotals = summary");
+    expect(source).toContain("setSummary(data.summary)");
     expect(source).toContain("formatRub(filteredReceivedTotals.revenue)");
     expect(source).toContain("formatRub(filteredReceivedTotals.profit)");
   });

@@ -173,10 +173,10 @@ describe("order management UI/API", () => {
   });
 
   it("shows manually uploaded order item photos in order lists", () => {
-    expect(ordersPageSource).toContain(
-      'items: { include: { product: true }, orderBy: { position: "asc" } }',
-    );
-    expect(ordersPageSource).toContain("imageUrls: item.imageUrls");
+    const listSource = readFileSync(path.resolve(__dirname, "../lib/orders/list.ts"), "utf8");
+    expect(listSource).toContain("imageUrls: true");
+    expect(listSource).toContain('orderBy: { position: "asc" as const }');
+    expect(listSource).toContain("imageUrls: true");
     expect(ordersClientSource).toContain("function getOrderImageUrl(order: Order)");
     expect(ordersClientSource).toContain("function getOrderThumbnailUrl(order: Order, size: number)");
     expect(ordersClientSource).toContain("/api/uploads/orders/");

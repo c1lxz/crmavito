@@ -13,6 +13,7 @@ import {
   getWarehouseBlockingOrderWhere,
 } from "@/lib/orders/warehouse-match";
 import { parseDatabaseDateInput } from "@/lib/utils";
+import { getOrderList } from "@/lib/orders/list";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -21,12 +22,14 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const statusParam = searchParams.get("status");
   const tracking = searchParams.get("tracking");
+  const q = searchParams.get("q");
   const counterpartyId = searchParams.get("counterpartyId");
   const avitoProfileId = searchParams.get("avitoProfileId");
   const marketplace = searchParams.get("marketplace");
   const productId = searchParams.get("productId");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
+  const warehouseOnly = searchParams.get("warehouse") === "1";
   const parsedPage = Number(searchParams.get("page") ?? "1");
   const parsedPageSize = Number(searchParams.get("pageSize") ?? "20");
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
@@ -35,7 +38,7 @@ export async function GET(req: NextRequest) {
       ? Math.min(parsedPageSize, 100)
       : 20;
 
-  const where: Prisma.OrderWhereInput = { isDeleted: false };
+  const filters: Parameters<typeof getOrderList>[0] = {};
   if (statusParam) {
     const status = z
       .enum(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNING", "RETURNED", "CANCELLED"])
@@ -43,21 +46,21 @@ export async function GET(req: NextRequest) {
     if (!status.success) {
       return NextResponse.json({ error: "Некорректный статус" }, { status: 400 });
     }
-    where.status = status.data;
+    filters.status = status.data;
   }
-  if (tracking) where.trackingNumber = { contains: tracking, mode: "insensitive" };
-  if (counterpartyId) where.counterpartyId = counterpartyId;
-  if (avitoProfileId) where.avitoProfileId = avitoProfileId;
+  if (tracking) filters.tracking = tracking;
+  if (q) filters.q = q;
+  if (counterpartyId) filters.counterpartyId = counterpartyId;
+  if (avitoProfileId) filters.avitoProfileId = avitoProfileId;
   if (marketplace) {
     const parsedMarketplace = z.enum(["AVITO", "WB"]).safeParse(marketplace);
     if (!parsedMarketplace.success) {
       return NextResponse.json({ error: "Некорректная площадка" }, { status: 400 });
     }
-    where.marketplace = parsedMarketplace.data;
+    filters.marketplace = parsedMarketplace.data;
   }
-  if (productId) {
-    where.OR = [{ productId }, { items: { some: { productId } } }];
-  }
+  if (productId) filters.productId = productId;
+  if (warehouseOnly) filters.warehouseOnly = true;
   if (dateFrom || dateTo) {
     if (dateFrom && !z.string().date().safeParse(dateFrom).success) {
       return NextResponse.json({ error: "Некорректная начальная дата" }, { status: 400 });
@@ -65,27 +68,11 @@ export async function GET(req: NextRequest) {
     if (dateTo && !z.string().date().safeParse(dateTo).success) {
       return NextResponse.json({ error: "Некорректная конечная дата" }, { status: 400 });
     }
-    where.orderDate = {};
-    if (dateFrom) where.orderDate.gte = parseDatabaseDateInput(dateFrom);
-    if (dateTo) where.orderDate.lte = parseDatabaseDateInput(dateTo, true);
+    if (dateFrom) filters.dateFrom = parseDatabaseDateInput(dateFrom);
+    if (dateTo) filters.dateTo = parseDatabaseDateInput(dateTo, true);
   }
 
-  const [orders, total] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      include: {
-        product: true,
-        counterparty: true,
-        items: { include: { product: true }, orderBy: { position: "asc" } },
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.order.count({ where }),
-  ]);
-
-  return NextResponse.json({ orders, total, page, pageSize });
+  return NextResponse.json(await getOrderList(filters, page, pageSize));
 }
 
 export async function POST(req: NextRequest) {

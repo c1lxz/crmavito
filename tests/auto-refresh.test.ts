@@ -25,7 +25,7 @@ describe("authenticated page auto-refresh", () => {
     expect(appLayoutSource).toContain("<AutoRefresh />");
   });
 
-  it("refreshes server data every minute and when the tab becomes visible", () => {
+  it("checks the Moscow day every minute and refreshes stale visible tabs", () => {
     expect(autoRefreshSource).toContain("60_000");
     expect(autoRefreshSource).toContain("window.setInterval");
     expect(autoRefreshSource).toContain('"visibilitychange"');
@@ -47,7 +47,7 @@ describe("authenticated page auto-refresh", () => {
     expect(autoRefreshSource).toContain("formatDateInput()");
     expect(autoRefreshSource).toContain("MOSCOW_DAY_CHANGED_EVENT");
     expect(autoRefreshSource).toContain("window.dispatchEvent");
-    expect(autoRefreshSource).toContain("!dayChanged && isUserEditing()");
+    expect(autoRefreshSource).toContain("hiddenFor < STALE_AFTER_MS || isUserEditing()");
     expect(reportsSource).toContain("handleMoscowDayChanged");
     expect(reportsSource).toContain("setDateTo(detail.currentDay)");
   });
@@ -55,7 +55,7 @@ describe("authenticated page auto-refresh", () => {
   it("forces fresh server calculations for the main dashboard", () => {
     expect(dashboardSource).toContain('dynamic = "force-dynamic"');
     expect(dashboardSource).toContain("revalidate = 0");
-    expect(dashboardSource).toContain("createdAt: { gte: todayStart, lte: todayEnd }");
+    expect(dashboardSource).toContain("order.createdAt >= todayStart");
     expect(dashboardSource).toContain("startOfDatabaseDate");
   });
 });

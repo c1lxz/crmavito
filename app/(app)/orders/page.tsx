@@ -1,78 +1,9 @@
 import { Suspense } from "react";
 import { prisma } from "@/lib/db/prisma";
 import { OrdersClient } from "@/components/orders/orders-client";
-import { calcOrderFinancials } from "@/lib/finance/calculations";
-import { toDecimalNumber } from "@/lib/db/orders";
 import { getWarehouseBlockingOrderWhere } from "@/lib/orders/warehouse-match";
-
-async function getOrders() {
-  const orders = await prisma.order.findMany({
-    where: { isDeleted: false },
-    include: {
-      product: true,
-      counterparty: true,
-      avitoProfile: true,
-      items: { include: { product: true }, orderBy: { position: "asc" } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-  return orders.map((o) => ({
-    ...o,
-    orderDate: o.orderDate.toISOString(),
-    shippingDate: o.shippingDate ? o.shippingDate.toISOString() : null,
-    receivedAt: o.receivedAt ? o.receivedAt.toISOString() : null,
-    createdAt: o.createdAt.toISOString(),
-    updatedAt: o.updatedAt.toISOString(),
-    product: {
-      id: o.product.id,
-      name: o.product.name,
-      salePrice: toDecimalNumber(o.product.salePrice),
-      avitoListingUrl: o.product.avitoListingUrl,
-      avitoListingStatus: o.product.avitoListingStatus,
-      avitoItemId: o.product.avitoItemId,
-      imageUrl: o.product.imageUrl,
-      lastSyncedAt: o.product.lastSyncedAt ? o.product.lastSyncedAt.toISOString() : null,
-      createdAt: o.product.createdAt.toISOString(),
-      updatedAt: o.product.updatedAt.toISOString(),
-    },
-    counterparty: {
-      id: o.counterparty.id,
-      name: o.counterparty.name,
-      contactInfo: o.counterparty.contactInfo,
-      comment: o.counterparty.comment,
-      createdAt: o.counterparty.createdAt.toISOString(),
-    },
-    avitoProfile: o.avitoProfile
-      ? {
-          id: o.avitoProfile.id,
-          name: o.avitoProfile.name,
-          color: o.avitoProfile.color,
-          isActive: o.avitoProfile.isActive,
-        }
-      : null,
-    items: o.items.map((item) => ({
-      id: item.id,
-      imageUrls: item.imageUrls,
-      sourceReturnId: item.sourceReturnId,
-      product: {
-        imageUrl: item.product.imageUrl,
-      },
-    })),
-    ...calcOrderFinancials({
-      salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
-      quantity: o.quantity,
-      purchasePricePerUnit: toDecimalNumber(o.purchasePricePerUnit),
-      logisticsCost: toDecimalNumber(o.logisticsCost),
-      commissionCost: toDecimalNumber(o.commissionCost),
-      otherCosts: toDecimalNumber(o.otherCosts),
-    }),
-    salePriceAtOrder: toDecimalNumber(o.salePriceAtOrder),
-    purchasePricePerUnit: toDecimalNumber(o.purchasePricePerUnit),
-    logisticsCost: toDecimalNumber(o.logisticsCost),
-    commissionCost: toDecimalNumber(o.commissionCost),
-    otherCosts: toDecimalNumber(o.otherCosts),
-  }));
-}
+import { getOrderList } from "@/lib/orders/list";
+import { parseDatabaseDateInput } from "@/lib/utils";
 
 async function getCounterparties() {
   const counterparties = await prisma.counterparty.findMany({ orderBy: { name: "asc" } });
@@ -83,13 +14,17 @@ async function getCounterparties() {
 }
 
 async function getProducts() {
-  const products = await prisma.product.findMany({ orderBy: { name: "asc" } });
+  const products = await prisma.product.findMany({
+    select: { id: true, name: true, salePrice: true, imageUrl: true },
+    orderBy: { name: "asc" },
+  });
   return products.map((p) => ({ id: p.id, name: p.name, salePrice: parseFloat(p.salePrice.toString()), imageUrl: p.imageUrl }));
 }
 
 async function getAvitoProfiles() {
   return prisma.avitoProfile.findMany({
     where: { isActive: true },
+    select: { id: true, name: true, color: true, isActive: true },
     orderBy: { name: "asc" },
   });
 }
@@ -133,8 +68,23 @@ export default async function OrdersPage({
   }>;
 }) {
   const query = await searchParams;
-  const [orders, counterparties, products, depositedReturns, avitoProfiles] = await Promise.all([
-    getOrders(),
+  const validStatuses = new Set(["ACCEPTED", "SHIPPED", "RECEIVED", "RETURNING", "RETURNED", "CANCELLED"]);
+  const status = query.status && validStatuses.has(query.status) ? query.status : undefined;
+  const marketplace = query.marketplace === "AVITO" || query.marketplace === "WB" ? query.marketplace : undefined;
+  const validDate = (value?: string) => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+  const dateFrom = validDate(query.dateFrom);
+  const dateTo = validDate(query.dateTo);
+  const [orderList, counterparties, products, depositedReturns, avitoProfiles] = await Promise.all([
+    getOrderList({
+      q: query.q,
+      status,
+      counterpartyId: query.counterpartyId,
+      avitoProfileId: query.avitoProfileId,
+      marketplace,
+      warehouseOnly: query.warehouse === "1",
+      dateFrom: dateFrom ? parseDatabaseDateInput(dateFrom) : undefined,
+      dateTo: dateTo ? parseDatabaseDateInput(dateTo, true) : undefined,
+    }),
     getCounterparties(),
     getProducts(),
     getDepositedReturns(),
@@ -144,7 +94,9 @@ export default async function OrdersPage({
   return (
     <Suspense fallback={<div className="p-4 text-center">Загрузка...</div>}>
       <OrdersClient
-        initialOrders={orders}
+        initialOrders={orderList.orders}
+        initialTotal={orderList.total}
+        initialSummary={orderList.summary}
         counterparties={counterparties}
         products={products}
         avitoProfiles={avitoProfiles}

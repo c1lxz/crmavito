@@ -46,6 +46,8 @@ interface Order {
 
 interface Props {
   initialOrders: Order[];
+  initialTotal: number;
+  initialSummary: { revenue: number; profit: number };
   counterparties: { id: string; name: string }[];
   products: { id: string; name: string; salePrice: number | string; imageUrl?: string | null }[];
   avitoProfiles: { id: string; name: string; color: string | null; isActive: boolean }[];
@@ -106,6 +108,8 @@ function hasWarehouseItem(order: Order) {
 
 export function OrdersClient({
   initialOrders,
+  initialTotal,
+  initialSummary,
   counterparties,
   products,
   avitoProfiles,
@@ -124,6 +128,10 @@ export function OrdersClient({
   const router = useRouter();
   const { toast } = useToast();
   const [orders, setOrders] = useState(initialOrders);
+  const [total, setTotal] = useState(initialTotal);
+  const [summary, setSummary] = useState(initialSummary);
+  const [loadedPage, setLoadedPage] = useState(1);
+  const [listLoading, setListLoading] = useState(false);
   const [search, setSearch] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState<string>(
     initialStatusFilter in ORDER_STATUS_LABELS ? initialStatusFilter : "ALL",
@@ -160,10 +168,63 @@ export function OrdersClient({
   const filtersHiddenRef = useRef(false);
   const lastFilterToggleYRef = useRef(0);
   const scrollFrameRef = useRef<number | null>(null);
+  const firstListRequestRef = useRef(true);
+  const filterRequestRef = useRef(0);
 
   useEffect(() => {
     setOrders(initialOrders);
-  }, [initialOrders]);
+    setTotal(initialTotal);
+    setSummary(initialSummary);
+    setLoadedPage(1);
+  }, [initialOrders, initialSummary, initialTotal]);
+
+  useEffect(() => {
+    if (firstListRequestRef.current) {
+      firstListRequestRef.current = false;
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      const requestId = ++filterRequestRef.current;
+      setListLoading(true);
+      try {
+        const params = new URLSearchParams({ page: "1", pageSize: "100" });
+        if (search.trim()) params.set("q", search.trim());
+        if (statusFilter !== "ALL") params.set("status", statusFilter);
+        if (counterpartyFilter !== "ALL") params.set("counterpartyId", counterpartyFilter);
+        if (avitoProfileFilter !== "ALL") params.set("avitoProfileId", avitoProfileFilter);
+        if (marketplaceFilter !== "ALL") params.set("marketplace", marketplaceFilter);
+        if (warehouseOnly) params.set("warehouse", "1");
+        if (dateFrom) params.set("dateFrom", dateFrom);
+        if (dateTo) params.set("dateTo", dateTo);
+        const response = await fetch(`/api/orders?${params}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error ?? "Не удалось загрузить заказы");
+        if (requestId !== filterRequestRef.current) return;
+        setOrders(data.orders);
+        setTotal(data.total);
+        setSummary(data.summary);
+        setLoadedPage(1);
+        setSelectedIds(new Set());
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        toast({
+          title: "Не удалось обновить список заказов",
+          description: error instanceof Error ? error.message : String(error),
+          variant: "destructive",
+        });
+      } finally {
+        if (!controller.signal.aborted && requestId === filterRequestRef.current) setListLoading(false);
+      }
+    }, search ? 250 : 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, marketplaceFilter, search, statusFilter, toast, warehouseOnly]);
 
   useEffect(() => {
     if (!initialOpen) return;
@@ -175,6 +236,20 @@ export function OrdersClient({
   useEffect(() => {
     if (focusSearch) searchInputRef.current?.focus();
   }, [focusSearch]);
+
+  useEffect(() => {
+    const query = buildOrderFilterQuery({
+      q: search,
+      status: statusFilter,
+      counterpartyId: counterpartyFilter,
+      avitoProfileId: avitoProfileFilter,
+      marketplace: marketplaceFilter,
+      warehouse: warehouseOnly ? "1" : undefined,
+      dateFrom,
+      dateTo,
+    });
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }, [avitoProfileFilter, counterpartyFilter, dateFrom, dateTo, marketplaceFilter, search, statusFilter, warehouseOnly]);
 
   useEffect(() => {
     lastScrollYRef.current = window.scrollY;
@@ -287,20 +362,7 @@ export function OrdersClient({
   ];
 
   const filteredIds = useMemo(() => filtered.map((order) => order.id), [filtered]);
-  const filteredReceivedTotals = useMemo(
-    () =>
-      filtered.reduce(
-        (totals, order) => {
-          if (order.status === "RECEIVED") {
-            totals.revenue += order.revenue;
-            totals.profit += order.netProfit;
-          }
-          return totals;
-        },
-        { revenue: 0, profit: 0 },
-      ),
-    [filtered],
-  );
+  const filteredReceivedTotals = summary;
   const returnQuery = useMemo(
     () =>
       buildOrderFilterQuery({
@@ -349,6 +411,38 @@ export function OrdersClient({
       else filteredIds.forEach((id) => next.add(id));
       return next;
     });
+  }
+
+  async function loadMoreOrders() {
+    if (listLoading || orders.length >= total) return;
+    const nextPage = loadedPage + 1;
+    const params = new URLSearchParams({ page: String(nextPage), pageSize: "100" });
+    if (search.trim()) params.set("q", search.trim());
+    if (statusFilter !== "ALL") params.set("status", statusFilter);
+    if (counterpartyFilter !== "ALL") params.set("counterpartyId", counterpartyFilter);
+    if (avitoProfileFilter !== "ALL") params.set("avitoProfileId", avitoProfileFilter);
+    if (marketplaceFilter !== "ALL") params.set("marketplace", marketplaceFilter);
+    if (warehouseOnly) params.set("warehouse", "1");
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    setListLoading(true);
+    try {
+      const response = await fetch(`/api/orders?${params}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error ?? "Не удалось загрузить заказы");
+      setOrders((current) => [...current, ...data.orders]);
+      setTotal(data.total);
+      setSummary(data.summary);
+      setLoadedPage(nextPage);
+    } catch (error) {
+      toast({
+        title: "Не удалось загрузить ещё заказы",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setListLoading(false);
+    }
   }
 
   async function updateSelectedStatuses() {
@@ -536,7 +630,7 @@ export function OrdersClient({
         <div className="mb-3 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Заказы</h1>
-            <p className="section-caption">Всего {filtered.length} из {orders.length}</p>
+            <p className="section-caption">Показано {filtered.length} из {total}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -826,7 +920,7 @@ export function OrdersClient({
           <Card>
             <CardContent className="p-3">
               <p className="text-[11px] font-semibold text-muted-foreground">Позиций</p>
-              <p className="mt-1 text-sm font-semibold tabular-nums">{filtered.length}</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums">{total}</p>
             </CardContent>
           </Card>
         </div>
@@ -1093,6 +1187,17 @@ export function OrdersClient({
           );
         })}
         </div>
+        {orders.length < total && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={listLoading}
+            onClick={() => void loadMoreOrders()}
+          >
+            {listLoading ? "Загрузка…" : `Показать ещё (${total - orders.length})`}
+          </Button>
+        )}
         {filtered.length === 0 && (
           <div className="text-center text-muted-foreground py-16 flex flex-col items-center gap-3">
             <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center">

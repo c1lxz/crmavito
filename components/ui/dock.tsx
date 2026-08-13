@@ -36,7 +36,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
         >
           <div
             className={cn(
-              "flex items-center gap-1 border-t border-border/85 bg-card/96 px-2 pt-1.5 pb-[calc(0.375rem+var(--app-bottom-pad,0px))] shadow-[0_-10px_30px_hsl(var(--background)/0.55)] backdrop-blur-md",
+              "flex items-center gap-1 border-t border-border/85 bg-card px-2 pt-1.5 pb-[calc(0.375rem+var(--app-bottom-pad,0px))] shadow-[0_-8px_24px_hsl(var(--background)/0.45)]",
               fullWidth && "w-full justify-around"
             )}
           >
@@ -46,7 +46,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
                 <Link
                   key={href}
                   href={href}
-                  prefetch
+                  prefetch={false}
                   aria-label={label}
                   aria-current={isActive ? "page" : undefined}
                   onPointerDown={() => setPendingHref(href)}

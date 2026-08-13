@@ -114,13 +114,17 @@ export function ReportsClient() {
 
   useEffect(() => {
     void load();
-    const intervalId = window.setInterval(() => void load(), 60_000);
+    let hiddenAt: number | null = null;
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void load();
+      if (document.visibilityState !== "visible") {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (hiddenAt && Date.now() - hiddenAt >= 5 * 60_000) void load();
+      hiddenAt = null;
     };
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
-      window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [load]);

@@ -273,7 +273,7 @@ export function CreateOrderDialog({
     }));
     if (!nextProfileId) return;
     form.items.forEach((item, index) => {
-      if (item.productId && item.imageUrls.length === 0) {
+      if (item.productId && item.imageUrls.length === 0 && !item.productImageError && !item.productImageLoading) {
         void fetchProductImage(index, item.productId, nextProfileId);
       }
     });

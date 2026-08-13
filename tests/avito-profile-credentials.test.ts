@@ -64,6 +64,14 @@ describe("Avito credential profiles", () => {
     expect(profileRouteSource).not.toContain("clientSecret: parsed.data.clientSecret?.trim() || parsed.data.clientSecret");
   });
 
+  it("keeps a durable fallback for API credentials and contact phones", () => {
+    expect(schemaSource).toContain("model AvitoProfileBackup");
+    expect(storeSource).toContain("prisma.avitoProfileBackup.findUnique");
+    expect(storeSource).toContain("backup?.clientSecret");
+    expect(storeSource).toContain("backup?.contactPhone");
+    expect(storeSource).toContain("79111253128");
+  });
+
   it("uses server profiles and optional manual keys in stock management", () => {
     expect(stocksClientSource).toContain("/api/avito-profiles/credentials");
     expect(stocksClientSource).toContain("credentialProfiles");

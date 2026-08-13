@@ -61,6 +61,7 @@ export function DesktopSidebar() {
             <Link
               key={href}
               href={href}
+              prefetch={false}
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-[background-color,color,box-shadow] duration-150",

@@ -412,6 +412,19 @@ model AvitoProfile {
   @@map("avito_profiles")
 }
 
+model AvitoProfileBackup {
+  id           String   @id @default(uuid())
+  profileId    String   @unique
+  clientId     String?
+  clientSecret String?
+  reportEmail  String?
+  contactPhone String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("avito_profile_backups")
+}
+
 model OrderNotification {
   id                  String    @id @default(uuid())
   orderId             String    @unique

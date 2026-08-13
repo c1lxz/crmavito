@@ -34,43 +34,53 @@ async function getDashboardData() {
   const monthDateStart = startOfDatabaseDate(monthStart);
   const monthDateEnd = endOfDatabaseDate(monthEnd);
 
-  const [todayOrders, weekOrders, monthOrders, monthExpenses, lastOrders, topProducts, todayCreatedOrders, weekCreatedOrders] =
+  const financeSelect = {
+    salePriceAtOrder: true,
+    quantity: true,
+    purchasePricePerUnit: true,
+    logisticsCost: true,
+    commissionCost: true,
+    otherCosts: true,
+    receivedAt: true,
+    createdAt: true,
+  } as const;
+  const activityStart = weekStart < monthStart ? weekStart : monthStart;
+  const [receivedOrders, monthExpenses, lastOrders, topProducts, createdOrders] =
     await Promise.all([
       prisma.order.findMany({
         where: {
           status: "RECEIVED",
-          receivedAt: { gte: todayStart, lte: todayEnd },
+          receivedAt: { gte: activityStart, lte: monthEnd > todayEnd ? monthEnd : todayEnd },
           isDeleted: false,
           ...getArchivedSourceOrderExclusion(),
         },
-      }),
-      prisma.order.findMany({
-        where: {
-          status: "RECEIVED",
-          receivedAt: { gte: weekStart, lte: todayEnd },
-          isDeleted: false,
-          ...getArchivedSourceOrderExclusion(),
-        },
-      }),
-      prisma.order.findMany({
-        where: {
-          status: "RECEIVED",
-          receivedAt: { gte: monthStart, lte: monthEnd },
-          isDeleted: false,
-          ...getArchivedSourceOrderExclusion(),
-        },
-        include: { product: true },
+        select: financeSelect,
       }),
       prisma.expense.findMany({
         where: { date: { gte: monthDateStart, lte: monthDateEnd } },
+        select: { amount: true },
       }),
       prisma.order.findMany({
         where: { isDeleted: false },
         orderBy: { createdAt: "desc" },
         take: 10,
-        include: {
-          product: true,
-          items: { include: { product: true }, orderBy: { position: "asc" } },
+        select: {
+          id: true,
+          orderNumber: true,
+          productNameSnapshot: true,
+          trackingNumber: true,
+          status: true,
+          salePriceAtOrder: true,
+          quantity: true,
+          purchasePricePerUnit: true,
+          logisticsCost: true,
+          commissionCost: true,
+          otherCosts: true,
+          product: { select: { imageUrl: true } },
+          items: {
+            select: { imageUrls: true, product: { select: { imageUrl: true } } },
+            orderBy: { position: "asc" },
+          },
         },
       }),
       prisma.order.findMany({
@@ -79,17 +89,18 @@ async function getDashboardData() {
           status: { not: "CANCELLED" },
           ...getArchivedSourceOrderExclusion(),
         },
-        include: {
-          product: true,
-          items: { include: { product: true }, orderBy: { position: "asc" } },
-        },
-      }),
-      prisma.order.findMany({
-        where: {
-          isDeleted: false,
-          status: { not: "CANCELLED" },
-          ...getArchivedSourceOrderExclusion(),
-          createdAt: { gte: todayStart, lte: todayEnd },
+        select: {
+          productId: true,
+          productNameSnapshot: true,
+          product: { select: { imageUrl: true } },
+          items: {
+            select: {
+              productId: true,
+              productNameSnapshot: true,
+              product: { select: { imageUrl: true } },
+            },
+            orderBy: { position: "asc" },
+          },
         },
       }),
       prisma.order.findMany({
@@ -99,8 +110,15 @@ async function getDashboardData() {
           ...getArchivedSourceOrderExclusion(),
           createdAt: { gte: weekStart, lte: todayEnd },
         },
+        select: financeSelect,
       }),
     ]);
+
+  const todayOrders = receivedOrders.filter((order) => order.receivedAt && order.receivedAt >= todayStart && order.receivedAt <= todayEnd);
+  const weekOrders = receivedOrders.filter((order) => order.receivedAt && order.receivedAt >= weekStart && order.receivedAt <= todayEnd);
+  const monthOrders = receivedOrders.filter((order) => order.receivedAt && order.receivedAt >= monthStart && order.receivedAt <= monthEnd);
+  const todayCreatedOrders = createdOrders.filter((order) => order.createdAt >= todayStart && order.createdAt <= todayEnd);
+  const weekCreatedOrders = createdOrders;
 
   const calc = (orders: typeof todayOrders) =>
     sumFinancials(orders.map((o) => calcOrderFinancials({

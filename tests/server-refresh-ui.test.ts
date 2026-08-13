@@ -10,7 +10,7 @@ describe("server refresh propagation", () => {
   it("updates the orders list when refreshed server props arrive", () => {
     const contents = source("components/orders/orders-client.tsx");
     expect(contents).toContain("setOrders(initialOrders)");
-    expect(contents).toContain("[initialOrders]");
+    expect(contents).toContain("[initialOrders, initialSummary, initialTotal]");
   });
 
   it("updates the expenses and counterparties lists from refreshed props", () => {
@@ -30,10 +30,9 @@ describe("server refresh propagation", () => {
     expect(contents).toContain("item.returnPercent");
   });
 
-  it("polls report APIs every minute without browser caching", () => {
+  it("refreshes stale reports when the app becomes visible without browser caching", () => {
     const contents = source("components/reports/reports-client.tsx");
-    expect(contents).toContain("window.setInterval");
-    expect(contents).toContain("60_000");
+    expect(contents).toContain("5 * 60_000");
     expect(contents).toContain('cache: "no-store"');
     expect(contents).toContain('"visibilitychange"');
   });
@@ -59,7 +58,7 @@ describe("server refresh propagation", () => {
     const contents = source("app/(app)/dashboard/page.tsx");
     expect(contents).toContain("todayOrderAmount");
     expect(contents).toContain("weekOrderAmount");
-    expect(contents).toContain("createdAt: { gte: todayStart, lte: todayEnd }");
+    expect(contents).toContain("order.createdAt >= todayStart");
     expect(contents).toContain("createdAt: { gte: weekStart, lte: todayEnd }");
     expect(contents).not.toContain('"создано за день"');
     expect(contents).not.toContain('"создано за период"');
@@ -67,9 +66,8 @@ describe("server refresh propagation", () => {
 
   it("separates created orders from received sales in dashboard widgets", () => {
     const contents = source("app/(app)/dashboard/page.tsx");
-    expect(contents).toMatch(
-      /where:\s*\{\s*status: "RECEIVED",\s*receivedAt: \{ gte: todayStart, lte: todayEnd \},\s*isDeleted: false,\s*\.\.\.getArchivedSourceOrderExclusion\(\)/,
-    );
+    expect(contents).toContain('status: "RECEIVED"');
+    expect(contents).toContain("order.receivedAt >= todayStart");
     expect(contents).toContain('label: "Получено сегодня"');
     expect(contents).toContain('label: "Получено за 7 дней"');
   });
@@ -78,8 +76,7 @@ describe("server refresh propagation", () => {
     const contents = source("app/(app)/dashboard/page.tsx");
     expect(contents).toContain("buildTopProductsByOrders(topProducts)");
     expect(contents).toContain("formatOrderCount(p.orders)");
-    expect(contents).toMatch(
-      /prisma\.order\.findMany\(\{\s*where: \{\s*isDeleted: false,\s*status: \{ not: "CANCELLED" \},\s*\.\.\.getArchivedSourceOrderExclusion\(\),\s*\},\s*include: \{\s*product: true,\s*items:/,
-    );
+    expect(contents).toContain('status: { not: "CANCELLED" }');
+    expect(contents).toContain("product: { select: { imageUrl: true } }");
   });
 });

@@ -57,9 +57,27 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
         isActive: parsed.data.isActive,
       };
 
-  const profile = await prisma.avitoProfile.update({
-    where: { id },
-    data,
+  const existing = await prisma.avitoProfile.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+
+  const profile = await prisma.$transaction(async (tx) => {
+    await tx.avitoProfileBackup.upsert({
+      where: { profileId: id },
+      create: {
+        profileId: id,
+        clientId: clientId?.trim() || existing.clientId,
+        clientSecret: clientSecret?.trim() || existing.clientSecret,
+        reportEmail: reportEmail?.trim() || existing.reportEmail,
+        contactPhone: contactPhone?.trim() || existing.contactPhone,
+      },
+      update: {
+        ...(clientId?.trim() || existing.clientId ? { clientId: clientId?.trim() || existing.clientId } : {}),
+        ...(clientSecret?.trim() || existing.clientSecret ? { clientSecret: clientSecret?.trim() || existing.clientSecret } : {}),
+        ...(reportEmail?.trim() || existing.reportEmail ? { reportEmail: reportEmail?.trim() || existing.reportEmail } : {}),
+        ...(contactPhone?.trim() || existing.contactPhone ? { contactPhone: contactPhone?.trim() || existing.contactPhone } : {}),
+      },
+    });
+    return tx.avitoProfile.update({ where: { id }, data });
   });
   return NextResponse.json(profile);
 }

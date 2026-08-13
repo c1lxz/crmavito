@@ -19,6 +19,7 @@ const PROFILE_CONTACT_PHONES: Array<{ match: RegExp; phone: string }> = [
   { match: /^LE(?:\s+|$)/i, phone: "79334205210" },
   { match: /^GU(?:\s+|$)/i, phone: "79960199751" },
   { match: /^STROK(?:\s+|$)/i, phone: "79306840311" },
+  { match: /^QUI(?:ET|T)\s+PANIC(?:\s+|$)/i, phone: "+79111253128" },
 ];
 
 export function normalizeAvitoXmlPhone(phone: string): string | undefined {
@@ -77,23 +78,34 @@ export async function getAvitoCredentials(input: {
   }
 
   if (input.profileId) {
-    const profile = await prisma.avitoProfile.findFirst({
+    const [profile, backup] = await Promise.all([prisma.avitoProfile.findFirst({
       where: {
         id: input.profileId,
         isActive: true,
-        clientId: { not: null },
-        clientSecret: { not: null },
       },
       select: { clientId: true, clientSecret: true },
-    });
+    }), prisma.avitoProfileBackup.findUnique({
+      where: { profileId: input.profileId },
+      select: { clientId: true, clientSecret: true },
+    })]);
 
-    if (!profile?.clientId || !profile.clientSecret) {
+    const clientId = profile?.clientId?.trim() || backup?.clientId?.trim();
+    const clientSecret = profile?.clientSecret?.trim() || backup?.clientSecret?.trim();
+
+    if (!clientId || !clientSecret) {
       throw new Error("У выбранного профиля Avito не сохранены client_id и client_secret.");
     }
 
+    if (!profile?.clientId?.trim() || !profile.clientSecret?.trim()) {
+      await prisma.avitoProfile.update({
+        where: { id: input.profileId },
+        data: { clientId, clientSecret },
+      });
+    }
+
     return {
-      clientId: profile.clientId,
-      clientSecret: profile.clientSecret,
+      clientId,
+      clientSecret,
     };
   }
 
@@ -115,15 +127,33 @@ export async function getAvitoProfileAutoloadSettings(profileId?: string | null)
   contactPhone?: string;
 }> {
   if (!profileId) return {};
-  const profile = await prisma.avitoProfile.findFirst({
-    where: { id: profileId, isActive: true },
-    select: { name: true, reportEmail: true, contactPhone: true },
-  });
+  const [profile, backup] = await Promise.all([
+    prisma.avitoProfile.findFirst({
+      where: { id: profileId, isActive: true },
+      select: { name: true, reportEmail: true, contactPhone: true },
+    }),
+    prisma.avitoProfileBackup.findUnique({
+      where: { profileId },
+      select: { reportEmail: true, contactPhone: true },
+    }),
+  ]);
+  const reportEmail = profile?.reportEmail?.trim() || backup?.reportEmail?.trim() || undefined;
+  const contactPhone =
+    normalizeAvitoXmlPhone(profile?.contactPhone ?? "") ||
+    normalizeAvitoXmlPhone(backup?.contactPhone ?? "") ||
+    avitoXmlPhoneForProfileName(profile?.name);
+  if (profile && ((!profile.reportEmail?.trim() && reportEmail) || (!profile.contactPhone?.trim() && contactPhone))) {
+    await prisma.avitoProfile.update({
+      where: { id: profileId },
+      data: {
+        ...(!profile.reportEmail?.trim() && reportEmail ? { reportEmail } : {}),
+        ...(!profile.contactPhone?.trim() && contactPhone ? { contactPhone } : {}),
+      },
+    });
+  }
   return {
-    reportEmail: profile?.reportEmail?.trim() || undefined,
-    contactPhone:
-      normalizeAvitoXmlPhone(profile?.contactPhone ?? "") ||
-      avitoXmlPhoneForProfileName(profile?.name),
+    reportEmail,
+    contactPhone,
   };
 }
 
@@ -176,6 +206,21 @@ export async function saveAvitoProfileCredentials(
           isActive: true,
         },
       });
+
+  await prisma.avitoProfileBackup.upsert({
+    where: { profileId: profile.id },
+    create: {
+      profileId: profile.id,
+      clientId: profile.clientId,
+      clientSecret: profile.clientSecret,
+      reportEmail: profile.reportEmail,
+    },
+    update: {
+      clientId: profile.clientId,
+      clientSecret: profile.clientSecret,
+      ...(profile.reportEmail ? { reportEmail: profile.reportEmail } : {}),
+    },
+  });
 
   return {
     ...profile,

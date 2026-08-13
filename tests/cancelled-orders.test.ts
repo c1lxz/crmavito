@@ -126,7 +126,8 @@ describe("cancelled orders", () => {
       "utf8",
     );
 
-    expect(dashboard.match(/status: \{ not: "CANCELLED" \}/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(dashboard.match(/status: \{ not: "CANCELLED" \}/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(dashboard).toContain('status: "RECEIVED"');
     expect(reports.match(/status: \{ not: "CANCELLED" \}/g)?.length).toBeGreaterThanOrEqual(5);
     expect(counterparties).toContain('status: { not: "CANCELLED" }');
   });
