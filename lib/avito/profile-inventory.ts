@@ -50,11 +50,11 @@ async function reportItems(
   for (let page = 0; page < 30; page += 1) {
     const response = await fetchWithRetry(
       `https://api.avito.ru/autoload/v2/reports/${encodeURIComponent(uploadId)}/items?page=${page}&per_page=100`,
-      {
+      () => ({
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
         signal: AbortSignal.timeout(30_000),
-      },
+      }),
       options,
     );
     if (response.status === 404) break;
@@ -72,11 +72,11 @@ async function reportItems(
 async function accountId(token: string, options: { fetchFn?: FetchFn; sleepFn?: SleepFn }): Promise<string> {
   const response = await fetchWithRetry(
     "https://api.avito.ru/core/v1/accounts/self",
-    {
+    () => ({
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
       signal: AbortSignal.timeout(30_000),
-    },
+    }),
     options,
   );
   const data = (await response.json().catch(() => ({}))) as { id?: string | number };
@@ -93,11 +93,11 @@ async function externalIdFromDetail(
 ): Promise<string | null> {
   const response = await fetchWithRetry(
     `https://api.avito.ru/core/v1/accounts/${encodeURIComponent(ownerId)}/items/${encodeURIComponent(avitoId)}`,
-    {
+    () => ({
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
       signal: AbortSignal.timeout(30_000),
-    },
+    }),
     options,
   );
   if (!response.ok) {

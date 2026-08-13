@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { buildXml } from "@/lib/botv/session";
-import { fetchAvitoAutoloadProfile, publishAvitoXml, resolveAvitoXmlContactPhone } from "@/lib/avito/publish";
+import { fetchAvitoAutoloadProfile, formatAutoloadTransportError, publishAvitoXml, resolveAvitoXmlContactPhone } from "@/lib/avito/publish";
 import { fetchAvitoProfileInventory } from "@/lib/avito/profile-inventory";
 import { getAvitoCredentials, getAvitoProfileAutoloadSettings } from "@/lib/avito/profile-store";
 import {
@@ -122,8 +122,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       publish,
     });
   } catch (error) {
+    const formatted = formatAutoloadTransportError(error, "Публикация XML в Avito");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: formatted.message },
       { status: 502 },
     );
   }

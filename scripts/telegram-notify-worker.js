@@ -1,10 +1,19 @@
 const fs = require("fs");
 const path = require("path");
+const { ProxyAgent } = require("undici");
 
 const POLL_INTERVAL_MS = 5_000;
 let processing = false;
 let updatesProcessing = false;
 let updateOffset = 0;
+let telegramDispatcher;
+
+function getTelegramDispatcher() {
+  const proxyUrl = process.env.TELEGRAM_PROXY_URL?.trim();
+  if (!proxyUrl) return undefined;
+  if (!telegramDispatcher) telegramDispatcher = new ProxyAgent(proxyUrl);
+  return telegramDispatcher;
+}
 
 function loadEnv() {
   const envPath = path.join(process.cwd(), ".env");
@@ -83,7 +92,10 @@ async function processTelegramUpdates() {
 
     const response = await fetch(
       `https://api.telegram.org/bot${token}/getUpdates?${params.toString()}`,
-      { signal: AbortSignal.timeout(15_000) }
+      {
+        signal: AbortSignal.timeout(15_000),
+        dispatcher: getTelegramDispatcher(),
+      }
     );
     const body = await response.json().catch(() => null);
     if (!response.ok || !body?.ok) {

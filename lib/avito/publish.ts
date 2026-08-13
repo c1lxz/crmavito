@@ -78,7 +78,7 @@ function isTimeoutError(error: unknown): boolean {
   return /timeout|aborted due to timeout|operation was aborted/i.test(text);
 }
 
-function formatAutoloadTransportError(error: unknown, action: string): Error {
+export function formatAutoloadTransportError(error: unknown, action: string): Error {
   if (isTimeoutError(error)) {
     return new Error(
       `${action}: Avito не ответил за ${Math.round(autoloadTimeoutMs() / 1000)} секунд. Попробуйте запустить публикацию ещё раз и затем проверить статус автозагрузки.`,
@@ -96,10 +96,10 @@ async function fetchAutoload(
   try {
     return await fetchWithRetry(
       url,
-      {
+      () => ({
         ...init,
         signal: autoloadSignal(),
-      },
+      }),
       options,
     );
   } catch (error) {
@@ -325,17 +325,21 @@ export async function fetchAvitoAutoloadStatus(
   credentials: AvitoCredentials,
   options: { fetchFn?: FetchFn; sleepFn?: SleepFn } = {},
 ): Promise<AvitoAutoloadStatus> {
-  const token = await getAvitoStockToken(credentials, options);
-  const [current, lastSuccessful, uploadsData] = await Promise.all([
-    getOptionalAutoloadData(token, "/autoload/v4/uploads/current", options),
-    getOptionalAutoloadData(token, "/autoload/v4/uploads/last_successful", options),
-    getOptionalAutoloadData(token, "/autoload/v4/uploads?perPage=5&page=1", options),
-  ]);
-  const uploads = uploadsData && typeof uploadsData === "object" && Array.isArray((uploadsData as { uploads?: unknown[] }).uploads)
-    ? (uploadsData as { uploads: unknown[] }).uploads
-    : [];
+  try {
+    const token = await getAvitoStockToken(credentials, options);
+    const [current, lastSuccessful, uploadsData] = await Promise.all([
+      getOptionalAutoloadData(token, "/autoload/v4/uploads/current", options),
+      getOptionalAutoloadData(token, "/autoload/v4/uploads/last_successful", options),
+      getOptionalAutoloadData(token, "/autoload/v4/uploads?perPage=5&page=1", options),
+    ]);
+    const uploads = uploadsData && typeof uploadsData === "object" && Array.isArray((uploadsData as { uploads?: unknown[] }).uploads)
+      ? (uploadsData as { uploads: unknown[] }).uploads
+      : [];
 
-  return { current, lastSuccessful, uploads };
+    return { current, lastSuccessful, uploads };
+  } catch (error) {
+    throw formatAutoloadTransportError(error, "Получение статуса автозагрузки Avito");
+  }
 }
 
 export async function disableAvitoAutoload(

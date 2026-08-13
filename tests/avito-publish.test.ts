@@ -272,6 +272,20 @@ describe("Avito XML publication", () => {
     });
   });
 
+  it("explains token timeouts while loading autoload status", async () => {
+    vi.stubEnv("AVITO_AUTOLOAD_TIMEOUT_MS", "30000");
+    const fetchFn = vi.fn(async () => {
+      throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchAvitoAutoloadStatus(credentials, {
+        fetchFn,
+        sleepFn: async () => undefined,
+      }),
+    ).rejects.toThrow("Avito не ответил за 30 секунд");
+  });
+
   it("disables autoload and clears feed urls", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {

@@ -79,7 +79,7 @@ function retryDelay(response: Response | null, attempt: number): number {
 
 export async function fetchWithRetry(
   url: string,
-  init: RequestInit,
+  init: RequestInit | (() => RequestInit),
   options: {
     attempts?: number;
     fetchFn?: FetchFn;
@@ -94,7 +94,7 @@ export async function fetchWithRetry(
   for (let attempt = 0; attempt < attempts; attempt++) {
     let response: Response | null = null;
     try {
-      response = await fetchFn(url, init);
+      response = await fetchFn(url, typeof init === "function" ? init() : init);
       if (!RETRYABLE_STATUSES.has(response.status) || attempt === attempts - 1) {
         return response;
       }
@@ -133,11 +133,11 @@ export async function fetchAvitoItemsPage(
 
   const response = await fetchWithRetry(
     url.toString(),
-    {
+    () => ({
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
       signal: AbortSignal.timeout(requestTimeoutMs),
-    },
+    }),
     { attempts: requestAttempts, fetchFn, sleepFn },
   );
 

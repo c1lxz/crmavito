@@ -139,7 +139,7 @@ export async function getAvitoStockToken(
 ): Promise<string> {
   const response = await fetchWithRetry(
     "https://api.avito.ru/token/",
-    {
+    () => ({
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -149,7 +149,7 @@ export async function getAvitoStockToken(
       }),
       cache: "no-store",
       signal: AbortSignal.timeout(15_000),
-    },
+    }),
     options,
   );
 

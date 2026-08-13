@@ -51,6 +51,25 @@ describe("Avito synchronization transport", () => {
     expect(sleepFn).toHaveBeenCalledWith(2000);
   });
 
+  it("creates fresh request options for every retry", async () => {
+    const signals: AbortSignal[] = [];
+    const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      signals.push(init?.signal as AbortSignal);
+      if (signals.length === 1) throw new DOMException("timed out", "TimeoutError");
+      return new Response("ok", { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const response = await fetchWithRetry(
+      "https://example.test",
+      () => ({ signal: AbortSignal.timeout(30_000) }),
+      { fetchFn, sleepFn: async () => undefined, attempts: 2 },
+    );
+
+    expect(response.status).toBe(200);
+    expect(signals).toHaveLength(2);
+    expect(signals[0]).not.toBe(signals[1]);
+  });
+
   it("explains unauthorized_client token failures during product sync", async () => {
     const fetchFn = vi.fn(async (url: string | URL | Request) => {
       if (String(url).includes("/token")) {

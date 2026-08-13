@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getAvitoCredentials, getAvitoProfileAutoloadSettings } from "@/lib/avito/profile-store";
-import { fetchAvitoAutoloadProfile, publishAvitoXml } from "@/lib/avito/publish";
+import { fetchAvitoAutoloadProfile, formatAutoloadTransportError, publishAvitoXml } from "@/lib/avito/publish";
 import { fetchAvitoProfileInventory } from "@/lib/avito/profile-inventory";
 import { inspectAvitoXml } from "@/lib/botv/custom-xml-feed";
 import {
@@ -97,8 +97,9 @@ export async function POST(request: Request) {
       publish,
     });
   } catch (error) {
+    const formatted = formatAutoloadTransportError(error, "Публикация XML в Avito");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: formatted.message },
       { status: 502 },
     );
   }
