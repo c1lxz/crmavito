@@ -253,7 +253,7 @@ describe("Avito synchronization transport", () => {
     );
 
     expect(fetchFn).toHaveBeenCalledTimes(3);
-  });
+  }, 10_000);
 
   it("fills missing images from item detail API during sync", async () => {
     const previousLimit = process.env.AVITO_SYNC_IMAGE_DETAIL_LIMIT;

@@ -423,6 +423,11 @@ export async function syncAvitoProducts(
       continue;
     }
 
+    // Multi-profile sync is a hot path. Avoid scanning the full local XML archive when
+    // enrichment is disabled; list/existing images are enough and the order form can
+    // fetch a missing image on demand later.
+    if (!enrichMissingImages) continue;
+
     const botvImageUrl = await findBotvImageByTitle(item.title ?? item.name);
     if (botvImageUrl) {
       imageUrlsById.set(avitoItemId, botvImageUrl);
@@ -431,8 +436,6 @@ export async function syncAvitoProducts(
 
     // Page HTML and detail endpoints are heavily rate-limited by Avito. The multi-profile
     // catalog uses list images and local BotV images so one sync cannot take many minutes.
-    if (!enrichMissingImages) continue;
-
     if (!htmlBlocked && item.url && htmlImageAttempts < htmlImageLimit) {
       htmlImageAttempts++;
       const htmlImage = await fetchAvitoListingImage(item.url);

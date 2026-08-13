@@ -22,6 +22,10 @@ const profileSelectSource = readFileSync(
   path.resolve(__dirname, "../components/avito/avito-profile-select.tsx"),
   "utf8",
 );
+const profileRouteSource = readFileSync(
+  path.resolve(__dirname, "../app/api/avito-profiles/[id]/route.ts"),
+  "utf8",
+);
 
 describe("Avito credential profiles", () => {
   it("stores credentials and report email on Avito profiles", () => {
@@ -51,6 +55,13 @@ describe("Avito credential profiles", () => {
     expect(storeSource).toContain("clientSecret: _clientSecret");
     expect(storeSource).toContain("hasCredentials: Boolean(_clientId && _clientSecret)");
     expect(profileSelectSource).toContain("нужны API-ключи");
+  });
+
+  it("never clears saved credentials when an empty profile field is submitted", () => {
+    expect(profileRouteSource).toContain("clientId?.trim()");
+    expect(profileRouteSource).toContain("clientSecret?.trim()");
+    expect(profileRouteSource).not.toContain("clientId: parsed.data.clientId?.trim() || parsed.data.clientId");
+    expect(profileRouteSource).not.toContain("clientSecret: parsed.data.clientSecret?.trim() || parsed.data.clientSecret");
   });
 
   it("uses server profiles and optional manual keys in stock management", () => {

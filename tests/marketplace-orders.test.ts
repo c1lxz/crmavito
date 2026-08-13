@@ -88,6 +88,10 @@ describe("marketplace orders and statistics", () => {
       path.resolve(__dirname, "../components/reports/reports-client.tsx"),
       "utf8",
     );
+    const orderDialog = readFileSync(
+      path.resolve(__dirname, "../components/orders/create-order-dialog.tsx"),
+      "utf8",
+    );
     const charts = readFileSync(
       path.resolve(__dirname, "../components/dashboard/MarketplaceCharts.tsx"),
       "utf8",
@@ -96,6 +100,8 @@ describe("marketplace orders and statistics", () => {
     expect(orders).toContain('setCreateMarketplace("WB")');
     expect(orders).toContain("Создать заказ Wildberries");
     expect(orders).toContain('value="WB">Wildberries');
+    expect(orderDialog).toContain("ID сборочного задания WB");
+    expect(orderDialog).toContain("QR-код стикера для Telegram-группы");
     expect(reports).toContain("Заказы Авито / WB");
     expect(charts).toContain("Выручка и прибыль по площадкам");
     expect(charts).toContain("Динамика прибыли Авито / WB");

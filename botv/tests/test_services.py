@@ -353,7 +353,10 @@ def test_description_renderer_selects_product_template(tmp_path):
 
 
 def test_locations_are_exact_and_generate_one_ad_per_city():
-    locations = load_locations(_SETTINGS_DIR / "locations.json")
+    locations = [
+        location for location in load_locations(_SETTINGS_DIR / "locations.json")
+        if location.get("enabled", True)
+    ]
     assert [location["city"] for location in locations] == [
         "Санкт-Петербург",
         "Москва",

@@ -53,6 +53,7 @@ const python = path.join(botvDir, "venv", "bin", "python");
 const cli = path.join(botvDir, "web", "session_cli.py");
 const uploadDir = path.join(botvDir, "tmp", "web_uploads");
 const staleUploadAgeMs = 24 * 60 * 60 * 1000;
+const sessionUpdateQueues = new Map<string, Promise<unknown>>();
 
 export async function pruneStaleUploadEntries(directory: string, maxAgeMs = staleUploadAgeMs) {
   await mkdir(directory, { recursive: true });
@@ -111,7 +112,16 @@ export async function listSessions(limit = 20): Promise<BotvSessionHistoryItem[]
 }
 
 export async function updateSession(id: string, payload: unknown): Promise<BotvSession> {
-  return JSON.parse(await runCli(["update", id, JSON.stringify(payload)])) as BotvSession;
+  const previous = sessionUpdateQueues.get(id) ?? Promise.resolve();
+  const update = previous.catch(() => undefined).then(async () => (
+    JSON.parse(await runCli(["update", id, JSON.stringify(payload)])) as BotvSession
+  ));
+  sessionUpdateQueues.set(id, update);
+  try {
+    return await update;
+  } finally {
+    if (sessionUpdateQueues.get(id) === update) sessionUpdateQueues.delete(id);
+  }
 }
 
 export function xmlIdScopeFromProfile(profileId?: string | null, sessionId?: string | null): string {

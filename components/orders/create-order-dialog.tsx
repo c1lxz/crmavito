@@ -386,7 +386,7 @@ export function CreateOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="flex max-w-lg flex-col overflow-hidden p-0">
+      <DialogContent className="flex h-[calc(100dvh-var(--app-top-pad,48px)-var(--app-bottom-pad,0px)-1rem)] max-w-lg flex-col overflow-hidden p-0 sm:h-[min(760px,calc(100dvh-var(--app-top-pad,48px)-var(--app-bottom-pad,0px)-2rem))]">
         <DialogHeader className="shrink-0 border-b border-border/70 px-4 py-4 pr-14 text-left">
           <DialogTitle>
             {isEditing
@@ -673,12 +673,23 @@ export function CreateOrderDialog({
                 </div>
               )}
               <div className="space-y-1">
-                <Label>Трек-номер / штрихкод</Label>
+                <Label>
+                  {form.marketplace === "WB"
+                    ? "ID сборочного задания WB"
+                    : "Трек-номер / штрихкод"}
+                </Label>
                 <Input
                   required
+                  inputMode={form.marketplace === "WB" ? "numeric" : undefined}
+                  pattern={form.marketplace === "WB" ? "[0-9]{1,20}" : undefined}
                   value={form.trackingNumber}
                   onChange={(event) => handleTrackingChange(event.target.value)}
                 />
+                {form.marketplace === "WB" ? (
+                  <p className="text-xs text-muted-foreground">
+                    По этому ID WB сформирует QR-код стикера для Telegram-группы.
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label>Транспортная компания</Label>

@@ -539,6 +539,7 @@ export function BotvMiniApp() {
     rememberSession(data);
     void refreshHistory();
     setStatus("ready");
+    return data;
   }
 
   async function saveLocations(locations: BotvLocation[]) {
@@ -622,7 +623,7 @@ export function BotvMiniApp() {
     setReplacementXmlCount((count) => count + 1);
   }
 
-  async function run(action: () => Promise<void>) {
+  async function run(action: () => Promise<unknown>) {
     try {
       await action();
     } catch (err) {
@@ -802,7 +803,11 @@ export function BotvMiniApp() {
 
   async function saveProductPrice(index: number, value: number | null) {
     updateLocalProduct(index, { price: value });
-    await patch({ products: [{ index, price: value }] });
+    const saved = await patch({ products: [{ index, price: value }] });
+    const savedPrice = saved?.products.find((product: BotvProduct) => product.index === index)?.price ?? null;
+    if (savedPrice !== value) {
+      throw new Error("Цена не сохранилась. Повторите ввод.");
+    }
   }
 
   async function saveProductDescription(index: number, value: string) {

@@ -249,6 +249,15 @@ describe("botv mini app UI", () => {
     expect(photoRouteSource).not.toContain("resolvePhoto");
   });
 
+  it("confirms price persistence and serializes session updates", () => {
+    const sessionSource = readFileSync(path.resolve(__dirname, "../lib/botv/session.ts"), "utf8");
+
+    expect(clientSource).toContain("Цена не сохранилась. Повторите ввод.");
+    expect(clientSource).toContain("savedPrice !== value");
+    expect(sessionSource).toContain("sessionUpdateQueues");
+    expect(sessionSource).toContain("previous.catch(() => undefined).then");
+  });
+
 
   it("serves XML photos from static public URLs", () => {
     const cliSource = readFileSync(path.resolve(__dirname, "../botv/web/session_cli.py"), "utf8");

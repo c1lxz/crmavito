@@ -23,6 +23,14 @@ describe("mobile interaction stability", () => {
     expect(orderDialog).toContain('className="flex min-h-0 flex-1 flex-col"');
     expect(orderDialog).toContain("min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain");
     expect(orderDialog).toContain('className="shrink-0 border-t');
+    expect(orderDialog).toContain("h-[calc(100dvh-var(--app-top-pad,48px)");
+  });
+
+  it("lets portal selects grow to their options instead of one trigger-height row", () => {
+    const select = source("components/ui/select.tsx");
+
+    expect(select).not.toContain("h-[var(--radix-select-trigger-height)]");
+    expect(select).toContain("min-w-[var(--radix-select-trigger-width)]");
   });
 
   it("uses iOS-safe input sizing without disabling page zoom", () => {

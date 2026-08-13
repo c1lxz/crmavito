@@ -118,6 +118,41 @@ def test_web_session_archive_update_and_xml(tmp_path):
     assert phone_xml["xml"] == replaced_phone_xml
 
 
+def test_custom_location_is_available_in_later_drops(tmp_path, monkeypatch):
+    import web.session_cli as session_cli
+
+    settings_dir = tmp_path / "settings"
+    settings_dir.mkdir()
+    locations_path = settings_dir / "locations.json"
+    locations_path.write_text(json.dumps([
+        {"city": "Москва", "address": "Москва, улица А, 1"},
+    ], ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(session_cli.config, "settings_dir", settings_dir)
+    monkeypatch.setattr(session_cli.config, "tmp_dir", tmp_path / "runtime")
+
+    session_cli._save_custom_locations([
+        {
+            "city": "Казань",
+            "address": "Казань, улица Баумана, 1",
+            "enabled": True,
+            "custom": True,
+        },
+    ])
+
+    custom_locations_path = session_cli.config.tmp_dir / "custom_locations.json"
+    saved = json.loads(custom_locations_path.read_text(encoding="utf-8"))
+    assert saved == [{
+        "city": "Казань",
+        "address": "Казань, улица Баумана, 1",
+        "custom": True,
+        "enabled": False,
+    }]
+    later_drop = session_cli._session_locations({}, include_disabled=True)
+    assert later_drop[-1]["city"] == "Казань"
+    assert later_drop[-1]["enabled"] is False
+    assert later_drop[-1]["custom"] is True
+
+
 def test_web_session_create_move_consumes_uploaded_archive(tmp_path):
     archive = tmp_path / "large-drop.zip"
     with zipfile.ZipFile(archive, "w") as zf:

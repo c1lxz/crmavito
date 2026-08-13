@@ -36,13 +36,20 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const {
+    clientId,
+    clientSecret,
+    reportEmail,
+    contactPhone,
+    ...publicData
+  } = parsed.data;
   const data = artistOwner
     ? {
-        ...parsed.data,
-        clientId: parsed.data.clientId?.trim() || parsed.data.clientId,
-        clientSecret: parsed.data.clientSecret?.trim() || parsed.data.clientSecret,
-        reportEmail: parsed.data.reportEmail?.trim() || parsed.data.reportEmail,
-        contactPhone: parsed.data.contactPhone?.trim() || parsed.data.contactPhone,
+        ...publicData,
+        ...(clientId?.trim() ? { clientId: clientId.trim() } : {}),
+        ...(clientSecret?.trim() ? { clientSecret: clientSecret.trim() } : {}),
+        ...(reportEmail?.trim() ? { reportEmail: reportEmail.trim() } : {}),
+        ...(contactPhone?.trim() ? { contactPhone: contactPhone.trim() } : {}),
       }
     : {
         name: parsed.data.name,

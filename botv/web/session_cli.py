@@ -147,7 +147,9 @@ def _session_dir(session_id: str) -> Path:
 
 def _write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(temp_path, path)
 
 
 def _read_json(path: Path) -> dict:
@@ -287,11 +289,42 @@ def _session_locations(state: dict, *, include_disabled: bool = False) -> list[d
     stored = state.get("locations")
     if stored is None:
         stored = [
-            {**location, "enabled": True, "custom": False}
+            {
+                **location,
+                "enabled": bool(location.get("enabled", not location.get("custom", False))),
+                "custom": bool(location.get("custom", False)),
+            }
             for location in load_locations(config.settings_dir / "locations.json")
         ]
+        custom_path = config.tmp_dir / "custom_locations.json"
+        if custom_path.exists():
+            custom_locations = json.loads(custom_path.read_text(encoding="utf-8"))
+            if isinstance(custom_locations, list):
+                stored.extend(custom_locations)
     locations = _normalize_locations(stored)
     return locations if include_disabled else [item for item in locations if item["enabled"]]
+
+
+def _save_custom_locations(locations: list[dict[str, object]]) -> None:
+    """Persist new XML addresses so every later drop can reuse them."""
+    locations_path = config.tmp_dir / "custom_locations.json"
+    stored = json.loads(locations_path.read_text(encoding="utf-8")) if locations_path.exists() else []
+    merged: list[dict[str, object]] = list(stored) if isinstance(stored, list) else []
+    seen = {(item["city"].casefold(), item["address"].casefold()) for item in merged}
+    changed = False
+    for item in locations:
+        if not item.get("custom"):
+            continue
+        city = str(item["city"]).strip()
+        address = str(item["address"]).strip()
+        key = (city.casefold(), address.casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append({"city": city, "address": address, "custom": True, "enabled": False})
+        changed = True
+    if changed:
+        _write_json(locations_path, merged)
 
 
 
@@ -431,6 +464,7 @@ def update_session(session_id: str, payload: dict) -> dict:
         state["drop_stock_quantity"] = _drop_stock_quantity(payload.get("dropStockQuantity"))
     if "locations" in payload:
         state["locations"] = _normalize_locations(payload.get("locations"))
+        _save_custom_locations(state["locations"])
     for item in payload.get("products", []):
         index = int(item.get("index") or 0) - 1
         if index < 0 or index >= len(products):

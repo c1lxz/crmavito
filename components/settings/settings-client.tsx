@@ -120,15 +120,16 @@ export function SettingsClient({ user, users: initialUsers, avitoProfiles: initi
   async function saveAvitoProfile(profile: AvitoProfile) {
     setSavingAvitoProfileId(profile.id);
     try {
+      const profileSnapshot = avitoProfiles.find((item) => item.id === profile.id) ?? profile;
       const response = await fetch(`/api/avito-profiles/${profile.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: profile.name,
-          clientId: profile.clientId?.trim() || null,
-          clientSecret: profile.clientSecret?.trim() || null,
-          reportEmail: profile.reportEmail?.trim() || null,
-          contactPhone: profile.contactPhone?.trim() || null,
+          name: profileSnapshot.name,
+          ...(profileSnapshot.clientId !== null ? { clientId: profileSnapshot.clientId.trim() } : {}),
+          ...(profileSnapshot.clientSecret !== null ? { clientSecret: profileSnapshot.clientSecret.trim() } : {}),
+          ...(profileSnapshot.reportEmail !== null ? { reportEmail: profileSnapshot.reportEmail.trim() } : {}),
+          ...(profileSnapshot.contactPhone !== null ? { contactPhone: profileSnapshot.contactPhone.trim() } : {}),
         }),
       });
       const data = await response.json();
