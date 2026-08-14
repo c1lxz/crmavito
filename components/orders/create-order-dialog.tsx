@@ -15,6 +15,8 @@ import { formatDateInput, formatRub, matchesSearch } from "@/lib/utils";
 import { detectCarrier, KNOWN_CARRIERS } from "@/lib/tracking";
 import { toast } from "@/lib/hooks/use-toast";
 import { findWarehouseReturn } from "@/lib/orders/warehouse-match";
+import type { OrderListItem } from "@/lib/orders/list";
+import { completeOrderSave } from "@/lib/orders/save-client";
 
 export interface OrderFormProduct {
   id: string;
@@ -75,6 +77,7 @@ interface Props {
   initialValue?: OrderFormInitialValue;
   depositedReturns?: DepositedReturn[];
   defaultMarketplace?: "AVITO" | "WB";
+  onSaved?: (order: OrderListItem) => void;
 }
 
 export interface DepositedReturn {
@@ -129,6 +132,7 @@ export function CreateOrderDialog({
   initialValue,
   depositedReturns = [],
   defaultMarketplace = "AVITO",
+  onSaved,
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -331,6 +335,7 @@ export function CreateOrderDialog({
       return;
     }
     setLoading(true);
+    let savedOrder: OrderListItem | null = null;
     try {
       const response = await fetch(
         isEditing ? `/api/orders/${initialValue!.id}` : "/api/orders",
@@ -363,20 +368,23 @@ export function CreateOrderDialog({
           }),
         }
       );
+      const result = await response.json();
       if (!response.ok) {
-        const error = await response.json();
         throw new Error(
-          typeof error.error === "string" ? error.error : "Проверьте заполненные поля"
+          typeof result.error === "string" ? result.error : "Проверьте заполненные поля"
         );
       }
-      toast({ title: isEditing ? "Заказ обновлён" : "Заказ создан" });
-      onClose();
-      router.refresh();
+      savedOrder = result as OrderListItem;
     } catch (error) {
       toast({ title: "Ошибка", description: String(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
+
+    if (!savedOrder) return;
+    toast({ title: isEditing ? "Заказ обновлён" : "Заказ создан" });
+    onClose();
+    completeOrderSave(savedOrder, onSaved, () => router.refresh());
   }
 
   const totalRevenue = form.items.reduce(

@@ -13,7 +13,7 @@ import {
   getWarehouseBlockingOrderWhere,
 } from "@/lib/orders/warehouse-match";
 import { parseDatabaseDateInput } from "@/lib/utils";
-import { getOrderList } from "@/lib/orders/list";
+import { getOrderList, getOrderListItem } from "@/lib/orders/list";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -256,5 +256,6 @@ export async function POST(req: NextRequest) {
 
   await processOrderNotificationByOrderId(order.id);
 
-  return NextResponse.json(order, { status: 201 });
+  const createdOrder = await getOrderListItem(order.id);
+  return NextResponse.json(createdOrder ?? order, { status: 201 });
 }

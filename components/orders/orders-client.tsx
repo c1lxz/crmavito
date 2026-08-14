@@ -15,34 +15,9 @@ import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import { buildOrderFilterQuery } from "@/lib/orders/filters";
 import { CreateOrderDialog } from "./create-order-dialog";
 import type { OrderStatus } from "@prisma/client";
+import type { OrderListItem } from "@/lib/orders/list";
 
-interface Order {
-  id: string;
-  orderNumber: string;
-  productNameSnapshot: string;
-  variant: string | null;
-  trackingNumber: string;
-  quantity: number;
-  status: OrderStatus;
-  marketplace: "AVITO" | "WB";
-  orderDate: string | Date;
-  destinationCity: string | null;
-  revenue: number;
-  netProfit: number;
-  salePriceAtOrder: number;
-  purchasePricePerUnit: number;
-  logisticsCost: number;
-  commissionCost: number;
-  otherCosts: number;
-  product: { imageUrl: string | null };
-  items?: Array<{
-    imageUrls: string[];
-    sourceReturnId?: string | null;
-    product?: { imageUrl: string | null };
-  }>;
-  counterparty: { id: string; name: string };
-  avitoProfile: { id: string; name: string; color: string | null; isActive: boolean } | null;
-}
+type Order = OrderListItem;
 
 interface Props {
   initialOrders: Order[];
@@ -155,6 +130,7 @@ export function OrdersClient({
   const [dateFrom, setDateFrom] = useState(initialDateFrom);
   const [dateTo, setDateTo] = useState(initialDateTo);
   const [showCreate, setShowCreate] = useState(initialOpen);
+  const [availableDepositedReturns, setAvailableDepositedReturns] = useState(depositedReturns);
   const [createMarketplace, setCreateMarketplace] = useState<"AVITO" | "WB">("AVITO");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -177,6 +153,10 @@ export function OrdersClient({
     setSummary(initialSummary);
     setLoadedPage(1);
   }, [initialOrders, initialSummary, initialTotal]);
+
+  useEffect(() => {
+    setAvailableDepositedReturns(depositedReturns);
+  }, [depositedReturns]);
 
   useEffect(() => {
     if (firstListRequestRef.current) {
@@ -411,6 +391,37 @@ export function OrdersClient({
       else filteredIds.forEach((id) => next.add(id));
       return next;
     });
+  }
+
+  function handleOrderCreated(order: Order) {
+    const orderDay = new Date(order.orderDate).toISOString().slice(0, 10);
+    const normalizedSearch = search.trim().toLowerCase();
+    const matchesCurrentFilters =
+      (statusFilter === "ALL" || order.status === statusFilter) &&
+      (counterpartyFilter === "ALL" || order.counterparty.id === counterpartyFilter) &&
+      (avitoProfileFilter === "ALL" || order.avitoProfile?.id === avitoProfileFilter) &&
+      (marketplaceFilter === "ALL" || order.marketplace === marketplaceFilter) &&
+      (!warehouseOnly || hasWarehouseItem(order)) &&
+      (!dateFrom || orderDay >= dateFrom) &&
+      (!dateTo || orderDay <= dateTo) &&
+      (!normalizedSearch ||
+        order.productNameSnapshot.toLowerCase().includes(normalizedSearch) ||
+        order.trackingNumber.toLowerCase().includes(normalizedSearch) ||
+        order.orderNumber.toLowerCase().includes(normalizedSearch));
+
+    if (matchesCurrentFilters) {
+      setOrders((current) => [order, ...current.filter((item) => item.id !== order.id)]);
+      setTotal((current) => current + 1);
+    }
+
+    const usedReturnIds = new Set(
+      order.items.flatMap((item) => (item.sourceReturnId ? [item.sourceReturnId] : [])),
+    );
+    if (usedReturnIds.size > 0) {
+      setAvailableDepositedReturns((current) =>
+        current.filter((item) => !usedReturnIds.has(item.id)),
+      );
+    }
   }
 
   async function loadMoreOrders() {
@@ -1211,11 +1222,12 @@ export function OrdersClient({
       <CreateOrderDialog
         open={showCreate}
         onClose={() => setShowCreate(false)}
+        onSaved={handleOrderCreated}
         defaultMarketplace={createMarketplace}
         counterparties={counterparties}
         avitoProfiles={avitoProfiles}
         products={products.map((p) => ({ ...p, salePrice: typeof p.salePrice === 'string' ? parseFloat(p.salePrice) : p.salePrice }))}
-        depositedReturns={depositedReturns}
+        depositedReturns={availableDepositedReturns}
       />
     </div>
   );

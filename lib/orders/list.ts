@@ -109,6 +109,16 @@ export function serializeOrderListItem(order: SelectedOrder) {
   };
 }
 
+export type OrderListItem = ReturnType<typeof serializeOrderListItem>;
+
+export async function getOrderListItem(id: string): Promise<OrderListItem | null> {
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: orderListSelect,
+  });
+  return order ? serializeOrderListItem(order) : null;
+}
+
 export async function getOrderList(
   filters: OrderListFilters,
   page = 1,
