@@ -73,10 +73,11 @@ describe("server refresh propagation", () => {
   });
 
   it("ranks top products by active orders instead of received sales", () => {
-    const contents = source("app/(app)/dashboard/page.tsx");
-    expect(contents).toContain("buildTopProductsByOrders(topProducts)");
-    expect(contents).toContain("formatOrderCount(p.orders)");
-    expect(contents).toContain('status: { not: "CANCELLED" }');
-    expect(contents).toContain("product: { select: { imageUrl: true } }");
+    const query = source("lib/dashboard/top-products-query.ts");
+    const widget = source("components/dashboard/top-products-list.tsx");
+    expect(query).toContain("buildTopProductsByOrders(orders, limit)");
+    expect(widget).toContain("formatOrderCount(product.orders)");
+    expect(query).toContain('status: { not: "CANCELLED" }');
+    expect(query).toContain("product: { select: { imageUrl: true } }");
   });
 });

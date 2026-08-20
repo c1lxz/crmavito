@@ -581,9 +581,6 @@ export function BotvMiniApp() {
 
   async function downloadXml(phone?: string) {
     if (!session) return;
-    if (!publishLegacyIds && (!hasPublishAuth || manualPublishCredentialsPartial)) {
-      throw new Error("Выберите профиль Avito для XML с новыми ID или включите старые ID для восстановления.");
-    }
     setStatus("generating");
     setError("");
     const params = new URLSearchParams();
@@ -606,8 +603,10 @@ export function BotvMiniApp() {
     const a = document.createElement("a");
     a.href = url;
     a.download = res.headers.get("content-disposition")?.match(/filename="(.+)"/)?.[1] ?? "avito.xml";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
     setStatus("ready");
   }
 
@@ -1102,7 +1101,7 @@ export function BotvMiniApp() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" disabled={status === "generating" || (!publishLegacyIds && (!hasPublishAuth || manualPublishCredentialsPartial))} onClick={() => run(generateXml)}>
+                  <Button size="sm" disabled={status === "generating"} onClick={() => run(generateXml)}>
                     <Download className="h-4 w-4" />
                     XML
                   </Button>

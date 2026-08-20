@@ -121,12 +121,17 @@ describe("cancelled orders", () => {
       path.resolve(__dirname, "../lib/db/reports.ts"),
       "utf8",
     );
+    const topProductsQuery = readFileSync(
+      path.resolve(__dirname, "../lib/dashboard/top-products-query.ts"),
+      "utf8",
+    );
     const counterparties = readFileSync(
       path.resolve(__dirname, "../app/(app)/counterparties/page.tsx"),
       "utf8",
     );
 
-    expect(dashboard.match(/status: \{ not: "CANCELLED" \}/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(dashboard).toContain('status: { not: "CANCELLED" }');
+    expect(topProductsQuery).toContain('status: { not: "CANCELLED" }');
     expect(dashboard).toContain('status: "RECEIVED"');
     expect(reports.match(/status: \{ not: "CANCELLED" \}/g)?.length).toBeGreaterThanOrEqual(5);
     expect(counterparties).toContain('status: { not: "CANCELLED" }');

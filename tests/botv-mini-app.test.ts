@@ -110,7 +110,10 @@ describe("botv mini app UI", () => {
     expect(clientSource).toContain("const xmlText = await blob.text()");
     expect(clientSource).toContain("parseAdIdsXml(xmlText)");
     expect(clientSource).toContain("manualPublishCredentialsComplete ? manualPublishClientId.trim() : selectedPublishProfileId");
-    expect(clientSource).toContain("!publishLegacyIds && (!hasPublishAuth || manualPublishCredentialsPartial)");
+    expect(clientSource).toContain('disabled={status === "generating"}');
+    expect(clientSource).not.toContain("Выберите профиль Avito для XML с новыми ID");
+    expect(clientSource).toContain("document.body.appendChild(a)");
+    expect(clientSource).toContain("window.setTimeout(() => URL.revokeObjectURL(url), 1_000)");
     expect(clientSource).not.toContain("await downloadXml(replacementPhone); setPhonePromptOpen(false)");
   });
 

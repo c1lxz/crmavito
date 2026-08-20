@@ -59,9 +59,13 @@ describe("mobile dashboard layout", () => {
       path.resolve(__dirname, "../app/(app)/dashboard/page.tsx"),
       "utf8",
     );
+    const widgetSource = readFileSync(
+      path.resolve(__dirname, "../components/dashboard/top-products-list.tsx"),
+      "utf8",
+    );
 
     expect(source).toContain("grid-cols-[auto_minmax(0,1fr)_minmax(4.75rem,auto)]");
-    expect(source).toContain("grid-cols-[1.5rem_minmax(0,1fr)_minmax(4.5rem,auto)]");
+    expect(widgetSource).toContain("grid-cols-[1.5rem_minmax(0,1fr)_minmax(4.5rem,auto)]");
     expect(source).toContain("const getOrderImageUrl");
     expect(source).toContain("item.imageUrls.length > 0");
     expect(source).toContain("CRM Avito");
@@ -70,5 +74,23 @@ describe("mobile dashboard layout", () => {
     expect(source).toMatch(
       /alt=\{order\.productNameSnapshot\}[\s\S]*?width=\{44\}[\s\S]*?height=\{44\}[\s\S]*?unoptimized/,
     );
+  });
+
+  it("refreshes only the top-products widget while the dashboard is visible", () => {
+    const widgetSource = readFileSync(
+      path.resolve(__dirname, "../components/dashboard/top-products-list.tsx"),
+      "utf8",
+    );
+    const routeSource = readFileSync(
+      path.resolve(__dirname, "../app/api/dashboard/top-products/route.ts"),
+      "utf8",
+    );
+
+    expect(widgetSource).toContain('fetch("/api/dashboard/top-products", { cache: "no-store" })');
+    expect(widgetSource).toContain("window.setInterval");
+    expect(widgetSource).toContain('document.visibilityState === "visible"');
+    expect(widgetSource).toContain('removeEventListener("visibilitychange"');
+    expect(routeSource).toContain('"cache-control": "no-store"');
+    expect(routeSource).toContain("getDashboardTopProducts");
   });
 });

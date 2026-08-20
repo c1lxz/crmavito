@@ -17,8 +17,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { OrderStatus } from "@prisma/client";
-import { buildTopProductsByOrders } from "@/lib/dashboard/top-products";
 import { getArchivedSourceOrderExclusion } from "@/lib/orders/warehouse-match";
+import { getDashboardTopProducts } from "@/lib/dashboard/top-products-query";
+import { TopProductsList } from "@/components/dashboard/top-products-list";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,7 @@ async function getDashboardData() {
     createdAt: true,
   } as const;
   const activityStart = weekStart < monthStart ? weekStart : monthStart;
-  const [receivedOrders, monthExpenses, lastOrders, topProducts, createdOrders] =
+  const [receivedOrders, monthExpenses, lastOrders, topProductsList, createdOrders] =
     await Promise.all([
       prisma.order.findMany({
         where: {
@@ -83,26 +84,7 @@ async function getDashboardData() {
           },
         },
       }),
-      prisma.order.findMany({
-        where: {
-          isDeleted: false,
-          status: { not: "CANCELLED" },
-          ...getArchivedSourceOrderExclusion(),
-        },
-        select: {
-          productId: true,
-          productNameSnapshot: true,
-          product: { select: { imageUrl: true } },
-          items: {
-            select: {
-              productId: true,
-              productNameSnapshot: true,
-              product: { select: { imageUrl: true } },
-            },
-            orderBy: { position: "asc" },
-          },
-        },
-      }),
+      getDashboardTopProducts(),
       prisma.order.findMany({
         where: {
           isDeleted: false,
@@ -137,8 +119,6 @@ async function getDashboardData() {
   const monthFin = calc(monthOrders);
   const monthExpensesTotal = monthExpenses.reduce((s, e) => s + toDecimalNumber(e.amount), 0);
 
-  const topProductsList = buildTopProductsByOrders(topProducts);
-
   return {
     todaySales: todayOrders.length,
     todayOrders: todayCreatedOrders.length,
@@ -166,16 +146,6 @@ export default async function DashboardPage() {
     { label: "Заказы за 7 дней", value: `${data.weekOrders}`, sub: formatRub(data.weekOrderAmount) },
     { label: "Получено за 7 дней", value: `${data.weekSales}`, sub: `${formatRub(data.weekProfit)} прибыли` },
   ];
-
-  const formatOrderCount = (count: number) => {
-    const lastTwo = count % 100;
-    const last = count % 10;
-    if (last === 1 && lastTwo !== 11) return `${count} заказ`;
-    if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) {
-      return `${count} заказа`;
-    }
-    return `${count} заказов`;
-  };
 
   const quickActions = [
     { label: "Новый заказ", icon: Plus, href: "/orders?new=1" },
@@ -299,22 +269,7 @@ export default async function DashboardPage() {
               Все товары <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
-          <Card>
-            <CardContent className="p-2">
-              {data.topProductsList.map((p, i) => (
-                <div key={p.id} className="grid min-w-0 grid-cols-[1.5rem_minmax(0,1fr)_minmax(4.5rem,auto)] items-center gap-2 rounded-md px-2 py-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary text-xs font-semibold text-muted-foreground">{i + 1}</span>
-                  <p className="min-w-0 flex-1 truncate text-sm font-medium">{p.name}</p>
-                  <p className="min-w-0 truncate text-right text-sm font-semibold tabular-nums">
-                    {formatOrderCount(p.orders)}
-                  </p>
-                </div>
-              ))}
-              {data.topProductsList.length === 0 && (
-                <p className="py-3 text-center text-sm font-medium text-muted-foreground">Нет данных</p>
-              )}
-            </CardContent>
-          </Card>
+          <TopProductsList initialProducts={data.topProductsList} />
         </div>
         </div>
 
